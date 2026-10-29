@@ -209,12 +209,6 @@ autobuildPollInterval: 1m0s
 # Interval to poll for hung and pending jobs and automatically terminate them.
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
-# Maximum age of a pending provisioner job before it is eligible for automatic
-# termination, even while eligible provisioners are online. Jobs with no eligible
-# online provisioner remain eligible for termination after 30 minutes. Must be
-# greater than 30 minutes.
-# (default: 2h0m0s, type: duration)
-jobReaperMaxPendingAge: 2h0m0s
 introspection:
   statsCollection:
     usageStats:
@@ -505,6 +499,13 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+  # Maximum time since creation before a pending provisioner job becomes eligible
+  # for automatic termination, even if a provisioner daemon that matches the job's
+  # organization, provisioner type, and tags was last seen by Coder within the past
+  # 90 seconds. Pending jobs with no such provisioner become eligible for
+  # termination 30 minutes after their last update. Must be greater than 30 minutes.
+  # (default: 2h0m0s, type: duration)
+  jobReaperMaxPendingAge: 2h0m0s
   # Disable the reuse of Terraform modules cached at template import for all
   # templates. Modules are re-downloaded on every workspace build. Individual
   # templates cannot opt back in.

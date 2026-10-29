@@ -725,7 +725,6 @@ type DeploymentValues struct {
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
-	JobReaperMaxPendingAge                  serpent.Duration                     `json:"job_reaper_max_pending_age,omitempty"`
 	Cluster                                 ClusterConfig                        `json:"cluster,omitempty" typescript:",notnull"`
 	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
@@ -1284,12 +1283,13 @@ type ExternalAuthConfig struct {
 
 type ProvisionerConfig struct {
 	// Daemons is the number of built-in terraform provisioners.
-	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
-	DaemonTypes         serpent.StringArray `json:"daemon_types" typescript:",notnull"`
-	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
-	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
+	Daemons                serpent.Int64       `json:"daemons" typescript:",notnull"`
+	DaemonTypes            serpent.StringArray `json:"daemon_types" typescript:",notnull"`
+	DaemonPollInterval     serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter       serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval    serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
+	JobReaperMaxPendingAge serpent.Duration    `json:"job_reaper_max_pending_age" typescript:",notnull"`
+	DaemonPSK              serpent.String      `json:"daemon_psk" typescript:",notnull"`
 	// DisableModuleCache disables the reuse of Terraform modules cached at
 	// template import for every template in the deployment. Templates cannot
 	// opt back in.
@@ -2386,21 +2386,6 @@ communicating directly.`,
 			YAML:        "jobHangDetectorInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
-		{
-			Name:        "Job Reaper Maximum Pending Age",
-			Description: "Maximum age of a pending provisioner job before it is eligible for automatic termination, even while eligible provisioners are online. Jobs with no eligible online provisioner remain eligible for termination after 30 minutes. Must be greater than 30 minutes.",
-			Flag:        "job-reaper-max-pending-age",
-			Env:         "CODER_JOB_REAPER_MAX_PENDING_AGE",
-			Default:     (2 * time.Hour).String(),
-			Value: serpent.Validate(&c.JobReaperMaxPendingAge, func(value *serpent.Duration) error {
-				if value.Value() <= 30*time.Minute {
-					return xerrors.New("must be greater than 30 minutes")
-				}
-				return nil
-			}),
-			YAML:        "jobReaperMaxPendingAge",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-		},
 		httpAddress,
 		tlsBindAddress,
 		{
@@ -3349,6 +3334,22 @@ communicating directly.`,
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Job Reaper Maximum Pending Age",
+			Description: "Maximum time since creation before a pending provisioner job becomes eligible for automatic termination, even if a provisioner daemon that matches the job's organization, provisioner type, and tags was last seen by Coder within the past 90 seconds. Pending jobs with no such provisioner become eligible for termination 30 minutes after their last update. Must be greater than 30 minutes.",
+			Flag:        "job-reaper-max-pending-age",
+			Env:         "CODER_JOB_REAPER_MAX_PENDING_AGE",
+			Default:     (2 * time.Hour).String(),
+			Value: serpent.Validate(&c.Provisioner.JobReaperMaxPendingAge, func(value *serpent.Duration) error {
+				if value.Value() <= 30*time.Minute {
+					return xerrors.New("must be greater than 30 minutes")
+				}
+				return nil
+			}),
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "jobReaperMaxPendingAge",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{

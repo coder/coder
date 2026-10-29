@@ -5397,7 +5397,6 @@ export interface DeploymentValues {
 	readonly http_address?: string;
 	readonly autobuild_poll_interval?: number;
 	readonly job_hang_detector_interval?: number;
-	readonly job_reaper_max_pending_age?: number;
 	readonly cluster?: ClusterConfig;
 	readonly derp?: DERP;
 	readonly prometheus?: PrometheusConfig;
@@ -8659,6 +8658,7 @@ export interface ProvisionerConfig {
 	readonly daemon_poll_interval: number;
 	readonly daemon_poll_jitter: number;
 	readonly force_cancel_interval: number;
+	readonly job_reaper_max_pending_age: number;
 	readonly daemon_psk: string;
 	/**
 	 * DisableModuleCache disables the reuse of Terraform modules cached at

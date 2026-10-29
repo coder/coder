@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -26,6 +25,8 @@ const (
 
 	// PendingJobDuration is the duration since the last update to a PENDING
 	// job before it can be reaped when no eligible provisioner is online.
+	// Keep the --job-reaper-max-pending-age validation and description in
+	// codersdk/deployment.go in sync with this duration.
 	PendingJobDuration = 30 * time.Minute
 
 	// HungJobExitTimeout is the duration of time that provisioners should allow
@@ -46,20 +47,20 @@ func JobLogMessages(reapType ReapType, threshold time.Duration) []string {
 	return []string{
 		"",
 		"====================",
-		fmt.Sprintf("Coder: Build has been detected as %s and will be terminated.", reapDescription(reapType, threshold)),
+		reapMessage(reapType, threshold, "will be terminated"),
 		"====================",
 		"",
 	}
 }
 
-func reapDescription(reapType ReapType, threshold time.Duration) string {
+func reapMessage(reapType ReapType, threshold time.Duration, termination string) string {
 	switch reapType {
 	case Pending:
-		return fmt.Sprintf("pending for %.0f minutes with no eligible provisioner currently online", threshold.Minutes())
+		return fmt.Sprintf("Coder: Build has not been updated for at least %.0f minutes, and no online provisioner matches its requirements. It %s. Contact your administrator.", threshold.Minutes(), termination)
 	case PendingMaxAge:
-		return fmt.Sprintf("pending beyond the maximum age of %.0f minutes", threshold.Minutes())
+		return fmt.Sprintf("Coder: Build has been pending for more than %.0f minutes since creation, exceeding this deployment's maximum pending age. It %s. Contact your administrator to review the CODER_JOB_REAPER_MAX_PENDING_AGE setting.", threshold.Minutes(), termination)
 	default:
-		return fmt.Sprintf("%s for %.0f minutes", reapType, threshold.Minutes())
+		return fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and %s.", reapType, threshold.Minutes(), termination)
 	}
 }
 
@@ -105,12 +106,13 @@ type Detector struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	db            database.Store
-	pubsub        pubsub.Pubsub
-	log           slog.Logger
-	tick          <-chan time.Time
-	stats         chan<- Stats
-	maxPendingAge time.Duration
+	db                       database.Store
+	pubsub                   pubsub.Pubsub
+	log                      slog.Logger
+	tick                     <-chan time.Time
+	stats                    chan<- Stats
+	maxPendingAge            time.Duration
+	provisionerStaleInterval time.Duration
 }
 
 // Stats contains statistics about the last run of the detector.
@@ -125,21 +127,29 @@ type Stats struct {
 }
 
 // New returns a new job reaper.
-func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time, maxPendingAge time.Duration) *Detector {
+// maxPendingAge must be greater than [PendingJobDuration].
+// provisionerStaleInterval is the maximum time since a provisioner's last
+// heartbeat for it to be considered online.
+func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time, maxPendingAge, provisionerStaleInterval time.Duration) (*Detector, error) {
+	if maxPendingAge <= PendingJobDuration {
+		return nil, xerrors.Errorf("maximum pending age must be greater than %s", PendingJobDuration)
+	}
+
 	//nolint:gocritic // Job reaper has a limited set of permissions.
 	ctx, cancel := context.WithCancel(dbauthz.AsJobReaper(ctx))
 	d := &Detector{
-		ctx:           ctx,
-		cancel:        cancel,
-		done:          make(chan struct{}),
-		db:            db,
-		pubsub:        pub,
-		log:           log,
-		tick:          tick,
-		stats:         nil,
-		maxPendingAge: maxPendingAge,
+		ctx:                      ctx,
+		cancel:                   cancel,
+		done:                     make(chan struct{}),
+		db:                       db,
+		pubsub:                   pub,
+		log:                      log,
+		tick:                     tick,
+		stats:                    nil,
+		maxPendingAge:            maxPendingAge,
+		provisionerStaleInterval: provisionerStaleInterval,
 	}
-	return d
+	return d, nil
 }
 
 // WithStatsChannel will cause Executor to push a RunStats to ch after
@@ -208,7 +218,7 @@ func (d *Detector) run(t time.Time) Stats {
 	jobs, err := d.db.GetProvisionerJobsToBeReaped(ctx, database.GetProvisionerJobsToBeReapedParams{
 		PendingSince:         t.Add(-PendingJobDuration),
 		MaxPendingSince:      t.Add(-d.maxPendingAge),
-		ProvisionerSeenSince: t.Add(-provisionerdserver.StaleInterval),
+		ProvisionerSeenSince: t.Add(-d.provisionerStaleInterval),
 		HungSince:            t.Add(-HungJobDuration),
 		MaxJobs:              MaxJobsPerRun,
 	})
@@ -238,10 +248,10 @@ func (d *Detector) run(t time.Time) Stats {
 	for _, job := range jobsToReap {
 		log := d.log.With(slog.F("job_id", job.ID))
 
-		err := reapJob(ctx, log, d.db, d.pubsub, job, d.maxPendingAge)
+		reapType, err := reapJob(ctx, log, d.db, d.pubsub, job, d.maxPendingAge, d.provisionerStaleInterval)
 		if err != nil {
 			if (!xerrors.As(err, &acquireLockError{}) && !xerrors.As(err, &jobIneligibleError{})) {
-				log.Error(ctx, "error forcefully terminating provisioner job", slog.F("type", job.Type), slog.Error(err))
+				log.Error(ctx, "error forcefully terminating provisioner job", slog.F("type", reapType), slog.Error(err))
 			}
 			continue
 		}
@@ -252,8 +262,9 @@ func (d *Detector) run(t time.Time) Stats {
 	return stats
 }
 
-func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobToReap *jobToReap, maxPendingAge time.Duration) error {
+func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobToReap *jobToReap, maxPendingAge, provisionerStaleInterval time.Duration) (ReapType, error) {
 	var lowestLogID int64
+	reapType := jobToReap.Type
 
 	err := db.InTx(func(db database.Store) error {
 		// Refetch the job while we hold the lock.
@@ -272,7 +283,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 		}
 
 		now := dbtime.Now()
-		reapType, threshold := jobToReap.Type, jobToReap.Threshold
+		threshold := jobToReap.Threshold
 
 		// A healthy provisioner pool can have a long queue. Preserve pending jobs
 		// while an eligible provisioner is online, subject to the absolute age limit.
@@ -285,11 +296,13 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 			if job.CreatedAt.Before(now.Add(-maxPendingAge)) {
 				reapType, threshold = PendingMaxAge, maxPendingAge
 			} else {
-				if !job.UpdatedAt.Before(now.Add(-PendingJobDuration)) {
+				if !job.UpdatedAt.Before(now.Add(-threshold)) {
 					return jobIneligibleError{
 						Err: xerrors.New("job has been updated recently"),
 					}
 				}
+				// Keep these eligibility and heartbeat rules in sync with
+				// GetProvisionerJobsToBeReaped in coderd/database/queries/provisionerjobs.sql.
 				daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(
 					ctx, []uuid.UUID{job.ID},
 				)
@@ -299,7 +312,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 				for _, daemon := range daemons {
 					lastSeen := daemon.ProvisionerDaemon.LastSeenAt
 					isOnline := lastSeen.Valid &&
-						!lastSeen.Time.Before(now.Add(-provisionerdserver.StaleInterval))
+						!lastSeen.Time.Before(now.Add(-provisionerStaleInterval))
 					if isOnline {
 						return jobIneligibleError{
 							Err: xerrors.New("an eligible provisioner is online"),
@@ -326,7 +339,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 			CreatedAfter: 0,
 		})
 		if err != nil {
-			return xerrors.Errorf("get logs for %s job: %w", jobToReap.Type, err)
+			return xerrors.Errorf("get logs for %s job: %w", reapType, err)
 		}
 		logStage := ""
 		if len(logs) != 0 {
@@ -357,7 +370,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 		}
 		newLogs, err := db.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
-			return xerrors.Errorf("insert logs for %s job: %w", job.JobStatus, err)
+			return xerrors.Errorf("insert logs for %s job: %w", reapType, err)
 		}
 		lowestLogID = newLogs[0].ID
 
@@ -380,7 +393,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 				Valid: true,
 			},
 			Error: sql.NullString{
-				String: fmt.Sprintf("Coder: Build has been detected as %s and has been terminated by the reaper.", reapDescription(reapType, threshold)),
+				String: reapMessage(reapType, threshold, "has been terminated by the reaper"),
 				Valid:  true,
 			},
 			ErrorCode: sql.NullString{
@@ -436,7 +449,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 		return nil
 	}, nil)
 	if err != nil {
-		return xerrors.Errorf("in tx: %w", err)
+		return reapType, xerrors.Errorf("in tx: %w", err)
 	}
 
 	// Publish the new log notification to pubsub. Use the lowest log ID
@@ -446,12 +459,12 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 		EndOfLogs:    true,
 	})
 	if err != nil {
-		return xerrors.Errorf("marshal log notification: %w", err)
+		return reapType, xerrors.Errorf("marshal log notification: %w", err)
 	}
 	err = pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobToReap.ID), data)
 	if err != nil {
-		return xerrors.Errorf("publish log notification: %w", err)
+		return reapType, xerrors.Errorf("publish log notification: %w", err)
 	}
 
-	return nil
+	return reapType, nil
 }

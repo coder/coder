@@ -26592,13 +26592,12 @@ WITH provisioner_requirements AS MATERIALIZED (
 		AND pj.created_at >= $1::timestamptz
 		AND pj.updated_at < $2
 ),
-requirements_with_online_provisioners AS MATERIALIZED (
-	-- Materialize availability after deduplication, then reuse the results
-	-- when joining back to jobs. Combining these two CTEs can repeat daemon
-	-- matching for every job.
+requirements_without_online_provisioners AS MATERIALIZED (
+	-- Match daemons once per distinct requirement set. Keep only unavailable
+	-- requirements so protected jobs need not join against every available set.
 	SELECT pr.organization_id, pr.provisioner, pr.tags
 	FROM provisioner_requirements pr
-	WHERE EXISTS (
+	WHERE NOT EXISTS (
 		SELECT 1
 		FROM provisioner_daemons pd
 		WHERE pd.organization_id = pr.organization_id
@@ -26611,10 +26610,6 @@ SELECT
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed
 FROM
 	provisioner_jobs pj
-LEFT JOIN requirements_with_online_provisioners AS reqs
-	ON reqs.organization_id = pj.organization_id
-	AND reqs.provisioner = pj.provisioner
-	AND reqs.tags = pj.tags
 WHERE
 	(
 		-- Select unstarted jobs eligible for reaping.
@@ -26630,15 +26625,20 @@ WHERE
 					-- need cleanup regardless of provisioner availability.
 					pj.job_status != 'pending'::provisioner_job_status
 					-- No eligible provisioner is online.
-					OR reqs.organization_id IS NULL
+					OR EXISTS (
+						SELECT 1
+						FROM requirements_without_online_provisioners AS reqs
+						WHERE reqs.organization_id = pj.organization_id
+							AND reqs.provisioner = pj.provisioner
+							AND reqs.tags = pj.tags
+					)
 				)
 			)
 		)
 	)
 	OR
 	(
-		-- If the job has been started but not completed before
-		-- @hung_since, reap it.
+		-- If the job has been started but not completed before @hung_since, reap it.
 		pj.updated_at < $3
 		AND pj.started_at IS NOT NULL
 		AND pj.completed_at IS NULL
@@ -26655,8 +26655,7 @@ type GetProvisionerJobsToBeReapedParams struct {
 	ProvisionerSeenSince time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
 }
 
-// To avoid repeatedly attempting to reap the same jobs, we randomly
-// order and limit to @max_jobs.
+// To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped,
 		arg.MaxPendingSince,

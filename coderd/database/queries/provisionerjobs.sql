@@ -340,13 +340,12 @@ WITH provisioner_requirements AS MATERIALIZED (
 		AND pj.created_at >= @max_pending_since::timestamptz
 		AND pj.updated_at < @pending_since
 ),
-requirements_with_online_provisioners AS MATERIALIZED (
-	-- Materialize availability after deduplication, then reuse the results
-	-- when joining back to jobs. Combining these two CTEs can repeat daemon
-	-- matching for every job.
+requirements_without_online_provisioners AS MATERIALIZED (
+	-- Match daemons once per distinct requirement set. Keep only unavailable
+	-- requirements so protected jobs need not join against every available set.
 	SELECT pr.organization_id, pr.provisioner, pr.tags
 	FROM provisioner_requirements pr
-	WHERE EXISTS (
+	WHERE NOT EXISTS (
 		SELECT 1
 		FROM provisioner_daemons pd
 		WHERE pd.organization_id = pr.organization_id
@@ -359,10 +358,6 @@ SELECT
 	pj.*
 FROM
 	provisioner_jobs pj
-LEFT JOIN requirements_with_online_provisioners AS reqs
-	ON reqs.organization_id = pj.organization_id
-	AND reqs.provisioner = pj.provisioner
-	AND reqs.tags = pj.tags
 WHERE
 	(
 		-- Select unstarted jobs eligible for reaping.
@@ -378,21 +373,25 @@ WHERE
 					-- need cleanup regardless of provisioner availability.
 					pj.job_status != 'pending'::provisioner_job_status
 					-- No eligible provisioner is online.
-					OR reqs.organization_id IS NULL
+					OR EXISTS (
+						SELECT 1
+						FROM requirements_without_online_provisioners AS reqs
+						WHERE reqs.organization_id = pj.organization_id
+							AND reqs.provisioner = pj.provisioner
+							AND reqs.tags = pj.tags
+					)
 				)
 			)
 		)
 	)
 	OR
 	(
-		-- If the job has been started but not completed before
-		-- @hung_since, reap it.
+		-- If the job has been started but not completed before @hung_since, reap it.
 		pj.updated_at < @hung_since
 		AND pj.started_at IS NOT NULL
 		AND pj.completed_at IS NULL
 	)
--- To avoid repeatedly attempting to reap the same jobs, we randomly
--- order and limit to @max_jobs.
+-- To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 ORDER BY random()
 LIMIT @max_jobs;
 

@@ -77,17 +77,6 @@ Specifies the custom docs URL.
 
 Specifies whether to redirect requests that do not match the access URL host.
 
-### --job-reaper-max-pending-age
-
-| Property    | Value                                          |
-|-------------|------------------------------------------------|
-| Type        | <code>duration</code>                          |
-| Environment | <code>$CODER_JOB_REAPER_MAX_PENDING_AGE</code> |
-| YAML        | <code>jobReaperMaxPendingAge</code>            |
-| Default     | <code>2h0m0s</code>                            |
-
-Maximum age of a pending provisioner job before it is eligible for automatic termination, even while eligible provisioners are online. Jobs with no eligible online provisioner remain eligible for termination after 30 minutes. Must be greater than 30 minutes.
-
 ### --http-address
 
 | Property    | Value                                    |
@@ -847,6 +836,17 @@ Deprecated and ignored.
 | Default     | <code>10m0s</code>                                    |
 
 Time to force cancel provisioning tasks that are stuck.
+
+### --job-reaper-max-pending-age
+
+| Property    | Value                                            |
+|-------------|--------------------------------------------------|
+| Type        | <code>duration</code>                            |
+| Environment | <code>$CODER_JOB_REAPER_MAX_PENDING_AGE</code>   |
+| YAML        | <code>provisioning.jobReaperMaxPendingAge</code> |
+| Default     | <code>2h0m0s</code>                              |
+
+Maximum time since creation before a pending provisioner job becomes eligible for automatic termination, even if a provisioner daemon that matches the job's organization, provisioner type, and tags was last seen by Coder within the past 90 seconds. Pending jobs with no such provisioner become eligible for termination 30 minutes after their last update. Must be greater than 30 minutes.
 
 ### --provisioner-disable-module-cache
 

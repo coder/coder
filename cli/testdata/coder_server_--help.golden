@@ -84,12 +84,6 @@ OPTIONS:
       --external-auth-github-default-provider-enable bool, $CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE (default: true)
           Enable the default GitHub external auth provider managed by Coder.
 
-      --job-reaper-max-pending-age duration, $CODER_JOB_REAPER_MAX_PENDING_AGE (default: 2h0m0s)
-          Maximum age of a pending provisioner job before it is eligible for
-          automatic termination, even while eligible provisioners are online.
-          Jobs with no eligible online provisioner remain eligible for
-          termination after 30 minutes. Must be greater than 30 minutes.
-
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
           Type of auth to use when connecting to postgres. For AWS RDS, using
           IAM authentication (awsiamrds) is recommended.
@@ -910,6 +904,14 @@ updating, and deleting workspace resources.
 
       --provisioner-force-cancel-interval duration, $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default: 10m0s)
           Time to force cancel provisioning tasks that are stuck.
+
+      --job-reaper-max-pending-age duration, $CODER_JOB_REAPER_MAX_PENDING_AGE (default: 2h0m0s)
+          Maximum time since creation before a pending provisioner job becomes
+          eligible for automatic termination, even if a provisioner daemon that
+          matches the job's organization, provisioner type, and tags was last
+          seen by Coder within the past 90 seconds. Pending jobs with no such
+          provisioner become eligible for termination 30 minutes after their
+          last update. Must be greater than 30 minutes.
 
       --provisioner-daemon-poll-interval duration, $CODER_PROVISIONER_DAEMON_POLL_INTERVAL (default: 1s)
           Deprecated and ignored.

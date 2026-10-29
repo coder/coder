@@ -26,7 +26,7 @@ func TestJobReaperMaxPendingAge(t *testing.T) {
 		{name: "Default", want: 2 * time.Hour},
 		{name: "Flag", args: []string{"--job-reaper-max-pending-age", "1h"}, want: time.Hour},
 		{name: "Environment", environ: serpent.Environ{{Name: "CODER_JOB_REAPER_MAX_PENDING_AGE", Value: "3h"}}, want: 3 * time.Hour},
-		{name: "YAML", config: "jobReaperMaxPendingAge: 4h\n", want: 4 * time.Hour},
+		{name: "YAML", config: "provisioning:\n  jobReaperMaxPendingAge: 4h\n", want: 4 * time.Hour},
 		{name: "Zero", args: []string{"--job-reaper-max-pending-age", "0"}, wantError: true},
 		{name: "Negative", args: []string{"--job-reaper-max-pending-age=-1h"}, wantError: true},
 		{name: "BelowOrdinaryTimeout", args: []string{"--job-reaper-max-pending-age", "10m"}, wantError: true},
@@ -42,7 +42,7 @@ func TestJobReaperMaxPendingAge(t *testing.T) {
 				Options: values.Options(),
 				Handler: func(_ *serpent.Invocation) error {
 					called = true
-					require.Equal(t, tc.want, values.JobReaperMaxPendingAge.Value())
+					require.Equal(t, tc.want, values.Provisioner.JobReaperMaxPendingAge.Value())
 					return nil
 				},
 			}

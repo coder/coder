@@ -3,6 +3,8 @@ package jobreaper_test
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -151,6 +153,20 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 				require.NoError(t, env.DB.DeleteProvisionerKey(ctx, daemon.KeyID))
 			}
 
+			// Also make sure regressions in the query are not hidden by
+			// the recheck in reapJob.
+			candidates, err := env.DB.GetProvisionerJobsToBeReaped(ctx, database.GetProvisionerJobsToBeReapedParams{
+				PendingSince:         now.Add(-jobreaper.PendingJobDuration),
+				MaxPendingSince:      now.Add(-testMaxPendingAge),
+				ProvisionerSeenSince: now.Add(-provisionerdserver.StaleInterval),
+				HungSince:            now.Add(-jobreaper.HungJobDuration),
+				MaxJobs:              100, // Exceeds the fixture size across all subtests.
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantReaped, slices.ContainsFunc(candidates, func(candidate database.ProvisionerJob) bool {
+				return candidate.ID == job.ID
+			}), "candidate selection must match expected eligibility")
+
 			stats := env.tick(ctx, now)
 			require.NoError(t, stats.Error)
 			if tc.wantReaped {
@@ -224,6 +240,18 @@ func TestDetectorPendingBusyProvisioner(t *testing.T) {
 		WorkerID:       uuid.NullUUID{UUID: daemon.ID, Valid: true},
 	})
 
+	// Also make sure regressions in the query are not hidden by
+	// the recheck in reapJob.
+	candidates, err := env.DB.GetProvisionerJobsToBeReaped(ctx, database.GetProvisionerJobsToBeReapedParams{
+		PendingSince:         now.Add(-jobreaper.PendingJobDuration),
+		MaxPendingSince:      now.Add(-testMaxPendingAge),
+		ProvisionerSeenSince: now.Add(-provisionerdserver.StaleInterval),
+		HungSince:            now.Add(-jobreaper.HungJobDuration),
+		MaxJobs:              100,
+	})
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+
 	// WHEN: The detector runs.
 	stats := env.tick(ctx, now)
 
@@ -251,6 +279,7 @@ func TestDetectorPendingMaximumAge(t *testing.T) {
 	// GIVEN: Pending jobs exceed the absolute age limit, with an eligible online
 	// provisioner and either an old or a recent update.
 	now := dbtime.Now()
+	createdAt := now.Add(-testMaxPendingAge - time.Hour)
 	org := dbgen.Organization(t, env.DB, database.Organization{})
 	user := dbgen.User(t, env.DB, database.User{})
 	file := dbgen.File(t, env.DB, database.File{})
@@ -259,13 +288,13 @@ func TestDetectorPendingMaximumAge(t *testing.T) {
 		OrganizationID: org.ID, Tags: tags,
 		LastSeenAt: sql.NullTime{Time: now, Valid: true},
 	})
-	for _, updatedAt := range []time.Time{now.Add(-3 * time.Hour), now} {
+	for _, updatedAt := range []time.Time{createdAt, now} {
 		job := newTemplateJob(t, env.DB, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			InitiatorID:    user.ID,
 			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			CreatedAt:      now.Add(-3 * time.Hour),
+			CreatedAt:      createdAt,
 			UpdatedAt:      updatedAt,
 			Tags:           tags,
 		})
@@ -276,10 +305,20 @@ func TestDetectorPendingMaximumAge(t *testing.T) {
 		// THEN: The job is reaped for exceeding the maximum pending age.
 		require.NoError(t, stats.Error)
 		require.Contains(t, stats.TerminatedJobIDs, job.ID)
-		current, err := env.DB.GetProvisionerJobByID(ctx, job.ID)
+		requireTerminatedJob(ctx, t, env.DB, job.ID, now, jobreaper.PendingMaxAge)
+
+		// Verify the build log explains why the job is being terminated.
+		logs, err := env.DB.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+			JobID:        job.ID,
+			CreatedAfter: 0,
+		})
 		require.NoError(t, err)
-		require.True(t, current.CompletedAt.Valid)
-		require.Contains(t, current.Error.String, "pending beyond the maximum age of 120 minutes")
+		var logMessages []string
+		for _, log := range logs {
+			logMessages = append(logMessages, log.Output)
+		}
+		expectedLog := fmt.Sprintf("Coder: Build has been pending for more than %.0f minutes since creation, exceeding this deployment's maximum pending age. It will be terminated. Contact your administrator to review the CODER_JOB_REAPER_MAX_PENDING_AGE setting.", testMaxPendingAge.Minutes())
+		require.Contains(t, logMessages, expectedLog)
 	}
 }
 
@@ -336,7 +375,7 @@ func TestPendingReaperCandidatesWithSharedProvisionerRequirements(t *testing.T) 
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	// GIVEN: Jobs with shared and differing provisioner requirements,
 	// timestamps, and statuses.
@@ -381,6 +420,13 @@ func TestPendingReaperCandidatesWithSharedProvisionerRequirements(t *testing.T) 
 			},
 			wantCandidate: true,
 		},
+		{
+			name: "MaximumAgeWithoutOnlineProvisioner",
+			jobOverrides: database.ProvisionerJob{
+				Tags: unmatchedTags, CreatedAt: params.MaxPendingSince.Add(-time.Microsecond), UpdatedAt: now,
+			},
+			wantCandidate: true,
+		},
 		{name: "AtMaximumAge", jobOverrides: database.ProvisionerJob{CreatedAt: params.MaxPendingSince}},
 		{name: "AtOrdinaryTimeout", jobOverrides: database.ProvisionerJob{Tags: unmatchedTags, UpdatedAt: params.PendingSince}},
 		{name: "RecentUpdate", jobOverrides: database.ProvisionerJob{Tags: unmatchedTags, UpdatedAt: now}},
@@ -392,6 +438,21 @@ func TestPendingReaperCandidatesWithSharedProvisionerRequirements(t *testing.T) 
 		{
 			name:         "CompletedWithSharedRequirements",
 			jobOverrides: database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now, Valid: true}},
+		},
+		{
+			name: "HungWithSharedRequirements",
+			jobOverrides: database.ProvisionerJob{
+				StartedAt: sql.NullTime{Time: queuedAt, Valid: true},
+				UpdatedAt: params.HungSince.Add(-time.Microsecond),
+			},
+			wantCandidate: true,
+		},
+		{
+			name: "RunningAtHungThreshold",
+			jobOverrides: database.ProvisionerJob{
+				StartedAt: sql.NullTime{Time: queuedAt, Valid: true},
+				UpdatedAt: params.HungSince,
+			},
 		},
 	} {
 		job := jobSpec.jobOverrides
@@ -409,7 +470,17 @@ func TestPendingReaperCandidatesWithSharedProvisionerRequirements(t *testing.T) 
 		}
 		job.InitiatorID = user.ID
 		job.FileID = file.ID
+		// Avoid dbgen's acquisition path, which adds a unique tag and can
+		// acquire an older job with a subset of those tags.
+		startedAt := job.StartedAt
+		job.StartedAt = sql.NullTime{}
 		job = dbgen.ProvisionerJob(t, db, nil, job)
+		if startedAt.Valid {
+			_, err := sqlDB.ExecContext(ctx,
+				"UPDATE provisioner_jobs SET started_at = $2 WHERE id = $1",
+				job.ID, startedAt.Time)
+			require.NoError(t, err)
+		}
 		t.Logf("%s: %s", jobSpec.name, job.ID)
 		if jobSpec.wantCandidate {
 			expected = append(expected, job.ID)

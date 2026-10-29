@@ -179,18 +179,6 @@ During normal operation it is recommended to only set one key unless you are in 
 - Holds a secret: Coder never writes this option to a YAML configuration file.
   Set it through the environment variable above.
 
-### Job reaper maximum pending age
-
-Maximum age of a pending provisioner job before it is eligible for automatic termination, even while eligible provisioners are online.
-Jobs with no eligible online provisioner remain eligible for termination after 30 minutes.
-Must be greater than 30 minutes.
-
-- Type: `duration`
-- Environment variable: `CODER_JOB_REAPER_MAX_PENDING_AGE`
-- CLI flag: [`--job-reaper-max-pending-age`](../../reference/cli/server/index.md#--job-reaper-max-pending-age)
-- YAML key: `jobReaperMaxPendingAge`
-- Default value: `2h0m0s`
-
 ### Postgres auth
 
 Type of auth to use when connecting to postgres.
@@ -2175,6 +2163,18 @@ Time to force cancel provisioning tasks that are stuck.
 - CLI flag: [`--provisioner-force-cancel-interval`](../../reference/cli/server/index.md#--provisioner-force-cancel-interval)
 - YAML key: `provisioning.forceCancelInterval`
 - Default value: `10m0s`
+
+### Job reaper maximum pending age
+
+Maximum time since creation before a pending provisioner job becomes eligible for automatic termination, even if a provisioner daemon that matches the job's organization, provisioner type, and tags was last seen by Coder within the past 90 seconds.
+Pending jobs with no such provisioner become eligible for termination 30 minutes after their last update.
+Must be greater than 30 minutes.
+
+- Type: `duration`
+- Environment variable: `CODER_JOB_REAPER_MAX_PENDING_AGE`
+- CLI flag: [`--job-reaper-max-pending-age`](../../reference/cli/server/index.md#--job-reaper-max-pending-age)
+- YAML key: `provisioning.jobReaperMaxPendingAge`
+- Default value: `2h0m0s`
 
 ### Provisioner daemon pre-shared key (PSK)
 

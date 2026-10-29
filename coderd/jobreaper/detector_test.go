@@ -29,8 +29,42 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const testMaxPendingAge = 2 * time.Hour
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
+
+func TestNewMaxPendingAge(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		maxPendingAge time.Duration
+		wantError     bool
+	}{
+		{name: "Zero", maxPendingAge: 0, wantError: true},
+		{name: "Negative", maxPendingAge: -time.Second, wantError: true},
+		{name: "BelowOrdinaryTimeout", maxPendingAge: jobreaper.PendingJobDuration - time.Nanosecond, wantError: true},
+		{name: "EqualToOrdinaryTimeout", maxPendingAge: jobreaper.PendingJobDuration, wantError: true},
+		{name: "AboveOrdinaryTimeout", maxPendingAge: jobreaper.PendingJobDuration + time.Nanosecond},
+		{name: "TwoHours", maxPendingAge: 2 * time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			detector, err := jobreaper.New(t.Context(), nil, nil, testutil.Logger(t), nil, tc.maxPendingAge, provisionerdserver.StaleInterval)
+			if tc.wantError {
+				require.ErrorContains(t, err, "maximum pending age must be greater than 30m0s")
+				require.Nil(t, detector)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, detector)
+			detector.Start()
+			t.Cleanup(detector.Close)
+		})
+	}
 }
 
 // detectorTestEnv provides common infrastructure for jobreaper detector tests,
@@ -52,7 +86,9 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 	tickCh := make(chan time.Time)
 	statsCh := make(chan jobreaper.Stats)
 
-	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), ps, log, tickCh, 2*time.Hour).WithStatsChannel(statsCh)
+	detector, err := jobreaper.New(ctx, wrapDBAuthz(db, log), ps, log, tickCh, testMaxPendingAge, provisionerdserver.StaleInterval)
+	require.NoError(t, err)
+	detector.WithStatsChannel(statsCh)
 	detector.Start()
 
 	return &detectorTestEnv{
@@ -84,7 +120,7 @@ func (e *detectorTestEnv) close() {
 }
 
 // requireTerminatedJob asserts that a provisioner job was properly terminated
-// by the job reaper with the expected reap type (hung or pending).
+// by the job reaper with the expected reap type.
 func requireTerminatedJob(ctx context.Context, t *testing.T, db database.Store, jobID uuid.UUID, now time.Time, reapType jobreaper.ReapType) {
 	t.Helper()
 	job, err := db.GetProvisionerJobByID(ctx, jobID)
@@ -92,12 +128,20 @@ func requireTerminatedJob(ctx context.Context, t *testing.T, db database.Store, 
 	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
 	require.True(t, job.CompletedAt.Valid)
 	require.WithinDuration(t, now, job.CompletedAt.Time, 30*time.Second)
-	if reapType == jobreaper.Pending {
+	if reapType == jobreaper.Pending || reapType == jobreaper.PendingMaxAge {
 		require.True(t, job.StartedAt.Valid)
 		require.WithinDuration(t, now, job.StartedAt.Time, 30*time.Second)
 	}
 	require.True(t, job.Error.Valid)
-	require.Contains(t, job.Error.String, fmt.Sprintf("Build has been detected as %s", reapType))
+	switch reapType {
+	case jobreaper.Pending:
+		require.Equal(t, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner matches its requirements. It has been terminated by the reaper. Contact your administrator.", job.Error.String)
+	case jobreaper.PendingMaxAge:
+		expectedError := fmt.Sprintf("Coder: Build has been pending for more than %.0f minutes since creation, exceeding this deployment's maximum pending age. It has been terminated by the reaper. Contact your administrator to review the CODER_JOB_REAPER_MAX_PENDING_AGE setting.", testMaxPendingAge.Minutes())
+		require.Equal(t, expectedError, job.Error.String)
+	default:
+		require.Contains(t, job.Error.String, fmt.Sprintf("Build has been detected as %s", reapType))
+	}
 	require.False(t, job.ErrorCode.Valid)
 }
 
@@ -546,6 +590,18 @@ func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	// Check that both jobs were terminated as pending.
 	requireTerminatedJob(ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Pending)
 	requireTerminatedJob(ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Pending)
+
+	// Verify the build log explains why the job is being terminated.
+	logs, err := env.DB.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        templateImportJob.ID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	var logMessages []string
+	for _, log := range logs {
+		logMessages = append(logMessages, log.Output)
+	}
+	require.Contains(t, logMessages, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner matches its requirements. It will be terminated. Contact your administrator.")
 }
 
 func TestDetectorHungCanceledJob(t *testing.T) {

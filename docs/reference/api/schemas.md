@@ -8505,7 +8505,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "secure_auth_cookie": true
     },
     "job_hang_detector_interval": 0,
-    "job_reaper_max_pending_age": 0,
     "logging": {
       "human": "string",
       "json": "string",
@@ -8689,7 +8688,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "daemons": 0,
       "disable_module_cache": true,
-      "force_cancel_interval": 0
+      "force_cancel_interval": 0,
+      "job_reaper_max_pending_age": 0
     },
     "proxy_health_status_interval": 0,
     "proxy_trusted_headers": [
@@ -9144,7 +9144,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "secure_auth_cookie": true
   },
   "job_hang_detector_interval": 0,
-  "job_reaper_max_pending_age": 0,
   "logging": {
     "human": "string",
     "json": "string",
@@ -9328,7 +9327,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "daemons": 0,
     "disable_module_cache": true,
-    "force_cancel_interval": 0
+    "force_cancel_interval": 0,
+    "job_reaper_max_pending_age": 0
   },
   "proxy_health_status_interval": 0,
   "proxy_trusted_headers": [
@@ -9496,7 +9496,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `http_address`                                 | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable.        |
 | `http_cookies`                                 | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                           |
 | `job_hang_detector_interval`                   | integer                                                                                              | false    |              |                                                                           |
-| `job_reaper_max_pending_age`                   | integer                                                                                              | false    |              |                                                                           |
 | `logging`                                      | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                           |
 | `mcp_allowed_private_cidrs`                    | array of string                                                                                      | false    |              |                                                                           |
 | `metrics_cache_refresh_interval`               | integer                                                                                              | false    |              |                                                                           |
@@ -13974,21 +13973,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "daemons": 0,
   "disable_module_cache": true,
-  "force_cancel_interval": 0
+  "force_cancel_interval": 0,
+  "job_reaper_max_pending_age": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `daemon_poll_interval`  | integer         | false    |              |                                                                                                                                                            |
-| `daemon_poll_jitter`    | integer         | false    |              |                                                                                                                                                            |
-| `daemon_psk`            | string          | false    |              |                                                                                                                                                            |
-| `daemon_types`          | array of string | false    |              |                                                                                                                                                            |
-| `daemons`               | integer         | false    |              | Daemons is the number of built-in terraform provisioners.                                                                                                  |
-| `disable_module_cache`  | boolean         | false    |              | Disable module cache disables the reuse of Terraform modules cached at template import for every template in the deployment. Templates cannot opt back in. |
-| `force_cancel_interval` | integer         | false    |              |                                                                                                                                                            |
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                                |
+|------------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `daemon_poll_interval`       | integer         | false    |              |                                                                                                                                                            |
+| `daemon_poll_jitter`         | integer         | false    |              |                                                                                                                                                            |
+| `daemon_psk`                 | string          | false    |              |                                                                                                                                                            |
+| `daemon_types`               | array of string | false    |              |                                                                                                                                                            |
+| `daemons`                    | integer         | false    |              | Daemons is the number of built-in terraform provisioners.                                                                                                  |
+| `disable_module_cache`       | boolean         | false    |              | Disable module cache disables the reuse of Terraform modules cached at template import for every template in the deployment. Templates cannot opt back in. |
+| `force_cancel_interval`      | integer         | false    |              |                                                                                                                                                            |
+| `job_reaper_max_pending_age` | integer         | false    |              |                                                                                                                                                            |
 
 ## codersdk.ProvisionerDaemon
 

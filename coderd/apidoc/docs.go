@@ -25705,9 +25705,6 @@ const docTemplate = `{
                 "job_hang_detector_interval": {
                     "type": "integer"
                 },
-                "job_reaper_max_pending_age": {
-                    "type": "integer"
-                },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },
@@ -29715,6 +29712,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "force_cancel_interval": {
+                    "type": "integer"
+                },
+                "job_reaper_max_pending_age": {
                     "type": "integer"
                 }
             }
