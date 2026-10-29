@@ -1,4 +1,8 @@
-import type { SkillMetadata } from "#/api/typesGenerated";
+import type {
+	OrganizationSkillPreferences,
+	OrganizationSkillSettings,
+	SkillMetadata,
+} from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
 
 export const MockSkill: SkillMetadata = {
@@ -34,4 +38,14 @@ export const MockDisabledSkill: SkillMetadata = {
 	name: "legacy-review",
 	description: "Older review checklist kept for reference.",
 	enabled: false,
+};
+
+export const MockOrganizationSkillSettings: OrganizationSkillSettings = {
+	members_can_disable_skills: false,
+};
+
+export const MockOrganizationSkillPreferences: OrganizationSkillPreferences = {
+	members_can_disable_skills: false,
+	all_skills_disabled: false,
+	disabled_skill_ids: [],
 };

@@ -226,7 +226,6 @@ type AgentChatInputProps = {
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 	canConfigureAgentSetup: boolean;
@@ -572,7 +571,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	workspace,
 	workspaceAgent,
 	chatId,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 	canConfigureAgentSetup,
@@ -1800,7 +1798,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												workspace={workspace}
 												agent={workspaceAgent}
 												chatId={chatId}
-												sshCommand={sshCommand}
 												folder={folder}
 												onRemoveWorkspace={removeWorkspaceHandler}
 											/>
@@ -1870,7 +1867,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														workspace={workspace}
 														agent={workspaceAgent}
 														chatId={chatId}
-														sshCommand={sshCommand}
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
 														inOverflowPopover

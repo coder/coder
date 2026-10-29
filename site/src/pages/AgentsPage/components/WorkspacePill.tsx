@@ -8,10 +8,11 @@ import {
 	UnlinkIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useMutation } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -52,7 +53,6 @@ type WorkspacePillProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
-	sshCommand?: string;
 	folder?: string;
 	onRemoveWorkspace?: () => void;
 	// Rendered inside the +N overflow popover: suppresses the status
@@ -65,13 +65,17 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	workspace,
 	agent,
 	chatId,
-	sshCommand,
 	folder,
 	onRemoveWorkspace,
 	inOverflowPopover,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
+	const sshHostnameSuffix = useQuery(deploymentSSHConfig()).data
+		?.hostname_suffix;
+	const sshCommand = sshHostnameSuffix
+		? `ssh ${agent.name}.${workspace.name}.${workspace.owner_name}.${sshHostnameSuffix}`
+		: undefined;
 	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 

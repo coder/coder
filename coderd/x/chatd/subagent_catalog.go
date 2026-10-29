@@ -8,9 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -136,40 +134,25 @@ func allSubagentDefinitions() []subagentDefinition {
 				if !p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
 					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`, nil
 				}
-				rawProvider, err := p.db.GetChatComputerUseProvider(computerUseConfigContext(ctx))
-				if err != nil {
-					return "", xerrors.Errorf("get computer use provider: %w", err)
-				}
-				if _, _, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider))); !ok {
-					p.logger.Warn(ctx, "computer-use provider config is unavailable",
-						slog.F("chat_id", currentChat.ID),
-						slog.F("provider", rawProvider),
-					)
-					return `type "computer_use" is unavailable because its provider configuration could not be loaded`, nil
-				}
-				return "", nil
+				_, reason, err := p.resolveComputerUseModel(ctx, currentChat.OwnerID, currentChat.OrganizationID)
+				return reason, err
 			},
 			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
-				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				model, reason, err := p.resolveComputerUseModel(ctx, currentChat.OwnerID, currentChat.OrganizationID)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
-				if err != nil {
-					return childSubagentChatOptions{}, err
-				}
-				if !userCanUseProviderKeys(providerKeys, string(provider)) {
-					return childSubagentChatOptions{}, xerrors.Errorf(
-						`API key for computer-use provider %q is not configured`,
-						provider,
-					)
+				if reason != "" {
+					return childSubagentChatOptions{}, xerrors.New(reason)
 				}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,
 						Valid:    true,
 					},
-					systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
+					modelConfigIDOverride:   &model.config.ID,
+					reasoningEffortOverride: model.reasoningEffort,
+					systemPrompt:            computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
 				}, nil
 			},
 		},

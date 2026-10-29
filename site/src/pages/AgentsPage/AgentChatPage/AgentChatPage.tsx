@@ -37,8 +37,10 @@ import {
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
-import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
@@ -101,6 +103,7 @@ import {
 	resolveModelSelector,
 } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { activeOrganizationSkills } from "../utils/skills";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -233,7 +236,6 @@ const AgentChatPage: React.FC = () => {
 		agentId,
 		chatAgentId,
 	});
-	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
@@ -320,12 +322,18 @@ const AgentChatPage: React.FC = () => {
 	);
 	const { isPending: isClearPending, mutateAsync: clearChatContext } =
 		useMutation(clearChat(queryClient, agentId));
+
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
 	});
 	const organizationSkillsQuery = useQuery({
 		...organizationSkills(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
+	const organizationSkillPreferencesQuery = useQuery({
+		...organizationSkillPreferences(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
@@ -610,11 +618,6 @@ const AgentChatPage: React.FC = () => {
 
 	const chatTitle = chatQuery.data?.title;
 
-	const sshCommand =
-		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
-			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
-			: undefined;
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
@@ -655,11 +658,13 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		// chatd skips disabled skills, so they never shadow a built-in
-		// command. A list with no data stays unknown, even after an error.
+		// chatd skips disabled skills and, while members can opt out, skills
+		// they turned off, so neither shadows a built-in command. A list with
+		// no data stays unknown, even after an error.
 		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
-		organizationSkills: organizationSkillsQuery.data?.filter(
-			(skill) => skill.enabled,
+		organizationSkills: activeOrganizationSkills(
+			organizationSkillsQuery.data,
+			organizationSkillPreferencesQuery.data,
 		),
 		// Unlike the lists above, losing the use of the project means no
 		// project skills, even if some loaded earlier, because chatd then
@@ -784,7 +789,6 @@ const AgentChatPage: React.FC = () => {
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
-					key={agentId}
 					chat={chat}
 					persistedError={persistedError}
 					workspace={workspace}
@@ -826,7 +830,6 @@ const AgentChatPage: React.FC = () => {
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}

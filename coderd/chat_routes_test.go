@@ -55,7 +55,6 @@ func TestChatRouteMounts(t *testing.T) {
 		// Never-promoted routes are absent from /api/v2.
 		{http.MethodGet, "/api/v2/chats/model-configs"},
 		{http.MethodPost, "/api/v2/chats/model-configs"},
-		{http.MethodGet, "/api/v2/chats/config/computer-use-provider"},
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
 		{http.MethodGet, "/api/v2/chats/projects"},
 		{http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/projects", firstUser.OrganizationID)},

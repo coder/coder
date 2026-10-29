@@ -127,12 +127,6 @@ const AgentsRouteElement = () => (
 		isSavingAdvisorConfig={false}
 		isSaveAdvisorConfigError={false}
 		saveAdvisorConfigError={undefined}
-		showVirtualDesktopSettings={false}
-		computerUseProviderData={undefined}
-		isLoadingComputerUseProvider={false}
-		onSaveComputerUseProvider={fn()}
-		isSavingComputerUseProvider={false}
-		computerUseProviderSaveError={null}
 	/>
 );
 
