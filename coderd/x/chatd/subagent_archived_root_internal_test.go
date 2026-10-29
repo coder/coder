@@ -33,16 +33,17 @@ func TestSubagentSpawnUnderArchivedRoot(t *testing.T) {
 
 	// The turn ends (another owner finished it) and the user archives
 	// the family.
-	require.NoError(t, chatstate.NewChatMachine(db, ps, root.ID).Update(ctx,
+	_, err := chatstate.NewChatMachine(db, ps, root.ID).Update(ctx,
 		func(tx *chatstate.Tx, _ database.Store) error {
 			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
-		}))
+		})
+	require.NoError(t, err)
 	require.NoError(t, server.ArchiveChat(ctx, root))
 
 	// The in-flight spawn_agent call continues. Reloading the parent
 	// already refuses the spawn before any prompt hook runs.
-	_, err := server.loadSubagentSpawnParentChat(ctx, func() database.Chat { return inFlightSnapshot })
+	_, err = server.loadSubagentSpawnParentChat(ctx, func() database.Chat { return inFlightSnapshot })
 	require.ErrorIs(t, err, chatstate.ErrChatFamilyArchived)
 	require.ErrorContains(t, err, "cannot create a child agent because the parent chat is archived")
 

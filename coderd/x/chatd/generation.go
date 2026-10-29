@@ -439,7 +439,7 @@ func applySessionStartResponse(
 		return sessionStartResult{}, err
 	}
 
-	updated, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	updated, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForGeneration(tx, input, generationAttemptNotRequired); err != nil {
 			return xerrors.Errorf("load chat for session_start response: %w", err)
 		}
@@ -474,7 +474,7 @@ func (s *taskStarter) syncMemoryIndex(
 	if !ok {
 		return sessionStartResult{}, nil
 	}
-	updated, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	updated, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForGeneration(tx, input, generationAttemptNotRequired); err != nil {
 			return xerrors.Errorf("load chat for memory index: %w", err)
 		}
@@ -795,7 +795,7 @@ func (s *taskStarter) recordGenerationRetry(
 ) (generationRetryDecision, error) {
 	var decision generationRetryDecision
 	var payload *codersdk.ChatStreamRetry
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -1436,7 +1436,7 @@ func (s *taskStarter) beginGenerationAttempt(
 	input chatWorkerTaskStartInput,
 ) (generationAttempt, error) {
 	var attempt int64
-	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	committed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForTask(tx, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -1518,7 +1518,7 @@ func (s *taskStarter) commitGenerationStep(
 		attribute.String(chatloop.AttrGenerationAction, string(kind)),
 		attribute.Int64(chatloop.AttrGenerationAttempt, attempt),
 	)
-	committed, err := machine.UpdateReturning(commitCtx, func(tx *chatstate.Tx, _ database.Store) error {
+	committed, err := machine.Update(commitCtx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForGeneration(tx, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1568,7 +1568,7 @@ func (s *taskStarter) enterRequiresAction(
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 ) error {
-	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	committed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForTask(tx, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -1683,7 +1683,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 ) error {
 	var committed database.Chat
 	var promotedQueuedAt time.Time
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForGeneration(tx, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1750,7 +1750,7 @@ func (s *taskStarter) finishGenerationTurn(
 
 	var committed database.Chat
 	var promotedQueuedAt time.Time
-	updated, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	updated, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForGeneration(tx, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1812,7 +1812,7 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
-	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	committed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := loadLockedChatForGeneration(tx, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}

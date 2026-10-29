@@ -504,7 +504,7 @@ func interruptedBatchFixture(
 	raw, err := chatprompt.MarshalParts(calls)
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
 			Role:           database.ChatMessageRoleAssistant,
 			Content:        raw,
@@ -513,7 +513,8 @@ func interruptedBatchFixture(
 			ModelConfigID:  uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		}}})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
@@ -1139,7 +1140,7 @@ func (h *deletedToolCallsHistory) commit(t *testing.T, role database.ChatMessage
 	raw, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
 	var inserted []database.ChatMessage
-	require.NoError(t, h.machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = h.machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
 		res, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
 			Role:           role,
 			Content:        raw,
@@ -1149,7 +1150,8 @@ func (h *deletedToolCallsHistory) commit(t *testing.T, role database.ChatMessage
 		}}})
 		inserted = res.InsertedMessages
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Len(t, inserted, 1)
 	return inserted[0]
 }
@@ -1171,10 +1173,11 @@ func (h *deletedToolCallsHistory) editPrompt(t *testing.T) {
 	prompt := messages[lastUserPromptIndex(messages)]
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
 	require.NoError(t, err)
-	require.NoError(t, h.machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = h.machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.EditMessage(chatstate.EditMessageInput{MessageID: prompt.ID, CreatedBy: h.f.user.ID, Content: content})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
@@ -1757,14 +1760,16 @@ func (f *taskTestFixture) createRequiresActionChat(t *testing.T) database.Chat {
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, res.Chat.ID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{taskAssistantToolCallMessage(t, f.model.ID, toolName)}})
 		return err
-	}))
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), res.Chat.ID)
 	require.NoError(t, err)
 	f.pubsub.clear()
@@ -1774,10 +1779,11 @@ func (f *taskTestFixture) createRequiresActionChat(t *testing.T) database.Chat {
 func (f *taskTestFixture) acquireChat(t *testing.T, chatID uuid.UUID, workerID uuid.UUID, runnerID uuid.UUID) database.Chat {
 	t.Helper()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
 	require.NoError(t, err)
 	f.pubsub.clear()
@@ -1788,14 +1794,15 @@ func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database
 	t.Helper()
 	f.pubsub.clear()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      taskUserTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
 	require.NoError(t, err)
 	return chat

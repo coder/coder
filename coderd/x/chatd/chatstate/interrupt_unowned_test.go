@@ -30,11 +30,12 @@ func TestInterruptUnownedRunningChat(t *testing.T) {
 		commitAssistantToolCall(t, f, m, nonDynamicAssistantToolCallMessage(t, f.Model.ID, callID))
 
 		var result chatstate.InterruptResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
 		require.Equal(t, chatstate.StateW, f.classify(ctx, t, created.Chat.ID))
 		chat := f.readChat(ctx, t, created.Chat.ID)
@@ -55,11 +56,12 @@ func TestInterruptUnownedRunningChat(t *testing.T) {
 		before := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
 		var result chatstate.InterruptResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
 		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 		require.True(t, result.FinishedInterruption)
@@ -78,13 +80,14 @@ func TestInterruptUnownedRunningChat(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 			if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 				return err
 			}
 			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
 	})
 }
@@ -96,7 +99,7 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var result chatstate.SendMessageResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			result, err = tx.SendMessage(chatstate.SendMessageInput{
 				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
@@ -104,7 +107,8 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 				MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 			})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		return result
 	}
 
@@ -157,17 +161,19 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 func interruptAndAbandon(t *testing.T, f *testFixture, m *chatstate.ChatMachine, chatID uuid.UUID) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if err := ownChat(ctx, tx, store, chatID); err != nil {
 			return err
 		}
 		_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 		return err
-	}))
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.Abandon(chatstate.AbandonInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat := f.readChat(ctx, t, chatID)
 	require.False(t, chat.WorkerID.Valid)
 	require.Equal(t, database.ChatStatusInterrupting, chat.Status)
@@ -191,11 +197,12 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 		require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
 
 		var result chatstate.InterruptResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
 		require.Equal(t, chatstate.StateW, f.classify(ctx, t, created.Chat.ID))
 		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
@@ -218,11 +225,12 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 		before := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
 		var result chatstate.InterruptResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
 		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid,
@@ -240,15 +248,16 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 			if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 				return err
 			}
 			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
-		err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
 		})
@@ -266,7 +275,7 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var result chatstate.SendMessageResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			result, err = tx.SendMessage(chatstate.SendMessageInput{
 				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
@@ -274,7 +283,8 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 				MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 			})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		return result
 	}
 
@@ -344,13 +354,14 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 			if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 				return err
 			}
 			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
 		result := send(t, f, m, "next", chatstate.BusyBehaviorInterrupt)
 

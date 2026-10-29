@@ -95,7 +95,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -108,7 +108,8 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 			},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	server.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.HistoryVersion, "stale summary", logger)
 

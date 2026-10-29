@@ -33,11 +33,12 @@ func TestQueuedMessageLinkIdenticalContent(t *testing.T) {
 	promoted := make([]database.ChatMessage, 0, 2)
 	for range 2 {
 		var finish chatstate.FinishTurnResult
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			var err error
 			finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		require.NotNil(t, finish.PromotedMessage)
 		promoted = append(promoted, requireChatMessageByID(ctx, t, f, finish.PromotedMessage.ID))
 	}
@@ -63,17 +64,18 @@ func TestQueuedMessageLinkEditReplacementUnlinked(t *testing.T) {
 	queued := sendQueuedMessage(t, f, m, "promote then edit")
 	require.NotNil(t, queued.QueuedMessage)
 	var finish chatstate.FinishTurnResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		var err error
 		finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.NotNil(t, finish.PromotedMessage)
 	requireQueuedMessageLink(t, *finish.PromotedMessage, queued.QueuedMessage.ID)
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 
 	var edit chatstate.EditMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		var err error
 		edit, err = tx.EditMessage(chatstate.EditMessageInput{
 			MessageID: finish.PromotedMessage.ID,
@@ -83,7 +85,8 @@ func TestQueuedMessageLinkEditReplacementUnlinked(t *testing.T) {
 			}),
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	replacement := requireChatMessageByID(ctx, t, f, edit.ReplacementMessage.ID)
 	require.NotEqual(t, finish.PromotedMessage.ID, replacement.ID)
 	require.False(t, replacement.QueuedMessageID.Valid,
@@ -106,7 +109,7 @@ func TestQueuedMessagePromotionRequiresSingleDelete(t *testing.T) {
 	historyBefore := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
 	guarded := chatstate.NewChatMachine(&queueDeleteCountStore{Store: f.DB}, f.Pub, created.Chat.ID)
-	err := guarded.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := guarded.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})

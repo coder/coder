@@ -46,12 +46,13 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 		second := sendQueuedMessage(t, f, m, "second")
 		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 				QueuedMessageID: second.QueuedMessage.ID,
 			})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
 
 		promotionOrder := queuedIDsByPosition(ctx, t, f, created.Chat.ID)
@@ -80,7 +81,7 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 			// The other sender commits on its own connection meanwhile.
 			late = sendQueuedMessage(t, f, m, "committed first")
 			// Update reuses this transaction and only now locks the chat.
-			return chatstate.NewChatMachine(tx, f.Pub, created.Chat.ID).Update(ctx, func(stx *chatstate.Tx, _ database.Store) error {
+			_, err := chatstate.NewChatMachine(tx, f.Pub, created.Chat.ID).Update(ctx, func(stx *chatstate.Tx, _ database.Store) error {
 				var err error
 				early, err = stx.SendMessage(chatstate.SendMessageInput{
 					Message:      userTextMessage("began first", f.User.ID, f.Model.ID),
@@ -89,6 +90,7 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 				})
 				return err
 			})
+			return err
 		}, nil))
 
 		require.NotNil(t, early.QueuedMessage)

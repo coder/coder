@@ -176,20 +176,12 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 //
 // Callbacks that return an error roll back the transaction (rolling
 // back the automatic snapshot bump) and publish nothing.
+//
+// Update returns the chat row it reads after fn for publication, so
+// callers do not read it again under the lock. The row is zero if fn or
+// that read failed. It is still set when the commit or publication fails
+// afterwards, so treat it as committed only when err is nil.
 func (m *ChatMachine) Update(
-	ctx context.Context,
-	fn func(*Tx, database.Store) error,
-) error {
-	_, err := m.UpdateReturning(ctx, fn)
-	return err
-}
-
-// UpdateReturning is [ChatMachine.Update] that also returns the chat row
-// Update reads after fn for publication, so callers do not read it again
-// under the lock. The row is zero if fn or that read failed. It is still
-// set when the commit or publication fails afterwards, so treat it as
-// committed only when err is nil.
-func (m *ChatMachine) UpdateReturning(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
 ) (database.Chat, error) {

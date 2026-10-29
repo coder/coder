@@ -169,7 +169,7 @@ func TestChatMachine_Update_RejectsMissingChat(t *testing.T) {
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, uuid.New())
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error { return nil })
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error { return nil })
 	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
 	require.Empty(t, f.Pub.channels)
 }
@@ -221,13 +221,14 @@ func TestChatMachine_Update_ValidatesFromLockedRow(t *testing.T) {
 
 	counts := &chatReadCounts{}
 	m := chatstate.NewChatMachine(&chatReadCountingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, _, err := tx.Current(); err != nil {
 			return err
 		}
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Equal(t, 1, counts.getChatByID, "only the publication read")
 	require.Equal(t, 2, counts.countQueued, "the post-lock count and the publication read")
@@ -240,7 +241,7 @@ func TestChatMachine_Update_CurrentMatchesDatabase(t *testing.T) {
 	created := createTestChat(t, f)
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, state, err := tx.Current()
 		require.NoError(t, err)
 		read, err := store.GetChatByID(ctx, created.Chat.ID)
@@ -257,10 +258,11 @@ func TestChatMachine_Update_CurrentMatchesDatabase(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, after.Status, "Current must observe the transition's write")
 		require.Equal(t, chatstate.StateW, state)
 		return nil
-	}))
+	})
+	require.NoError(t, err)
 }
 
-func TestChatMachine_UpdateReturning(t *testing.T) {
+func TestChatMachine_UpdateReturnsChat(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ReturnsCommittedRow", func(t *testing.T) {
@@ -271,7 +273,7 @@ func TestChatMachine_UpdateReturning(t *testing.T) {
 
 		counts := &chatReadCounts{}
 		m := chatstate.NewChatMachine(&chatReadCountingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
-		updated, err := m.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		updated, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
 		})
@@ -292,7 +294,7 @@ func TestChatMachine_UpdateReturning(t *testing.T) {
 
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 		wantErr := xerrors.New("callback failed")
-		updated, err := m.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		updated, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 			if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
 				return err
 			}
@@ -366,7 +368,7 @@ func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 	// CommitStep an assistant message; it should land with revision = chat.snapshot_version after the bump.
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 	var step chatstate.CommitStepResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		assistant := userTextMessage("assistant", f.User.ID, f.Model.ID)
 		assistant.Role = database.ChatMessageRoleAssistant
 		var err error
@@ -374,7 +376,8 @@ func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 			Messages: []chatstate.Message{assistant},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Len(t, step.InsertedMessages, 1)
 	after := f.readChat(ctx, t, created.Chat.ID)
 	// The Update call bumps snapshot_version once before the trigger
@@ -391,14 +394,15 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 	created := createTestChat(t, f) // queue_version starts at 0
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	after := f.readChat(ctx, t, created.Chat.ID)
 	require.Equal(t, after.SnapshotVersion, after.QueueVersion)
 	require.Greater(t, after.QueueVersion, int64(0))
@@ -411,14 +415,15 @@ func TestQueueVersionTrigger_StableForNonQueueMutations(t *testing.T) {
 	created := createTestChat(t, f)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		assistant := userTextMessage("assistant", f.User.ID, f.Model.ID)
 		assistant.Role = database.ChatMessageRoleAssistant
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistant},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	// queue_version must remain unchanged from initial 0.
 	require.Equal(t, int64(0), f.readChat(ctx, t, created.Chat.ID).QueueVersion)
 }
@@ -440,11 +445,12 @@ func TestUpdateFlushesBufferedPublicationsAfterCommit(t *testing.T) {
 
 	// During the callback, no new chat:update for this chat may have
 	// reached the inner publisher because the buffer holds it.
-	require.NoError(t, m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error {
 		require.Equal(t, baseline, countChannel(f.Pub.channels, channel),
 			"inner publisher saw chat:update before transaction committed")
 		return nil
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Equal(t, baseline+1, countChannel(f.Pub.channels, channel),
 		"exactly one new chat:update reached the inner publisher after commit")

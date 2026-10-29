@@ -33,7 +33,7 @@ func (p *Server) updateChat(
 	transition func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error,
 ) (database.Chat, error) {
 	var updated database.Chat
-	published, err := p.newChatMachine(chatID).UpdateReturning(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	published, err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		return transition(tx, store, &updated)
 	})
 	if err != nil {
@@ -509,12 +509,13 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
-	return p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
 		return err
 	})
+	return err
 }
 
 // PromoteQueued promotes a queued message through the chatstate state

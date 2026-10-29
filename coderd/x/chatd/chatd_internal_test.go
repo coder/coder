@@ -394,7 +394,7 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	chat := created.Chat
 
 	machine := chatstate.NewChatMachine(db, ps, chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -407,7 +407,8 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 			},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	server := newInternalTestServer(
 		t, db, ps, chatprovider.ProviderAPIKeys{},

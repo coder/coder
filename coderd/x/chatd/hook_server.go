@@ -80,7 +80,7 @@ func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, e
 		return errors.Join(dispatchErr, xerrors.Errorf("encode hook dispatch error: %w", marshalErr))
 	}
 	machine := p.newChatMachine(chatID)
-	failedChat, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	failedChat, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		current, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat for hook failure: %w", err)

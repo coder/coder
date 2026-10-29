@@ -38,10 +38,11 @@ func driveChatToWaiting(ctx context.Context, t *testing.T, api *coderd.API, chat
 	t.Helper()
 	chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
-	require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 }
 
 // driveChatToRequiresAction commits an assistant message with a single
@@ -71,7 +72,7 @@ func driveChatToRequiresAction(
 	require.NoError(t, err)
 
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-	require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{{
 				Role:           database.ChatMessageRoleAssistant,
@@ -86,7 +87,8 @@ func driveChatToRequiresAction(
 		}
 		_, err = tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return toolCallID
 }
 
@@ -198,10 +200,11 @@ func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 		// A worker owns the running chat.
 		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-		require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
 			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 			return err
-		}))
+		})
+		require.NoError(t, err)
 
 		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},

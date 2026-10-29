@@ -34,7 +34,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
@@ -42,7 +42,8 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return send
 }
 
@@ -52,7 +53,7 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if err := ownChat(ctx, tx, store, chatID); err != nil {
 			return err
 		}
@@ -63,7 +64,8 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return send
 }
 
