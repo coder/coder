@@ -1,5 +1,4 @@
 import type { SerpentOption } from "#/api/typesGenerated";
-import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import {
 	Table,
 	TableBody,
@@ -20,21 +19,20 @@ import { optionValue } from "./optionValue";
 type OptionsTableProps = {
 	options: readonly SerpentOption[];
 	additionalValues?: readonly string[];
-	/** When false, options annotated `enterprise` show a Premium badge and a license note. */
-	hasLicense?: boolean;
+	"aria-label"?: string;
 };
 
 const OptionsTable: React.FC<OptionsTableProps> = ({
 	options,
 	additionalValues,
-	hasLicense = true,
+	"aria-label": ariaLabel,
 }) => {
 	if (options.length === 0) {
 		return <p>No options to configure</p>;
 	}
 
 	return (
-		<Table className="options-table">
+		<Table className="options-table" aria-label={ariaLabel}>
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/2">Option</TableHead>
@@ -43,20 +41,10 @@ const OptionsTable: React.FC<OptionsTableProps> = ({
 			</TableHeader>
 			<TableBody>
 				{Object.values(options).map((option) => {
-					const showPremiumNotice =
-						!hasLicense && option.annotations?.enterprise === "true";
 					return (
 						<TableRow key={option.flag} className={`option-${option.flag}`}>
 							<TableCell>
 								<OptionName>{option.name}</OptionName>
-								{showPremiumNotice && (
-									<div className="flex items-center gap-2 py-1">
-										<PremiumBadge />
-										<span className="text-sm font-normal">
-											Requires a Premium license to take effect.
-										</span>
-									</div>
-								)}
 								<OptionDescription>{option.description}</OptionDescription>
 								<div className="pt-2 flex flex-wrap gap-2">
 									{option.flag && (
