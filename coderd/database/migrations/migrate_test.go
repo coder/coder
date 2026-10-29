@@ -408,6 +408,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000621Skills", 621, testMigration000621Skills},
 		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
+		{"Migration000635ChatModelOverrideComputerUse", 635, testMigration000635ChatModelOverrideComputerUse},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -4667,4 +4668,95 @@ func TestMigration000627WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+}
+
+func testMigration000635ChatModelOverrideComputerUse(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 635
+
+	orgID, providerID, modelID := uuid.New(), uuid.New(), uuid.New()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, fixture := range []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', NOW(), NOW(), '{}')",
+			[]any{orgID, orgID.String()},
+		},
+		{
+			"INSERT INTO ai_providers (id, type, name, base_url) VALUES ($1, 'anthropic', $2, 'https://example.com')",
+			[]any{providerID, providerID.String()},
+		},
+		{
+			"INSERT INTO chat_model_configs (id, model, context_limit, compression_threshold, ai_provider_id, organization_id) VALUES ($1, 'claude-opus-5', 128000, 70, $2, $3)",
+			[]any{modelID, providerID, orgID},
+		},
+		{
+			"INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', 'openai'), ('migration000635_control', 'kept')",
+			nil,
+		},
+	} {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+
+	insertOverride := func(overrideContext string) error {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id) VALUES ($1, $2, $3)",
+			orgID, overrideContext, modelID)
+		return err
+	}
+	requireCheckViolation := func(err error) {
+		t.Helper()
+		require.True(t, database.IsCheckViolation(err, database.CheckChatOrganizationModelOverridesContextCheck), "unexpected error: %v", err)
+	}
+	overrideContexts := func() []string {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx,
+			"SELECT context FROM chat_organization_model_overrides WHERE organization_id = $1", orgID)
+		require.NoError(t, err)
+		defer rows.Close()
+
+		var contexts []string
+		for rows.Next() {
+			var overrideContext string
+			require.NoError(t, rows.Scan(&overrideContext))
+			contexts = append(contexts, overrideContext)
+		}
+		require.NoError(t, rows.Err())
+		return contexts
+	}
+
+	requireCheckViolation(insertOverride("computer_use"))
+	require.NoError(t, insertOverride("advisor"))
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	require.NoError(t, insertOverride("computer_use"))
+	require.ElementsMatch(t, []string{"advisor", "computer_use"}, overrideContexts())
+
+	var legacyRows, controlRows int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE key = 'agents_computer_use_provider'),
+			count(*) FILTER (WHERE key = 'migration000635_control')
+		FROM site_configs`).Scan(&legacyRows, &controlRows))
+	require.Zero(t, legacyRows)
+	require.Equal(t, 1, controlRows)
+
+	// The down migration must delete computer_use rows before it restores the
+	// old constraint.
+	downSQL, err := os.ReadFile("000635_chat_model_override_computer_use.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"advisor"}, overrideContexts())
+	requireCheckViolation(insertOverride("computer_use"))
+
+	// Reapply the migration so the chain stays at this version.
+	upSQL, err := os.ReadFile("000635_chat_model_override_computer_use.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
 }
