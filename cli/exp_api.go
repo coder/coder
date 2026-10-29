@@ -58,6 +58,10 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 					Command:     "coder exp api users q==status:active limit==10",
 				},
 				Example{
+					Description: "List your unread inbox notifications",
+					Command:     "coder exp api notifications/inbox read_status==unread",
+				},
+				Example{
 					Description: "Search the audit log for deleted workspaces",
 					Command:     "coder exp api audit 'q==resource_type:workspace action:delete' limit==25",
 				},
