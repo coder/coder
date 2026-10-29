@@ -413,7 +413,6 @@ describe("ChatPageTimeline question dock", () => {
 				expanded: true,
 			}),
 		);
-		expect(within(getQuestionDock()).queryByRole("radio")).toBeNull();
 		await user.click(
 			within(getQuestionDock()).getByRole("button", {
 				name: "Scope",

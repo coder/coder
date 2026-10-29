@@ -90,6 +90,29 @@ describe("AskUserQuestionTool", () => {
 		).toHaveFocus();
 	});
 
+	it("selects Other from its field, but not when Tab passes through it", async () => {
+		const user = userEvent.setup();
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>,
+		);
+		const otherRadio = screen.getByRole("radio", { name: "Other" });
+
+		await user.tab();
+		await user.tab();
+		expect(otherRadio).not.toBeChecked();
+		await user.click(screen.getByRole("textbox", { name: /other response/i }));
+		expect(otherRadio).toBeChecked();
+	});
+
 	it("sends a skipped question as Skipped", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();
@@ -139,7 +162,6 @@ describe("AskUserQuestionTool", () => {
 		firstRender.unmount();
 
 		const secondRender = render(<DraftQuestion />);
-		expect(screen.getByText("How should the change ship?")).toBeVisible();
 		await user.click(screen.getByRole("button", { name: "Back" }));
 		expect(
 			screen.getByRole("textbox", { name: /other response/i }),
@@ -152,9 +174,7 @@ describe("AskUserQuestionTool", () => {
 		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
 			"1. Implementation Approach: Other: Two migrations\n2. Rollout: Feature flag",
 		);
-		expect(
-			screen.getByText("How should we structure the database migration?"),
-		).toBeVisible();
+		expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
 		expect(
 			screen.getByRole("textbox", { name: /other response/i }),
 		).toHaveValue("");

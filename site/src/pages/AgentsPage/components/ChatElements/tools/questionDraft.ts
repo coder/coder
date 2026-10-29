@@ -1,3 +1,6 @@
+import { asRecord } from "../runtimeTypeUtils";
+import { parseJSON } from "./utils";
+
 /** One question's unsent answer. */
 export type QuestionDraft = {
 	/** An option's index, the "Other" field, or a skipped question. */
@@ -17,63 +20,57 @@ type DraftQuestion = { readonly options: readonly unknown[] };
 
 const storageKeyPrefix = "agents.ask-user-question-draft.";
 
+/**
+ * Names one ask_user_question call. Providers can reuse a call ID, so the
+ * start time tells the calls apart.
+ */
+export const getDraftKey = (toolCallId: string, startedAt?: string): string =>
+	`${toolCallId}:${startedAt ?? ""}`;
+
+const isIntegerInRange = (value: unknown, max: number): value is number =>
+	typeof value === "number" &&
+	Number.isInteger(value) &&
+	value >= 0 &&
+	value <= max;
+
 const isQuestionDraft = (
 	value: unknown,
 	optionCount: number,
 ): value is QuestionDraft => {
-	if (typeof value !== "object" || value === null) {
+	const record = asRecord(value);
+	if (!record || typeof record.otherText !== "string") {
 		return false;
 	}
-	const { selection, otherText } = value as Record<string, unknown>;
-	if (typeof otherText !== "string") {
-		return false;
-	}
+	const { selection } = record;
 	return (
 		selection === undefined ||
 		selection === "other" ||
 		selection === "skipped" ||
-		(Number.isInteger(selection) &&
-			(selection as number) >= 0 &&
-			(selection as number) < optionCount)
+		isIntegerInRange(selection, optionCount - 1)
 	);
 };
 
-const isCount = (value: unknown, max: number): value is number =>
-	Number.isInteger(value) && (value as number) >= 0 && (value as number) <= max;
-
-/**
- * Returns the draft saved for these questions. A draft saved for other
- * questions, for example under a call ID that a provider reused, is ignored.
- */
+/** Returns undefined for a malformed draft or one saved for other questions. */
 export const readFormDraft = (
 	draftKey: string,
 	questions: readonly DraftQuestion[],
 ): FormDraft | undefined => {
 	const raw = localStorage.getItem(storageKeyPrefix + draftKey);
-	if (raw === null) {
-		return undefined;
-	}
-	let stored: unknown;
-	try {
-		stored = JSON.parse(raw);
-	} catch {
-		// A draft that does not parse starts the form over.
-		return undefined;
-	}
-	if (typeof stored !== "object" || stored === null) {
+	const stored = raw === null ? null : asRecord(parseJSON(raw));
+	if (!stored) {
 		return undefined;
 	}
 	const { questionsJSON, drafts, questionIndex, answeredQuestionCount } =
-		stored as Record<string, unknown>;
+		stored;
 	if (
 		questionsJSON !== JSON.stringify(questions) ||
 		!Array.isArray(drafts) ||
 		drafts.length !== questions.length ||
-		!drafts.every((draft, index) =>
+		!drafts.every((draft: unknown, index) =>
 			isQuestionDraft(draft, questions[index].options.length),
 		) ||
-		!isCount(questionIndex, questions.length - 1) ||
-		!isCount(answeredQuestionCount, questions.length)
+		!isIntegerInRange(questionIndex, questions.length - 1) ||
+		!isIntegerInRange(answeredQuestionCount, questions.length)
 	) {
 		return undefined;
 	}

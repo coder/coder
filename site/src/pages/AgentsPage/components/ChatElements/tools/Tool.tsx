@@ -688,6 +688,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	toolCallId,
+	startedAt,
 	args,
 	status,
 	result,
@@ -716,6 +717,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
 			toolCallId={toolCallId}
+			startedAt={startedAt}
 			asyncToolCallId={
 				isAsyncAskUserQuestionResult(result) ? toolCallId : undefined
 			}

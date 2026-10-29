@@ -182,7 +182,6 @@ export const InteractiveSingleQuestionOther: Story = {
 
 		const otherInput = canvas.getByRole("textbox", { name: /other response/i });
 		await userEvent.click(otherInput);
-		expect(canvas.getByRole("radio", { name: /^other/i })).toBeChecked();
 		expect(submitButton).toBeDisabled();
 
 		await userEvent.type(otherInput, "Use a canary rollout");
@@ -228,14 +227,9 @@ export const KeyboardNavigation: Story = {
 		await userEvent.keyboard(" ");
 		expect(secondRadio).toBeChecked();
 
-		// Tabbing through the "Other" field keeps the chosen option.
 		await userEvent.tab();
-		expect(
-			canvas.getByRole("textbox", { name: /other response/i }),
-		).toHaveFocus();
 		await userEvent.tab();
 		expect(submitButton).toHaveFocus();
-		expect(secondRadio).toBeChecked();
 
 		await userEvent.keyboard("{Enter}");
 

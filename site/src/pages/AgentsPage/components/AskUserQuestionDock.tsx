@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
+import { getDraftKey } from "./ChatElements/tools/questionDraft";
 import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
@@ -27,7 +28,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	// Providers can reuse a call ID, so the start time tells the calls apart.
 	// Keying the section by it gives a newer question a fresh form that starts
 	// scrolled to the top.
-	const questionKey = `${question.id}:${question.startedAt ?? ""}`;
+	const questionKey = getDraftKey(question.id, question.startedAt);
 	// Keyed by question, so a newer question always opens expanded.
 	const [collapsedQuestionKey, setCollapsedQuestionKey] = useState<
 		string | undefined
@@ -42,8 +43,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			// A stable scrollbar gutter, as on the chat input's wrapper, keeps the two aligned.
 			className="flex max-h-[60vh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
-			{/* The panel grows to show the whole question. Only on a short screen
-			    does it scroll, and it shrinks before the chat input does. */}
+			{/* The panel grows with the question and scrolls only past its max
+			    height. It shrinks before the chat input does. */}
 			<section
 				key={questionKey}
 				// A section that replaces a focused one takes the focus, so screen

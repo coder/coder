@@ -15,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
 import {
 	type FormDraft,
+	getDraftKey,
 	type QuestionDraft,
 	readFormDraft,
 	removeFormDraft,
@@ -38,6 +39,7 @@ type AskUserQuestionToolProps = {
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	toolCallId?: string;
+	startedAt?: string;
 	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
 	isDocked?: boolean;
@@ -56,13 +58,11 @@ const getQuestionLabel = (
 	questionIndex: number,
 	questionCount: number,
 ): string => {
-	const parts = [
+	const progress =
 		questionCount > 1
 			? `Question ${questionIndex + 1} of ${questionCount}`
-			: undefined,
-		question.header || undefined,
-	].filter((part) => part !== undefined);
-	return parts.length > 0 ? parts.join(" · ") : "Question";
+			: "";
+	return [progress, question.header].filter(Boolean).join(" · ") || "Question";
 };
 
 const getQuestionText = (question: AskUserQuestion): string =>
@@ -88,8 +88,12 @@ const getDefaultDraft = (question: AskUserQuestion): QuestionDraft => ({
 	otherText: "",
 });
 
-const isDraftAnswered = (draft: QuestionDraft | undefined): boolean => {
-	if (draft?.selection === undefined) {
+type AnsweredDraft = QuestionDraft & {
+	selection: Exclude<QuestionDraft["selection"], undefined>;
+};
+
+const isDraftAnswered = (draft: QuestionDraft): draft is AnsweredDraft => {
+	if (draft.selection === undefined) {
 		return false;
 	}
 	if (draft.selection === "other") {
@@ -100,7 +104,7 @@ const isDraftAnswered = (draft: QuestionDraft | undefined): boolean => {
 
 const formatAnswer = (
 	question: AskUserQuestion,
-	draft: QuestionDraft,
+	draft: AnsweredDraft,
 ): string => {
 	if (draft.selection === "other") {
 		return `Other: ${draft.otherText.trim()}`;
@@ -108,20 +112,20 @@ const formatAnswer = (
 	if (draft.selection === "skipped") {
 		return "Skipped";
 	}
-	return getOptionLabel(question, draft.selection ?? 0);
+	return getOptionLabel(question, draft.selection);
 };
 
-const getSelectedValue = (draft: QuestionDraft | undefined): string => {
-	if (typeof draft?.selection === "number") {
+const getSelectedValue = (draft: QuestionDraft): string => {
+	if (typeof draft.selection === "number") {
 		return `option-${draft.selection}`;
 	}
 	// An empty value keeps the radio group controlled with nothing selected.
-	return draft?.selection === "other" ? OTHER_OPTION_VALUE : "";
+	return draft.selection === "other" ? OTHER_OPTION_VALUE : "";
 };
 
 const formatOutgoingMessage = (
 	questions: AskUserQuestion[],
-	drafts: readonly QuestionDraft[],
+	drafts: readonly AnsweredDraft[],
 ): string => {
 	if (questions.length === 1) {
 		return formatAnswer(questions[0], drafts[0]);
@@ -216,7 +220,7 @@ const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 			/>
 			<Input
 				aria-label={`Other response for ${questionHeader}`}
-				className="h-8 text-[13px]"
+				className="h-8 text-[13px] md:text-[13px]"
 				disabled={!isEnabled}
 				placeholder="Other: type your own answer"
 				value={otherText}
@@ -229,24 +233,12 @@ const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 	);
 };
 
-type QuestionLabelProps = {
-	label: string;
-};
-
-const QuestionLabel: React.FC<QuestionLabelProps> = ({ label }) => (
-	<p className="m-0 flex items-center gap-1.5 text-xs font-medium text-content-secondary">
-		<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
-		{label}
-	</p>
-);
-
 type QuestionStepProps = {
 	question: AskUserQuestion;
 	questionIndex: number;
 	questionCount: number;
 	idPrefix: string;
-	draft: QuestionDraft | undefined;
-	/** Unset when a header above the form already shows the label. */
+	draft: QuestionDraft;
 	showsLabel: boolean;
 	isEnabled: boolean;
 	questionTextRef: React.Ref<HTMLParagraphElement>;
@@ -274,9 +266,10 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	return (
 		<div>
 			{showsLabel && (
-				<QuestionLabel
-					label={getQuestionLabel(question, questionIndex, questionCount)}
-				/>
+				<p className="m-0 flex items-center gap-1.5 text-xs text-content-secondary">
+					<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
+					{getQuestionLabel(question, questionIndex, questionCount)}
+				</p>
 			)}
 			<p
 				ref={questionTextRef}
@@ -306,7 +299,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 				<OtherQuestionOption
 					id={`${questionIdBase}-option-other`}
 					questionHeader={getQuestionHeader(question, questionIndex)}
-					otherText={draft?.otherText ?? ""}
+					otherText={draft.otherText}
 					isEnabled={isEnabled}
 					onSelect={onOtherSelect}
 					onTextChange={onOtherTextChange}
@@ -315,6 +308,39 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 		</div>
 	);
 };
+
+type QuestionPanelHeaderProps = {
+	label: string;
+	progress: string | undefined;
+	isCollapsed: boolean;
+	onToggle: () => void;
+};
+
+const QuestionPanelHeader: React.FC<QuestionPanelHeaderProps> = ({
+	label,
+	progress,
+	isCollapsed,
+	onToggle,
+}) => (
+	<button
+		type="button"
+		aria-expanded={!isCollapsed}
+		className="flex w-full appearance-none items-center gap-1.5 px-3 py-2.5 text-left font-sans text-xs text-content-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+		onClick={onToggle}
+	>
+		<MessageCircleQuestionIcon
+			aria-hidden="true"
+			className="size-3.5 shrink-0"
+		/>
+		<span className="min-w-0 flex-1 truncate">{label}</span>
+		{progress && <span className="shrink-0">{progress}</span>}
+		{isCollapsed ? (
+			<ChevronUpIcon aria-hidden="true" className="size-4 shrink-0" />
+		) : (
+			<ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />
+		)}
+	</button>
+);
 
 type AskedQuestionsProps = {
 	questions: AskUserQuestion[];
@@ -353,10 +379,7 @@ type AskUserQuestionFormProps = {
 	/** The form is read-only without it, and once it shows an answer. */
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
-	/**
-	 * Turns the question label into a header that collapses the form. A
-	 * collapsed form shows only the header and keeps its state for expanding.
-	 */
+	/** Makes the label a header that collapses the form, which keeps its state. */
 	onToggleCollapsed?: () => void;
 	isCollapsed?: boolean;
 	hasStickyActions?: boolean;
@@ -450,7 +473,6 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 					question,
 					questionIndex,
 				}));
-	// The header shows the label only while one question is on screen.
 	const headerQuestionIndex =
 		visibleQuestions.length === 1 ? activeQuestionIndex : undefined;
 
@@ -502,6 +524,12 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		changeDraft(questionIndex, { selection: optionIndex });
 	};
 
+	const selectOther = (questionIndex: number) => {
+		if (drafts[questionIndex].selection !== "other") {
+			changeDraft(questionIndex, { selection: "other" });
+		}
+	};
+
 	// Focus moves to the new question, since Back or Next can end up out of
 	// view or disabled. flushSync renders that step first, and onStepChange
 	// runs last so that the focus cannot undo the scroll position it sets.
@@ -534,7 +562,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		if (
 			!onSubmitAnswer ||
 			!isInteractive ||
-			!finalDrafts.every((draft) => isDraftAnswered(draft))
+			!finalDrafts.every(isDraftAnswered)
 		) {
 			return;
 		}
@@ -583,36 +611,24 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	};
 
 	const header = onToggleCollapsed && (
-		<button
-			type="button"
-			aria-expanded={!isCollapsed}
-			className="flex w-full cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent px-3 py-2.5 text-left font-sans text-xs font-medium text-content-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
-			onClick={onToggleCollapsed}
-		>
-			<MessageCircleQuestionIcon
-				aria-hidden="true"
-				className="size-3.5 shrink-0"
-			/>
-			<span className="min-w-0 flex-1 truncate">
-				{headerQuestionIndex === undefined
+		<QuestionPanelHeader
+			label={
+				headerQuestionIndex === undefined
 					? "Questions"
 					: getQuestionLabel(
 							filteredQuestions[headerQuestionIndex],
 							headerQuestionIndex,
 							filteredQuestions.length,
-						)}
-			</span>
-			{isCollapsed && isWizard && (
-				<span className="shrink-0">
-					{answeredQuestionCount}/{filteredQuestions.length} answered
-				</span>
-			)}
-			{isCollapsed ? (
-				<ChevronUpIcon aria-hidden="true" className="size-4 shrink-0" />
-			) : (
-				<ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />
-			)}
-		</button>
+						)
+			}
+			progress={
+				isCollapsed && isWizard
+					? `${answeredQuestionCount}/${filteredQuestions.length} questions answered`
+					: undefined
+			}
+			isCollapsed={isCollapsed}
+			onToggle={onToggleCollapsed}
+		/>
 	);
 
 	if (header && isCollapsed) {
@@ -640,9 +656,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 								handleOptionChange(questionIndex, question, value);
 							}}
 							onOtherSelect={() => {
-								if (drafts[questionIndex]?.selection !== "other") {
-									changeDraft(questionIndex, { selection: "other" });
-								}
+								selectOther(questionIndex);
 							}}
 							onOtherTextChange={(text) => {
 								changeDraft(questionIndex, {
@@ -680,8 +694,9 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				<div
 					className={cn(
 						"flex items-center gap-2",
-						// The negative margin covers the body's bottom padding, so
-						// the row keeps its background down to the panel's border.
+						// The negative margin covers the padding of the wrapper
+						// below the header, so the row's background reaches the
+						// panel's border.
 						hasStickyActions
 							? "sticky bottom-0 -mb-3 bg-surface-primary pt-3 pb-3"
 							: "mt-3",
@@ -764,6 +779,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	isLatestAskUserQuestion = false,
 	previousResponseText,
 	toolCallId,
+	startedAt,
 	asyncToolCallId,
 	isDocked = false,
 	onSubmitAnswer,
@@ -853,7 +869,11 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 					questions={questions}
 					previousResponseText={previousResponseText}
 					asyncToolCallId={asyncToolCallId}
-					draftKey={toolCallId}
+					draftKey={
+						toolCallId === undefined
+							? undefined
+							: getDraftKey(toolCallId, startedAt)
+					}
 					showSubmittedAnswer={isLatestAskUserQuestion}
 					onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
 				/>

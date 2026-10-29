@@ -154,7 +154,7 @@ export const mapSubagentStatusToToolStatus = (
 };
 
 /** JSON.parse that returns undefined for invalid JSON. */
-const parseJSON = (text: string): unknown => {
+export const parseJSON = (text: string): unknown => {
 	try {
 		return JSON.parse(text);
 	} catch {
