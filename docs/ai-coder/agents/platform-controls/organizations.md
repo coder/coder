@@ -22,6 +22,7 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
 | MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| MCP server connections          | User, per organization | **Agents** > **Settings** > **MCP connections**                            |
 | Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
 | Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
 | System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |

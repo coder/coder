@@ -3495,6 +3495,26 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Lists the file parts in a chat's messages, newest first, optionally
+	 * only those in messages before `before_id`.
+	 */
+	getChatAttachments = async (
+		chatId: string,
+		opts?: { before_id?: number },
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatAttachmentsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/chats/${chatId}/attachments`,
+			opts,
+		);
+		const response = await this.axios.get<TypesGen.ChatAttachmentsResponse>(
+			url,
+			{ signal },
+		);
+		return response.data;
+	};
+
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {

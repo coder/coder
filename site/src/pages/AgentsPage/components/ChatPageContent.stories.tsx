@@ -148,7 +148,6 @@ const StoryChatPageInput: React.FC<{
 			mcpServers={[]}
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={fn()}
-			onMCPAuthComplete={fn()}
 			isWorkspaceLoading={false}
 		/>
 	</div>
@@ -493,7 +492,6 @@ const CompactionChatPageInput: React.FC = () => {
 				mcpServers={[]}
 				selectedMCPServerIds={[]}
 				onMCPSelectionChange={fn()}
-				onMCPAuthComplete={fn()}
 				isWorkspaceLoading={false}
 			/>
 		</div>

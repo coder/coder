@@ -363,7 +363,8 @@ When you quote product text that contains "please", such as an error message, pu
 >
 > For more information, please contact your administrator.
 
-*Enforced by `Coder.Please` (planned).*
+*Enforced by `Coder.Please` (`warning`).
+The rule skips code spans and fenced code blocks, so quoted product text in code font isn't flagged.*
 
 ## Trailing prepositions are a judgment call
 

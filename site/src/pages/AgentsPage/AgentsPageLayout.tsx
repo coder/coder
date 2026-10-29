@@ -69,8 +69,8 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
-	AGENT_CHAT_STATUS_ORDER,
 	getAgentSidebarFilters,
+	getSidebarChatListInput,
 } from "./utils/agentSidebarFilters";
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
@@ -172,19 +172,8 @@ const AgentsPageLayout: React.FC = () => {
 		};
 	}, []);
 
-	const archivedFilter = sidebarFilters.archiveStatus === "archived";
-	const statuses =
-		sidebarFilters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
-			? undefined
-			: sidebarFilters.chatStatuses;
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({
-			archived: archivedFilter,
-			prStatuses: sidebarFilters.prStatuses,
-			statuses,
-			chatStatus: sidebarFilters.unread ? "unread" : undefined,
-			sources: sidebarFilters.sources,
-		}),
+		infiniteChats(getSidebarChatListInput(sidebarFilters)),
 	);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),

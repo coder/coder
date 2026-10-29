@@ -11,7 +11,7 @@ The vast majority of home and corporate internet connections use at least one le
 
 In order for one application to connect to another across a network, the connecting application needs to know the IP address and port under which the target application is reachable.
 If both applications reside on the same network, then they can most likely connect directly to each other.
-In the context of a Coder workspace agent and client, this is generally not the case, as both agent and client will most likely be running in different _private_ networks (e.g. `192.168.1.0/24`).
+In the context of a Coder workspace agent and client, this is generally not the case, as both agent and client will most likely be running in different _private_ networks (for example, `192.168.1.0/24`).
 In this case, at least one of the two will need to know an IP address and port under which they can reach their counterpart.
 
 This problem is often referred to as NAT traversal, and Coder uses a standard protocol named STUN to address this.
@@ -80,7 +80,7 @@ To correctly route the traffic backwards, the corporate router must correctly ro
 - Traffic sent from the client to the external IP of the corporate router back to the cluster router, and
 - Traffic sent from the agent to the external IP of the corporate router to the VPN exit node.
 
-This behaviour is known as "hairpinning", and may not be supported in all network configurations.
+This behavior is known as "hairpinning", and may not be supported in all network configurations.
 
 If hairpinning is not supported, deploying an internal STUN server can aid establishing direct connections between client and agent.
 When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate.
@@ -102,8 +102,12 @@ In both cases, peers fallback to DERP connections if they cannot establish a dir
 If your workspaces are behind a "hard" NAT, you can:
 
 1. Ensure clients are not also behind a "hard" NAT.
+
    You may have limited ability to control this if end users connect from their homes.
-2. Ensure firewalls on client devices (e.g. Windows Defender Firewall) have an inbound policy allowing all UDP ports either to the `coder` or `coder.exe` CLI binary, or from the IP addresses of your workspace NATs.
+2. Allow all inbound UDP ports in client firewalls, either to the `coder` or `coder.exe` binary or from workspace NAT IPs.
+
+   For example, add an inbound policy to Windows Defender Firewall.
+
 3. Reconfigure your workspace network's NAT connection to the public internet to be an "easy" NAT.
    See below for specific examples.
 

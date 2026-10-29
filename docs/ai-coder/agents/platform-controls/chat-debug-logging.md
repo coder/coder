@@ -8,12 +8,15 @@ Off by default.
 Three layers control whether it runs for a given chat:
 
 1. **Deployment override.**
+
    Setting `CODER_CHAT_DEBUG_LOGGING_ENABLED=true` (or `--chat-debug-logging-enabled` at server start) forces debug logging on for every chat.
    The runtime admin and user toggles become read-only.
 1. **Runtime admin gate.**
+
    With the deployment override unset, the *Let users record chat debug logs* toggle decides whether users can opt in.
    Configure it under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**, or at `GET/PUT /api/v2/chats/config/debug-logging`.
 1. **Per-user toggle.**
+
    Users with the admin gate enabled can turn debug logging on for their own chats from **Agents** > **Settings** > **General** under *Record debug logs for my chats*.
    The endpoint `PUT /api/v2/chats/config/user-debug-logging` returns `409 Conflict` if the deployment override is active and `403 Forbidden` if the admin has not enabled user opt-in.
 
@@ -33,7 +36,9 @@ You can export the same captured debug data from the UI:
 1. Navigate to **Agents**.
 1. Open a chat with debug logging enabled.
 1. Open the **Debug** tab in the right panel.
-1. Select **Export debug logs** to download the chat's recent debug runs as JSON, or expand a run and select **Export this run** to download one run.
+1. Select **Export debug logs** to download the chat's recent debug runs as JSON.
+
+   To download one run instead, expand the run and select **Export this run**.
 
 The chat-level export includes the full run detail for the runs returned by the debug run list endpoint.
 The current list endpoint returns up to 100 of the newest runs.

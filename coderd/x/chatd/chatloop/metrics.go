@@ -74,6 +74,7 @@ type Metrics struct {
 	Chats                     *prometheus.GaugeVec
 	MessageCount              *prometheus.HistogramVec
 	PromptSizeBytes           *prometheus.HistogramVec
+	ResponseSizeBytes         *prometheus.HistogramVec
 	ToolResultSizeBytes       *prometheus.HistogramVec
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
@@ -126,6 +127,13 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Help:      "Estimated byte size of the prompt per LLM request.",
 			Buckets:   prometheus.ExponentialBuckets(1024, 4, 10), // 1KB .. 256MB
 		}, []string{"provider", "model"}),
+		ResponseSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "response_size_bytes",
+			Help:      "Byte size of streamed model response content (assistant text, reasoning, and tool-call input deltas) per LLM request.",
+			Buckets:   prometheus.ExponentialBuckets(64, 4, 11), // 64B .. 64MB
+		}, []string{"provider", "model"}),
 		ToolResultSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -149,7 +157,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "ttft_seconds",
-			Help:      "Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
+			Help:      "Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, keepalives, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
 		stageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
