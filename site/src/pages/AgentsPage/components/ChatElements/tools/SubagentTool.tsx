@@ -3,7 +3,6 @@ import {
 	CircleXIcon,
 	ClockIcon,
 	ExternalLinkIcon,
-	LoaderIcon,
 	MonitorIcon,
 } from "lucide-react";
 import type React from "react";
@@ -120,15 +119,7 @@ const SubagentStatusIcon: React.FC<{
 	isError: boolean;
 	isTimeout: boolean;
 	iconKind: SubagentDescriptor["iconKind"];
-	showDesktopPreview: boolean;
-}> = ({
-	subagentStatus,
-	toolStatus,
-	isError,
-	isTimeout,
-	iconKind,
-	showDesktopPreview,
-}) => {
+}> = ({ subagentStatus, toolStatus, isError, isTimeout, iconKind }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
@@ -136,16 +127,6 @@ const SubagentStatusIcon: React.FC<{
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
-	}
-	if (toolStatus === "running") {
-		if (showDesktopPreview) {
-			return (
-				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
-			);
-		}
-		return (
-			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
-		);
 	}
 	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
@@ -230,7 +211,6 @@ export const SubagentTool: React.FC<{
 							isError={isError}
 							isTimeout={isTimeout}
 							iconKind={descriptor.iconKind}
-							showDesktopPreview={showDesktopPreview}
 						/>
 					</ToolCall.LeadingIcon>
 					<ToolCall.Label>
@@ -243,6 +223,8 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
+					{/* The leading icon already shows error and timeout states. */}
+					{toolStatus === "running" && <ToolCall.Status />}
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (

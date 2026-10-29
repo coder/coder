@@ -976,6 +976,12 @@ export const WaitAgentExploreStreamingFromHistory: Story = {
 		result: { chat_id: "explore-child", status: "pending" },
 		subagentVariants: new Map([["explore-child", "explore"]]),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
+	},
 };
 
 export const MessageAgentExploreStreamingFromResult: Story = {
