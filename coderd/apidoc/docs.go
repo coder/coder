@@ -3781,7 +3781,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Attachment disposition carrying the file name, for example ` + "`" + `attachment; filename=image.png` + "`" + `",
+                        "x-example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the file name, with the filename as a quoted string.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -9955,7 +9956,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs (UUIDs)",
+                        "description": "Filter results by provisioner daemon IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
@@ -18721,6 +18722,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "x-example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
                         "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. For example, ` + "`" + `Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=` + "`" + `.",
                         "name": "Authorization",
                         "in": "header"

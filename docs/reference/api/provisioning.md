@@ -24,7 +24,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 |----------------|-------|---------------|----------|--------------------------------------------------------------------------------------|
 | `organization` | path  | string(uuid)  | true     | Organization ID                                                                      |
 | `limit`        | query | integer       | false    | Page limit                                                                           |
-| `ids`          | query | array[string] | false    | Filter results by job IDs (UUIDs)                                                    |
+| `ids`          | query | array[string] | false    | Filter results by provisioner daemon IDs (UUIDs)                                     |
 | `status`       | query | string        | false    | Filter results by status                                                             |
 | `tags`         | query | string        | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
 

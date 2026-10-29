@@ -5300,7 +5300,7 @@ curl -X POST http://coder-server:8080/oauth2/register \
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/revoke \
   -H 'Accept: application/json' \
-  -H 'Authorization: string'
+  -H 'Authorization: Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ='
 ```
 
 `POST /oauth2/revoke`
