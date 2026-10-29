@@ -65,6 +65,7 @@ func (api *API) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("path")
 	path := parser.String(query, "", "path")
+	root := parser.String(query, "", "root")
 	offset := parser.PositiveInt64(query, 0, "offset")
 	limit := parser.PositiveInt64(query, 0, "limit")
 	parser.ErrorExcessParams(query)
@@ -76,7 +77,15 @@ func (api *API) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := api.streamFile(ctx, rw, path, offset, limit)
+	var (
+		status HTTPResponseCode
+		err    error
+	)
+	if root == "" {
+		status, err = api.streamFile(ctx, rw, path, offset, limit)
+	} else {
+		status, err = api.streamFileInRoot(ctx, rw, root, path, offset, limit)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: err.Error(),
@@ -86,24 +95,103 @@ func (api *API) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path string, offset, limit int64) (HTTPResponseCode, error) {
-	logger := api.logger.With(agentchat.Fields(ctx)...)
-
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
 	f, err := api.filesystem.Open(path)
 	if err != nil {
-		status := http.StatusInternalServerError
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			status = http.StatusNotFound
-		case errors.Is(err, os.ErrPermission):
-			status = http.StatusForbidden
-		}
-		return status, err
+		return openErrorStatus(err, http.StatusInternalServerError), err
 	}
 	defer f.Close()
+
+	return api.streamOpenFile(ctx, rw, f, path, offset, limit)
+}
+
+// streamFileInRoot streams path, a local path relative to root, and
+// refuses any path whose walk, through symlinks included, leaves root.
+// It uses os.Root on the OS filesystem rather than api.filesystem
+// because afero has no traversal that stays beneath a directory. On
+// Unix, os.Root opens each path component relative to the directory
+// before it with O_NOFOLLOW, so a component that becomes a symlink
+// during the walk cannot redirect the read outside root.
+func (api *API) streamFileInRoot(ctx context.Context, rw http.ResponseWriter, root, path string, offset, limit int64) (HTTPResponseCode, error) {
+	if !filepath.IsAbs(root) {
+		return http.StatusBadRequest, xerrors.Errorf("root must be absolute: %q", root)
+	}
+	if !filepath.IsLocal(path) {
+		return http.StatusBadRequest, xerrors.Errorf("file path must be relative to root: %q", path)
+	}
+
+	r, status, err := openRootDir(root)
+	if err != nil {
+		return status, err
+	}
+	defer r.Close()
+
+	// The error names only root and path, never a symlink target, so
+	// a refusal does not reveal paths outside root.
+	f, err := r.Open(path)
+	if err != nil {
+		return openErrorStatus(err, http.StatusBadRequest), err
+	}
+	defer f.Close()
+
+	return api.streamOpenFile(ctx, rw, f, path, offset, limit)
+}
+
+// openRootDir opens root and refuses it if its last component is a
+// symlink. os.OpenRoot follows that symlink, so a root directory
+// replaced with a symlink to /etc would otherwise become /etc.
+// Comparing the opened directory with an Lstat of root, rather than
+// checking the Lstat mode alone, also refuses a swap between the two
+// calls. root is cleaned first, because a trailing slash makes Lstat
+// follow a symlink.
+func openRootDir(root string) (*os.Root, HTTPResponseCode, error) {
+	root = filepath.Clean(root)
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, openErrorStatus(err, http.StatusBadRequest), err
+	}
+	opened, err := r.Stat(".")
+	if err != nil {
+		_ = r.Close()
+		return nil, http.StatusInternalServerError, err
+	}
+	named, err := os.Lstat(root)
+	if err != nil {
+		_ = r.Close()
+		return nil, openErrorStatus(err, http.StatusBadRequest), err
+	}
+	if !os.SameFile(opened, named) {
+		_ = r.Close()
+		return nil, http.StatusBadRequest, xerrors.Errorf("root must not be a symlink: %q", root)
+	}
+	return r, 0, nil
+}
+
+// openErrorStatus maps a file open error to an HTTP status, using
+// fallback for errors other than not-exist and permission.
+func openErrorStatus(err error, fallback HTTPResponseCode) HTTPResponseCode {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return http.StatusNotFound
+	case errors.Is(err, os.ErrPermission):
+		return http.StatusForbidden
+	default:
+		return fallback
+	}
+}
+
+// openFile is the part of an opened file that streamOpenFile needs,
+// satisfied by both afero.File and *os.File.
+type openFile interface {
+	io.ReaderAt
+	Stat() (os.FileInfo, error)
+}
+
+func (api *API) streamOpenFile(ctx context.Context, rw http.ResponseWriter, f openFile, path string, offset, limit int64) (HTTPResponseCode, error) {
+	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	stat, err := f.Stat()
 	if err != nil {
