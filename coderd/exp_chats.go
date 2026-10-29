@@ -286,10 +286,10 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 }
 
 // @Summary Watch chat events for a user via WebSockets
+// @Description Upgrades to a WebSocket. The server sends each event as a separate message.
 // @ID watch-chat-events-for-a-user-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
-// @Description Upgrades to a WebSocket. The server sends each event as a separate message.
 // @Produce json
 // @Success 101 {object} codersdk.ChatWatchEvent
 // @Router /api/v2/chats/watch [get]
@@ -2303,10 +2303,10 @@ func (api *API) authorizeChatWorkspaceExecWithStatus(
 }
 
 // @Summary Watch chat workspace git state via WebSockets
+// @Description Upgrades to a WebSocket. Each server message is either a "changes" message with a delta of repository changes since the previous message or an "error" message, and you can send {"type": "refresh"} to request an immediate re-scan.
 // @ID watch-chat-workspace-git-state-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
-// @Description Upgrades to a WebSocket. The server sends each git state update as a separate message.
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 101 {object} codersdk.WorkspaceAgentGitServerMessage
@@ -3728,8 +3728,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 }
 
 // @Summary Stream chat events via WebSockets
-// @ID stream-chat-events-via-websockets
 // @Description Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.
+// @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
@@ -9517,8 +9517,8 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Stream chat parts via WebSockets
+// @Description Upgrades to a WebSocket. The server sends no events until you send a control message with history_version and generation_attempt, and then each message is a JSON array holding a batch of one or more events.
 // @ID stream-chat-parts-via-websockets
-// @Description Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
