@@ -107,11 +107,8 @@ function getSubagentLabel(
 }
 
 /**
- * Resolves a sub-agent status string and tool-level status into a
- * display icon. The sub-agent status in the tool result is a
- * snapshot from when the tool returned and may be stale (e.g. a
- * background sub-agent records "running" forever). The icon is
- * therefore driven primarily by the tool-call status itself.
+ * Resolves the leading icon for a sub-agent row from its tool and
+ * sub-agent status.
  */
 const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
@@ -223,7 +220,7 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
-					{/* The leading icon already shows error and timeout states. */}
+					{/* Failure states are shown only by the leading icon. */}
 					{toolStatus === "running" && <ToolCall.Status />}
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
