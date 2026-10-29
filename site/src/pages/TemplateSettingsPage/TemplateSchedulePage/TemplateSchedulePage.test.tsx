@@ -211,6 +211,7 @@ describe("TemplateSchedulePage", () => {
 					onCancel={() => {}}
 					isSubmitting={false}
 					allowAdvancedScheduling
+					canViewPremium
 				/>,
 			);
 			const user = userEvent.setup();
