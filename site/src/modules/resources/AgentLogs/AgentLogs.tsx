@@ -229,7 +229,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					</TooltipTrigger>
 					<TooltipContent
 						asChild
-						className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
+						className="w-full text-sm text-content-secondary bg-surface-primary max-w-[min(65ch,var(--radix-popper-available-width))] leading-relaxed m-0 p-4"
 					>
 						<p>
 							Startup logs exceeded the max size of{" "}

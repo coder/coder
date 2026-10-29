@@ -359,7 +359,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent
-											className="max-w-96 text-sm font-normal"
+											className="max-w-[min(24rem,var(--radix-popper-available-width))] text-sm font-normal"
 											align="start"
 											side="top"
 										>
@@ -592,7 +592,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 							</TooltipTrigger>
 							<TooltipContent
-								className="max-w-80 text-sm font-normal"
+								className="max-w-[min(20rem,var(--radix-popper-available-width))] text-sm font-normal"
 								align="end"
 								side="top"
 							>

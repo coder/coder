@@ -1,5 +1,5 @@
 export const menuContentClass = [
-	"z-50 min-w-48 overflow-hidden rounded-md border border-solid bg-surface-primary p-2 text-content-secondary shadow-md",
+	"z-50 min-w-48 max-h-(--radix-popper-available-height) max-w-(--radix-popper-available-width) overflow-x-hidden overflow-y-auto rounded-md border border-solid bg-surface-primary p-2 text-content-secondary shadow-md",
 	"origin-(--radix-popper-transform-origin) ease-out-strong",
 	"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 	"data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

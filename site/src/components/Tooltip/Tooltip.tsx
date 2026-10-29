@@ -41,7 +41,7 @@ export const TooltipContent: React.FC<TooltipContentProps> = ({
 		<TooltipPrimitive.Content
 			sideOffset={sideOffset}
 			className={cn(
-				"z-50 overflow-hidden rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
+				"z-50 max-w-(--radix-popper-available-width) wrap-break-word overflow-hidden rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
 				"border border-solid border-border animate-in fade-in-0 duration-150",
 				"data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
 				className,
