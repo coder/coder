@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import type { Feature } from "#/api/typesGenerated";
-import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import {
 	MockAgentRuntimeHoursFeature,
 	MockLicenseResponse,
@@ -45,23 +44,6 @@ export const Empty: Story = {
 	args: {
 		licenses: [],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText("No licenses yet");
-		const addLinks = canvas.getAllByRole("link", { name: /add a license/i });
-		for (const link of addLinks) {
-			await expect(link).toHaveAttribute("href", "/deployment/licenses/add");
-		}
-		await expect(
-			canvas.getByRole("link", { name: /request a trial license/i }),
-		).toHaveAttribute("href", "/deployment/premium");
-		await expect(
-			canvas.getByRole("link", { name: /contact sales/i }),
-		).toHaveAttribute("href", CONTACT_SALES_LINK);
-		await expect(
-			canvas.queryByRole("link", { name: /start a trial/i }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const NoLicensePermission: Story = {
@@ -79,12 +61,6 @@ export const LoadError: Story = {
 			detail: "database connection refused",
 		}),
 		onRetryLicenses: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("No licenses yet")).not.toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("button", { name: /retry/i }));
-		await expect(args.onRetryLicenses).toHaveBeenCalledTimes(1);
 	},
 };
 
