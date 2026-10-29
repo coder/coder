@@ -23372,7 +23372,7 @@ None
     "transition": "start"
   },
   "error": {
-    "code": 0,
+    "code": 1,
     "details": "string",
     "message": "string",
     "retryable": true
@@ -23392,7 +23392,7 @@ None
 
 ```json
 {
-  "code": 0,
+  "code": 1,
   "details": "string",
   "message": "string",
   "retryable": true
@@ -23411,16 +23411,16 @@ None
 ## workspacesdk.WatchErrorCode
 
 ```json
-0
+1
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                          |
-|-----------------------------------|
-| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
+| Value(s)                     |
+|------------------------------|
+| `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 

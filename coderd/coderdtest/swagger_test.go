@@ -102,13 +102,14 @@ func TestSDKFieldsFormatted(t *testing.T) {
 
 // TestSwaggerEnumsNotNarrowed guards against an `enums:"..."` struct tag
 // narrowing a named enum type, which makes the spec list fewer values than the
-// API can return, and against duplicate values in an enum list.
+// API can return or a value the type does not have, and against enum lists in
+// the spec that repeat a value.
 func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 	t.Parallel()
 
-	// Properties that intentionally accept or document only a subset of the
-	// values of their named type, usually because a request may set only some
-	// of them. Keep this list as small as possible.
+	// Fields that omit a value of their type on purpose. The ACL role fields
+	// omit the "" deleted sentinel, which only update requests send. Keep this
+	// list as small as possible.
 	allowedSubsets := map[string]bool{
 		"codersdk.APIKey.scope":                                    true,
 		"codersdk.ChatGroup.role":                                  true,
@@ -134,7 +135,8 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 		} `json:"allOf"`
 		Enum  []any `json:"enum"`
 		Items *struct {
-			Enum []any `json:"enum"`
+			Ref  string `json:"$ref"`
+			Enum []any  `json:"enum"`
 		} `json:"items"`
 	}
 	var swagger struct {
@@ -154,23 +156,50 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(apidoc.SwaggerInfo.ReadDoc()), &swagger))
 
+	assertNoDuplicates := func(where string, values []any) {
+		t.Helper()
+		seen := map[string]bool{}
+		for _, v := range enumStrings(values) {
+			assert.Falsef(t, seen[v], "%s lists enum value %q more than once", where, v)
+			seen[v] = true
+		}
+	}
+
 	seenSubsets := map[string]bool{}
+	// assertEnumMatchesType checks an enum list written next to a reference to
+	// a named enum type against the values of that type.
+	assertEnumMatchesType := func(key, ref string, inline []any) {
+		t.Helper()
+		if ref == "" || len(inline) == 0 {
+			return
+		}
+		named := swagger.Definitions[strings.TrimPrefix(ref, "#/definitions/")].Enum
+		have := enumStrings(inline)
+		want := enumStrings(named)
+		for _, v := range have {
+			assert.Truef(t, slices.Contains(want, v), "%s lists %q, which type %s does not have", key, v, ref)
+		}
+		if slices.Equal(have, want) {
+			return
+		}
+		seenSubsets[key] = true
+		assert.Truef(t, allowedSubsets[key], "%s lists %v but its type %s lists %v; remove the enums tag so the spec lists every value, or add it to allowedSubsets if the subset is intentional", key, inline, ref, named)
+	}
+
 	for defName, def := range swagger.Definitions {
+		assertNoDuplicates(defName, def.Enum)
 		for propName, prop := range def.Properties {
+			key := defName + "." + propName
+			assertNoDuplicates(key, prop.Enum)
 			ref := prop.Ref
 			if ref == "" && len(prop.AllOf) > 0 {
 				ref = prop.AllOf[0].Ref
 			}
-			if ref == "" || len(prop.Enum) == 0 {
-				continue
+			assertEnumMatchesType(key, ref, prop.Enum)
+			if prop.Items != nil {
+				assertNoDuplicates(key, prop.Items.Enum)
+				assertEnumMatchesType(key, prop.Items.Ref, prop.Items.Enum)
 			}
-			key := defName + "." + propName
-			named := swagger.Definitions[strings.TrimPrefix(ref, "#/definitions/")].Enum
-			if slices.Equal(enumStrings(prop.Enum), enumStrings(named)) {
-				continue
-			}
-			seenSubsets[key] = true
-			assert.Truef(t, allowedSubsets[key], "%s lists %v but its type %s lists %v; remove the enums tag so the spec lists every value, or add it to allowedSubsets if the subset is intentional", key, prop.Enum, ref, named)
 		}
 	}
 	for key := range allowedSubsets {
@@ -180,22 +209,17 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 	for route, methods := range swagger.Paths {
 		for method, op := range methods {
 			for _, param := range op.Parameters {
-				values := param.Enum
+				where := method + " " + route + " parameter " + param.Name
+				assertNoDuplicates(where, param.Enum)
 				if param.Items != nil {
-					values = append(values, param.Items.Enum...)
-				}
-				seen := map[string]bool{}
-				for _, v := range enumStrings(values) {
-					assert.Falsef(t, seen[v], "%s %s parameter %q lists enum value %q more than once", method, route, param.Name, v)
-					seen[v] = true
+					assertNoDuplicates(where, param.Items.Enum)
 				}
 			}
 		}
 	}
 }
 
-// enumStrings returns the sorted string form of enum values, which may be
-// numbers in the spec.
+// enumStrings returns the sorted string form of enum values, which may be numbers.
 func enumStrings(values []any) []string {
 	out := make([]string, 0, len(values))
 	for _, v := range values {
