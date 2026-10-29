@@ -37,7 +37,6 @@ import {
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
-import { deploymentSSHConfig } from "#/api/queries/deployment";
 import {
 	organizationSkillPreferences,
 	organizationSkills,
@@ -237,7 +236,6 @@ const AgentChatPage: React.FC = () => {
 		agentId,
 		chatAgentId,
 	});
-	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
@@ -620,11 +618,6 @@ const AgentChatPage: React.FC = () => {
 
 	const chatTitle = chatQuery.data?.title;
 
-	const sshCommand =
-		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
-			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
-			: undefined;
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
@@ -837,7 +830,6 @@ const AgentChatPage: React.FC = () => {
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
