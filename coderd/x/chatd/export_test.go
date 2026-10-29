@@ -12,6 +12,12 @@ var StageAnomalyCount = anomalyCount
 // DefaultTaskTimeout is the per-attempt task timeout.
 const DefaultTaskTimeout = defaultTaskTimeout
 
+// Workspace awareness texts that turns show the model.
+const (
+	WorkspaceAttachedAwareness = workspaceAttachedAwareness
+	WorkspaceDetachedAwareness = workspaceDetachedAwareness
+)
+
 // SpanAttr returns the span attribute key, or "" when unset.
 func SpanAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
 	t.Helper()

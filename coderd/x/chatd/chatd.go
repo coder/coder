@@ -706,9 +706,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
-	workspaceAwareness := workspaceDetachedAwareness
+	workspaceAwareness := savedWorkspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
-		workspaceAwareness = workspaceAttachedAwareness
+		workspaceAwareness = savedWorkspaceAttachedAwareness
 	}
 	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText(workspaceAwareness),

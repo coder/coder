@@ -1968,6 +1968,45 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 	t.Fatalf("field %q not found in log entry", name)
 }
 
+func TestWorkspaceAwarenessInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		behavior systemPromptBehaviorContext
+		want     string
+	}{
+		{name: "RootWithWorkspace", behavior: systemPromptBehaviorContext{isRootChat: true, workspaceAttached: true}, want: workspaceAttachedAwareness},
+		{name: "RootWithoutWorkspace", behavior: systemPromptBehaviorContext{isRootChat: true}, want: workspaceDetachedAwareness},
+		{name: "DelegatedWithWorkspace", behavior: systemPromptBehaviorContext{workspaceAttached: true}, want: workspaceAttachedAwareness},
+		{name: "DelegatedWithoutWorkspace", behavior: systemPromptBehaviorContext{}, want: workspaceDetachedNoCreateAwareness},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			history := []fantasy.Message{
+				{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Deployment prompt."}}},
+				{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}},
+			}
+			prompt := buildSystemPrompt(history, "subagent instruction", "chat instruction", nil, "", "", "", tt.behavior)
+
+			var systemTexts []string
+			for _, msg := range prompt {
+				if msg.Role != fantasy.MessageRoleSystem {
+					continue
+				}
+				for _, part := range msg.Content {
+					if text, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+						systemTexts = append(systemTexts, text.Text)
+					}
+				}
+			}
+			require.Equal(t, []string{"Deployment prompt.", tt.want, "subagent instruction", "chat instruction"}, systemTexts)
+		})
+	}
+}
+
 func TestMemoryInSystemPrompt(t *testing.T) {
 	t.Parallel()
 
