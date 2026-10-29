@@ -49,7 +49,7 @@ replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.
 // It delivers a SYN that reopens a TIME_WAIT connection, with a sequence number
 // above the old connection's RcvNxt, to the tcp.Forwarder instead of dropping it
 // for 60s.
-replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20261029143139-2fe00a188e7b
+replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20261029194225-8fe8ec48ec19
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
