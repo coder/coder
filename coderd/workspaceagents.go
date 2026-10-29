@@ -56,6 +56,7 @@ import (
 // @Summary Get workspace agent by ID
 // @Description Returns a workspace agent's details, including its status, apps, scripts, and log sources.
 // @Description You must be able to read the workspace that the agent belongs to.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID get-workspace-agent-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -303,7 +304,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 
 // @Summary Patch workspace agent app status
 // @Description Sets the state and message of one of the calling agent's workspace apps.
-// @Description Older workspace agents call this route, and current agents use `UpdateAppStatus` on the Agent API instead.
+// @Description Legacy workspace agents call this route, and other agents use `UpdateAppStatus` on the Agent API instead.
 // @Description Authenticate with the workspace agent token instead of a session token.
 // @ID patch-workspace-agent-app-status
 // @Security CoderSessionToken
@@ -384,8 +385,9 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 // workspaceAgentLogs returns the logs associated with a workspace agent
 //
 // @Summary Get logs by workspace agent
-// @Description Returns the logs that a workspace agent wrote, such as startup script output, in order, or streams new logs over a WebSocket when you set `follow`.
-// @Description Each WebSocket message is a JSON array of log entries, and you must be able to read the workspace that the agent belongs to.
+// @Description Returns the logs that a workspace agent wrote, such as startup script output, in order, or streams them over a WebSocket when you set `follow`, with each message a JSON array of log entries.
+// @Description You must be able to read the workspace that the agent belongs to.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID get-logs-by-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
@@ -699,9 +701,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get listening ports for workspace agent
-// @Description Returns the TCP ports that a connected workspace agent listens on.
-// @Description The list leaves out ports below `9`, ports that a workspace app uses, and common non-HTTP ports such as databases and SSH.
+// @Description Returns the TCP ports that a connected workspace agent listens on, except ports below `9`, ports that a workspace app uses, and common non-HTTP ports such as databases and SSH.
 // @Description Returns `400` when the agent isn't connected.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID get-listening-ports-for-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
@@ -814,6 +816,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // @Summary Watch workspace agent for container updates.
 // @Description Upgrades to a WebSocket that streams the containers and dev containers that a connected workspace agent detects.
 // @Description Each message is a JSON object in the same shape as the list containers response, sent whenever the agent reports a change, and the route returns `400` when the agent isn't connected.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID watch-workspace-agent-for-container-updates
 // @Security CoderSessionToken
 // @Produce json
@@ -923,6 +926,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 // @Summary Get running containers for workspace agent
 // @Description Returns the containers and dev containers that a connected workspace agent detects, and filters the containers by `label`.
 // @Description Returns `400` when the agent isn't connected, and you must be able to read the workspace that the agent belongs to.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID get-running-containers-for-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
@@ -1023,6 +1027,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 // @Summary Delete devcontainer for workspace agent
 // @Description Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.
 // @Description Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID delete-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
 // @Tags Agents
@@ -1114,6 +1119,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 // @Summary Recreate devcontainer for workspace agent
 // @Description Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.
 // @Description Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID recreate-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
 // @Tags Agents
@@ -1207,6 +1213,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 // @Summary Get connection info for workspace agent
 // @Description Returns the settings a client needs to connect to a workspace agent, such as the DERP map and the workspace hostname suffix.
 // @Description Clients such as the Coder CLI call this before they connect, and you must be able to read the workspace that the agent belongs to.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID get-connection-info-for-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
@@ -1332,7 +1339,8 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Coordinate workspace agent
 // @Description Upgrades to a WebSocket that carries the tailnet coordination protocol, which a client uses to exchange network node updates with a workspace agent.
-// @Description Clients such as the Coder CLI use it, and it requires permission to SSH to the workspace. It returns `409` when the deployment turns on browser-only connections.
+// @Description Clients such as the Coder CLI use it, and it requires permission to SSH to the workspace.
+// @Description It returns `409` when the deployment turns on browser-only connections, and a workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead of a session token.
 // @ID coordinate-workspace-agent
 // @Security CoderSessionToken
 // @Tags Agents
@@ -1644,15 +1652,14 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Get workspace agent reinitialization
-// @Description Streams server-sent events that tell a workspace agent in a prebuilt workspace when to reinitialize, which happens after a user claims the workspace.
-// @Description Each event carries the `workspace_id`, the `reason`, and the `owner_id` of the new owner.
-// @Description With `wait` set to `true`, the route returns `409` when the workspace isn't a prebuilt workspace that's waiting to be claimed.
+// @Description Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the `workspace_id`, the `reason`, and the `owner_id` of the new owner.
+// @Description With `wait` set to `true`, the route sends an event right away when the claim build already succeeded, and returns `409` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.
 // @Description Authenticate with the workspace agent token instead of a session token.
 // @ID get-workspace-agent-reinitialization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param wait query bool false "Set to `true` to opt in to the durable check. The route then returns an event right away when the claim already happened, and `409` when the workspace isn't a prebuild waiting for a claim."
+// @Param wait query bool false "Set to `true` to opt in to the durable check, which sends an event right away for a claim that already succeeded. Without it, the route waits for a new claim."
 // @Success 200 {object} agentsdk.ReinitializationEvent
 // @Failure 409 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/me/reinit [get]
@@ -2138,8 +2145,8 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param match query string true "URL or hostname that selects the external auth provider by its configured regex. Pass `match` or `id`, not both."
-// @Param id query string true "ID of the external auth provider, as configured on the deployment. Pass `id` or `match`, not both."
+// @Param match query string true "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
+// @Param id query string true "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
 // @Param listen query bool false "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away."
 // @Success 200 {object} agentsdk.ExternalAuthResponse
 // @Router /api/v2/workspaceagents/me/external-auth [get]

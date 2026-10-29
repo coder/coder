@@ -31,8 +31,9 @@ func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Removed: Get logs by workspace agent
-// @Description Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only so older clients keep working.
-// @Description New code uses `/api/v2/workspaceagents/{workspaceagent}/logs` instead.
+// @Description Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only for backward compatibility.
+// @Description Use `/api/v2/workspaceagents/{workspaceagent}/logs` instead.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID removed-get-logs-by-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
@@ -50,14 +51,14 @@ func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Req
 
 // @Summary Removed: Get workspace agent git auth
 // @Description Returns the same response as `/api/v2/workspaceagents/me/external-auth`, and remains only so legacy workspace agents keep working.
-// @Description New code uses `/api/v2/workspaceagents/me/external-auth` instead.
+// @Description Use `/api/v2/workspaceagents/me/external-auth` instead.
 // @Description Authenticate with the workspace agent token instead of a session token.
 // @ID removed-get-workspace-agent-git-auth
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param match query string true "URL or hostname that selects the external auth provider by its configured regex. Pass `match` or `id`, not both."
-// @Param id query string true "ID of the external auth provider, as configured on the deployment. Pass `id` or `match`, not both."
+// @Param match query string true "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
+// @Param id query string true "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
 // @Param listen query bool false "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away."
 // @Success 200 {object} agentsdk.ExternalAuthResponse
 // @Router /api/v2/workspaceagents/me/gitauth [get]

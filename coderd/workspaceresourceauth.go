@@ -22,7 +22,7 @@ import (
 //
 // @Summary Authenticate agent on Azure instance
 // @Description Exchanges a signed Azure instance identity for the session token of the workspace agent that runs on that instance.
-// @Description The workspace agent calls this to authenticate on a Azure instance, and the instance must belong to the workspace's latest build.
+// @Description The workspace agent calls this to authenticate on an Azure instance, and the instance must belong to the workspace's latest build.
 // @Description Doesn't require a session token.
 // @ID authenticate-agent-on-azure-instance
 // @Security CoderSessionToken
@@ -63,7 +63,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 //
 // @Summary Authenticate agent on AWS instance
 // @Description Exchanges a signed AWS instance identity for the session token of the workspace agent that runs on that instance.
-// @Description The workspace agent calls this to authenticate on a AWS instance, and the instance must belong to the workspace's latest build.
+// @Description The workspace agent calls this to authenticate on an AWS instance, and the instance must belong to the workspace's latest build.
 // @Description Doesn't require a session token.
 // @ID authenticate-agent-on-aws-instance
 // @Security CoderSessionToken

@@ -15829,7 +15829,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/aws-instance-identity": {
             "post": {
-                "description": "Exchanges a signed AWS instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on a AWS instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
+                "description": "Exchanges a signed AWS instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on an AWS instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15869,7 +15869,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/azure-instance-identity": {
             "post": {
-                "description": "Exchanges a signed Azure instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on a Azure instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
+                "description": "Exchanges a signed Azure instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on an Azure instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15977,7 +15977,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/app-status": {
             "patch": {
-                "description": "Sets the state and message of one of the calling agent's workspace apps.\nOlder workspace agents call this route, and current agents use ` + "`" + `UpdateAppStatus` + "`" + ` on the Agent API instead.\nAuthenticate with the workspace agent token instead of a session token.",
+                "description": "Sets the state and message of one of the calling agent's workspace apps.\nLegacy workspace agents call this route, and other agents use ` + "`" + `UpdateAppStatus` + "`" + ` on the Agent API instead.\nAuthenticate with the workspace agent token instead of a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16030,14 +16030,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "URL or hostname that selects the external auth provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
+                        "description": "URL or hostname that selects the external authentication provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
                         "name": "match",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "ID of the external auth provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
+                        "description": "ID of the external authentication provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
                         "name": "id",
                         "in": "query",
                         "required": true
@@ -16066,7 +16066,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/gitauth": {
             "get": {
-                "description": "Returns the same response as ` + "`" + `/api/v2/workspaceagents/me/external-auth` + "`" + `, and remains only so legacy workspace agents keep working.\nNew code uses ` + "`" + `/api/v2/workspaceagents/me/external-auth` + "`" + ` instead.\nAuthenticate with the workspace agent token instead of a session token.",
+                "description": "Returns the same response as ` + "`" + `/api/v2/workspaceagents/me/external-auth` + "`" + `, and remains only so legacy workspace agents keep working.\nUse ` + "`" + `/api/v2/workspaceagents/me/external-auth` + "`" + ` instead.\nAuthenticate with the workspace agent token instead of a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -16078,14 +16078,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "URL or hostname that selects the external auth provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
+                        "description": "URL or hostname that selects the external authentication provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
                         "name": "match",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "ID of the external auth provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
+                        "description": "ID of the external authentication provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
                         "name": "id",
                         "in": "query",
                         "required": true
@@ -16226,7 +16226,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/reinit": {
             "get": {
-                "description": "Streams server-sent events that tell a workspace agent in a prebuilt workspace when to reinitialize, which happens after a user claims the workspace.\nEach event carries the ` + "`" + `workspace_id` + "`" + `, the ` + "`" + `reason` + "`" + `, and the ` + "`" + `owner_id` + "`" + ` of the new owner.\nWith ` + "`" + `wait` + "`" + ` set to ` + "`" + `true` + "`" + `, the route returns ` + "`" + `409` + "`" + ` when the workspace isn't a prebuilt workspace that's waiting to be claimed.\nAuthenticate with the workspace agent token instead of a session token.",
+                "description": "Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the ` + "`" + `workspace_id` + "`" + `, the ` + "`" + `reason` + "`" + `, and the ` + "`" + `owner_id` + "`" + ` of the new owner.\nWith ` + "`" + `wait` + "`" + ` set to ` + "`" + `true` + "`" + `, the route sends an event right away when the claim build already succeeded, and returns ` + "`" + `409` + "`" + ` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.\nAuthenticate with the workspace agent token instead of a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -16238,7 +16238,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "boolean",
-                        "description": "Set to ` + "`" + `true` + "`" + ` to opt in to the durable check. The route then returns an event right away when the claim already happened, and ` + "`" + `409` + "`" + ` when the workspace isn't a prebuild waiting for a claim.",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to opt in to the durable check, which sends an event right away for a claim that already succeeded. Without it, the route waits for a new claim.",
                         "name": "wait",
                         "in": "query"
                     }
@@ -16288,7 +16288,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}": {
             "get": {
-                "description": "Returns a workspace agent's details, including its status, apps, scripts, and log sources.\nYou must be able to read the workspace that the agent belongs to.",
+                "description": "Returns a workspace agent's details, including its status, apps, scripts, and log sources.\nYou must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16324,7 +16324,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/connection": {
             "get": {
-                "description": "Returns the settings a client needs to connect to a workspace agent, such as the DERP map and the workspace hostname suffix.\nClients such as the Coder CLI call this before they connect, and you must be able to read the workspace that the agent belongs to.",
+                "description": "Returns the settings a client needs to connect to a workspace agent, such as the DERP map and the workspace hostname suffix.\nClients such as the Coder CLI call this before they connect, and you must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16360,7 +16360,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers": {
             "get": {
-                "description": "Returns the containers and dev containers that a connected workspace agent detects, and filters the containers by ` + "`" + `label` + "`" + `.\nReturns ` + "`" + `400` + "`" + ` when the agent isn't connected, and you must be able to read the workspace that the agent belongs to.",
+                "description": "Returns the containers and dev containers that a connected workspace agent detects, and filters the containers by ` + "`" + `label` + "`" + `.\nReturns ` + "`" + `400` + "`" + ` when the agent isn't connected, and you must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16404,7 +16404,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
             "delete": {
-                "description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace, and returns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.",
+                "description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace, and returns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "tags": [
                     "Agents"
                 ],
@@ -16441,7 +16441,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
-                "description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns ` + "`" + `202` + "`" + ` while the rebuild runs.\nRequires permission to update the workspace, and returns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.",
+                "description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns ` + "`" + `202` + "`" + ` while the rebuild runs.\nRequires permission to update the workspace, and returns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16484,7 +16484,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/watch": {
             "get": {
-                "description": "Upgrades to a WebSocket that streams the containers and dev containers that a connected workspace agent detects.\nEach message is a JSON object in the same shape as the list containers response, sent whenever the agent reports a change, and the route returns ` + "`" + `400` + "`" + ` when the agent isn't connected.",
+                "description": "Upgrades to a WebSocket that streams the containers and dev containers that a connected workspace agent detects.\nEach message is a JSON object in the same shape as the list containers response, sent whenever the agent reports a change, and the route returns ` + "`" + `400` + "`" + ` when the agent isn't connected.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16520,7 +16520,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
-                "description": "Upgrades to a WebSocket that carries the tailnet coordination protocol, which a client uses to exchange network node updates with a workspace agent.\nClients such as the Coder CLI use it, and it requires permission to SSH to the workspace. It returns ` + "`" + `409` + "`" + ` when the deployment turns on browser-only connections.",
+                "description": "Upgrades to a WebSocket that carries the tailnet coordination protocol, which a client uses to exchange network node updates with a workspace agent.\nClients such as the Coder CLI use it, and it requires permission to SSH to the workspace.\nIt returns ` + "`" + `409` + "`" + ` when the deployment turns on browser-only connections, and a workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead of a session token.",
                 "tags": [
                     "Agents"
                 ],
@@ -16550,7 +16550,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
-                "description": "Returns the TCP ports that a connected workspace agent listens on.\nThe list leaves out ports below ` + "`" + `9` + "`" + `, ports that a workspace app uses, and common non-HTTP ports such as databases and SSH.\nReturns ` + "`" + `400` + "`" + ` when the agent isn't connected.",
+                "description": "Returns the TCP ports that a connected workspace agent listens on, except ports below ` + "`" + `9` + "`" + `, ports that a workspace app uses, and common non-HTTP ports such as databases and SSH.\nReturns ` + "`" + `400` + "`" + ` when the agent isn't connected.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16586,7 +16586,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/logs": {
             "get": {
-                "description": "Returns the logs that a workspace agent wrote, such as startup script output, in order, or streams new logs over a WebSocket when you set ` + "`" + `follow` + "`" + `.\nEach WebSocket message is a JSON array of log entries, and you must be able to read the workspace that the agent belongs to.",
+                "description": "Returns the logs that a workspace agent wrote, such as startup script output, in order, or streams them over a WebSocket when you set ` + "`" + `follow` + "`" + `, with each message a JSON array of log entries.\nYou must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16689,7 +16689,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/startup-logs": {
             "get": {
-                "description": "Returns the same response as ` + "`" + `/api/v2/workspaceagents/{workspaceagent}/logs` + "`" + `, and remains only so older clients keep working.\nNew code uses ` + "`" + `/api/v2/workspaceagents/{workspaceagent}/logs` + "`" + ` instead.",
+                "description": "Returns the same response as ` + "`" + `/api/v2/workspaceagents/{workspaceagent}/logs` + "`" + `, and remains only for backward compatibility.\nUse ` + "`" + `/api/v2/workspaceagents/{workspaceagent}/logs` + "`" + ` instead.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
