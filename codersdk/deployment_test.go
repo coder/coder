@@ -41,7 +41,6 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
 		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
 		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
-		codersdk.ExperimentMCPToolSearch:             "MCP Tool Search",
 		codersdk.ExperimentNoNATSPubsub:              "No NATS Pubsub",
 		codersdk.ExperimentWorkspaceBuildUpdates:     "Workspace Build Updates Channel",
 		codersdk.ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
