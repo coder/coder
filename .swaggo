@@ -8,3 +8,5 @@ replace github.com/coder/coder/v2/codersdk.ProvisionerType string
 replace netip.Addr string
 // Replace all NullUUID with string
 replace github.com/google/uuid.NullUUID string
+// Render raw JSON as an object instead of an integer array
+replace encoding/json.RawMessage object
