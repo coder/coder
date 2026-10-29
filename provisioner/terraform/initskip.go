@@ -2,11 +2,13 @@ package terraform
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -51,18 +53,31 @@ func parseLockFile(path string) ([]lockedProvider, error) {
 		return nil, xerrors.Errorf("decode %s: %w", path, diags)
 	}
 	for _, p := range lock.Providers {
-		if strings.Count(p.Source, "/") != 2 || strings.Contains(p.Source, "..") || p.Version == "" || strings.Contains(p.Version, "/") || strings.Contains(p.Version, "..") {
-			return nil, xerrors.Errorf("unexpected provider entry %q version %q in %s", p.Source, p.Version, path)
+		if err := validateLockedProvider(p); err != nil {
+			return nil, xerrors.Errorf("%s: %w", path, err)
 		}
 	}
 	return lock.Providers, nil
 }
 
-// cachedProviderDir returns the directory inside the plugin cache that
-// Terraform uses for a provider package, which mirrors the layout of the
-// .terraform/providers directory that terraform init would create.
-func cachedProviderDir(cachePath string, p lockedProvider) string {
-	return filepath.Join(cachePath, filepath.FromSlash(p.Source), p.Version, runtime.GOOS+"_"+runtime.GOARCH)
+// validateLockedProvider rejects lock file entries whose source or version
+// could escape the plugin cache or .terraform/providers, because both become
+// path components when providers are linked.
+func validateLockedProvider(p lockedProvider) error {
+	switch {
+	case strings.Count(p.Source, "/") != 2, strings.Contains(p.Source, ".."):
+		return xerrors.Errorf("unexpected provider source %q", p.Source)
+	case p.Version == "", strings.Contains(p.Version, "/"), strings.Contains(p.Version, ".."):
+		return xerrors.Errorf("unexpected version %q for provider %q", p.Version, p.Source)
+	}
+	return nil
+}
+
+// providerPackageDir returns the directory of a provider package below root,
+// in the layout shared by the plugin cache and the .terraform/providers
+// directory that terraform init creates.
+func providerPackageDir(root string, p lockedProvider) string {
+	return filepath.Join(root, filepath.FromSlash(p.Source), p.Version, terraformPlatform())
 }
 
 // linkCachedProviders reproduces the part of `terraform init` that matters
@@ -79,25 +94,20 @@ func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lock
 		return false, nil
 	}
 	for _, p := range providers {
-		dir := cachedProviderDir(cachePath, p)
-		entries, err := os.ReadDir(dir)
+		entries, err := os.ReadDir(providerPackageDir(cachePath, p))
 		if err != nil {
 			return false, nil
 		}
-		hasBinary := false
-		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), "terraform-provider-") {
-				hasBinary = true
-				break
-			}
-		}
+		hasBinary := slices.ContainsFunc(entries, func(entry os.DirEntry) bool {
+			return strings.HasPrefix(entry.Name(), "terraform-provider-")
+		})
 		if !hasBinary {
 			return false, nil
 		}
 	}
 	for _, p := range providers {
-		src := cachedProviderDir(cachePath, p)
-		dst := filepath.Join(files.TerraformMetadataDir(), "providers", filepath.FromSlash(p.Source), p.Version, runtime.GOOS+"_"+runtime.GOARCH)
+		src := providerPackageDir(cachePath, p)
+		dst := providerPackageDir(files.ProvidersDirectory(), p)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return false, xerrors.Errorf("create provider directory: %w", err)
 		}
@@ -110,11 +120,30 @@ func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lock
 
 // modulesReady reports whether the working directory already contains
 // everything `terraform init` would have installed for modules: either the
-// module manifest from a previous init is present, or the configuration
-// declares no module calls at all.
+// module manifest from a previous init is present along with every module it
+// lists, or the configuration declares no module calls at all.
 func modulesReady(files tfpath.Layout) (bool, error) {
-	if _, err := os.Stat(files.ModulesFilePath()); err == nil {
+	content, err := os.ReadFile(files.ModulesFilePath())
+	switch {
+	case err == nil:
+		var manifest modulesFile
+		if err := json.Unmarshal(content, &manifest); err != nil {
+			return false, xerrors.Errorf("parse module manifest: %w", err)
+		}
+		// The module archive keeps the manifest even when it left out
+		// modules that exceeded its size limit.
+		for _, m := range manifest.Modules {
+			if m.Key == "" {
+				// The root module.
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(files.WorkDirectory(), filepath.FromSlash(m.Dir))); err != nil {
+				return false, nil
+			}
+		}
 		return true, nil
+	case !errors.Is(err, fs.ErrNotExist):
+		return false, xerrors.Errorf("read module manifest: %w", err)
 	}
 	module, diags := tfconfig.LoadModule(files.WorkDirectory())
 	if diags.HasErrors() {
@@ -129,14 +158,18 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 // registry for every pinned provider and re-verifies package checksums. When
 // the dependency lock file pins every provider to a version that is already
 // in the plugin cache, and modules are already present, linking the cached
-// packages is equivalent.
+// packages is equivalent for plan and apply, which still check the linked
+// packages against the lock file's hashes. What is skipped is init's check
+// that the configured provider sources still offer the pinned versions.
+//
+// The caller must only use this with a lock file that a real init produced
+// on this platform, so it holds hashes this platform can verify.
 //
 // It returns true when init was skipped. Any problem is reported as false so
 // the caller falls back to a real init.
 func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, cachePath string) bool {
-	// Terraform only reliably uses the plugin cache on Linux, and the
-	// cache layout we link from is platform specific.
-	if cachePath == "" || runtime.GOOS != "linux" {
+	// Terraform only fills the plugin cache when basicEnv hands it one.
+	if !pluginCacheEnabled(cachePath) {
 		return false
 	}
 	lockPath := files.TerraformLockFile()
@@ -161,7 +194,7 @@ func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.La
 	if err != nil {
 		logger.Warn(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
 		// Remove any partial provider tree so init starts from a clean slate.
-		_ = os.RemoveAll(filepath.Join(files.TerraformMetadataDir(), "providers"))
+		_ = os.RemoveAll(files.ProvidersDirectory())
 		return false
 	}
 	if !linked {
@@ -182,22 +215,47 @@ func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.La
 // installed", which is how Plan decides that skipping init was wrong.
 type errorCapturingSink struct {
 	logSink
+	// holdErrors keeps error lines back instead of forwarding them, until
+	// flushHeldErrors, so the caller can drop errors it recovers from.
+	holdErrors bool
+
 	mu     sync.Mutex
-	errors strings.Builder
+	errors []string
 }
 
 func (s *errorCapturingSink) ProvisionLog(level proto.LogLevel, output string) {
 	if level == proto.LogLevel_ERROR {
 		s.mu.Lock()
-		_, _ = s.errors.WriteString(output)
-		_ = s.errors.WriteByte('\n')
+		s.errors = append(s.errors, output)
 		s.mu.Unlock()
+		if s.holdErrors {
+			return
+		}
 	}
 	s.logSink.ProvisionLog(level, output)
 }
 
+// flushHeldErrors forwards the error lines that holdErrors kept back. Call it
+// only after the command has finished writing logs.
+func (s *errorCapturingSink) flushHeldErrors() {
+	if !s.holdErrors {
+		return
+	}
+	s.holdErrors = false
+	for _, line := range s.capturedErrors() {
+		s.logSink.ProvisionLog(proto.LogLevel_ERROR, line)
+	}
+}
+
+func (s *errorCapturingSink) capturedErrors() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.errors)
+}
+
 // initErrorMarkers are fragments of the Terraform diagnostics that mean the
-// working directory is missing something `terraform init` would install.
+// working directory is missing something `terraform init` would install. The
+// generic "terraform init" covers diagnostics that tell the user to run it.
 var initErrorMarkers = []string{
 	"plugins are not installed",
 	"cached in .terraform/providers",
@@ -211,13 +269,8 @@ var initErrorMarkers = []string{
 // needsInit reports whether any captured error indicates that the working
 // directory needs `terraform init`.
 func (s *errorCapturingSink) needsInit() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := strings.ToLower(s.errors.String())
-	for _, marker := range initErrorMarkers {
-		if strings.Contains(out, marker) {
-			return true
-		}
-	}
-	return false
+	out := strings.ToLower(strings.Join(s.capturedErrors(), "\n"))
+	return slices.ContainsFunc(initErrorMarkers, func(marker string) bool {
+		return strings.Contains(out, marker)
+	})
 }

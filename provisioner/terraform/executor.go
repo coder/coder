@@ -36,7 +36,9 @@ type executor struct {
 	server     *server
 	mut        *sync.Mutex
 	binaryPath string
-	// cachePath and files must not be used by multiple processes at once.
+	// cachePath and files must not be used by multiple processes at once,
+	// except for read-only commands that take no state lock, such as the
+	// `terraform show` and `terraform graph` that plan runs concurrently.
 	cachePath     string
 	cliConfigPath string
 	files         tfpath.Layout
@@ -48,15 +50,20 @@ func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if e.cachePath != "" && runtime.GOOS == "linux" {
+	if pluginCacheEnabled(e.cachePath) {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	if e.cliConfigPath != "" {
 		env = append(env, "TF_CLI_CONFIG_FILE="+e.cliConfigPath)
 	}
 	return env
+}
+
+// pluginCacheEnabled reports whether Terraform gets cachePath as its plugin
+// cache directory. Only Linux reliably works with the Terraform plugin cache
+// directory. It's unknown why this is.
+func pluginCacheEnabled(cachePath string) bool {
+	return cachePath != "" && runtime.GOOS == "linux"
 }
 
 // execWriteOutput must only be called while the lock is held.
@@ -290,16 +297,13 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
-// planResult is what a successful `terraform plan` leaves behind for the
-// rest of the session in addition to the response sent to provisionerd.
+// planResult holds the Plan response plus what later RPCs of the session
+// reuse.
 type planResult struct {
-	complete *proto.PlanComplete
+	response *proto.PlanComplete
 	// plan is the parsed plan file, so the Graph RPC does not have to run
 	// `terraform show` on it again.
 	plan *tfjson.Plan
-	// config is the plan configuration needed to finalize script ordering
-	// after apply. It is nil when the plan has no script order data source.
-	config *tfjson.Config
 	// graph is the output of `terraform graph`, computed while the plan
 	// file was being parsed. graphErr records why it is unavailable, in
 	// which case the Graph RPC runs the command itself.
@@ -348,9 +352,11 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
-	// The dependency graph only depends on the configuration, so compute it
-	// now, concurrently with parsing the plan file, instead of paying for a
-	// separate Terraform process after apply. Both commands are read only.
+	// Compute the dependency graph now, concurrently with parsing the plan
+	// file, instead of running it serially in the Graph RPC. Both commands
+	// are read only and take no state lock. The graph comes from the
+	// configuration and the state before apply; the Graph RPC builds it again
+	// after apply when that state added nodes for orphaned or deposed objects.
 	type graphResult struct {
 		raw string
 		err error
@@ -411,14 +417,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ResourceReplacements: resReps,
 	}
 
-	var planConfig *tfjson.Config
-	if hasScriptOrderDataSource(planModules(plan)) {
-		planConfig = plan.Config
-	}
 	return &planResult{
-		complete: msg,
+		response: msg,
 		plan:     plan,
-		config:   planConfig,
 		graph:    graph.raw,
 		graphErr: graph.err,
 	}, nil

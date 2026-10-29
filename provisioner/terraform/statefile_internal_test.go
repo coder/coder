@@ -135,12 +135,12 @@ func Test_convertRawState(t *testing.T) {
 	require.Nil(t, agent.Index)
 	require.Equal(t, "registry.terraform.io/coder/coder", agent.ProviderName)
 	require.EqualValues(t, 1, agent.SchemaVersion)
-	require.Equal(t, map[string]interface{}{
+	require.Equal(t, map[string]any{
 		"id":             "agent-1",
 		"arch":           "amd64",
 		"os":             "linux",
 		"token":          "secret",
-		"env":            map[string]interface{}{"A": "1"},
+		"env":            map[string]any{"A": "1"},
 		"startup_script": nil,
 	}, agent.AttributeValues)
 	require.Equal(t, []string{"data.coder_workspace.me"}, agent.DependsOn)
@@ -173,7 +173,7 @@ func Test_convertRawState(t *testing.T) {
 	require.Equal(t, "registry.terraform.io/coder/coder", inner.Resources[0].ProviderName)
 }
 
-func Test_convertRawState_Rejects(t *testing.T) {
+func Test_convertRawState_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EmptyState", func(t *testing.T) {
@@ -212,7 +212,31 @@ func Test_parentModule(t *testing.T) {
 		`module.a[0].module.b["k"].module.c`:      `module.a[0].module.b["k"]`,
 		`module.a["esc \".module.\" q"].module.b`: `module.a["esc \".module.\" q"]`,
 	} {
-		require.Equal(t, want, parentModule(input), input)
+		got, err := parentModule(input)
+		require.NoError(t, err, input)
+		require.Equal(t, want, got, input)
+	}
+
+	_, err := parentModule("module.a.coder_agent.main")
+	require.Error(t, err, "only module paths are accepted")
+}
+
+func Test_hclQuotedString(t *testing.T) {
+	t.Parallel()
+	// Expected values are the instance keys `terraform show -json` reports.
+	for input, want := range map[string]string{
+		"":           `""`,
+		"code":       `"code"`,
+		"web ui":     `"web ui"`,
+		`web "ui"`:   `"web \"ui\""`,
+		`back\slash`: `"back\\slash"`,
+		"a${b}":      `"a$${b}"`,
+		"c%{d}":      `"c%%{d}"`,
+		"$x and %y":  `"$x and %y"`,
+		"tab\there":  `"tab\there"`,
+		"bell\x07":   `"bell\u0007"`,
+	} {
+		require.Equal(t, want, hclQuotedString(input), input)
 	}
 }
 
@@ -226,15 +250,13 @@ func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 
 	binary, err := systemBinary(ctx)
 	if err != nil {
-		var installErr error
 		path, installErr := Install(ctx, slogtest.Make(t, nil), false, t.TempDir(), TerraformVersion, "")
 		require.NoError(t, installErr, "no usable terraform binary: %v", err)
 		binary = &systemBinaryDetails{absolutePath: path}
 	}
 
-	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "child", "grandchild"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
+	files := map[string]string{
+		"main.tf": `
 terraform {
   required_providers {
     coder = {
@@ -265,8 +287,12 @@ module "child" {
   source   = "./child"
   agent_id = coder_agent.main[1].id
 }
-`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "child", "main.tf"), []byte(`
+# Terraform escapes template introducers in string instance keys.
+resource "terraform_data" "keys" {
+  for_each = toset(["a$${b}", "c%%{d}"])
+}
+`,
+		"child/main.tf": `
 terraform {
   required_providers {
     coder = { source = "coder/coder" }
@@ -278,8 +304,8 @@ module "grandchild" {
   source   = "./grandchild"
   agent_id = var.agent_id
 }
-`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "child", "grandchild", "main.tf"), []byte(`
+`,
+		"child/grandchild/main.tf": `
 terraform {
   required_providers {
     coder = { source = "coder/coder" }
@@ -292,13 +318,27 @@ resource "coder_script" "deep" {
   script       = "echo deep"
   run_on_start = true
 }
-`), 0o600))
+`,
+	}
+	dir := t.TempDir()
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
 
+	// Install providers from a local mirror, and keep the CODER_* variables of
+	// a surrounding workspace away from the coder provider.
+	env := append(safeEnviron(), "TF_IN_AUTOMATION=1", "CHECKPOINT_DISABLE=1")
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
+	if cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files); cliConfigPath != "" {
+		env = append(env, "TF_CLI_CONFIG_FILE="+cliConfigPath)
+	}
 	run := func(args ...string) []byte {
 		//nolint:gosec // Test-controlled terraform binary and arguments.
 		cmd := exec.CommandContext(ctx, binary.absolutePath, args...)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "TF_IN_AUTOMATION=1", "CHECKPOINT_DISABLE=1")
+		cmd.Env = env
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()

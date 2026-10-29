@@ -204,61 +204,32 @@ func TestLogScriptOrderWarnings(t *testing.T) {
 	require.Contains(t, logger.logs[2].Output, "only the first 100 are reported")
 }
 
-func TestCachePlanConfigIgnoresInitialNil(t *testing.T) {
-	t.Parallel()
-
-	s := &server{}
-	sess := &provisionersdk.Session{}
-	s.cachePlanConfig(t.Context(), sess, nil)
-
-	s.planConfigsBySessionMu.Lock()
-	defer s.planConfigsBySessionMu.Unlock()
-	_, ok := s.planConfigsBySession[sess]
-	require.False(t, ok)
-}
-
-func TestCachePlanConfigReusesSessionCleanup(t *testing.T) {
+func TestSessionStateLifecycle(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	s := &server{}
 	sess := &provisionersdk.Session{}
-	firstConfig := &tfjson.Config{}
-	secondConfig := &tfjson.Config{}
-	loadConfig := func() (*tfjson.Config, bool) {
-		s.planConfigsBySessionMu.Lock()
-		defer s.planConfigsBySessionMu.Unlock()
-		config, ok := s.planConfigsBySession[sess]
-		return config, ok
+	other := &provisionersdk.Session{}
+	present := func(sess *provisionersdk.Session) bool {
+		s.sessionsMu.Lock()
+		defer s.sessionsMu.Unlock()
+		_, ok := s.sessions[sess]
+		return ok
 	}
 
-	s.cachePlanConfig(ctx, sess, firstConfig)
-	config, ok := loadConfig()
-	require.True(t, ok)
-	require.Same(t, firstConfig, config)
+	st := s.sessionState(ctx, sess)
+	st.initSkipped = true
+	require.Same(t, st, s.sessionState(ctx, sess), "the RPCs of one session share state")
+	require.False(t, s.sessionState(t.Context(), other).initSkipped, "sessions do not share state")
 
-	s.cachePlanConfig(ctx, sess, secondConfig)
-	config, ok = loadConfig()
-	require.True(t, ok)
-	require.Same(t, secondConfig, config)
-
-	s.cachePlanConfig(ctx, sess, nil)
-	config, ok = loadConfig()
-	require.True(t, ok)
-	require.Nil(t, config)
-	_, ok = s.loadPlanConfig(sess)
-	require.False(t, ok)
-
-	s.cachePlanConfig(ctx, sess, secondConfig)
-	config, ok = loadConfig()
-	require.True(t, ok)
-	require.Same(t, secondConfig, config)
+	// The state goes away when its session ends, even if Graph never ran.
 	cancel()
 	require.Eventually(t, func() bool {
-		_, ok := loadConfig()
-		return !ok
+		return !present(sess)
 	}, testutil.WaitShort, testutil.IntervalFast)
+	require.True(t, present(other))
 }
 
 func TestChecksumFileCRC32(t *testing.T) {

@@ -70,6 +70,8 @@ func (a ManagedResourceAddress) ConfigurationAddress() string {
 type ModulePath struct {
 	raw   string
 	steps []ModuleStep
+	// stepEnds holds the byte offset in raw where each step ends.
+	stepEnds []int
 }
 
 // String returns the evaluated module path, including instance keys.
@@ -93,6 +95,20 @@ func (p ModulePath) ConfigurationAddress() string {
 // Steps returns a copy of the ordered module steps.
 func (p ModulePath) Steps() []ModuleStep {
 	return slices.Clone(p.steps)
+}
+
+// Parent returns the path of the module that contains this one. The parent
+// of the root module, and of its direct children, is the root module.
+func (p ModulePath) Parent() ModulePath {
+	if len(p.steps) < 2 {
+		return ModulePath{}
+	}
+	last := len(p.steps) - 1
+	return ModulePath{
+		raw:      p.raw[:p.stepEnds[last-1]],
+		steps:    p.steps[:last:last],
+		stepEnds: p.stepEnds[:last:last],
+	}
 }
 
 // ModuleStep is one evaluated module call in a ModulePath.
@@ -354,6 +370,7 @@ func parseModulePathPrefix(
 	var (
 		pathEnd  int
 		steps    []ModuleStep
+		stepEnds []int
 		position int
 	)
 	for position < len(traversal) {
@@ -390,13 +407,14 @@ func parseModulePathPrefix(
 			instanceKey: instanceKey,
 		})
 		pathEnd = traversal[position-1].SourceRange().End.Byte
+		stepEnds = append(stepEnds, pathEnd)
 	}
 
 	var path string
 	if pathEnd > 0 {
 		path = raw[:pathEnd]
 	}
-	return ModulePath{raw: path, steps: steps}, position, nil
+	return ModulePath{raw: path, steps: steps, stepEnds: stepEnds}, position, nil
 }
 
 func parseAddressTraversal(raw string) (hcl.Traversal, error) {

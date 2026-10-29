@@ -1,15 +1,21 @@
 package terraform
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
 )
 
 // The types below describe the subset of Terraform's state file format
@@ -95,7 +101,7 @@ func convertRawState(content []byte) (*tfjson.State, error) {
 	}
 
 	modules := map[string]*tfjson.StateModule{}
-	module := func(addr string) *tfjson.StateModule {
+	ensureModule := func(addr string) *tfjson.StateModule {
 		if m, ok := modules[addr]; ok {
 			return m
 		}
@@ -103,18 +109,18 @@ func convertRawState(content []byte) (*tfjson.State, error) {
 		modules[addr] = m
 		return m
 	}
-	root := module("")
+	root := ensureModule("")
 
 	for _, r := range raw.Resources {
 		mode, err := convertResourceMode(r.Mode)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("resource %s.%s: %w", r.Type, r.Name, err)
 		}
 		providerName, err := convertProviderName(r.Provider)
 		if err != nil {
 			return nil, xerrors.Errorf("resource %s.%s: %w", r.Type, r.Name, err)
 		}
-		mod := module(r.Module)
+		mod := ensureModule(r.Module)
 		for _, inst := range r.Instances {
 			if inst.AttributesFlat != nil {
 				return nil, xerrors.Errorf("resource %s.%s uses legacy flatmap attributes", r.Type, r.Name)
@@ -130,9 +136,9 @@ func convertRawState(content []byte) (*tfjson.State, error) {
 			if r.Module != "" {
 				address = r.Module + "." + address
 			}
-			values := make(map[string]interface{}, len(inst.Attributes))
+			values := make(map[string]any, len(inst.Attributes))
 			for k, v := range inst.Attributes {
-				var decoded interface{}
+				var decoded any
 				if err := json.Unmarshal(v, &decoded); err != nil {
 					return nil, xerrors.Errorf("resource %s attribute %q: %w", address, k, err)
 				}
@@ -154,27 +160,38 @@ func convertRawState(content []byte) (*tfjson.State, error) {
 		}
 	}
 
-	// Terraform creates an entry for every module on the path to a module
-	// that holds resources, even when the intermediate module holds none,
-	// and orders resources the way `terraform show -json` does.
-	for addr := range modules {
-		for parent := parentModule(addr); parent != ""; parent = parentModule(parent) {
-			module(parent)
-		}
-	}
-	for addr, m := range modules {
-		sort.SliceStable(m.Resources, func(i, j int) bool {
-			return resourceLess(m.Resources[i], m.Resources[j])
-		})
+	// Like `terraform show -json`, create an entry for every module on the
+	// path to one with resources, even when it holds none itself, and sort
+	// resources within each module.
+	parents := make(map[string]string, len(modules))
+	pending := slices.Collect(maps.Keys(modules))
+	for len(pending) > 0 {
+		addr := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
 		if addr == "" {
 			continue
 		}
-		parent := module(parentModule(addr))
+		parent, err := parentModule(addr)
+		if err != nil {
+			return nil, err
+		}
+		parents[addr] = parent
+		if _, ok := modules[parent]; !ok {
+			ensureModule(parent)
+			pending = append(pending, parent)
+		}
+	}
+	for addr, m := range modules {
+		slices.SortStableFunc(m.Resources, compareResources)
+		if addr == "" {
+			continue
+		}
+		parent := modules[parents[addr]]
 		parent.ChildModules = append(parent.ChildModules, m)
 	}
 	for _, m := range modules {
-		sort.Slice(m.ChildModules, func(i, j int) bool {
-			return m.ChildModules[i].Address < m.ChildModules[j].Address
+		slices.SortFunc(m.ChildModules, func(a, b *tfjson.StateModule) int {
+			return cmp.Compare(a.Address, b.Address)
 		})
 	}
 
@@ -182,40 +199,29 @@ func convertRawState(content []byte) (*tfjson.State, error) {
 	return state, nil
 }
 
-// resourceLess mirrors the ordering `terraform show -json` uses within a
-// module: data sources before managed resources, then by type and name,
+// compareResources mirrors the ordering `terraform show -json` uses within
+// a module: data sources before managed resources, then by type and name,
 // then instances without a key, integer keys, and string keys, with a
 // deposed object following the current object of the same instance.
-func resourceLess(a, b *tfjson.StateResource) bool {
-	if a.Mode != b.Mode {
-		return a.Mode == tfjson.DataResourceMode
-	}
-	if a.Type != b.Type {
-		return a.Type < b.Type
-	}
-	if a.Name != b.Name {
-		return a.Name < b.Name
-	}
-	if ak, bk := indexKind(a.Index), indexKind(b.Index); ak != bk {
-		return ak < bk
-	}
-	switch ai := a.Index.(type) {
-	case float64:
-		if bi, _ := b.Index.(float64); ai != bi {
-			return ai < bi
-		}
-	case string:
-		if bi, _ := b.Index.(string); ai != bi {
-			return ai < bi
-		}
-	}
-	if (a.DeposedKey == "") != (b.DeposedKey == "") {
-		return a.DeposedKey == ""
-	}
-	return a.DeposedKey < b.DeposedKey
+func compareResources(a, b *tfjson.StateResource) int {
+	return cmp.Or(
+		cmp.Compare(modeRank(a.Mode), modeRank(b.Mode)),
+		cmp.Compare(a.Type, b.Type),
+		cmp.Compare(a.Name, b.Name),
+		cmp.Compare(indexKind(a.Index), indexKind(b.Index)),
+		compareIndex(a.Index, b.Index),
+		cmp.Compare(a.DeposedKey, b.DeposedKey),
+	)
 }
 
-func indexKind(index interface{}) int {
+func modeRank(mode tfjson.ResourceMode) int {
+	if mode == tfjson.DataResourceMode {
+		return 0
+	}
+	return 1
+}
+
+func indexKind(index any) int {
 	switch index.(type) {
 	case nil:
 		return 0
@@ -223,6 +229,20 @@ func indexKind(index interface{}) int {
 		return 1
 	default:
 		return 2
+	}
+}
+
+// compareIndex compares two index keys of the same kind.
+func compareIndex(a, b any) int {
+	switch av := a.(type) {
+	case float64:
+		bv, _ := b.(float64)
+		return cmp.Compare(av, bv)
+	case string:
+		bv, _ := b.(string)
+		return cmp.Compare(av, bv)
+	default:
+		return 0
 	}
 }
 
@@ -242,32 +262,30 @@ func convertResourceMode(mode string) (tfjson.ResourceMode, error) {
 // `provider["registry.terraform.io/coder/coder"]` or
 // `module.m.provider["registry.terraform.io/coder/coder"].alias`.
 func convertProviderName(ref string) (string, error) {
-	const open = `provider["`
-	start := strings.Index(ref, open)
-	if start < 0 {
+	_, rest, ok := strings.Cut(ref, `provider["`)
+	if !ok {
 		return "", xerrors.Errorf("unsupported provider reference %q", ref)
 	}
-	rest := ref[start+len(open):]
-	end := strings.Index(rest, `"]`)
-	if end < 0 {
+	name, _, ok := strings.Cut(rest, `"]`)
+	if !ok {
 		return "", xerrors.Errorf("unsupported provider reference %q", ref)
 	}
-	return rest[:end], nil
+	return name, nil
 }
 
 // convertIndexKey returns the index value as `terraform show -json` reports
 // it and the suffix it adds to the resource address.
-func convertIndexKey(key json.RawMessage) (interface{}, string, error) {
+func convertIndexKey(key json.RawMessage) (any, string, error) {
 	if len(key) == 0 || string(key) == "null" {
 		return nil, "", nil
 	}
-	var index interface{}
+	var index any
 	if err := json.Unmarshal(key, &index); err != nil {
 		return nil, "", xerrors.Errorf("decode index key %s: %w", key, err)
 	}
 	switch v := index.(type) {
 	case string:
-		return v, "[" + strconv.Quote(v) + "]", nil
+		return v, "[" + hclQuotedString(v) + "]", nil
 	case float64:
 		return v, "[" + strconv.FormatInt(int64(v), 10) + "]", nil
 	default:
@@ -275,29 +293,52 @@ func convertIndexKey(key json.RawMessage) (interface{}, string, error) {
 	}
 }
 
-// parentModule returns the address of the module containing the given
-// module instance, or "" for a child of the root module. Module instance
-// keys may contain arbitrary strings, so the address is scanned rather than
-// split on ".module.".
-func parentModule(addr string) string {
-	inQuote := false
-	last := -1
-	for i := 0; i < len(addr); i++ {
-		switch addr[i] {
-		case '\\':
-			if inQuote {
-				i++
-			}
+// hclQuotedString quotes s the way Terraform writes string instance keys in
+// resource addresses, which differs from Go quoting: template introducers are
+// doubled and other non-printable characters use \u escapes. It mirrors
+// toHCLQuotedString in Terraform's internal/addrs package.
+func hclQuotedString(s string) string {
+	var buf strings.Builder
+	_ = buf.WriteByte('"')
+	for i, r := range s {
+		switch r {
+		case '\n':
+			_, _ = buf.WriteString(`\n`)
+		case '\r':
+			_, _ = buf.WriteString(`\r`)
+		case '\t':
+			_, _ = buf.WriteString(`\t`)
 		case '"':
-			inQuote = !inQuote
-		case '.':
-			if !inQuote && strings.HasPrefix(addr[i+1:], "module.") {
-				last = i
+			_, _ = buf.WriteString(`\"`)
+		case '\\':
+			_, _ = buf.WriteString(`\\`)
+		case '$', '%':
+			_, _ = buf.WriteRune(r)
+			if strings.HasPrefix(s[i+1:], "{") {
+				// Double the template introducer to escape it.
+				_, _ = buf.WriteRune(r)
+			}
+		default:
+			switch {
+			case unicode.IsPrint(r):
+				_, _ = buf.WriteRune(r)
+			case r < 0x10000:
+				_, _ = fmt.Fprintf(&buf, "\\u%04x", r)
+			default:
+				_, _ = fmt.Fprintf(&buf, "\\U%08x", r)
 			}
 		}
 	}
-	if last < 0 {
-		return ""
+	_ = buf.WriteByte('"')
+	return buf.String()
+}
+
+// parentModule returns the address of the module containing the given
+// module instance, or "" for a child of the root module.
+func parentModule(addr string) (string, error) {
+	path, err := tfaddr.ParseModulePath(addr)
+	if err != nil {
+		return "", xerrors.Errorf("parse module address %q: %w", addr, err)
 	}
-	return addr[:last]
+	return path.Parent().String(), nil
 }
