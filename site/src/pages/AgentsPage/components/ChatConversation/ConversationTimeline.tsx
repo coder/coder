@@ -509,8 +509,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		if (nextLiveBlockKeys !== liveBlockKeys) {
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
-		const getItemKey = (block: WorkingBlock) =>
-			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 
 		// PROTOTYPE: a render that regroups the timeline, such as a live block
 		// dissolving into its reasoning or a turn's blocks merging as it ends,
@@ -522,7 +520,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// prompt must reach the scroller's anchor handling first.
 		const itemSignature = layout.items
 			.map((item) =>
-				item.type === "block" ? getItemKey(item.block) : item.slice.key,
+				item.type === "block"
+					? (nextLiveBlockKeys.itemKeys.get(item.block.key) ?? item.block.key)
+					: item.slice.key,
 			)
 			.join("\n");
 		const onRegroup = useEffectEvent(() => syncLayout());
@@ -536,6 +536,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				onRegroup();
 			}
 		}, [itemSignature]);
+
+		const getItemKey = (block: WorkingBlock) =>
+			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 
 		if (renderRows.length === 0) {
 			return null;
