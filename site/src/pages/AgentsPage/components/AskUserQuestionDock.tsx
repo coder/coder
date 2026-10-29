@@ -4,7 +4,12 @@ import { useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
-import { AskUserQuestionRenderer } from "./ChatElements/tools/Tool";
+import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
+import {
+	getAsyncAnswerBody,
+	getAsyncAnswerPrefix,
+} from "./ChatElements/tools/asyncAnswer";
+import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
 	question: MergedTool;
@@ -34,6 +39,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		string | undefined
 	>();
 	const isCollapsed = collapsedQuestionKey === questionKey;
+
+	const submitAnswer = async (answerText: string) => {
+		await onSubmitAnswer?.(getAsyncAnswerPrefix(question.id) + answerText);
+	};
 
 	return (
 		<div
@@ -69,16 +78,14 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 					ref={scrollerRef}
 					className="min-w-0 flex-1 overflow-y-auto py-3 pr-1 pl-3 scrollbar-thin"
 				>
-					<AskUserQuestionRenderer
-						toolCallId={question.id}
-						args={question.args}
-						result={question.result}
-						status={question.status}
-						isError={question.isError}
-						isLatestAskUserQuestion
-						previousResponseText={queuedAnswerText}
-						onSendAskUserQuestionResponse={onSubmitAnswer}
-						announcesQuestion={false}
+					<AskUserQuestionForm
+						questions={getAskUserQuestions(question.args, question.result)}
+						previousResponseText={getAsyncAnswerBody(
+							queuedAnswerText,
+							question.id,
+						)}
+						showsSubmittedAnswer
+						onSubmitAnswer={onSubmitAnswer ? submitAnswer : undefined}
 						isCollapsed={isCollapsed}
 						hasStickyActions
 						onStepChange={() => {

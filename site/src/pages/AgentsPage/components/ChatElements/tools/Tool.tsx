@@ -215,21 +215,31 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
-type AskUserQuestionResult = {
-	questions: AskUserQuestion[];
-	isAsync: boolean;
-};
-
 const parseAskUserQuestionResult = (
 	result: unknown,
-): AskUserQuestionResult | null => {
-	const questions = parseAskUserQuestions(
-		findAskUserQuestionResultRecord(result)?.questions,
-	);
-	if (!questions) {
-		return null;
+): AskUserQuestion[] | null =>
+	parseAskUserQuestions(findAskUserQuestionResultRecord(result)?.questions);
+
+/**
+ * Reads the questions from the call's raw args, or from its result when the
+ * args have none.
+ */
+export const getAskUserQuestions = (
+	args: unknown,
+	result: unknown,
+): AskUserQuestion[] => {
+	const parsedArgs = parseArgs(args);
+	const questionsFromArgs = parsedArgs
+		? parseAskUserQuestions(parsedArgs.questions)
+		: null;
+	const questionsFromResult = parseAskUserQuestionResult(result);
+	if (questionsFromArgs && questionsFromArgs.length > 0) {
+		return questionsFromArgs;
 	}
-	return { questions, isAsync: isAsyncAskUserQuestionResult(result) };
+	if (questionsFromResult && questionsFromResult.length > 0) {
+		return questionsFromResult;
+	}
+	return questionsFromArgs ?? questionsFromResult ?? [];
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
@@ -685,31 +695,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-type AskUserQuestionRendererProps = Pick<
-	ToolRendererProps,
-	| "toolCallId"
-	| "args"
-	| "status"
-	| "result"
-	| "isError"
-	| "onSendAskUserQuestionResponse"
-	| "isChatCompleted"
-	| "isLatestAskUserQuestion"
-	| "isDockedAskUserQuestion"
-	| "previousResponseText"
-> &
-	Pick<
-		React.ComponentProps<typeof AskUserQuestionTool>,
-		"announcesQuestion" | "isCollapsed" | "hasStickyActions" | "onStepChange"
-	>;
-
-/**
- * Reads the questions from the call's raw args, or from its result when the
- * args have none.
- */
-export const AskUserQuestionRenderer: React.FC<
-	AskUserQuestionRendererProps
-> = ({
+const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	toolCallId,
 	args,
 	status,
@@ -720,23 +706,7 @@ export const AskUserQuestionRenderer: React.FC<
 	isLatestAskUserQuestion,
 	isDockedAskUserQuestion,
 	previousResponseText,
-	announcesQuestion,
-	isCollapsed,
-	hasStickyActions,
-	onStepChange,
 }) => {
-	const parsedArgs = parseArgs(args);
-	const questionsFromArgs = parsedArgs
-		? parseAskUserQuestions(parsedArgs.questions)
-		: null;
-	const parsedResult = parseAskUserQuestionResult(result);
-	const questionsFromResult = parsedResult?.questions;
-	const questions =
-		questionsFromArgs && questionsFromArgs.length > 0
-			? questionsFromArgs
-			: questionsFromResult && questionsFromResult.length > 0
-				? questionsFromResult
-				: (questionsFromArgs ?? questionsFromResult ?? []);
 	const resultRecord = asRecord(result);
 	const errorMessage =
 		(resultRecord
@@ -745,7 +715,7 @@ export const AskUserQuestionRenderer: React.FC<
 
 	return (
 		<AskUserQuestionTool
-			questions={questions}
+			questions={getAskUserQuestions(args, result)}
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
@@ -754,11 +724,9 @@ export const AskUserQuestionRenderer: React.FC<
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
 			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
-			asyncToolCallId={parsedResult?.isAsync ? toolCallId : undefined}
-			announcesQuestion={announcesQuestion}
-			isCollapsed={isCollapsed}
-			hasStickyActions={hasStickyActions}
-			onStepChange={onStepChange}
+			asyncToolCallId={
+				isAsyncAskUserQuestionResult(result) ? toolCallId : undefined
+			}
 		/>
 	);
 };
