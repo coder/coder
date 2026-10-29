@@ -10464,6 +10464,7 @@
 		},
 		"/api/v2/templatebuilder/bases": {
 			"get": {
+				"description": "Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.\nRequires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.\nReturns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.",
 				"produces": ["application/json"],
 				"tags": ["TemplateBuilder"],
 				"summary": "List template builder base templates",
@@ -10485,6 +10486,7 @@
 		},
 		"/api/v2/templatebuilder/compose": {
 			"post": {
+				"description": "Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.\nRequires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nReturns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.",
 				"consumes": ["application/json"],
 				"produces": ["application/x-tar"],
 				"tags": ["TemplateBuilder"],
@@ -10492,7 +10494,7 @@
 				"operationId": "compose-template-from-base-and-modules",
 				"parameters": [
 					{
-						"description": "Compose request",
+						"description": "Base template and modules to compose. `base_template_id` is required, and `modules` lists the modules to add with their variable values.",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -10515,6 +10517,7 @@
 		},
 		"/api/v2/templatebuilder/compose/template": {
 			"post": {
+				"description": "Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.\nThe call waits up to 2 minutes for the import and returns `504` if it takes longer.\nRequires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["TemplateBuilder"],
@@ -10522,7 +10525,7 @@
 				"operationId": "compose-and-create-a-template",
 				"parameters": [
 					{
-						"description": "Create template request",
+						"description": "Base template, modules, and the template to create. `base_template_id`, `organization_id`, and `name` are required.",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -10572,6 +10575,7 @@
 		},
 		"/api/v2/templatebuilder/modules": {
 			"get": {
+				"description": "Returns the modules you can add to a base template in the template builder.\nSet `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.\nRequires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.",
 				"produces": ["application/json"],
 				"tags": ["TemplateBuilder"],
 				"summary": "List template builder modules",
@@ -10579,7 +10583,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Base template example ID for OS-compatibility filtering",
+						"description": "ID of a base template from `GET /api/v2/templatebuilder/bases`. Returns only modules compatible with its operating system and not already included in it. By default, returns all modules.",
 						"name": "base",
 						"in": "query"
 					}
@@ -10601,13 +10605,14 @@
 		},
 		"/api/v2/templatebuilder/sessions": {
 			"post": {
+				"description": "Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.\nRequires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
 				"consumes": ["application/json"],
 				"tags": ["TemplateBuilder"],
 				"summary": "Report a template builder session event",
 				"operationId": "report-a-template-builder-session-event",
 				"parameters": [
 					{
-						"description": "Session event",
+						"description": "Session event to report. `session_id` and `event_type` are required, and `event_type` is `wizard_entry` or `compose_completion`.",
 						"name": "request",
 						"in": "body",
 						"required": true,

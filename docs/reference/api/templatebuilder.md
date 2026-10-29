@@ -18,6 +18,10 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
 
 `GET /api/v2/templatebuilder/bases`
 
+Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.
+Requires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
+
 ### Example responses
 
 > 200 Response
@@ -77,6 +81,10 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
 
 `POST /api/v2/templatebuilder/compose`
 
+Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.
+Requires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
+
 > Body parameter
 
 ```json
@@ -101,9 +109,9 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                       | Required | Description     |
-|--------|------|--------------------------------------------------------------------------------------------|----------|-----------------|
-| `body` | body | [codersdk.TemplateBuilderComposeRequest](schemas.md#codersdktemplatebuildercomposerequest) | true     | Compose request |
+| Name   | In   | Type                                                                                       | Required | Description                                                                                                                              |
+|--------|------|--------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.TemplateBuilderComposeRequest](schemas.md#codersdktemplatebuildercomposerequest) | true     | Base template and modules to compose. `base_template_id` is required, and `modules` lists the modules to add with their variable values. |
 
 ### Responses
 
@@ -126,6 +134,10 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
 ```
 
 `POST /api/v2/templatebuilder/compose/template`
+
+Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.
+The call waits up to 2 minutes for the import and returns `504` if it takes longer.
+Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 
 > Body parameter
 
@@ -161,9 +173,9 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                     | Required | Description             |
-|--------|------|----------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [codersdk.TemplateBuilderCreateTemplateRequest](schemas.md#codersdktemplatebuildercreatetemplaterequest) | true     | Create template request |
+| Name   | In   | Type                                                                                                     | Required | Description                                                                                                         |
+|--------|------|----------------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.TemplateBuilderCreateTemplateRequest](schemas.md#codersdktemplatebuildercreatetemplaterequest) | true     | Base template, modules, and the template to create. `base_template_id`, `organization_id`, and `name` are required. |
 
 ### Example responses
 
@@ -258,11 +270,15 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
 
 `GET /api/v2/templatebuilder/modules`
 
+Returns the modules you can add to a base template in the template builder.
+Set `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.
+Requires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 ### Parameters
 
-| Name   | In    | Type   | Required | Description                                             |
-|--------|-------|--------|----------|---------------------------------------------------------|
-| `base` | query | string | false    | Base template example ID for OS-compatibility filtering |
+| Name   | In    | Type   | Required | Description                                                                                                                                                                                |
+|--------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base` | query | string | false    | ID of a base template from `GET /api/v2/templatebuilder/bases`. Returns only modules compatible with its operating system and not already included in it. By default, returns all modules. |
 
 ### Example responses
 
@@ -322,6 +338,9 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/sessions \
 
 `POST /api/v2/templatebuilder/sessions`
 
+Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.
+Requires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -339,9 +358,9 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/sessions \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                       | Required | Description   |
-|--------|------|--------------------------------------------------------------------------------------------|----------|---------------|
-| `body` | body | [codersdk.TemplateBuilderSessionRequest](schemas.md#codersdktemplatebuildersessionrequest) | true     | Session event |
+| Name   | In   | Type                                                                                       | Required | Description                                                                                                                      |
+|--------|------|--------------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.TemplateBuilderSessionRequest](schemas.md#codersdktemplatebuildersessionrequest) | true     | Session event to report. `session_id` and `event_type` are required, and `event_type` is `wizard_entry` or `compose_completion`. |
 
 ### Responses
 
