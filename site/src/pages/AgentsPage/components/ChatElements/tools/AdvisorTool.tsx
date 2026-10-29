@@ -51,6 +51,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 			status={status}
 			isError={showError}
 			errorMessage={effectiveErrorMessage}
+			announceError
 			hasContent
 			defaultExpanded={isRunning}
 		>
@@ -73,68 +74,64 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
 							{questionText}
 						</p>
-						<div className="border-0 border-t border-solid border-border pt-2">
-							{showError ? (
-								<div role="alert" className="text-sm">
-									<p className="m-0 font-medium text-content-primary">
-										Advisor request failed.
-									</p>
-									<p className="m-0 text-content-secondary wrap-anywhere">
-										{effectiveErrorMessage}
-									</p>
-								</div>
-							) : showLimitReached ? (
-								<div role="status" className="text-sm">
-									<p className="m-0 font-medium text-content-primary">
-										Advisor limit reached.
-									</p>
-									<p className="m-0 text-content-secondary">
-										You have reached the advisor limit for this conversation.
-									</p>
-								</div>
-							) : !showThinking && !showAdvice ? (
-								<div
-									role="status"
-									className="text-[13px] text-content-secondary"
-								>
-									Reviewing context and preparing guidance.
-								</div>
-							) : (
-								<div className="space-y-3">
-									{showThinking && (
-										<section
-											aria-label="Advisor thinking"
-											className="space-y-1"
-										>
-											<p className="m-0 text-[13px] font-medium text-content-secondary">
-												Thinking
-											</p>
-											<Response
-												streaming
-												className="text-[13px] leading-5 text-content-secondary"
+						{!showError && (
+							<div className="border-0 border-t border-solid border-border pt-2">
+								{showLimitReached ? (
+									<div role="status" className="text-sm">
+										<p className="m-0 font-medium text-content-primary">
+											Advisor limit reached.
+										</p>
+										<p className="m-0 text-content-secondary">
+											You have reached the advisor limit for this conversation.
+										</p>
+									</div>
+								) : !showThinking && !showAdvice ? (
+									<div
+										role="status"
+										className="text-[13px] text-content-secondary"
+									>
+										Reviewing context and preparing guidance.
+									</div>
+								) : (
+									<div className="space-y-3">
+										{showThinking && (
+											<section
+												aria-label="Advisor thinking"
+												className="space-y-1"
 											>
-												{reasoningText}
-											</Response>
-										</section>
-									)}
-									{showAdvice && (
-										<section aria-label="Advisor advice" className="space-y-1">
-											{showThinking && (
 												<p className="m-0 text-[13px] font-medium text-content-secondary">
-													Advice
+													Thinking
 												</p>
-											)}
-											<Response
-												streaming={isRunning}
-												className="text-[13px] leading-5"
+												<Response
+													streaming
+													className="text-[13px] leading-5 text-content-secondary"
+												>
+													{reasoningText}
+												</Response>
+											</section>
+										)}
+										{showAdvice && (
+											<section
+												aria-label="Advisor advice"
+												className="space-y-1"
 											>
-												{adviceText || "Advisor returned no guidance."}
-											</Response>
-										</section>
-									)}
-								</div>
-							)}
-						</div>
+												{showThinking && (
+													<p className="m-0 text-[13px] font-medium text-content-secondary">
+														Advice
+													</p>
+												)}
+												<Response
+													streaming={isRunning}
+													className="text-[13px] leading-5"
+												>
+													{adviceText || "Advisor returned no guidance."}
+												</Response>
+											</section>
+										)}
+									</div>
+								)}
+							</div>
+						)}
 					</div>
 				</ToolCall.Scrollable>
 			</ToolCall.Content>

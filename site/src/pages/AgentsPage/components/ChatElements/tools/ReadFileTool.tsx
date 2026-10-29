@@ -6,6 +6,7 @@ import { asRecord, asString } from "../runtimeTypeUtils";
 import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
+	formatToolError,
 	getFileViewerOptionsMinimal,
 	parseArgs,
 	type ToolStatus,
@@ -53,7 +54,7 @@ export const getReadFileToolData = ({
 		path: path || "file",
 		content: rec ? asString(rec.content).trim() : "",
 		isError,
-		errorMessage: rec ? asString(rec.error || rec.message) : undefined,
+		errorMessage: formatToolError(result),
 	};
 };
 
@@ -78,7 +79,7 @@ export const ReadFileTool: React.FC<{
 	expanded,
 	onExpandedChange,
 }) => {
-	const hasContent = content.length > 0 || isError;
+	const hasContent = content.length > 0;
 	const isRunning = status === "running";
 	const filename = getPathBasename(path);
 	const label = isRunning ? `Reading ${filename}…` : `Read ${filename}`;
@@ -95,11 +96,6 @@ export const ReadFileTool: React.FC<{
 		>
 			<ToolCall.Header iconName="read_file" label={label} />
 			<ToolCall.Content>
-				{isError && (
-					<div className="mt-1 text-xs text-content-destructive">
-						{errorMessage || "Failed to read file"}
-					</div>
-				)}
 				{content.length > 0 && (
 					<ReadFileContent path={path} content={content} />
 				)}

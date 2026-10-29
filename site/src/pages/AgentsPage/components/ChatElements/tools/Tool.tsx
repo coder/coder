@@ -47,6 +47,7 @@ import {
 	DIFFS_FONT_STYLE,
 	formatModelIntentLabel,
 	formatResultOutput,
+	formatToolError,
 	formatToolInput,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -283,7 +284,7 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
-	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	const errorMessage = formatToolError(result);
 	// The process may outlive the poll that produced this result
 	// (wait timeout); the result flags it explicitly. A later
 	// SIGKILL overrides the stale running snapshot; SIGTERM is
@@ -334,7 +335,7 @@ const ReadSkillRenderer: React.FC<ToolRendererProps> = ({
 			body={body}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -361,7 +362,7 @@ const ReadSkillFileRenderer: React.FC<ToolRendererProps> = ({
 			body={content}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -375,7 +376,6 @@ const WriteFileRenderer: React.FC<ToolRendererProps> = ({
 }) => {
 	const parsedArgs = parseArgs(args);
 	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-	const rec = asRecord(result);
 	const writeFileDiff = getWriteFileDiff("write_file", args);
 
 	return (
@@ -384,7 +384,7 @@ const WriteFileRenderer: React.FC<ToolRendererProps> = ({
 			diff={writeFileDiff}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
 	);
@@ -397,7 +397,6 @@ const EditFilesRenderer: React.FC<ToolRendererProps> = ({
 	isError,
 	codeDiffDisplayMode,
 }) => {
-	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
 	// On error, render no diff: the agent rejected the edit, so a
 	// synthetic args-derived diff would misrepresent it as applied.
@@ -417,7 +416,7 @@ const EditFilesRenderer: React.FC<ToolRendererProps> = ({
 			diffs={editDiffs}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
 	);
@@ -444,7 +443,7 @@ const CreateWorkspaceRenderer: React.FC<ToolRendererProps> = ({
 			resultJson={resultJson}
 			status={status}
 			isError={isError || hasErrorInResult}
-			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			errorMessage={formatToolError(result)}
 			buildId={buildId}
 			created={created}
 			labelOverride={quotaTitle}
@@ -551,6 +550,7 @@ const SubagentRenderer: React.FC<ToolRendererProps> = ({
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
+			errorMessage={formatToolError(result)}
 			isTimeout={isTimeout}
 			showDesktopPreview={
 				Boolean(chatId) &&
@@ -580,7 +580,7 @@ const ListTemplatesRenderer: React.FC<ToolRendererProps> = ({
 			count={count}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -602,13 +602,7 @@ const ListAgentsRenderer: React.FC<ToolRendererProps> = ({
 			total={total}
 			status={status}
 			isError={isError}
-			errorMessage={
-				rec
-					? asString(rec.error || rec.message)
-					: typeof result === "string" && isError
-						? result
-						: undefined
-			}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -626,7 +620,7 @@ const ListSubagentModelsRenderer: React.FC<ToolRendererProps> = ({
 			models={models}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -647,7 +641,7 @@ const ReadTemplateRenderer: React.FC<ToolRendererProps> = ({
 			templateName={name}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -657,12 +651,11 @@ const ChatClearedRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 }) => {
-	const rec = asRecord(result);
 	return (
 		<ChatClearedTool
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 		/>
 	);
 };
@@ -689,7 +682,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 			summary={summary}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={formatToolError(result)}
 			source={source || undefined}
 		/>
 	);
@@ -716,11 +709,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			: questionsFromResult && questionsFromResult.length > 0
 				? questionsFromResult
 				: (questionsFromArgs ?? questionsFromResult ?? []);
-	const resultRecord = asRecord(result);
-	const errorMessage =
-		(resultRecord
-			? asString(resultRecord.error || resultRecord.message)
-			: "") || (typeof result === "string" && isError ? result : "");
+	const errorMessage = formatToolError(result);
 
 	return (
 		<AskUserQuestionTool
@@ -748,10 +737,7 @@ const ProposePlanRenderer: React.FC<ToolRendererProps> = ({
 	const rec = asRecord(result);
 	const content = rec && "content" in rec ? asString(rec.content) : undefined;
 	const fileID = rec && "file_id" in rec ? asString(rec.file_id) : undefined;
-	const errorMessage = isError
-		? (rec ? asString(rec.error || rec.message) : undefined) ||
-			(typeof result === "string" ? result : undefined)
-		: undefined;
+	const errorMessage = isError ? formatToolError(result) : undefined;
 
 	return (
 		<ProposePlanTool
@@ -792,11 +778,7 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 			: adviceText
 				? "advice"
 				: undefined;
-	const errorMessage =
-		(rec ? asString(rec.error || rec.message) : "") ||
-		(typeof result === "string" && (hasError || resolvedResultType === "error")
-			? result
-			: "");
+	const errorMessage = formatToolError(result);
 
 	return (
 		<AdvisorTool
@@ -869,6 +851,7 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 			text={text}
 			status={status}
 			isError={isError}
+			errorMessage={formatToolError(result) || text}
 		/>
 	);
 };
@@ -1004,8 +987,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	const hasContent = Boolean(
 		toolInput || fileContent || resultOutput || mediaResult,
 	);
-	const rec = asRecord(result);
-	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	const errorMessage = formatToolError(result);
 	const fallbackErrorMessage = getGenericToolErrorMessage({
 		name,
 		mcpSlug: mcpServer?.slug,
@@ -1074,9 +1056,7 @@ const FindToolsRenderer: React.FC<ToolRendererProps> = (props) => {
 		// Error results carry plain text or an error record instead of
 		// matches, so they render through the specialized error state
 		// rather than the malformed-result fallback.
-		const errorMessage = parsedResult
-			? asString(parsedResult.error || parsedResult.message)
-			: asString(props.result);
+		const errorMessage = formatToolError(props.result);
 		return (
 			<FindToolsTool
 				queries={queries}
@@ -1145,7 +1125,7 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 			buildId={buildId}
 			workspaceName={wsName}
 			isError={isError || hasErrorInResult}
-			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+			errorMessage={formatToolError(result)}
 			noBuild={noBuild}
 			labelOverride={quotaTitle}
 		/>
@@ -1160,7 +1140,7 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
 			action={getWebSearchAction(props.args)}
 			state={getWebSearchState(props)}
 			foundPages={props.foundPages ?? []}
-			errorMessage={asString(asRecord(props.result)?.error)}
+			errorMessage={formatToolError(props.result)}
 		/>
 	) : (
 		<GenericToolRenderer {...props} />

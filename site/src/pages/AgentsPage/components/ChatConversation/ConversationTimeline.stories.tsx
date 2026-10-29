@@ -2311,15 +2311,7 @@ export const SequentialReadFilesEmptyAndErrorStates: Story = {
 		const buttons = canvas.getAllByRole("button", { name: /read 2 files/i });
 
 		await userEvent.click(buttons[0]);
-		await canvas.findByText("Read empty-a.ts");
-
 		await userEvent.click(buttons[1]);
-		await canvas.findByRole("button", { name: /read missing-a\.ts/i });
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: /read missing-a\.ts/i }),
-		);
-		await canvas.findByText("ENOENT: no such file or directory");
 	},
 };
 

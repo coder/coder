@@ -14,7 +14,7 @@ import { type ACPToolName, ACPToolNames } from "./acpToolNames";
 import { parseACPTranscript } from "./acpTranscript";
 import type { Tool } from "./Tool";
 import { ToolCall } from "./ToolCall";
-import { asString, parseArgs } from "./utils";
+import { asString, formatToolError, parseArgs } from "./utils";
 
 type NestedToolProps = Required<
 	Pick<
@@ -87,8 +87,15 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 	const prompt = asString(input?.prompt) || asString(input?.message);
 	const title = descriptor?.prompt || asString(input?.prompt) || "ACP agent";
 	const action = verbs[name][status === "running" ? 0 : 1];
-	const rawError = output?.error || (isError ? result : "");
-	const error = getErrorMessage(parseArgs(rawError) ?? rawError, "");
+	const rawError =
+		output?.error || (isError || status === "error" ? result : "");
+	const error =
+		output?.error || isError || status === "error"
+			? formatToolError({
+					...output,
+					error: getErrorMessage(parseArgs(rawError) ?? rawError, ""),
+				})
+			: "";
 	const blocks = parseACPTranscript(output?.messages);
 	const preview = asString(output?.output) || asString(output?.response);
 	const waiting = name === ACPToolNames.WaitAgent;
@@ -98,6 +105,7 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 			status={status}
 			isError={isError || Boolean(error)}
 			errorMessage={error}
+			announceError
 			hasContent={hasContent}
 			defaultExpanded
 		>
@@ -205,11 +213,6 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 						<Response>{prompt}</Response>
 					</AgentContentCard>
 				) : null}
-				{error && (
-					<p role="alert" className="text-xs text-content-destructive">
-						{error}
-					</p>
-				)}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

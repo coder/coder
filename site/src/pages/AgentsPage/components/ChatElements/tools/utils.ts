@@ -290,6 +290,32 @@ export const formatResultOutput = (result: unknown): string | null => {
 	return formatValue(result);
 };
 
+/** Formats tool error results as plain text, including actionable details. */
+export const formatToolError = (result: unknown): string => {
+	const rec = parseArgs(result);
+	if (!rec) {
+		return asString(result).trim();
+	}
+	const message =
+		asString(rec.error).trim() ||
+		asString(rec.message).trim() ||
+		asString(rec.reason).trim();
+	const validations: string[] = [];
+	if (Array.isArray(rec.validations)) {
+		for (const validation of rec.validations) {
+			const entry = asRecord(validation);
+			const detail = asString(entry?.detail).trim();
+			if (detail) {
+				const field = asString(entry?.field).trim();
+				validations.push(field ? `${field}: ${detail}` : detail);
+			}
+		}
+	}
+	return [message, asString(rec.detail).trim(), validations.join("\n")]
+		.filter(Boolean)
+		.join("\n\n");
+};
+
 export const fileViewerCSS = [
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }",
 ].join(" ");

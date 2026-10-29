@@ -111,6 +111,8 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	status: ToolStatus;
 	isError?: boolean;
 	errorMessage?: string;
+	/** Opts into live announcements instead of static transcript diagnostics. */
+	announceError?: boolean;
 	hasContent: boolean;
 	defaultExpanded?: boolean;
 	defaultView?: ToolCallView;
@@ -133,6 +135,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 	status,
 	isError = false,
 	errorMessage,
+	announceError = false,
 	hasContent,
 	defaultExpanded = false,
 	defaultView,
@@ -185,6 +188,14 @@ const Root: React.FC<ToolCallRootProps> = ({
 		>
 			<div className={className} {...divProps}>
 				{children}
+				{failed && (
+					<p
+						role={announceError ? "alert" : undefined}
+						className="m-0 mt-1.5 min-w-0 col-span-full whitespace-pre-wrap text-[13px] leading-5 text-content-destructive wrap-anywhere"
+					>
+						{errorMessage || "Tool call failed"}
+					</p>
+				)}
 			</div>
 		</ToolCallContext.Provider>
 	);

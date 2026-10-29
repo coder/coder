@@ -51,7 +51,6 @@ export const EditFilesTool: React.FC<{
 		subject = `${files.length} files`;
 	}
 	const label = isRunning ? `${verb} ${subject}…` : `${verb} ${subject}`;
-	const errorDetail = isError ? errorMessage?.trim() : undefined;
 
 	return (
 		<ToolCall.Root
@@ -60,16 +59,11 @@ export const EditFilesTool: React.FC<{
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to edit files"}
-			hasContent={hasDiffs || Boolean(errorDetail)}
+			hasContent={hasDiffs}
 			defaultView={displayState}
 		>
 			<ToolCall.Header iconName="edit_files" label={label} />
 			<ToolCall.Content>
-				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
-				)}
 				<div className="mt-1.5 space-y-1.5">
 					{diffs.map((diff, i) =>
 						diff ? (
