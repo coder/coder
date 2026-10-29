@@ -354,27 +354,6 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	);
 };
 
-type AnsweredQuestionTextProps = {
-	question: AskUserQuestion;
-};
-
-const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
-	question,
-}) => {
-	return (
-		<div className="flex items-start gap-1.5 text-content-secondary">
-			<MessageCircleQuestionIcon
-				aria-hidden="true"
-				className="mt-0.5 size-4 shrink-0"
-			/>
-			<p className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]">
-				<span aria-hidden="true">Asked: </span>
-				<span>{getQuestionText(question)}</span>
-			</p>
-		</div>
-	);
-};
-
 type AskedQuestionsProps = {
 	questions: AskUserQuestion[];
 };
@@ -383,10 +362,19 @@ const AskedQuestions: React.FC<AskedQuestionsProps> = ({ questions }) => {
 	return (
 		<div className="space-y-5">
 			{questions.map((question, questionIndex) => (
-				<AnsweredQuestionText
+				<div
 					key={getQuestionKey(question, questionIndex)}
-					question={question}
-				/>
+					className="flex items-start gap-1.5 text-content-secondary"
+				>
+					<MessageCircleQuestionIcon
+						aria-hidden="true"
+						className="mt-0.5 size-4 shrink-0"
+					/>
+					<p className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]">
+						<span aria-hidden="true">Asked: </span>
+						<span>{getQuestionText(question)}</span>
+					</p>
+				</div>
 			))}
 		</div>
 	);
@@ -394,9 +382,8 @@ const AskedQuestions: React.FC<AskedQuestionsProps> = ({ questions }) => {
 
 type AskUserQuestionFormProps = {
 	questions: AskUserQuestion[];
-	/** The delivered or queued answer message. */
+	/** An answer that the queue or the transcript already shows. */
 	previousResponseText?: string;
-	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
 	showSubmittedAnswer: boolean;
 	/** Unset while the question cannot be answered. */
@@ -405,9 +392,9 @@ type AskUserQuestionFormProps = {
 };
 
 /**
- * Collects the answers to a question set, sends them as one message, and
- * then lists the questions as asked. An async question's message starts
- * with its call's prefix line, which the form strips from the answer it shows.
+ * Sends the answers to a question set as one message. With asyncToolCallId,
+ * the message starts with the call's prefix line, and the form strips that
+ * line from the answer it shows.
  */
 export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
