@@ -251,7 +251,7 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user notification preferences
-// @Description Returns the per-template notification preferences a user has set, including whether each template is disabled.
+// @Description Returns the per-template notification preferences a user has set, including whether each template is turned off.
 // @Description You can read your own preferences, and the Owner role can read any user's.
 // @ID get-user-notification-preferences
 // @Security CoderSessionToken
@@ -283,14 +283,14 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Update user notification preferences
-// @Description Turns notification templates on or off for a user, using a map of template IDs to a disabled flag, and returns all of their preferences.
+// @Description Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.
 // @Description You can update your own preferences, and the Owner role can update any user's.
 // @ID update-user-notification-preferences
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Notifications
-// @Param request body codersdk.UpdateUserNotificationPreferences true "Map of notification template IDs to a disabled flag, in `template_disabled_map`. Set a template to `true` to turn it off."
+// @Param request body codersdk.UpdateUserNotificationPreferences true "Notification template IDs mapped to `true` to turn a template off or `false` to turn it on, in `template_disabled_map`."
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.NotificationPreference
 // @Router /api/v2/users/{user}/notifications/preferences [put]

@@ -563,7 +563,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 `GET /api/v2/users/{user}/notifications/preferences`
 
-Returns the per-template notification preferences a user has set, including whether each template is disabled.
+Returns the per-template notification preferences a user has set, including whether each template is turned off.
 You can read your own preferences, and the Owner role can read any user's.
 
 ### Parameters
@@ -619,7 +619,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 `PUT /api/v2/users/{user}/notifications/preferences`
 
-Turns notification templates on or off for a user, using a map of template IDs to a disabled flag, and returns all of their preferences.
+Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.
 You can update your own preferences, and the Owner role can update any user's.
 
 > Body parameter
@@ -635,10 +635,10 @@ You can update your own preferences, and the Owner role can update any user's.
 
 ### Parameters
 
-| Name   | In   | Type                                                                                               | Required | Description                                                                                                               |
-|--------|------|----------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------|
-| `user` | path | string                                                                                             | true     | User ID, username, or `me` for the authenticated user.                                                                    |
-| `body` | body | [codersdk.UpdateUserNotificationPreferences](schemas.md#codersdkupdateusernotificationpreferences) | true     | Map of notification template IDs to a disabled flag, in `template_disabled_map`. Set a template to `true` to turn it off. |
+| Name   | In   | Type                                                                                               | Required | Description                                                                                                             |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, username, or `me` for the authenticated user.                                                                  |
+| `body` | body | [codersdk.UpdateUserNotificationPreferences](schemas.md#codersdkupdateusernotificationpreferences) | true     | Notification template IDs mapped to `true` to turn a template off or `false` to turn it on, in `template_disabled_map`. |
 
 ### Example responses
 

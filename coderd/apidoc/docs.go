@@ -14684,7 +14684,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/notifications/preferences": {
             "get": {
-                "description": "Returns the per-template notification preferences a user has set, including whether each template is disabled.\nYou can read your own preferences, and the Owner role can read any user's.",
+                "description": "Returns the per-template notification preferences a user has set, including whether each template is turned off.\nYou can read your own preferences, and the Owner role can read any user's.",
                 "produces": [
                     "application/json"
                 ],
@@ -14720,7 +14720,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Turns notification templates on or off for a user, using a map of template IDs to a disabled flag, and returns all of their preferences.\nYou can update your own preferences, and the Owner role can update any user's.",
+                "description": "Turns notification templates on or off for a user, using a map of template IDs to ` + "`" + `true` + "`" + ` (turned off) or ` + "`" + `false` + "`" + ` (turned on), and returns all of their preferences.\nYou can update your own preferences, and the Owner role can update any user's.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14734,7 +14734,7 @@ const docTemplate = `{
                 "operationId": "update-user-notification-preferences",
                 "parameters": [
                     {
-                        "description": "Map of notification template IDs to a disabled flag, in ` + "`" + `template_disabled_map` + "`" + `. Set a template to ` + "`" + `true` + "`" + ` to turn it off.",
+                        "description": "Notification template IDs mapped to ` + "`" + `true` + "`" + ` to turn a template off or ` + "`" + `false` + "`" + ` to turn it on, in ` + "`" + `template_disabled_map` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
