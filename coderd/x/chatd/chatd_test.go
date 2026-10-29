@@ -867,7 +867,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 
 // TestWorkspaceAwarenessFollowsWorkspaceBinding changes the workspace
 // binding between turns, as PATCH /chats/{chat} does, and checks that each
-// request states the binding the turn started with.
+// request states the binding when the request was built.
 func TestWorkspaceAwarenessFollowsWorkspaceBinding(t *testing.T) {
 	t.Parallel()
 
