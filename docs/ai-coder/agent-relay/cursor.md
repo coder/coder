@@ -102,6 +102,7 @@ resource "coder_agent" "main" {
 
 Use the latest module version from the registry.
 The template must also meet the [template requirements](./setup.md#step-3-prepare-a-workspace-template) that apply to every provider.
+To keep the worker from starting before your startup scripts finish, order the module after them, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 When Agent Relay creates the workspace, the module adds **Open in Cursor Web** and **Open in Cursor Desktop** apps that open the cloud agent.
 
@@ -392,6 +393,11 @@ The template renamed or omitted `agent_relay_status`, or the worker reports `orp
 
 The worker doesn't switch branches.
 Add a `sessionStart` hook that checks out the requested ref.
+
+### The agent runs commands before the workspace finishes setting up
+
+Agent Relay hands off the workspace when its build succeeds, and the module starts the worker without waiting for startup scripts.
+Order the module after your setup scripts, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 For logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
 

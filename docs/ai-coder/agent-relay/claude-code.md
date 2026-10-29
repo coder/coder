@@ -112,6 +112,7 @@ resource "coder_agent" "main" {
 
 Use the latest module version from the registry.
 The template must also meet the [template requirements](./setup.md#step-3-prepare-a-workspace-template) that apply to every provider.
+To keep the worker from starting before your startup scripts finish, order the module after them, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 The module starts `claude self-hosted-runner --capacity 1 --exit-if-unused-min 10 --release-idle-session-min 60` in the background, so the workspace agent reaches `ready` immediately.
 A runner that never receives its session exits after 10&nbsp;minutes, and Agent Relay deletes its workspace.
@@ -388,6 +389,11 @@ The Claude GitHub app can't access the selected repository.
 ### Git reports `Please tell me who you are`
 
 The image has no Git identity, and runner-managed Git config is off.
+
+### The agent runs commands before the workspace finishes setting up
+
+Agent Relay hands off the workspace when its build succeeds, and the module starts the worker without waiting for startup scripts.
+Order the module after your setup scripts, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 For logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
 
