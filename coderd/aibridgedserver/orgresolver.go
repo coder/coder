@@ -17,13 +17,16 @@ import (
 // one organization input. The login paths are mutually exclusive.
 var ErrAmbiguousOrganizationInput = xerrors.New("workspace and chat organization inputs are mutually exclusive")
 
-// orgResolverInput holds one input per login path. At most one is set.
+// orgResolverInput holds one reference per login path. At most one is set.
+// Each is a reference, not an organization: resolveOrganization looks up the
+// organization from it, so callers never supply an organization ID.
 type orgResolverInput struct {
 	// WorkspaceID is set on the direct path, for a workspace session token.
 	WorkspaceID uuid.NullUUID
-	// ChatOrganizationID is set on the delegated path, for a chatd request.
-	// TODO(AIGOV-713): set this from the chat's organization.
-	ChatOrganizationID uuid.NullUUID
+	// ChatID is set on the delegated path, for a chatd request.
+	// TODO(AIGOV-713): send the chat ID in IsAuthorizedRequest, set it here,
+	// and resolve it to the chat's organization below.
+	ChatID uuid.NullUUID
 }
 
 // resolvedOrganization is the organization a request acts in. Source is valid
@@ -48,7 +51,7 @@ type resolvedOrganization struct {
 // The result is empty when the user has no effective group, for example when
 // they belong to no live organization.
 func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, in orgResolverInput) (resolvedOrganization, error) {
-	if in.WorkspaceID.Valid && in.ChatOrganizationID.Valid {
+	if in.WorkspaceID.Valid && in.ChatID.Valid {
 		return resolvedOrganization{}, ErrAmbiguousOrganizationInput
 	}
 
