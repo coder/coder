@@ -55,6 +55,12 @@ func TestUpdateStats(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "abc",
 		}
+		legacySessionSources = database.WorkspaceBuildDeadlineSources{
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "ssh", AgentID: agent.ID},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodReconnectingPTY, AppName: "reconnecting_pty", AgentID: agent.ID},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "jetbrains", AgentID: agent.ID},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "vscode", AgentID: agent.ID},
+		}
 		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
 	)
 
@@ -152,8 +158,10 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
+			DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+			DeadlineSources: legacySessionSources,
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -377,8 +385,10 @@ func TestUpdateStats(t *testing.T) {
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: nextAutostart,
+			DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+			DeadlineSources: database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agent.ID}},
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   nextAutostart,
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -489,8 +499,10 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
+			DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+			DeadlineSources: database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agent.ID}},
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -625,8 +637,10 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
+			DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+			DeadlineSources: legacySessionSources,
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.

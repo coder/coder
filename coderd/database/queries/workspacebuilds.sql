@@ -88,6 +88,8 @@ ORDER BY
 ;
 
 -- name: InsertWorkspaceBuild :exec
+-- Records the initial deadline as a build change. The actor is derived from the
+-- initiator and build reason, so callers cannot attribute it to another user.
 INSERT INTO
 	workspace_builds (
 		id,
@@ -103,10 +105,31 @@ INSERT INTO
 		deadline,
 		max_deadline,
 		reason,
-		template_version_preset_id
+		template_version_preset_id,
+		deadline_reason,
+		deadline_changed_at,
+		deadline_changed_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+	(
+		@id,
+		@created_at,
+		@updated_at,
+		@workspace_id,
+		@template_version_id,
+		@build_number,
+		@transition,
+		@initiator_id,
+		@job_id,
+		@provisioner_state,
+		@deadline,
+		@max_deadline,
+		@reason,
+		@template_version_preset_id,
+		(@deadline_reason::workspace_build_deadline_writer_reason)::text::workspace_build_deadline_reason,
+		@created_at,
+		workspace_build_deadline_build_actor(@initiator_id, @reason)
+	);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
@@ -117,12 +140,23 @@ WHERE
 	id = $1;
 
 -- name: UpdateWorkspaceBuildDeadlineByID :exec
+-- Records why the deadline changed only when it changes, so rewriting the same
+-- deadline keeps the previous explanation. A build change derives its actor
+-- from the build itself; other reasons use deadline_changed_by.
 UPDATE
 	workspace_builds
 SET
 	deadline = @deadline::timestamptz,
 	max_deadline = @max_deadline::timestamptz,
-	updated_at = @updated_at::timestamptz
+	updated_at = @updated_at::timestamptz,
+	deadline_reason = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN (@deadline_reason::workspace_build_deadline_writer_reason)::text::workspace_build_deadline_reason ELSE workspace_builds.deadline_reason END,
+	deadline_changed_at = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN @updated_at::timestamptz ELSE workspace_builds.deadline_changed_at END,
+	deadline_changed_by = CASE
+		WHEN workspace_builds.deadline IS NOT DISTINCT FROM @deadline::timestamptz THEN workspace_builds.deadline_changed_by
+		WHEN @deadline_reason::workspace_build_deadline_writer_reason = 'build' THEN workspace_build_deadline_build_actor(workspace_builds.initiator_id, workspace_builds.reason)
+		ELSE sqlc.narg('deadline_changed_by')::uuid
+	END,
+	deadline_sources = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN '[]'::jsonb ELSE workspace_builds.deadline_sources END
 FROM
 	workspaces
 WHERE

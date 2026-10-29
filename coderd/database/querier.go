@@ -46,7 +46,9 @@ type sqlcQuerier interface {
 	// the workspace was to autostart from a stopped state.
 	//
 	// Max deadline is respected, and the deadline will never be bumped past it.
-	// The deadline will never decrease.
+	// The deadline will never decrease. A bump that moves it records the reason and
+	// sources; other bumps are skipped.
+	// We only bump if the deadline moves forward.
 	// We only bump if the template has an activity bump duration set.
 	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
@@ -1380,6 +1382,8 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
 	InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error)
+	// Records the initial deadline as a build change. The actor is derived from the
+	// initiator and build reason, so callers cannot attribute it to another user.
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildOrchestration(ctx context.Context, arg InsertWorkspaceBuildOrchestrationParams) (WorkspaceBuildOrchestration, error)
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
@@ -1816,6 +1820,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg UpdateWorkspaceAutomaticUpdatesParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error
+	// Records why the deadline changed only when it changes, so rewriting the same
+	// deadline keeps the previous explanation. A build change derives its actor
+	// from the build itself; other reasons use deadline_changed_by.
 	UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error
 	UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg UpdateWorkspaceBuildFlagsByIDParams) error
 	// Stamps the deadline value that an autostop reminder was last sent for. Once

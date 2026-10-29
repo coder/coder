@@ -11451,37 +11451,7 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db, _ := dbtestutil.NewDB(t)
-	org := dbgen.Organization(t, db, database.Organization{})
-	user := dbgen.User(t, db, database.User{})
-	template := dbgen.Template(t, db, database.Template{
-		CreatedBy:      user.ID,
-		OrganizationID: org.ID,
-	})
-	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OwnerID:    user.ID,
-		TemplateID: template.ID,
-		Name:       "test-workspace",
-		Deleted:    false,
-	})
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		OrganizationID: org.ID,
-		InitiatorID:    database.PrebuildsSystemUserID,
-		Provisioner:    database.ProvisionerTypeEcho,
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
-		CompletedAt:    sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       workspace.ID,
-		TemplateVersionID: templateVersion.ID,
-		JobID:             job.ID,
-		BuildNumber:       1,
-	})
+	workspaceBuild := deadlineChangeBuild(t, db)
 
 	cases := []struct {
 		name        string
@@ -11530,10 +11500,11 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 
 	for _, c := range cases {
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          workspaceBuild.ID,
-			Deadline:    c.deadline,
-			MaxDeadline: c.maxDeadline,
-			UpdatedAt:   time.Now(),
+			DeadlineReason: database.WorkspaceBuildDeadlineWriterReasonBuild,
+			ID:             workspaceBuild.ID,
+			Deadline:       c.deadline,
+			MaxDeadline:    c.maxDeadline,
+			UpdatedAt:      time.Now(),
 		})
 		if c.expectOK {
 			require.NoError(t, err)
@@ -11541,6 +11512,551 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			require.Error(t, err)
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
 		}
+	}
+}
+
+// deadlineChangeBuild inserts a completed start build whose deadline is due
+// for the template's default one hour activity bump.
+func deadlineChangeBuild(t *testing.T, db database.Store, mutate ...func(*database.WorkspaceBuild)) database.WorkspaceBuild {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
+		CompletedAt:    sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	build := database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		JobID:             job.ID,
+		BuildNumber:       1,
+		Deadline:          dbtime.Now().Add(30 * time.Minute),
+	}
+	for _, m := range mutate {
+		m(&build)
+	}
+	return dbgen.WorkspaceBuild(t, db, build)
+}
+
+type deadlineChange struct {
+	Deadline    time.Time
+	MaxDeadline time.Time
+	Reason      database.WorkspaceBuildDeadlineReason
+	ChangedAt   sql.NullTime
+	ChangedBy   uuid.NullUUID
+	Sources     database.WorkspaceBuildDeadlineSources
+}
+
+func getDeadlineChange(ctx context.Context, t *testing.T, db database.Store, buildID uuid.UUID) deadlineChange {
+	t.Helper()
+
+	build, err := db.GetWorkspaceBuildByID(ctx, buildID)
+	require.NoError(t, err)
+	return deadlineChange{
+		Deadline:    build.Deadline.UTC(),
+		MaxDeadline: build.MaxDeadline.UTC(),
+		Reason:      build.DeadlineReason,
+		ChangedAt:   sql.NullTime{Time: build.DeadlineChangedAt.Time.UTC(), Valid: build.DeadlineChangedAt.Valid},
+		ChangedBy:   build.DeadlineChangedBy,
+		Sources:     build.DeadlineSources,
+	}
+}
+
+// Writers can only use the writer reasons, which must be every reason except
+// unknown. A reason added to one enum must be added to the other.
+func TestWorkspaceBuildDeadlineWriterReasons(t *testing.T) {
+	t.Parallel()
+
+	var want []database.WorkspaceBuildDeadlineWriterReason
+	for _, reason := range database.AllWorkspaceBuildDeadlineReasonValues() {
+		if reason != database.WorkspaceBuildDeadlineReasonUnknown {
+			want = append(want, database.WorkspaceBuildDeadlineWriterReason(reason))
+		}
+	}
+	require.Equal(t, want, database.AllWorkspaceBuildDeadlineWriterReasonValues())
+}
+
+func TestWorkspaceBuildDeadlineWritersRequireReason(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	build := deadlineChangeBuild(t, db)
+	before := getDeadlineChange(ctx, t, db, build.ID)
+
+	err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:        build.ID,
+		Deadline:  before.Deadline.Add(time.Hour),
+		UpdatedAt: dbtime.Now(),
+	})
+	require.ErrorContains(t, err, "workspace_build_deadline_writer_reason")
+	err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{WorkspaceID: build.WorkspaceID})
+	require.ErrorContains(t, err, "workspace_build_deadline_writer_reason")
+	err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		ID:                uuid.New(),
+		WorkspaceID:       build.WorkspaceID,
+		TemplateVersionID: build.TemplateVersionID,
+		BuildNumber:       2,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       build.InitiatorID,
+		JobID:             build.JobID,
+		Reason:            database.BuildReasonInitiator,
+	})
+	require.ErrorContains(t, err, "workspace_build_deadline_writer_reason")
+	require.Equal(t, before, getDeadlineChange(ctx, t, db, build.ID))
+}
+
+func TestWorkspaceBuildDeadlineBuildActor(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	initiator := dbgen.User(t, db, database.User{})
+	other := dbgen.User(t, db, database.User{})
+	initiatorID := uuid.NullUUID{UUID: initiator.ID, Valid: true}
+
+	for _, tc := range []struct {
+		name      string
+		initiator uuid.UUID
+		reason    database.BuildReason
+		want      uuid.NullUUID
+	}{
+		{"Initiator", initiator.ID, database.BuildReasonInitiator, initiatorID},
+		{"Dashboard", initiator.ID, database.BuildReasonDashboard, initiatorID},
+		{"CLI", initiator.ID, database.BuildReasonCli, initiatorID},
+		{"SSHConnection", initiator.ID, database.BuildReasonSshConnection, initiatorID},
+		{"VSCodeConnection", initiator.ID, database.BuildReasonVscodeConnection, initiatorID},
+		{"JetBrainsConnection", initiator.ID, database.BuildReasonJetbrainsConnection, initiatorID},
+		{"Autostart", initiator.ID, database.BuildReasonAutostart, uuid.NullUUID{}},
+		{"Autostop", initiator.ID, database.BuildReasonAutostop, uuid.NullUUID{}},
+		{"Prebuild", database.PrebuildsSystemUserID, database.BuildReasonInitiator, uuid.NullUUID{}},
+		{"MissingUser", uuid.New(), database.BuildReasonInitiator, uuid.NullUUID{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			build := deadlineChangeBuild(t, db, func(b *database.WorkspaceBuild) {
+				b.InitiatorID = tc.initiator
+				b.Reason = tc.reason
+			})
+			inserted := getDeadlineChange(ctx, t, db, build.ID)
+			require.Equal(t, database.WorkspaceBuildDeadlineReasonBuild, inserted.Reason)
+			require.Equal(t, build.CreatedAt.UTC(), inserted.ChangedAt.Time)
+			require.Equal(t, tc.want, inserted.ChangedBy)
+
+			// A build change takes its actor from the build, not the caller.
+			require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:                build.ID,
+				Deadline:          inserted.Deadline.Add(time.Hour),
+				UpdatedAt:         dbtime.Now(),
+				DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
+				DeadlineChangedBy: uuid.NullUUID{UUID: other.ID, Valid: true},
+			}))
+			completed := getDeadlineChange(ctx, t, db, build.ID)
+			require.Equal(t, database.WorkspaceBuildDeadlineReasonBuild, completed.Reason)
+			require.Equal(t, tc.want, completed.ChangedBy)
+		})
+	}
+}
+
+func TestActivityBumpWorkspaceDeadlineSources(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	type sources = database.WorkspaceBuildDeadlineSources
+	const (
+		app        = codersdk.WorkspaceBuildDeadlineSourceTypeApp
+		connection = codersdk.WorkspaceBuildDeadlineSourceTypeConnection
+		chat       = codersdk.WorkspaceBuildDeadlineSourceTypeChatHeartbeat
+		ssh        = codersdk.ConnectionLogMethodSSH
+		pty        = codersdk.ConnectionLogMethodReconnectingPTY
+		ports      = codersdk.ConnectionLogMethodPortForwarding
+		wsApp      = codersdk.ConnectionLogMethodWorkspaceApp
+	)
+	agent, appID := uuid.New(), uuid.New()
+
+	for _, tc := range []struct {
+		name string
+		in   sources
+		err  string
+	}{
+		{"NoSources", nil, ""},
+		{"AllTypes", sources{
+			{Type: app, Method: ssh, AppName: "vscode", AgentID: agent},
+			{Type: app, Method: pty, AppName: "reconnecting_pty", AgentID: agent},
+			{Type: app, Method: ports, AppName: "port_forwarding", AgentID: agent},
+			{Type: app, Method: wsApp, AppID: appID, AgentID: agent, DisplayName: "Claude Code"},
+			{Type: connection, AgentID: agent},
+			{Type: chat},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload},
+		}, ""},
+		{"AppWithoutName", sources{{Type: app, Method: ssh, AgentID: agent}}, "requires a normalized app name"},
+		{"AppWithUnnormalizedName", sources{{Type: app, Method: ssh, AppName: "VS-Code", AgentID: agent}}, "requires a normalized app name"},
+		{"AppWithoutAgent", sources{{Type: app, Method: ssh, AppName: "vscode"}}, "requires a normalized app name"},
+		{"AppWithOtherMethod", sources{{Type: app, Method: pty, AppName: "vscode", AgentID: agent}}, `has method "ssh"`},
+		{"AppWithoutMethod", sources{{Type: app, AppName: "vscode", AgentID: agent}}, "unsupported method"},
+		{"AppWithTunnel", sources{{Type: app, Method: codersdk.ConnectionLogMethodTunnel, AppName: "vscode", AgentID: agent}}, "unsupported method"},
+		{"AppNameWithAppID", sources{{Type: app, Method: ssh, AppName: "vscode", AppID: appID, AgentID: agent}}, "unexpected fields"},
+		{"WorkspaceAppWithoutAppID", sources{{Type: app, Method: wsApp, AgentID: agent, DisplayName: "Claude Code"}}, "workspace app source requires"},
+		{"WorkspaceAppWithoutAgent", sources{{Type: app, Method: wsApp, AppID: appID, DisplayName: "Claude Code"}}, "workspace app source requires"},
+		{"WorkspaceAppWithoutDisplayName", sources{{Type: app, Method: wsApp, AppID: appID, AgentID: agent}}, "workspace app source requires"},
+		{"WorkspaceAppWithAppName", sources{{Type: app, Method: wsApp, AppName: "vscode", AppID: appID, AgentID: agent, DisplayName: "Claude Code"}}, "unexpected fields"},
+		{"ConnectionWithoutAgent", sources{{Type: connection}}, "connection source requires"},
+		{"ConnectionWithMethod", sources{{Type: connection, Method: ssh, AgentID: agent}}, "unexpected fields"},
+		{"UnknownType", sources{{Type: "ssh"}}, "unknown deadline source type"},
+		{"FieldOfAnotherType", sources{{Type: connection, AgentID: agent, AppName: "vscode"}}, "unexpected fields"},
+		{"InvalidAfterValid", sources{{Type: chat}, {Type: chat, AgentID: agent}}, "unexpected fields"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			build := deadlineChangeBuild(t, db)
+			before := getDeadlineChange(ctx, t, db, build.ID)
+			err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+				WorkspaceID:     build.WorkspaceID,
+				DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+				DeadlineSources: tc.in,
+			})
+			got := getDeadlineChange(ctx, t, db, build.ID)
+			if tc.err != "" {
+				require.ErrorContains(t, err, tc.err)
+				require.Equal(t, before, got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, database.WorkspaceBuildDeadlineReasonActivity, got.Reason)
+			// Empty sources are stored as [], never NULL.
+			require.Equal(t, append(sources{}, tc.in...), got.Sources)
+		})
+	}
+}
+
+func TestWorkspaceBuildDeadlineChangeConstraints(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	build := deadlineChangeBuild(t, db)
+	actor := uuid.NullUUID{UUID: dbgen.User(t, db, database.User{}).ID, Valid: true}
+	now := sql.NullTime{Time: dbtime.Now(), Valid: true}
+	text := func(s string) sql.NullString { return sql.NullString{String: s, Valid: true} }
+	unknown, activity, userChanged := text("unknown"), text("activity"), text("user_changed")
+	noSources, chatSources := text(`[]`), text(`[{"type": "chat_heartbeat"}]`)
+
+	for _, tc := range []struct {
+		name        string
+		reason      sql.NullString
+		changedAt   sql.NullTime
+		changedBy   uuid.NullUUID
+		sources     sql.NullString
+		wantCheck   database.CheckConstraint
+		wantNotNull bool
+	}{
+		{name: "UnknownWithoutTime", reason: unknown, sources: noSources},
+		{name: "UnknownWithTime", reason: unknown, changedAt: now, sources: noSources},
+		{name: "ActivityWithSources", reason: activity, changedAt: now, sources: chatSources},
+		{name: "ActivityWithoutSources", reason: activity, changedAt: now, sources: noSources},
+		{name: "UserChangeWithActor", reason: userChanged, changedAt: now, changedBy: actor, sources: noSources},
+		{name: "UserChangeWithoutActor", reason: userChanged, changedAt: now, sources: noSources},
+		{name: "ReasonWithoutTime", reason: userChanged, sources: noSources, wantCheck: database.CheckWorkspaceBuildsDeadlineChangeCheck},
+		{name: "UnknownWithActor", reason: unknown, changedAt: now, changedBy: actor, sources: noSources, wantCheck: database.CheckWorkspaceBuildsDeadlineChangeCheck},
+		{name: "UnknownWithSources", reason: unknown, changedAt: now, sources: chatSources, wantCheck: database.CheckWorkspaceBuildsDeadlineChangeCheck},
+		{name: "SourcesWithoutActivity", reason: userChanged, changedAt: now, changedBy: actor, sources: chatSources, wantCheck: database.CheckWorkspaceBuildsDeadlineChangeCheck},
+		{name: "ObjectSources", reason: activity, changedAt: now, sources: text(`{}`), wantCheck: database.CheckWorkspaceBuildsDeadlineSourcesCheck},
+		{name: "JSONNullSources", reason: activity, changedAt: now, sources: text(`null`), wantCheck: database.CheckWorkspaceBuildsDeadlineSourcesCheck},
+		{name: "SQLNullSources", reason: activity, changedAt: now, wantNotNull: true},
+		{name: "SQLNullReason", changedAt: now, sources: noSources, wantNotNull: true},
+	} {
+		_, err := sqlDB.ExecContext(ctx, `UPDATE workspace_builds SET
+			deadline_reason = $2::workspace_build_deadline_reason,
+			deadline_changed_at = $3,
+			deadline_changed_by = $4,
+			deadline_sources = $5::jsonb
+			WHERE id = $1`, build.ID, tc.reason, tc.changedAt, tc.changedBy, tc.sources)
+		switch {
+		case tc.wantCheck != "":
+			require.Truef(t, database.IsCheckViolation(err, tc.wantCheck), "%s: want %s violation, got %v", tc.name, tc.wantCheck, err)
+		case tc.wantNotNull:
+			var pqErr *pq.Error
+			require.Truef(t, errors.As(err, &pqErr) && pqErr.Code.Name() == "not_null_violation", "%s: want not-null violation, got %v", tc.name, err)
+		default:
+			require.NoError(t, err, tc.name)
+		}
+	}
+}
+
+func TestWorkspaceBuildDeadlineChangeSnapshot(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	build := deadlineChangeBuild(t, db)
+	actor := dbgen.User(t, db, database.User{})
+	sources := database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: uuid.New()}}
+
+	require.NoError(t, db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+		WorkspaceID:     build.WorkspaceID,
+		DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+		DeadlineSources: sources,
+	}))
+	activity := getDeadlineChange(ctx, t, db, build.ID)
+	require.Equal(t, database.WorkspaceBuildDeadlineReasonActivity, activity.Reason)
+	require.Equal(t, sources, activity.Sources)
+
+	// Rewriting the same deadline, even with a new max deadline, keeps the
+	// snapshot.
+	maxDeadline := activity.Deadline.Add(time.Hour)
+	require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:                build.ID,
+		Deadline:          activity.Deadline,
+		MaxDeadline:       maxDeadline,
+		UpdatedAt:         dbtime.Now(),
+		DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonUserChanged,
+		DeadlineChangedBy: uuid.NullUUID{UUID: actor.ID, Valid: true},
+	}))
+	want := activity
+	want.MaxDeadline = maxDeadline
+	require.Equal(t, want, getDeadlineChange(ctx, t, db, build.ID))
+
+	// A new deadline replaces the actor and sources.
+	changedAt := dbtime.Now().Add(time.Minute)
+	userChange := deadlineChange{
+		Deadline:    activity.Deadline.Add(30 * time.Minute),
+		MaxDeadline: maxDeadline,
+		Reason:      database.WorkspaceBuildDeadlineReasonUserChanged,
+		ChangedAt:   sql.NullTime{Time: changedAt, Valid: true},
+		ChangedBy:   uuid.NullUUID{UUID: actor.ID, Valid: true},
+		Sources:     database.WorkspaceBuildDeadlineSources{},
+	}
+	require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:                build.ID,
+		Deadline:          userChange.Deadline,
+		MaxDeadline:       maxDeadline,
+		UpdatedAt:         changedAt,
+		DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonUserChanged,
+		DeadlineChangedBy: userChange.ChangedBy,
+	}))
+	require.Equal(t, userChange, getDeadlineChange(ctx, t, db, build.ID))
+
+	_, err := sqlDB.ExecContext(ctx, `DELETE FROM user_status_changes WHERE user_id = $1`, actor.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, actor.ID)
+	require.NoError(t, err)
+	userChange.ChangedBy = uuid.NullUUID{}
+	require.Equal(t, userChange, getDeadlineChange(ctx, t, db, build.ID))
+}
+
+func TestWorkspaceBuildDeadlineChangeInvalidation(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	actor := dbgen.User(t, db, database.User{})
+	otherActor := dbgen.User(t, db, database.User{})
+	sources := database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: uuid.New()}}
+	const repeated = `, deadline_reason = deadline_reason, deadline_changed_at = deadline_changed_at,
+		deadline_changed_by = deadline_changed_by, deadline_sources = deadline_sources`
+
+	otherActorID := uuid.NullUUID{UUID: otherActor.ID, Valid: true}
+
+	for _, tc := range []struct {
+		name  string
+		start database.WorkspaceBuildDeadlineReason
+		set   string
+		// edit describes a writer that recorded a new snapshot. Without it,
+		// the write is from a previous server and records unknown.
+		edit func(*deadlineChange)
+	}{
+		{name: "BuildLegacyWrite", start: database.WorkspaceBuildDeadlineReasonBuild},
+		{name: "ActivityLegacyWrite", start: database.WorkspaceBuildDeadlineReasonActivity},
+		{name: "ActivityRepeatedMetadata", start: database.WorkspaceBuildDeadlineReasonActivity, set: repeated},
+		{name: "UserChangeLegacyWrite", start: database.WorkspaceBuildDeadlineReasonUserChanged},
+		{name: "UserChangeRepeatedMetadata", start: database.WorkspaceBuildDeadlineReasonUserChanged, set: repeated},
+		{name: "FreshChangedAt", start: database.WorkspaceBuildDeadlineReasonUserChanged, set: `, deadline_changed_at = deadline_changed_at + interval '1 second'`, edit: func(c *deadlineChange) {
+			c.ChangedAt.Time = c.ChangedAt.Time.Add(time.Second)
+		}},
+		{name: "FreshReason", start: database.WorkspaceBuildDeadlineReasonUserChanged, set: `, deadline_reason = 'autostop_disabled'`, edit: func(c *deadlineChange) {
+			c.Reason = database.WorkspaceBuildDeadlineReasonAutostopDisabled
+		}},
+		{name: "FreshActor", start: database.WorkspaceBuildDeadlineReasonUserChanged, set: `, deadline_changed_by = $2`, edit: func(c *deadlineChange) {
+			c.ChangedBy = otherActorID
+		}},
+		{name: "ActorCleared", start: database.WorkspaceBuildDeadlineReasonUserChanged, set: `, deadline_changed_by = NULL`, edit: func(c *deadlineChange) {
+			c.ChangedBy = uuid.NullUUID{}
+		}},
+		{name: "ActorFromNull", start: database.WorkspaceBuildDeadlineReasonActivity, set: `, deadline_changed_by = $2`, edit: func(c *deadlineChange) {
+			c.ChangedBy = otherActorID
+		}},
+		{name: "FreshSources", start: database.WorkspaceBuildDeadlineReasonActivity, set: `, deadline_sources = '[{"type": "chat_heartbeat"}]'`, edit: func(c *deadlineChange) {
+			c.Sources = database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChatHeartbeat}}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			build := deadlineChangeBuild(t, db)
+			switch tc.start {
+			case database.WorkspaceBuildDeadlineReasonActivity:
+				require.NoError(t, db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+					WorkspaceID:     build.WorkspaceID,
+					DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+					DeadlineSources: sources,
+				}))
+			case database.WorkspaceBuildDeadlineReasonUserChanged:
+				require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:                build.ID,
+					Deadline:          dbtime.Now().Add(2 * time.Hour),
+					UpdatedAt:         dbtime.Now(),
+					DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonUserChanged,
+					DeadlineChangedBy: uuid.NullUUID{UUID: actor.ID, Valid: true},
+				}))
+			}
+			start := getDeadlineChange(ctx, t, db, build.ID)
+			require.Equal(t, tc.start, start.Reason)
+
+			args := []any{build.ID}
+			if strings.Contains(tc.set, "$2") {
+				args = append(args, otherActor.ID)
+			}
+			//nolint:gosec // tc.set is a constant assignment list from this table.
+			_, err := sqlDB.ExecContext(ctx, `UPDATE workspace_builds SET deadline = deadline + interval '1 minute'`+tc.set+` WHERE id = $1`, args...)
+			require.NoError(t, err)
+			got := getDeadlineChange(ctx, t, db, build.ID)
+
+			want := start
+			if tc.edit != nil {
+				tc.edit(&want)
+			} else {
+				require.True(t, got.ChangedAt.Valid, "unknown change must record its time")
+				require.WithinDuration(t, time.Now(), got.ChangedAt.Time, testutil.WaitLong)
+				want = deadlineChange{
+					MaxDeadline: start.MaxDeadline,
+					Reason:      database.WorkspaceBuildDeadlineReasonUnknown,
+					ChangedAt:   got.ChangedAt,
+					Sources:     database.WorkspaceBuildDeadlineSources{},
+				}
+			}
+			want.Deadline = start.Deadline.Add(time.Minute)
+			require.Equal(t, want, got)
+		})
+	}
+}
+
+func TestWorkspaceBuildDeadlineChangeConcurrentWriters(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		userDeadline time.Duration
+		rollback     bool
+		wantActivity bool
+	}{
+		{name: "LaterUserChangeWins", userDeadline: 5 * time.Hour},
+		{name: "EarlierUserChangeIsBumped", userDeadline: 10 * time.Minute, wantActivity: true},
+		{name: "RolledBackUserChange", userDeadline: 5 * time.Hour, rollback: true, wantActivity: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			// Each case gets its own database so the lock wait below is ours.
+			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			build := deadlineChangeBuild(t, db)
+			actor := dbgen.User(t, db, database.User{})
+			sources := database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChatHeartbeat}}
+			changedAt := dbtime.Now()
+			userChange := deadlineChange{
+				Deadline:  changedAt.Add(tc.userDeadline),
+				Reason:    database.WorkspaceBuildDeadlineReasonUserChanged,
+				ChangedAt: sql.NullTime{Time: changedAt, Valid: true},
+				ChangedBy: uuid.NullUUID{UUID: actor.ID, Valid: true},
+				Sources:   database.WorkspaceBuildDeadlineSources{},
+			}
+
+			errRollback := xerrors.New("roll back user change")
+			locked, release := make(chan struct{}), make(chan struct{})
+			defer close(release)
+			txErr := make(chan error, 1)
+			go func() {
+				txErr <- db.InTx(func(tx database.Store) error {
+					err := tx.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+						ID:                build.ID,
+						Deadline:          userChange.Deadline,
+						MaxDeadline:       userChange.MaxDeadline,
+						UpdatedAt:         changedAt,
+						DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonUserChanged,
+						DeadlineChangedBy: userChange.ChangedBy,
+					})
+					if err != nil {
+						return err
+					}
+					close(locked)
+					<-release
+					if tc.rollback {
+						return errRollback
+					}
+					return nil
+				}, nil)
+			}()
+			testutil.TryReceive(ctx, t, locked)
+
+			bumpErr := make(chan error, 1)
+			go func() {
+				bumpErr <- db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+					WorkspaceID:     build.WorkspaceID,
+					DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+					DeadlineSources: sources,
+				})
+			}()
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var waiting bool
+				err := sqlDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+					WHERE datname = current_database() AND wait_event_type = 'Lock')`).Scan(&waiting)
+				return err == nil && waiting
+			}, testutil.IntervalFast, "activity bump never waited for the user change")
+			testutil.AssertSend(ctx, t, release, struct{}{})
+
+			if tc.rollback {
+				require.ErrorIs(t, testutil.RequireReceive(ctx, t, txErr), errRollback)
+			} else {
+				require.NoError(t, testutil.RequireReceive(ctx, t, txErr))
+			}
+			require.NoError(t, testutil.RequireReceive(ctx, t, bumpErr))
+
+			got := getDeadlineChange(ctx, t, db, build.ID)
+			if !tc.wantActivity {
+				require.Equal(t, userChange, got)
+				return
+			}
+			require.True(t, got.ChangedAt.Time.After(changedAt), "the bump must explain its own write")
+			require.Equal(t, deadlineChange{
+				// The bump moves the deadline one activity bump past its own
+				// change time.
+				Deadline:  got.ChangedAt.Time.Add(time.Hour),
+				Reason:    database.WorkspaceBuildDeadlineReasonActivity,
+				ChangedAt: sql.NullTime{Time: got.ChangedAt.Time, Valid: true},
+				Sources:   sources,
+			}, got)
+		})
 	}
 }
 

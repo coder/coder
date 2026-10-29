@@ -768,10 +768,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 		bumpDeadline := func() {
 			err := db.InTx(func(db database.Store) error {
 				err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					Deadline:    dbtime.Now(),
-					MaxDeadline: dbtime.Now(),
-					UpdatedAt:   dbtime.Now(),
-					ID:          myWorkspace.Build.ID,
+					DeadlineReason: database.WorkspaceBuildDeadlineWriterReasonBuild,
+					Deadline:       dbtime.Now(),
+					MaxDeadline:    dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					ID:             myWorkspace.Build.ID,
 				})
 				return err
 			}, &database.TxOptions{
@@ -834,10 +835,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 		bumpDeadline := func() {
 			err := db.InTx(func(db database.Store) error {
 				err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					Deadline:    dbtime.Now(),
-					MaxDeadline: dbtime.Now(),
-					UpdatedAt:   dbtime.Now(),
-					ID:          otherWorkspace.Build.ID,
+					DeadlineReason: database.WorkspaceBuildDeadlineWriterReasonBuild,
+					Deadline:       dbtime.Now(),
+					MaxDeadline:    dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					ID:             otherWorkspace.Build.ID,
 				})
 				return err
 			}, &database.TxOptions{
@@ -900,8 +902,9 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one.GetAllowance(ctx, t)
 
 		err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-			NextAutostart: time.Now(),
-			WorkspaceID:   myWorkspace.Workspace.ID,
+			DeadlineReason: database.WorkspaceBuildDeadlineWriterReasonActivity,
+			NextAutostart:  time.Now(),
+			WorkspaceID:    myWorkspace.Workspace.ID,
 		})
 
 		assert.NoError(t, err)

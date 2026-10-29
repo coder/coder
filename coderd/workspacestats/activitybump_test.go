@@ -8,12 +8,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -236,6 +240,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 					maxDeadline = now.Add(*tt.maxDeadlineOffset)
 				}
 				err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+					DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 					ID:                buildID,
 					CreatedAt:         dbtime.Now(),
 					UpdatedAt:         dbtime.Now(),
@@ -267,7 +272,18 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), workspacestats.ActivityBumpReasonWorkspaceStats)
+				cursor := database.WorkspaceBuildDeadlineSource{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "cursor", AgentID: uuid.New()}
+				sources := database.WorkspaceBuildDeadlineSources{
+					cursor,
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "codium", AgentID: cursor.AgentID},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "vscodium", AgentID: cursor.AgentID},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "cursor", AgentID: uuid.New()},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodWorkspaceApp, AppID: uuid.New(), AgentID: cursor.AgentID, DisplayName: "App"},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodWorkspaceApp, AppID: uuid.New(), AgentID: cursor.AgentID, DisplayName: "App"},
+				}
+				duplicateApp := sources[5]
+				duplicateApp.DisplayName = "Changed label"
+				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), workspacestats.ActivityBumpReasonWorkspaceStats, append(sources, cursor, duplicateApp)...)
 				end := dbtime.Now()
 
 				// Validate our state after bump
@@ -278,9 +294,16 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				if tt.expectedBump == 0 {
 					assert.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
 					assert.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
+					assert.Equal(t, database.WorkspaceBuildDeadlineReasonBuild, updatedBuild.DeadlineReason, "should have kept the build snapshot")
+					assert.Equal(t, bld.DeadlineChangedAt, updatedBuild.DeadlineChangedAt)
+					assert.Equal(t, database.WorkspaceBuildDeadlineSources{}, updatedBuild.DeadlineSources)
 					return
 				}
 				assert.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
+				assert.Equal(t, database.WorkspaceBuildDeadlineReasonActivity, updatedBuild.DeadlineReason)
+				assert.Equal(t, sources, updatedBuild.DeadlineSources)
+				assert.False(t, updatedBuild.DeadlineChangedBy.Valid)
+				assert.True(t, updatedBuild.DeadlineChangedAt.Valid)
 				if tt.maxDeadlineOffset != nil {
 					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
 					return
@@ -291,6 +314,20 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				expectedDeadlineEnd := end.Add(tt.expectedBump).Add(time.Minute)
 				require.GreaterOrEqual(t, updatedBuild.Deadline, expectedDeadlineStart, "new deadline should be greater than or equal to start")
 				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be less than or equal to end")
+
+				// A bump capped at max deadline does not overwrite a user change.
+				pinned := dbtime.Now().Add(time.Minute)
+				require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID: buildID, UpdatedAt: dbtime.Now(), Deadline: pinned, MaxDeadline: pinned,
+					DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonUserChanged,
+					DeadlineChangedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+				}))
+				userChange, err := db.GetWorkspaceBuildByID(ctx, buildID)
+				require.NoError(t, err)
+				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, time.Time{}, workspacestats.ActivityBumpReasonWorkspaceStats, cursor)
+				updatedBuild, err = db.GetWorkspaceBuildByID(ctx, buildID)
+				require.NoError(t, err)
+				assert.Equal(t, userChange, updatedBuild)
 			})
 		}
 	}
@@ -312,4 +349,32 @@ func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, work
 		TemplateVersionID: tvID,
 		Transition:        transition,
 	})
+}
+
+// An invalid source is logged as an error and dropped; the deadline still
+// changes with the remaining sources.
+func TestActivityBumpWorkspaceDropsInvalidSources(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	sink := testutil.NewFakeSink(t)
+	workspaceID, agentID := uuid.New(), uuid.New()
+	valid := database.WorkspaceBuildDeadlineSource{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agentID}
+	tunnel := database.WorkspaceBuildDeadlineSource{
+		Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodTunnel, AppName: "ssh", AgentID: agentID,
+	}
+
+	db.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+		DeadlineReason:  database.WorkspaceBuildDeadlineWriterReasonActivity,
+		DeadlineSources: database.WorkspaceBuildDeadlineSources{valid},
+		NextAutostart:   time.Time{}.UTC(),
+		WorkspaceID:     workspaceID,
+	}).Return(nil)
+	workspacestats.ActivityBumpWorkspace(testutil.Context(t, testutil.WaitShort), slog.Make(sink), db, workspaceID, time.Time{},
+		workspacestats.ActivityBumpReasonWorkspaceStats, tunnel, valid)
+
+	errs := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
+	require.Len(t, errs, 1)
+	require.Equal(t, "dropped invalid deadline source", errs[0].Message)
 }

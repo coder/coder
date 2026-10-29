@@ -4436,6 +4436,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
 		pj := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
 		arg := database.InsertWorkspaceBuildParams{
+			DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 			Transition:        database.WorkspaceTransitionStart,
@@ -4452,6 +4453,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{})
 		pj := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
 		arg := database.InsertWorkspaceBuildParams{
+			DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 			Transition:        database.WorkspaceTransitionStop,
@@ -4469,6 +4471,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
 		pj := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
 		arg := database.InsertWorkspaceBuildParams{
+			DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 			WorkspaceID:       w.ID,
 			Transition:        database.WorkspaceTransitionStart,
 			Reason:            database.BuildReasonInitiator,
@@ -4489,6 +4492,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		w := testutil.Fake(s.T(), faker, database.Workspace{TemplateID: t.ID})
 		pj := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
 		arg := database.InsertWorkspaceBuildParams{
+			DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 			WorkspaceID:       w.ID,
 			Transition:        database.WorkspaceTransitionStart,
 			Reason:            database.BuildReasonInitiator,
@@ -4507,6 +4511,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{})
 		pj := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
 		arg := database.InsertWorkspaceBuildParams{
+			DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 			WorkspaceID:       w.ID,
 			Transition:        database.WorkspaceTransitionDelete,
 			Reason:            database.BuildReasonInitiator,
@@ -6861,6 +6866,7 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 			CreatedBy:      u.ID,
 		})
 		check.Args(database.InsertWorkspaceBuildParams{
+			DeadlineReason:    database.WorkspaceBuildDeadlineWriterReasonBuild,
 			WorkspaceID:       w.ID,
 			Transition:        database.WorkspaceTransitionDelete,
 			Reason:            database.BuildReasonInitiator,
