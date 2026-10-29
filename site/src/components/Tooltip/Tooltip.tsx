@@ -28,14 +28,23 @@ export const TOOLTIP_DELAY_DURATION = 100;
 /** Grace period so the pointer can move from the trigger into the content. */
 const HOVER_CLOSE_DELAY = 150;
 
-const FOCUSABLE =
+const FOCUSABLE_ELEMENTS =
 	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-const compose =
-	<E,>(handler: ((event: E) => void) | undefined, own: (event: E) => void) =>
+/**
+ * Returns an event handler that calls the consumer's handler from props, if
+ * any, and then the tooltip's internal handler. Triggers are usually rendered
+ * `asChild` around buttons or links that may have their own handlers, so the
+ * tooltip must not replace them.
+ */
+const composeEventHandlers =
+	<E,>(
+		externalHandler: ((event: E) => void) | undefined,
+		internalHandler: (event: E) => void,
+	) =>
 	(event: E) => {
-		handler?.(event);
-		own(event);
+		externalHandler?.(event);
+		internalHandler(event);
 	};
 
 type InteractiveContextValue = {
@@ -45,7 +54,7 @@ type InteractiveContextValue = {
 	content: HTMLDivElement | null;
 	setTrigger: (node: HTMLButtonElement | null) => void;
 	setContent: (node: HTMLDivElement | null) => void;
-	setHoverIntent: (hovered: boolean) => void;
+	setIsPointerOver: (isPointerOver: boolean) => void;
 	setFocused: (focused: boolean) => void;
 	toggle: (fromKeyboard: boolean) => void;
 	close: () => void;
@@ -60,7 +69,8 @@ type TooltipProps = React.ComponentProps<typeof TooltipPrimitive.Root> & {
 	 * ARIA tooltip pattern does not allow. It renders a non-modal popover that
 	 * looks and opens like a tooltip, but Tab moves into the content, a click
 	 * or Enter keeps it open, and Escape closes it. Only `delayDuration` is
-	 * supported. Avoid it on triggers with their own action, because clicking
+	 * supported. Avoid setting `interactive` to true on triggers that are
+	 * interactive in some other way (e.g., a link or button), because clicking
 	 * the trigger pins the tooltip.
 	 */
 	interactive?: boolean;
@@ -81,7 +91,10 @@ const InteractiveTooltip: React.FC<{
 	children: React.ReactNode;
 	delayDuration?: number;
 }> = ({ children, delayDuration = TOOLTIP_DELAY_DURATION }) => {
-	const [hoverIntent, setHoverIntent] = useState(false);
+	// Whether the mouse is over the trigger or the content right now.
+	const [isPointerOver, setIsPointerOver] = useState(false);
+	// Whether hover keeps the tooltip open. It follows `isPointerOver` after a
+	// delay, so moving between the trigger and the content does not flicker.
 	const [hovered, setHovered] = useState(false);
 	const [focused, setFocused] = useState(false);
 	const [pinned, setPinned] = useState(false);
@@ -90,21 +103,26 @@ const InteractiveTooltip: React.FC<{
 	const id = useId();
 	const open = hovered || focused || pinned;
 
+	// Sync `hovered` to `isPointerOver` after the open delay or the close grace
+	// period. Popovers have no hover behavior, so this replaces the delays a
+	// Radix tooltip would apply. If the pointer moves again first, the cleanup
+	// cancels the pending update.
 	useEffect(() => {
-		if (hoverIntent === hovered) {
+		if (isPointerOver === hovered) {
 			return;
 		}
-		const delay = hoverIntent ? (open ? 0 : delayDuration) : HOVER_CLOSE_DELAY;
-		const timer = window.setTimeout(() => setHovered(hoverIntent), delay);
+		const openDelay = open ? 0 : delayDuration;
+		const delay = isPointerOver ? openDelay : HOVER_CLOSE_DELAY;
+		const timer = window.setTimeout(() => setHovered(isPointerOver), delay);
 		return () => window.clearTimeout(timer);
-	}, [hoverIntent, hovered, open, delayDuration]);
+	}, [isPointerOver, hovered, open, delayDuration]);
 
 	const close = () => {
 		// Restore focus before the content unmounts so it is not lost to the body.
 		if (content?.contains(document.activeElement)) {
 			trigger?.focus();
 		}
-		setHoverIntent(false);
+		setIsPointerOver(false);
 		setHovered(false);
 		setFocused(false);
 		setPinned(false);
@@ -128,7 +146,7 @@ const InteractiveTooltip: React.FC<{
 				content,
 				setTrigger,
 				setContent,
-				setHoverIntent,
+				setIsPointerOver,
 				setFocused,
 				toggle,
 				close,
@@ -180,11 +198,11 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				className,
 			)}
-			onPointerEnter={compose(onPointerEnter, (event) => {
-				if (event.pointerType === "mouse") context.setHoverIntent(true);
+			onPointerEnter={composeEventHandlers(onPointerEnter, (event) => {
+				if (event.pointerType === "mouse") context.setIsPointerOver(true);
 			})}
-			onPointerLeave={compose(onPointerLeave, (event) => {
-				if (event.pointerType === "mouse") context.setHoverIntent(false);
+			onPointerLeave={composeEventHandlers(onPointerLeave, (event) => {
+				if (event.pointerType === "mouse") context.setIsPointerOver(false);
 			})}
 			onPointerDown={(event) => {
 				onPointerDown?.(event);
@@ -202,20 +220,24 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 				onFocus?.(event);
 				if (!isPointerDownRef.current) context.setFocused(true);
 			}}
-			onClick={compose(onClick, (event) => {
-				// Replace Radix's toggle, and keep surrounding clickable rows inert.
+			onClick={composeEventHandlers(onClick, (event) => {
+				// Replace Radix's open toggle with our own, and keep the click from
+				// reaching click handlers on ancestors.
 				event.preventDefault();
 				event.stopPropagation();
-				context.toggle(event.detail === 0);
+				// `detail` is the click count. Browsers set it to 0 when Enter or
+				// Space activates the button.
+				const isKeyboardClick = event.detail === 0;
+				context.toggle(isKeyboardClick);
 			})}
-			onKeyDown={compose(onKeyDown, (event) => {
+			onKeyDown={composeEventHandlers(onKeyDown, (event) => {
 				if (event.key === "Enter" || event.key === " ") {
 					event.stopPropagation();
 				}
 				// The content is portaled, so move focus into it explicitly.
 				const first =
 					context.open && event.key === "Tab" && !event.shiftKey
-						? context.content?.querySelector<HTMLElement>(FOCUSABLE)
+						? context.content?.querySelector<HTMLElement>(FOCUSABLE_ELEMENTS)
 						: null;
 				if (first) {
 					event.preventDefault();
@@ -300,20 +322,24 @@ const InteractiveTooltipContent: React.FC<
 				// Opening never moves focus, and `close` restores it when needed.
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
-				onPointerEnter={compose(onPointerEnter, (event) => {
-					if (event.pointerType === "mouse") context.setHoverIntent(true);
+				onPointerEnter={composeEventHandlers(onPointerEnter, (event) => {
+					if (event.pointerType === "mouse") context.setIsPointerOver(true);
 				})}
-				onPointerLeave={compose(onPointerLeave, (event) => {
-					if (event.pointerType === "mouse") context.setHoverIntent(false);
+				onPointerLeave={composeEventHandlers(onPointerLeave, (event) => {
+					if (event.pointerType === "mouse") context.setIsPointerOver(false);
 				})}
-				// React events bubble through portals; keep clickable rows inert.
-				onClick={compose(onClick, (event) => event.stopPropagation())}
-				onKeyDown={compose(onKeyDown, (event) => {
+				// React events bubble through portals; clicking the tooltip should
+				// not click its ancestors.
+				onClick={composeEventHandlers(onClick, (event) =>
+					event.stopPropagation(),
+				)}
+				onKeyDown={composeEventHandlers(onKeyDown, (event) => {
 					event.stopPropagation();
 					if (event.key !== "Tab") {
 						return;
 					}
-					const focusables = event.currentTarget.querySelectorAll(FOCUSABLE);
+					const focusables =
+						event.currentTarget.querySelectorAll(FOCUSABLE_ELEMENTS);
 					const edge = focusables[event.shiftKey ? 0 : focusables.length - 1];
 					if (document.activeElement === edge) {
 						// Leave through the trigger: Shift+Tab stops there, and Tab
