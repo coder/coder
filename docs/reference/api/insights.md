@@ -301,10 +301,10 @@ Requires permission to read users, which the Owner, Auditor, Template Admin, and
 
 ### Parameters
 
-| Name        | In    | Type    | Required | Description                                                                                                                                |
-|-------------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `timezone`  | query | string  | false    | IANA time zone name, such as `America/St_Johns`, that sets where each day starts. The default is `UTC`. Don't combine it with `tz_offset`. |
-| `tz_offset` | query | integer | false    | Deprecated: Offset from UTC in whole hours, such as `-2`. Use `timezone` instead. Don't combine it with `timezone`.                        |
+| Name        | In    | Type    | Required | Description                                                                                                                                 |
+|-------------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `timezone`  | query | string  | false    | IANA time zone name, such as `America/St_Johns`, that sets where each day starts. The default is `UTC`. Do not combine it with `tz_offset`. |
+| `tz_offset` | query | integer | false    | Deprecated: Offset from UTC in whole hours, such as `-2`. Use `timezone` instead. Do not combine it with `timezone`.                        |
 
 ### Example responses
 

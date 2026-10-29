@@ -6822,13 +6822,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "IANA time zone name, such as ` + "`" + `America/St_Johns` + "`" + `, that sets where each day starts. The default is ` + "`" + `UTC` + "`" + `. Don't combine it with ` + "`" + `tz_offset` + "`" + `.",
+                        "description": "IANA time zone name, such as ` + "`" + `America/St_Johns` + "`" + `, that sets where each day starts. The default is ` + "`" + `UTC` + "`" + `. Do not combine it with ` + "`" + `tz_offset` + "`" + `.",
                         "name": "timezone",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Deprecated: Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `. Use ` + "`" + `timezone` + "`" + ` instead. Don't combine it with ` + "`" + `timezone` + "`" + `.",
+                        "description": "Deprecated: Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `. Use ` + "`" + `timezone` + "`" + ` instead. Do not combine it with ` + "`" + `timezone` + "`" + `.",
                         "name": "tz_offset",
                         "in": "query"
                     }

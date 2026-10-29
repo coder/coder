@@ -310,8 +310,8 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param timezone query string false "IANA time zone name, such as `America/St_Johns`, that sets where each day starts. The default is `UTC`. Don't combine it with `tz_offset`."
-// @Param tz_offset query int false "Deprecated: Offset from UTC in whole hours, such as `-2`. Use `timezone` instead. Don't combine it with `timezone`."
+// @Param timezone query string false "IANA time zone name, such as `America/St_Johns`, that sets where each day starts. The default is `UTC`. Do not combine it with `tz_offset`."
+// @Param tz_offset query int false "Deprecated: Offset from UTC in whole hours, such as `-2`. Use `timezone` instead. Do not combine it with `timezone`."
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
 // @Router /api/v2/insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
