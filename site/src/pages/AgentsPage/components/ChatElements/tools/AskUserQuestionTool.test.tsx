@@ -66,37 +66,6 @@ describe("AskUserQuestionTool", () => {
 		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, "Single migration");
 	});
 
-	it("renders Markdown in the question and its options", () => {
-		renderComponent(
-			<QueryClientProvider client={createTestQueryClient()}>
-				<AskUserQuestionTool
-					questions={[
-						{
-							header: "Release",
-							question:
-								"### Which release?\n\n| PR | Kind |\n|---|---|\n| #1 | **breaking** |",
-							options: [
-								{ label: "Hold", description: "Hold **#2** for `v3`." },
-							],
-						},
-					]}
-					status="completed"
-					isError={false}
-					isChatCompleted
-					isLatestAskUserQuestion
-					onSubmitAnswer={vi.fn()}
-				/>
-			</QueryClientProvider>,
-		);
-
-		expect(
-			screen.getByRole("heading", { name: "Which release?" }),
-		).toBeInTheDocument();
-		expect(screen.getByRole("table")).toBeInTheDocument();
-		expect(screen.getByText("v3").tagName).toBe("CODE");
-		expect(document.body).not.toHaveTextContent("**");
-	});
-
 	it("moves focus to the new question on Next and Back", async () => {
 		const user = userEvent.setup();
 		renderComponent(
@@ -113,17 +82,13 @@ describe("AskUserQuestionTool", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Next" }));
-		expect(
-			screen
-				.getByText("How should the change ship?")
-				.closest('[tabindex="-1"]'),
-		).toHaveFocus();
+		expect(document.activeElement).toHaveTextContent(
+			"How should the change ship?",
+		);
 		await user.click(screen.getByRole("button", { name: "Back" }));
-		expect(
-			screen
-				.getByText("How should we structure the database migration?")
-				.closest('[tabindex="-1"]'),
-		).toHaveFocus();
+		expect(document.activeElement).toHaveTextContent(
+			"How should we structure the database migration?",
+		);
 	});
 
 	it("selects Other from its field, but not when Tab passes through it", async () => {

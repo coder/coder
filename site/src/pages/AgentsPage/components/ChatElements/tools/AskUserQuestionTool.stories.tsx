@@ -91,6 +91,26 @@ const submittedWizardResponse = [
 	"2. Release Plan: Small beta",
 ].join("\n");
 
+const markdownQuestionPayload = {
+	questions: [
+		{
+			header: "Release hold",
+			question:
+				"### Which release does the hold wait for?\n\nThe bottom PR, **#30996**, already merged.\n\n| PR | Kind | Status |\n|----|------|--------|\n| #30997 | tests only | CI passed |\n| #30998 | **breaking**: removes the `v0` decoder | CI passed |",
+			options: [
+				{
+					label: "After next cut",
+					description: "Merge right after the next release branch is cut.",
+				},
+				{
+					label: "Land tests now",
+					description: "Merge **#30997** now and hold only the `breaking` PRs.",
+				},
+			],
+		},
+	],
+};
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AskUserQuestion",
 	component: Tool,
@@ -171,29 +191,20 @@ export const InteractiveSingleQuestion: Story = {
 export const InteractiveMarkdownQuestion: Story = {
 	args: {
 		status: "completed",
-		result: JSON.stringify({
-			questions: [
-				{
-					header: "Release hold",
-					question:
-						"### Which release does the hold wait for?\n\nThe bottom PR, **#30996**, already merged.\n\n| PR | Kind | Status |\n|----|------|--------|\n| #30997 | tests only | CI passed |\n| #30998 | **breaking**: removes the `v0` decoder | CI passed |",
-					options: [
-						{
-							label: "After next cut",
-							description: "Merge right after the next release branch is cut.",
-						},
-						{
-							label: "Land tests now",
-							description:
-								"Merge **#30997** now and hold only the `breaking` PRs.",
-						},
-					],
-				},
-			],
-		}),
+		result: JSON.stringify(markdownQuestionPayload),
 		isChatCompleted: true,
 		isLatestAskUserQuestion: true,
 		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
+export const PreviouslyAnsweredMarkdownQuestion: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify(markdownQuestionPayload),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: false,
+		previousResponseText: "After next cut",
 	},
 };
 

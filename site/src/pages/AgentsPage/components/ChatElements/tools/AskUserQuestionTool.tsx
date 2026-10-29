@@ -166,27 +166,34 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
 	description,
 	isEnabled,
 }) => {
+	const descriptionId = `${id}-description`;
+	// The description stays outside the label because its Markdown can hold
+	// links and copy buttons, which must not nest in the radio's label.
 	return (
-		<label
-			htmlFor={id}
-			className={cn(
-				"grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 py-1.5",
-				isEnabled ? "cursor-pointer" : "cursor-default",
-			)}
-		>
+		<div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 py-1.5">
 			<RadioGroupItem
+				aria-describedby={descriptionId}
 				className="self-center"
 				disabled={!isEnabled}
 				id={id}
 				value={value}
 			/>
-			<span className="text-[13px] font-medium text-content-primary">
+			<label
+				htmlFor={id}
+				className={cn(
+					"text-[13px] font-medium text-content-primary",
+					isEnabled ? "cursor-pointer" : "cursor-default",
+				)}
+			>
 				{label}
-			</span>
-			<Response className="col-start-2 text-content-secondary">
+			</label>
+			<Response
+				id={descriptionId}
+				className="col-start-2 text-content-secondary"
+			>
 				{description}
 			</Response>
-		</label>
+		</div>
 	);
 };
 
