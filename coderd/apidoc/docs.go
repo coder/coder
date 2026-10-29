@@ -10494,6 +10494,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/available-fields": {
             "get": {
+                "description": "Returns the claim field names found in the stored OIDC claims of this organization's members.\nUse it to choose a ` + "`" + `field` + "`" + ` for group or role sync.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10506,7 +10507,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10532,6 +10533,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/field-values": {
             "get": {
+                "description": "Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.\nUse it to find the values to put in a group or role ` + "`" + `mapping` + "`" + `.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10544,7 +10546,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10552,7 +10554,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Claim Field",
+                        "description": "Name of the claim field to list values for, such as a field that ` + "`" + `available-fields` + "`" + ` returns. Returns ` + "`" + `400` + "`" + ` when empty.",
                         "name": "claimField",
                         "in": "query",
                         "required": true
@@ -10578,6 +10580,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/groups": {
             "get": {
+                "description": "Returns how an organization syncs its groups from the identity provider, including the claim ` + "`" + `field` + "`" + `, the ` + "`" + `mapping` + "`" + ` to Coder groups, and any ` + "`" + `regex_filter` + "`" + `.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10590,7 +10593,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10611,6 +10614,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces all of an organization's group sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRejects a request that sets the deprecated ` + "`" + `legacy_group_name_mapping` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10626,13 +10630,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New settings",
+                        "description": "New group sync settings, which replace the current ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10658,6 +10662,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/groups/config": {
             "patch": {
+                "description": "Updates an organization's group sync ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `, and keeps the existing ` + "`" + `mapping` + "`" + `.\nUse it to change how groups are read from the identity provider without resending the mapping.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10673,13 +10678,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New config values",
+                        "description": "New values for ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `. The mapping stays as it is.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10705,6 +10710,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/groups/mapping": {
             "patch": {
+                "description": "Adds and removes entries in an organization's group ` + "`" + `mapping` + "`" + `, and keeps the claim ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10720,7 +10726,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10752,6 +10758,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles": {
             "get": {
+                "description": "Returns how an organization syncs organization roles from the identity provider, including the claim ` + "`" + `field` + "`" + ` and the ` + "`" + `mapping` + "`" + ` to role names.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10764,7 +10771,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10785,6 +10792,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces all of an organization's role sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + `, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10800,13 +10808,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New settings",
+                        "description": "New role sync settings, which replace the current ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10832,6 +10840,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles/config": {
             "patch": {
+                "description": "Updates an organization's role sync claim ` + "`" + `field` + "`" + ` and keeps the existing ` + "`" + `mapping` + "`" + `.\nUse it to change which claim carries roles without resending the mapping.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10847,13 +10856,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New config values",
+                        "description": "New value for ` + "`" + `field` + "`" + `. The mapping stays as it is.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10879,6 +10888,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles/mapping": {
             "patch": {
+                "description": "Adds and removes entries in an organization's role ` + "`" + `mapping` + "`" + `, and keeps the claim ` + "`" + `field` + "`" + `.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10894,7 +10904,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11470,6 +11480,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/available-fields": {
             "get": {
+                "description": "Returns the claim field names found in the stored OIDC claims of all users on the deployment.\nUse it to choose a ` + "`" + `field` + "`" + ` for organization sync.\nRequires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -11508,6 +11519,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/field-values": {
             "get": {
+                "description": "Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.\nUse it to find the values to put in an organization ` + "`" + `mapping` + "`" + `.\nRequires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -11528,7 +11540,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Claim Field",
+                        "description": "Name of the claim field to list values for, such as a field that ` + "`" + `available-fields` + "`" + ` returns. Returns ` + "`" + `400` + "`" + ` when empty.",
                         "name": "claimField",
                         "in": "query",
                         "required": true
@@ -11554,6 +11566,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization": {
             "get": {
+                "description": "Returns how the deployment syncs organization membership from the identity provider, including the claim ` + "`" + `field` + "`" + `, the ` + "`" + `mapping` + "`" + ` to organizations, and ` + "`" + `organization_assign_default` + "`" + `.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -11577,6 +11590,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces all of the deployment's organization sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + `, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/mapping` + "`" + `.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11590,7 +11604,7 @@ const docTemplate = `{
                 "operationId": "update-organization-idp-sync-settings",
                 "parameters": [
                     {
-                        "description": "New settings",
+                        "description": "New organization sync settings, which replace the current ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11616,6 +11630,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization/config": {
             "patch": {
+                "description": "Updates the deployment's organization sync claim ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + `, and keeps the existing ` + "`" + `mapping` + "`" + `.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11629,7 +11644,7 @@ const docTemplate = `{
                 "operationId": "update-organization-idp-sync-config",
                 "parameters": [
                     {
-                        "description": "New config values",
+                        "description": "New values for ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + `. The mapping stays as it is.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11655,6 +11670,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization/mapping": {
             "patch": {
+                "description": "Adds and removes entries in the deployment's organization ` + "`" + `mapping` + "`" + `, and keeps the claim ` + "`" + `field` + "`" + ` and ` + "`" + `organization_assign_default` + "`" + `.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
