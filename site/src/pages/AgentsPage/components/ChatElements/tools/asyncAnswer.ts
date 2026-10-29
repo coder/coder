@@ -28,3 +28,15 @@ export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 	}
 	return { toolCallId: match[1], body: text.slice(match[0].length) };
 };
+
+/** Returns the text after the prefix line when the text answers the call. */
+export const getAsyncAnswerBody = (
+	text: string | undefined,
+	toolCallId: string,
+): string | undefined => {
+	if (text === undefined) {
+		return undefined;
+	}
+	const answer = parseAsyncAnswer(text);
+	return answer?.toolCallId === toolCallId ? answer.body : undefined;
+};

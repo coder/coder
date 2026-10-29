@@ -220,6 +220,28 @@ const parseAskUserQuestionResult = (
 ): AskUserQuestion[] | null =>
 	parseAskUserQuestions(findAskUserQuestionResultRecord(result)?.questions);
 
+/**
+ * Reads the questions from the call's raw args, or from its result when the
+ * args have none.
+ */
+export const getAskUserQuestions = (
+	args: unknown,
+	result: unknown,
+): AskUserQuestion[] => {
+	const parsedArgs = parseArgs(args);
+	const questionsFromArgs = parsedArgs
+		? parseAskUserQuestions(parsedArgs.questions)
+		: null;
+	const questionsFromResult = parseAskUserQuestionResult(result);
+	if (questionsFromArgs && questionsFromArgs.length > 0) {
+		return questionsFromArgs;
+	}
+	if (questionsFromResult && questionsFromResult.length > 0) {
+		return questionsFromResult;
+	}
+	return questionsFromArgs ?? questionsFromResult ?? [];
+};
+
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
@@ -673,31 +695,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-type AskUserQuestionRendererProps = Pick<
-	ToolRendererProps,
-	| "toolCallId"
-	| "args"
-	| "status"
-	| "result"
-	| "isError"
-	| "onSendAskUserQuestionResponse"
-	| "isChatCompleted"
-	| "isLatestAskUserQuestion"
-	| "isDockedAskUserQuestion"
-	| "previousResponseText"
-> &
-	Pick<
-		React.ComponentProps<typeof AskUserQuestionTool>,
-		"announcesQuestion" | "onStepChange"
-	>;
-
-/**
- * Reads the questions from the call's raw args, or from its result when the
- * args have none.
- */
-export const AskUserQuestionRenderer: React.FC<
-	AskUserQuestionRendererProps
-> = ({
+const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	toolCallId,
 	args,
 	status,
@@ -708,20 +706,7 @@ export const AskUserQuestionRenderer: React.FC<
 	isLatestAskUserQuestion,
 	isDockedAskUserQuestion,
 	previousResponseText,
-	announcesQuestion,
-	onStepChange,
 }) => {
-	const parsedArgs = parseArgs(args);
-	const questionsFromArgs = parsedArgs
-		? parseAskUserQuestions(parsedArgs.questions)
-		: null;
-	const questionsFromResult = parseAskUserQuestionResult(result);
-	const questions =
-		questionsFromArgs && questionsFromArgs.length > 0
-			? questionsFromArgs
-			: questionsFromResult && questionsFromResult.length > 0
-				? questionsFromResult
-				: (questionsFromArgs ?? questionsFromResult ?? []);
 	const resultRecord = asRecord(result);
 	const errorMessage =
 		(resultRecord
@@ -730,7 +715,7 @@ export const AskUserQuestionRenderer: React.FC<
 
 	return (
 		<AskUserQuestionTool
-			questions={questions}
+			questions={getAskUserQuestions(args, result)}
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
@@ -742,8 +727,6 @@ export const AskUserQuestionRenderer: React.FC<
 			asyncToolCallId={
 				isAsyncAskUserQuestionResult(result) ? toolCallId : undefined
 			}
-			announcesQuestion={announcesQuestion}
-			onStepChange={onStepChange}
 		/>
 	);
 };

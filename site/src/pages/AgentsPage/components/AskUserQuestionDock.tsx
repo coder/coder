@@ -2,7 +2,12 @@ import { cn } from "cn";
 import { useId, useRef } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
-import { AskUserQuestionRenderer } from "./ChatElements/tools/Tool";
+import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
+import {
+	getAsyncAnswerBody,
+	getAsyncAnswerPrefix,
+} from "./ChatElements/tools/asyncAnswer";
+import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
 	question: MergedTool;
@@ -47,16 +52,19 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 				>
 					Open question
 				</p>
-				<AskUserQuestionRenderer
-					toolCallId={question.id}
-					args={question.args}
-					result={question.result}
-					status={question.status}
-					isError={question.isError}
-					isLatestAskUserQuestion
-					previousResponseText={queuedAnswerText}
-					onSendAskUserQuestionResponse={onSubmitAnswer}
-					announcesQuestion={false}
+				<AskUserQuestionForm
+					questions={getAskUserQuestions(question.args, question.result)}
+					previousResponseText={getAsyncAnswerBody(
+						queuedAnswerText,
+						question.id,
+					)}
+					showsSubmittedAnswer
+					onSubmitAnswer={
+						onSubmitAnswer
+							? (answerText) =>
+									onSubmitAnswer(getAsyncAnswerPrefix(question.id) + answerText)
+							: undefined
+					}
 					onStepChange={() => {
 						if (sectionRef.current) {
 							sectionRef.current.scrollTop = 0;
