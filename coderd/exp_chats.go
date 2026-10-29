@@ -5157,6 +5157,8 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 }
 
 // @Summary Get chat system prompt
+// @Description Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.
+// @Description Requires permission to update deployment configuration, which the Owner role has.
 // @ID get-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5192,11 +5194,13 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 const chatInstructionSettingsLockTimeout = 5 * time.Second
 
 // @Summary Update chat system prompt
+// @Description Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.
+// @Description Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits the prompt size.
 // @ID update-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatSystemPromptRequest true "Request body"
+// @Param request body codersdk.UpdateChatSystemPromptRequest true "System prompt in `system_prompt`. Set `include_default_system_prompt` to choose whether the built-in default prompt is also used, or omit it to keep the current choice."
 // @Success 204
 // @Router /api/v2/chats/config/system-prompt [put]
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -5312,11 +5316,13 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get organization chat system prompt
+// @Description Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.
+// @Description Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have.
 // @ID get-organization-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 200 {object} codersdk.OrganizationChatSystemPromptResponse
 // @Router /api/v2/organizations/{organization}/chats/config/system-prompt [get]
 //
@@ -5342,12 +5348,14 @@ func (api *API) getOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 }
 
 // @Summary Update organization chat system prompt
+// @Description Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.
+// @Description Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
 // @ID update-organization-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.UpdateOrganizationChatSystemPromptRequest true "Request body"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.UpdateOrganizationChatSystemPromptRequest true "Organization instructions in `system_prompt`. They replace the current instructions."
 // @Success 204
 // @Router /api/v2/organizations/{organization}/chats/config/system-prompt [put]
 func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -5426,6 +5434,8 @@ func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 }
 
 // @Summary Get chat plan mode instructions
+// @Description Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.
+// @Description Requires permission to update deployment configuration, which the Owner role has.
 // @ID get-chat-plan-mode-instructions
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5456,11 +5466,13 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Update chat plan mode instructions
+// @Description Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.
+// @Description Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
 // @ID update-chat-plan-mode-instructions
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatPlanModeInstructionsRequest true "Request body"
+// @Param request body codersdk.UpdateChatPlanModeInstructionsRequest true "Plan mode instructions to store, in `plan_mode_instructions`. They replace the current instructions."
 // @Success 204
 // @Router /api/v2/chats/config/plan-mode-instructions [put]
 func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
@@ -5739,6 +5751,8 @@ func readChatPersonalModelOverrideContext(
 }
 
 // @Summary Get chat personal model override settings
+// @Description Returns whether users can choose their own models for their chats instead of the organization defaults.
+// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 // @ID get-chat-personal-model-override-settings
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5915,11 +5929,13 @@ func validateChatSettingDays(label string, days, maximum int32) *codersdk.Respon
 }
 
 // @Summary Update chat personal model override settings
+// @Description Sets whether users can choose their own models for their chats instead of the organization defaults.
+// @Description Personal model overrides are off by default. Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-chat-personal-model-override-settings
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest true "Request body"
+// @Param request body codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest true "Personal model override gate. `allow_users` is `true` to let users set personal model overrides."
 // @Success 204
 // @Router /api/v2/chats/config/personal-model-overrides [put]
 func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
@@ -6157,6 +6173,8 @@ func (api *API) deploymentChatDebugLoggingEnabled() bool {
 }
 
 // @Summary Get chat debug logging setting
+// @Description Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.
+// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 // @ID get-chat-debug-logging-setting
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6187,11 +6205,13 @@ func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update chat debug logging setting
+// @Description Sets whether users can turn on chat debug logging for their own chats with `PUT /api/v2/chats/config/user-debug-logging`.
+// @Description Requires permission to update deployment configuration, which the Owner role has. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.
 // @ID update-chat-debug-logging-setting
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatDebugLoggingAllowUsersRequest true "Request body"
+// @Param request body codersdk.UpdateChatDebugLoggingAllowUsersRequest true "Debug logging gate. `allow_users` is `true` to let users opt in to debug logging for their own chats."
 // @Success 204
 // @Router /api/v2/chats/config/debug-logging [put]
 func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
@@ -6204,6 +6224,8 @@ func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user chat debug logging setting
+// @Description Returns whether chat debug logging is on for you, whether you can change it, and whether the deployment forces it on.
+// @Description Use it to decide whether to show a debug logging toggle.
 // @ID get-user-chat-debug-logging-setting
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6251,11 +6273,13 @@ func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Update user chat debug logging setting
+// @Description Turns chat debug logging on or off for your own chats.
+// @Description It returns `403` unless an administrator allowed user opt-in with `PUT /api/v2/chats/config/debug-logging`, and `409` while the deployment forces debug logging on.
 // @ID update-user-chat-debug-logging-setting
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateUserChatDebugLoggingRequest true "Request body"
+// @Param request body codersdk.UpdateUserChatDebugLoggingRequest true "Your debug logging choice. `debug_logging_enabled` is `true` to record debug logs for your chats."
 // @Success 204
 // @Router /api/v2/chats/config/user-debug-logging [put]
 func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
@@ -6379,6 +6403,8 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get chat workspace time to live
+// @Description Returns the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.
+// @Description The value `0`, which is the default, means the setting is off and the template's own autostop setting applies. Any authenticated user can read this setting.
 // @ID get-chat-workspace-time-to-live
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6417,11 +6443,13 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update chat workspace time to live
+// @Description Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.
+// @Description The value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-chat-workspace-time-to-live
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatWorkspaceTTLRequest true "Request body"
+// @Param request body codersdk.UpdateChatWorkspaceTTLRequest true "Workspace time to live. `workspace_ttl_ms` is in milliseconds, and `0` turns the setting off."
 // @Success 204
 // @Router /api/v2/chats/config/workspace-ttl [put]
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
@@ -6500,6 +6528,8 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 // retention window. Any authenticated user can read it; writes require admin.
 //
 // @Summary Get chat debug retention days
+// @Description Returns the number of days Coder Agents keeps chat debug runs before deleting them.
+// @Description The default is `30`, and `0` turns off the cleanup. Any authenticated user can read this setting.
 // @ID get-chat-debug-retention-days
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6531,11 +6561,13 @@ const chatDebugRetentionDaysMaximum = 3650 // ~10 years
 // retention window. Admin-only.
 //
 // @Summary Update chat debug retention days
+// @Description Sets the number of days Coder Agents keeps chat debug runs before deleting them, from `0` to `3650`.
+// @Description The value `0` turns off the cleanup. Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-chat-debug-retention-days
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatDebugRetentionDaysRequest true "Request body"
+// @Param request body codersdk.UpdateChatDebugRetentionDaysRequest true "Debug retention window. `debug_retention_days` is the number of days to keep debug runs, from `0` to `3650`, and `0` turns off the cleanup."
 // @Success 204
 // @Router /api/v2/chats/config/debug-retention-days [put]
 func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Request) {
@@ -6555,6 +6587,8 @@ func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 // days); writes require admin.
 //
 // @Summary Get chat auto archive days
+// @Description Returns the number of days of inactivity after which Coder Agents archives a chat automatically.
+// @Description The default, `0`, turns off auto-archive. Any authenticated user can read this setting.
 // @ID get-chat-auto-archive-days
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6586,11 +6620,13 @@ const autoArchiveDaysMaximum = 3650 // ~10 years
 // window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
 //
 // @Summary Update chat auto archive days
+// @Description Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from `0` to `3650`.
+// @Description The value `0` turns off auto-archive. Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-chat-auto-archive-days
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateChatAutoArchiveDaysRequest true "Request body"
+// @Param request body codersdk.UpdateChatAutoArchiveDaysRequest true "Auto-archive window. `auto_archive_days` is the number of inactive days, from `0` to `3650`, and `0` turns off auto-archive."
 // @Success 204
 // @Router /api/v2/chats/config/auto-archive-days [put]
 func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
@@ -6606,6 +6642,8 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Get user chat custom prompt
+// @Description Returns your custom chat prompt, which Coder Agents adds to your chats as your own instructions.
+// @Description The prompt is empty when you haven't set one.
 // @ID get-user-chat-custom-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6639,11 +6677,13 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Update user chat custom prompt
+// @Description Sets your custom chat prompt, replacing the stored one, and returns the stored value.
+// @Description The prompt applies only to your chats. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits its size.
 // @ID update-user-chat-custom-prompt
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UserChatCustomPrompt true "Request body"
+// @Param request body codersdk.UserChatCustomPrompt true "Custom prompt in `custom_prompt`. It replaces your current custom prompt."
 // @Produce json
 // @Success 200 {object} codersdk.UserChatCustomPrompt
 // @Router /api/v2/chats/config/user-prompt [put]
@@ -8204,11 +8244,13 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 }
 
 // @Summary List AI models and provider descriptors in an organization
+// @Description Lists the chat models in an organization that you can read, and descriptors of the AI providers that show whether each is available to you.
+// @Description Requests that use a scoped API token need the `chat_model_config:read` scope. Provider descriptors never include API keys.
 // @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param organization path string true "Organization name or ID"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
 // @Router /api/v2/organizations/{organization}/chats/models [get]
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -8485,13 +8527,15 @@ func (api *API) auditChatModelConfigTransitions(
 }
 
 // @Summary Create an AI model in an organization
+// @Description Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.
+// @Description Requires permission to create chat model configurations in the organization, which the Owner and Organization Admin roles have. The provider must exist and be enabled.
 // @ID create-an-ai-model-in-an-organization
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization name or ID"
-// @Param request body codersdk.CreateChatModelRequest true "Model"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param request body codersdk.CreateChatModelRequest true "Model to create. `ai_provider_id`, `model`, and a positive `context_limit` are required."
 // @Success 201 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models [post]
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {

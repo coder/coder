@@ -822,6 +822,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/auto-archive-days \
 
 `GET /api/v2/chats/config/auto-archive-days`
 
+Returns the number of days of inactivity after which Coder Agents archives a chat automatically.
+The default, `0`, turns off auto-archive. Any authenticated user can read this setting.
+
 ### Example responses
 
 > 200 Response
@@ -853,6 +856,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/auto-archive-days \
 
 `PUT /api/v2/chats/config/auto-archive-days`
 
+Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from `0` to `3650`.
+The value `0` turns off auto-archive. Requires permission to update deployment configuration, which the Owner role has.
+
 > Body parameter
 
 ```json
@@ -863,9 +869,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/auto-archive-days \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                             | Required | Description  |
-|--------|------|--------------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatAutoArchiveDaysRequest](schemas.md#codersdkupdatechatautoarchivedaysrequest) | true     | Request body |
+| Name   | In   | Type                                                                                             | Required | Description                                                                                                                  |
+|--------|------|--------------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatAutoArchiveDaysRequest](schemas.md#codersdkupdatechatautoarchivedaysrequest) | true     | Auto-archive window. `auto_archive_days` is the number of inactive days, from `0` to `3650`, and `0` turns off auto-archive. |
 
 ### Responses
 
@@ -887,6 +893,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/debug-logging \
 ```
 
 `GET /api/v2/chats/config/debug-logging`
+
+Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.
+Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 
 ### Example responses
 
@@ -920,6 +929,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/debug-logging \
 
 `PUT /api/v2/chats/config/debug-logging`
 
+Sets whether users can turn on chat debug logging for their own chats with `PUT /api/v2/chats/config/user-debug-logging`.
+Requires permission to update deployment configuration, which the Owner role has. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.
+
 > Body parameter
 
 ```json
@@ -930,9 +942,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/debug-logging \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                           | Required | Description  |
-|--------|------|----------------------------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatDebugLoggingAllowUsersRequest](schemas.md#codersdkupdatechatdebugloggingallowusersrequest) | true     | Request body |
+| Name   | In   | Type                                                                                                           | Required | Description                                                                                           |
+|--------|------|----------------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatDebugLoggingAllowUsersRequest](schemas.md#codersdkupdatechatdebugloggingallowusersrequest) | true     | Debug logging gate. `allow_users` is `true` to let users opt in to debug logging for their own chats. |
 
 ### Responses
 
@@ -954,6 +966,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/debug-retention-days \
 ```
 
 `GET /api/v2/chats/config/debug-retention-days`
+
+Returns the number of days Coder Agents keeps chat debug runs before deleting them.
+The default is `30`, and `0` turns off the cleanup. Any authenticated user can read this setting.
 
 ### Example responses
 
@@ -986,6 +1001,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/debug-retention-days \
 
 `PUT /api/v2/chats/config/debug-retention-days`
 
+Sets the number of days Coder Agents keeps chat debug runs before deleting them, from `0` to `3650`.
+The value `0` turns off the cleanup. Requires permission to update deployment configuration, which the Owner role has.
+
 > Body parameter
 
 ```json
@@ -996,9 +1014,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/debug-retention-days \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                   | Required | Description  |
-|--------|------|--------------------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatDebugRetentionDaysRequest](schemas.md#codersdkupdatechatdebugretentiondaysrequest) | true     | Request body |
+| Name   | In   | Type                                                                                                   | Required | Description                                                                                                                                 |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatDebugRetentionDaysRequest](schemas.md#codersdkupdatechatdebugretentiondaysrequest) | true     | Debug retention window. `debug_retention_days` is the number of days to keep debug runs, from `0` to `3650`, and `0` turns off the cleanup. |
 
 ### Responses
 
@@ -1020,6 +1038,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/personal-model-override
 ```
 
 `GET /api/v2/chats/config/personal-model-overrides`
+
+Returns whether users can choose their own models for their chats instead of the organization defaults.
+Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 
 ### Example responses
 
@@ -1052,6 +1073,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/personal-model-override
 
 `PUT /api/v2/chats/config/personal-model-overrides`
 
+Sets whether users can choose their own models for their chats instead of the organization defaults.
+Personal model overrides are off by default. Requires permission to update deployment configuration, which the Owner role has.
+
 > Body parameter
 
 ```json
@@ -1062,9 +1086,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/personal-model-override
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                                                     | Required | Description  |
-|--------|------|------------------------------------------------------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest](schemas.md#codersdkupdatechatpersonalmodeloverridesadminsettingsrequest) | true     | Request body |
+| Name   | In   | Type                                                                                                                                     | Required | Description                                                                                      |
+|--------|------|------------------------------------------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest](schemas.md#codersdkupdatechatpersonalmodeloverridesadminsettingsrequest) | true     | Personal model override gate. `allow_users` is `true` to let users set personal model overrides. |
 
 ### Responses
 
@@ -1086,6 +1110,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 ```
 
 `GET /api/v2/chats/config/plan-mode-instructions`
+
+Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.
+Requires permission to update deployment configuration, which the Owner role has.
 
 ### Example responses
 
@@ -1118,6 +1145,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 
 `PUT /api/v2/chats/config/plan-mode-instructions`
 
+Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.
+Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
+
 > Body parameter
 
 ```json
@@ -1128,9 +1158,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                       | Required | Description  |
-|--------|------|------------------------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatPlanModeInstructionsRequest](schemas.md#codersdkupdatechatplanmodeinstructionsrequest) | true     | Request body |
+| Name   | In   | Type                                                                                                       | Required | Description                                                                                          |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatPlanModeInstructionsRequest](schemas.md#codersdkupdatechatplanmodeinstructionsrequest) | true     | Plan mode instructions to store, in `plan_mode_instructions`. They replace the current instructions. |
 
 ### Responses
 
@@ -1152,6 +1182,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/system-prompt \
 ```
 
 `GET /api/v2/chats/config/system-prompt`
+
+Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.
+Requires permission to update deployment configuration, which the Owner role has.
 
 ### Example responses
 
@@ -1186,6 +1219,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/system-prompt \
 
 `PUT /api/v2/chats/config/system-prompt`
 
+Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.
+Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits the prompt size.
+
 > Body parameter
 
 ```json
@@ -1197,9 +1233,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/system-prompt \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                       | Required | Description  |
-|--------|------|--------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatSystemPromptRequest](schemas.md#codersdkupdatechatsystempromptrequest) | true     | Request body |
+| Name   | In   | Type                                                                                       | Required | Description                                                                                                                                                              |
+|--------|------|--------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatSystemPromptRequest](schemas.md#codersdkupdatechatsystempromptrequest) | true     | System prompt in `system_prompt`. Set `include_default_system_prompt` to choose whether the built-in default prompt is also used, or omit it to keep the current choice. |
 
 ### Responses
 
@@ -1221,6 +1257,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/user-debug-logging \
 ```
 
 `GET /api/v2/chats/config/user-debug-logging`
+
+Returns whether chat debug logging is on for you, whether you can change it, and whether the deployment forces it on.
+Use it to decide whether to show a debug logging toggle.
 
 ### Example responses
 
@@ -1255,6 +1294,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/user-debug-logging \
 
 `PUT /api/v2/chats/config/user-debug-logging`
 
+Turns chat debug logging on or off for your own chats.
+It returns `403` unless an administrator allowed user opt-in with `PUT /api/v2/chats/config/debug-logging`, and `409` while the deployment forces debug logging on.
+
 > Body parameter
 
 ```json
@@ -1265,9 +1307,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/user-debug-logging \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                               | Required | Description  |
-|--------|------|----------------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateUserChatDebugLoggingRequest](schemas.md#codersdkupdateuserchatdebugloggingrequest) | true     | Request body |
+| Name   | In   | Type                                                                                               | Required | Description                                                                                       |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateUserChatDebugLoggingRequest](schemas.md#codersdkupdateuserchatdebugloggingrequest) | true     | Your debug logging choice. `debug_logging_enabled` is `true` to record debug logs for your chats. |
 
 ### Responses
 
@@ -1289,6 +1331,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/user-prompt \
 ```
 
 `GET /api/v2/chats/config/user-prompt`
+
+Returns your custom chat prompt, which Coder Agents adds to your chats as your own instructions.
+The prompt is empty when you haven't set one.
 
 ### Example responses
 
@@ -1322,6 +1367,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/user-prompt \
 
 `PUT /api/v2/chats/config/user-prompt`
 
+Sets your custom chat prompt, replacing the stored one, and returns the stored value.
+The prompt applies only to your chats. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits its size.
+
 > Body parameter
 
 ```json
@@ -1332,9 +1380,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/user-prompt \
 
 ### Parameters
 
-| Name   | In   | Type                                                                     | Required | Description  |
-|--------|------|--------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UserChatCustomPrompt](schemas.md#codersdkuserchatcustomprompt) | true     | Request body |
+| Name   | In   | Type                                                                     | Required | Description                                                               |
+|--------|------|--------------------------------------------------------------------------|----------|---------------------------------------------------------------------------|
+| `body` | body | [codersdk.UserChatCustomPrompt](schemas.md#codersdkuserchatcustomprompt) | true     | Custom prompt in `custom_prompt`. It replaces your current custom prompt. |
 
 ### Example responses
 
@@ -1367,6 +1415,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/workspace-ttl \
 
 `GET /api/v2/chats/config/workspace-ttl`
 
+Returns the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.
+The value `0`, which is the default, means the setting is off and the template's own autostop setting applies. Any authenticated user can read this setting.
+
 ### Example responses
 
 > 200 Response
@@ -1398,6 +1449,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/workspace-ttl \
 
 `PUT /api/v2/chats/config/workspace-ttl`
 
+Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.
+The value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration, which the Owner role has.
+
 > Body parameter
 
 ```json
@@ -1408,9 +1462,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/workspace-ttl \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                       | Required | Description  |
-|--------|------|--------------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateChatWorkspaceTTLRequest](schemas.md#codersdkupdatechatworkspacettlrequest) | true     | Request body |
+| Name   | In   | Type                                                                                       | Required | Description                                                                                   |
+|--------|------|--------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateChatWorkspaceTTLRequest](schemas.md#codersdkupdatechatworkspacettlrequest) | true     | Workspace time to live. `workspace_ttl_ms` is in milliseconds, and `0` turns the setting off. |
 
 ### Responses
 
@@ -4725,11 +4779,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 
 `GET /api/v2/organizations/{organization}/chats/config/system-prompt`
 
+Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.
+Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -4762,6 +4819,9 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 
 `PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
 
+Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.
+Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
+
 > Body parameter
 
 ```json
@@ -4772,10 +4832,10 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 
 ### Parameters
 
-| Name           | In   | Type                                                                                                               | Required | Description     |
-|----------------|------|--------------------------------------------------------------------------------------------------------------------|----------|-----------------|
-| `organization` | path | string(uuid)                                                                                                       | true     | Organization ID |
-| `body`         | body | [codersdk.UpdateOrganizationChatSystemPromptRequest](schemas.md#codersdkupdateorganizationchatsystempromptrequest) | true     | Request body    |
+| Name           | In   | Type                                                                                                               | Required | Description                                                                          |
+|----------------|------|--------------------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                                                       | true     | Organization ID, name, or `default` for the default organization.                    |
+| `body`         | body | [codersdk.UpdateOrganizationChatSystemPromptRequest](schemas.md#codersdkupdateorganizationchatsystempromptrequest) | true     | Organization instructions in `system_prompt`. They replace the current instructions. |
 
 ### Responses
 
@@ -4798,11 +4858,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
 
 `GET /api/v2/organizations/{organization}/chats/models`
 
+Lists the chat models in an organization that you can read, and descriptors of the AI providers that show whether each is available to you.
+Requests that use a scoped API token need the `chat_model_config:read` scope. Provider descriptors never include API keys.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description             |
-|----------------|------|--------|----------|-------------------------|
-| `organization` | path | string | true     | Organization name or ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -5029,6 +5092,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 
 `POST /api/v2/organizations/{organization}/chats/models`
 
+Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.
+Requires permission to create chat model configurations in the organization, which the Owner and Organization Admin roles have. The provider must exist and be enabled.
+
 > Body parameter
 
 ```json
@@ -5200,10 +5266,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 
 ### Parameters
 
-| Name           | In   | Type                                                                         | Required | Description             |
-|----------------|------|------------------------------------------------------------------------------|----------|-------------------------|
-| `organization` | path | string                                                                       | true     | Organization name or ID |
-| `body`         | body | [codersdk.CreateChatModelRequest](schemas.md#codersdkcreatechatmodelrequest) | true     | Model                   |
+| Name           | In   | Type                                                                         | Required | Description                                                                              |
+|----------------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                                       | true     | Organization ID, name, or `default` for the default organization.                        |
+| `body`         | body | [codersdk.CreateChatModelRequest](schemas.md#codersdkcreatechatmodelrequest) | true     | Model to create. `ai_provider_id`, `model`, and a positive `context_limit` are required. |
 
 ### Example responses
 
