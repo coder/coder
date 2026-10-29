@@ -30,9 +30,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 #### Enumerated Values
 
-| Parameter | Value(s)                                                                        |
-|-----------|---------------------------------------------------------------------------------|
-| `status`  | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
+| Parameter | Value(s)                  |
+|-----------|---------------------------|
+| `status`  | `busy`, `idle`, `offline` |
 
 ### Example responses
 

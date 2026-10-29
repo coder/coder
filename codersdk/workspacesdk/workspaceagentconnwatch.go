@@ -15,8 +15,7 @@ import (
 type WatchErrorCode int
 
 const (
-	// WatchErrorUnspecified is the zero value. It is never sent, so an
-	// unset code is distinguishable from a real one.
+	// WatchErrorUnspecified is never sent, so a zero Code means the code was not set.
 	WatchErrorUnspecified WatchErrorCode = iota
 	WatchErrorTooManyAgents
 	WatchErrorNameNotFound
