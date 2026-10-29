@@ -466,6 +466,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				return err
 			}
 
+			var versionResources map[uuid.UUID][]codersdk.WorkspaceResource
 			if configOptions.noWildcard {
 				// Fetch all workspaces to generate individual host entries.
 				var workspaces []codersdk.Workspace
@@ -486,7 +487,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					}
 					offset += pageSize
 				}
-				versionResources := templateVersionResources(ctx, inv.Stderr, client, workspaces)
+				versionResources = templateVersionResources(ctx, inv.Stderr, client, workspaces)
 				configOptions.hostNames = noWildcardHostNames(workspaces, versionResources)
 			}
 
@@ -563,10 +564,30 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if len(res.Workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				if configOptions.hostnameSuffix != "" {
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s.%s\n", res.Workspaces[0].Name, configOptions.hostnameSuffix)
-				} else if configOptions.userHostPrefix != "" {
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", configOptions.userHostPrefix, res.Workspaces[0].Name)
+				if configOptions.hostnameSuffix != "" || configOptions.userHostPrefix != "" {
+					ws := res.Workspaces[0]
+					host := ws.Name
+					agents := startAgentNames(ws.LatestBuild.Resources)
+					if len(agents) == 0 {
+						// Reuse the resources fetched for --no-wildcard, including
+						// failed fetches, so the hint does not retry them.
+						if configOptions.noWildcard {
+							agents = startAgentNames(versionResources[ws.LatestBuild.TemplateVersionID])
+						} else if resources, err := client.TemplateVersionResources(ctx, ws.LatestBuild.TemplateVersionID); err == nil {
+							agents = startAgentNames(resources)
+						}
+					}
+					if len(agents) > 1 {
+						// A bare workspace hostname is ambiguous with multiple
+						// agents, so name the agent explicitly.
+						host = agents[0] + "." + ws.Name + "." + ws.OwnerName
+					}
+					if configOptions.hostnameSuffix != "" {
+						host += "." + configOptions.hostnameSuffix
+					} else {
+						host = configOptions.userHostPrefix + host
+					}
+					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s\n", host)
 				}
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")

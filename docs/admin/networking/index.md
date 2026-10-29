@@ -34,7 +34,7 @@ In order for clients to be able to establish direct connections:
 > To improve latency for browser-based applications running inside Coder workspaces in regions far from the Coder control plane, consider deploying one or more [workspace proxies](./workspace-proxies.md).
 
 - The client is connecting using the CLI (for example, `coder ssh` or `coder port-forward`).
-  Note that the [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and [`ssh coder.<workspace>`](../../reference/cli/config-ssh.md) all utilize the CLI to establish a workspace connection.
+  Note that the [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and [`ssh <workspace>.coder`](../../reference/cli/config-ssh.md) all utilize the CLI to establish a workspace connection.
 - Either the client or workspace agent are able to discover a reachable `ip:port` of their counterpart.
   If the agent and client are able to communicate with each other using their locally assigned IP addresses, then a direct connection can be established immediately.
   Otherwise, the client and agent will contact [the configured STUN servers](../../reference/cli/server/index.md#--derp-server-stun-addresses) to try and determine which `ip:port` can be used to communicate with their counterpart.

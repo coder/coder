@@ -1,5 +1,6 @@
 import { useQuery } from "react-query";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
@@ -13,6 +14,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { docs } from "#/utils/docs";
 
 type AgentSSHButtonProps = {
@@ -26,8 +28,13 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 	agentName,
 	workspaceOwnerUsername,
 }) => {
-	const { data } = useQuery(deploymentSSHConfig());
+	const { data, isLoading, error } = useQuery(deploymentSSHConfig());
 	const sshSuffix = data?.hostname_suffix;
+	// The CLI needs no SSH config, so it remains usable when the suffix is
+	// empty or the deployment SSH config could not be loaded.
+	const connectCommand = sshSuffix
+		? `ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`
+		: `coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`;
 
 	return (
 		<Popover>
@@ -47,18 +54,26 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 					Run the following commands to connect with SSH:
 				</HelpPopoverText>
 
-				<ol style={{ margin: 0, padding: 0 }}>
-					<div className="flex flex-col gap-1 mt-3">
-						<SSHStep
-							helpText="Configure SSH hosts on machine:"
-							codeExample="coder config-ssh"
-						/>
-						<SSHStep
-							helpText="Connect to the agent:"
-							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
-						/>
-					</div>
-				</ol>
+				{error && (
+					<ErrorAlert error={error} showDebugDetail={false} className="mt-3" />
+				)}
+
+				<Spinner loading={isLoading} className="mt-3">
+					<ol style={{ margin: 0, padding: 0 }}>
+						<div className="flex flex-col gap-1 mt-3">
+							{sshSuffix && (
+								<SSHStep
+									helpText="Configure SSH hosts on machine:"
+									codeExample="coder config-ssh"
+								/>
+							)}
+							<SSHStep
+								helpText="Connect to the agent:"
+								codeExample={connectCommand}
+							/>
+						</div>
+					</ol>
+				</Spinner>
 
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href="/install">Install Coder CLI</HelpPopoverLink>

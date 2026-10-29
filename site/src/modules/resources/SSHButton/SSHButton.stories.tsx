@@ -5,6 +5,7 @@ import {
 	MockDeploymentSSH,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { withDesktopViewport } from "#/testHelpers/storybook";
 import { AgentSSHButton } from "./SSHButton";
@@ -31,6 +32,7 @@ export const Opened: Story = {
 	args: {
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
+		workspaceOwnerUsername: MockWorkspace.owner_name,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -38,4 +40,28 @@ export const Opened: Story = {
 		await userEvent.click(button);
 	},
 	decorators: [withDesktopViewport],
+};
+
+export const OpenedLoading: Story = {
+	...Opened,
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const OpenedWithError: Story = {
+	...Opened,
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockRejectedValue(
+			mockApiError({ message: "Unable to load deployment SSH configuration." }),
+		);
+	},
+};
+
+export const OpenedWithoutHostnameSuffix: Story = {
+	...Opened,
+	beforeEach: () => {
+		const mockDeploymentSSH = { ...MockDeploymentSSH, hostname_suffix: "" };
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(mockDeploymentSSH);
+	},
 };
