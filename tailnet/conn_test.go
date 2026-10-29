@@ -29,6 +29,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
+	"tailscale.com/net/netns"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
@@ -551,7 +552,7 @@ func TestConn_BlockEndpoints(t *testing.T) {
 
 // TestConn_ReusedSourcePortAfterServerClose checks that the agent accepts a
 // SYN that reopens a 4-tuple it holds in TIME_WAIT, in the case RFC 1122
-// allows (sequence number above the old RcvNxt). Unpatched gVisor only hands
+// allows (sequence number above the old RcvNxt). Unpatched gVisor only delivers
 // such a SYN to a listening endpoint, and the agent's netstack has none
 // (google/gvisor#15013).
 //
@@ -573,6 +574,11 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 	// port.
 	clientIP := tailnet.TailscaleServicePrefix.RandomAddr()
 	chTUN := tuntest.NewChannelTUN()
+	// Restore the process-global netns settings that NewConn changes for a TUN device.
+	defer func() {
+		netns.SetEnabled(false)
+		netns.SetCoderSoftIsolation(false)
+	}()
 	client, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(clientIP, 128)},
 		Logger:    logger.Named("client"),
