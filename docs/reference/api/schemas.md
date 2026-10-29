@@ -13172,6 +13172,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|----------|
 | `role`   | `read`   |
 
+## codersdk.OrganizationSkillPreferences
+
+```json
+{
+  "all_skills_disabled": true,
+  "disabled_skill_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                        |
+|------------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `all_skills_disabled`        | boolean         | false    |              | All skills disabled turns off every organization skill, including skills added later. DisabledSkillIDs is kept and applies again when it is false. |
+| `disabled_skill_ids`         | array of string | false    |              | Disabled skill ids lists the organization skills the member turned off.                                                                            |
+| `members_can_disable_skills` | boolean         | false    |              | Members can disable skills is the organization's setting.                                                                                          |
+
 ## codersdk.OrganizationSkillRole
 
 ```json
@@ -13185,6 +13205,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.OrganizationSkillSettings
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `members_can_disable_skills` | boolean | false    |              | Members can disable skills lets each organization member turn off organization skills for their own chats. |
 
 ## codersdk.OrganizationSkillUser
 
@@ -17530,6 +17564,40 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
 | `user_roles`       | object                                                           | false    |              |             |
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+
+## codersdk.UpdateOrganizationSkillPreferencesRequest
+
+```json
+{
+  "all_skills_disabled": true,
+  "skills": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                  |
+|-----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `all_skills_disabled` | boolean | false    |              |                                                                                              |
+| `skills`              | object  | false    |              | Skills maps an organization skill ID to whether the skill is enabled for the member's chats. |
+| » `[any property]`    | boolean | false    |              |                                                                                              |
+
+## codersdk.UpdateOrganizationSkillSettingsRequest
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `members_can_disable_skills` | boolean | false    |              |             |
 
 ## codersdk.UpdateRoles
 
