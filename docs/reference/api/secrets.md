@@ -86,7 +86,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 Creates a secret for a user and returns its metadata without its value.
 An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
-Each user can store up to 50 secrets, 200 KiB in total.
+Each user can store up to 50 secrets and 200 KiB in total, and the secrets that set an `env_name` can total up to 24 KiB.
 
 > Body parameter
 

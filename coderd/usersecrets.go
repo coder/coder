@@ -136,7 +136,7 @@ func (api *API) userSecretsCapabilities(rw http.ResponseWriter, r *http.Request)
 // @Summary Create a new user secret
 // @Description Creates a secret for a user and returns its metadata without its value.
 // @Description An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
-// @Description Each user can store up to 50 secrets, 200 KiB in total.
+// @Description Each user can store up to 50 secrets and 200 KiB in total, and the secrets that set an `env_name` can total up to 24 KiB.
 // @ID create-a-new-user-secret
 // @Security CoderSessionToken
 // @Accept json
