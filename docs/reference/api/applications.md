@@ -17,11 +17,15 @@ curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
 
 `GET /api/v2/applications/auth-redirect`
 
+Redirects to `redirect_uri` with an encrypted API key added to the query, which lets a subdomain workspace app sign you in.
+The key can only connect to workspace apps, and it expires when your session does or after the default session duration, whichever comes first.
+Redirects you to the login page when you aren't signed in.
+
 ### Parameters
 
-| Name           | In    | Type   | Required | Description          |
-|----------------|-------|--------|----------|----------------------|
-| `redirect_uri` | query | string | false    | Redirect destination |
+| Name           | In    | Type   | Required | Description                                                                                                                                                            |
+|----------------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `redirect_uri` | query | string | false    | Required, and the route returns `400` without it. Must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname. |
 
 ### Responses
 
@@ -43,6 +47,9 @@ curl -X GET http://coder-server:8080/api/v2/applications/host \
 ```
 
 `GET /api/v2/applications/host`
+
+Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty `host` when the deployment doesn't set one.
+Deprecated. Use `/api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.
 
 ### Example responses
 
