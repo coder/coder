@@ -61,8 +61,9 @@ func run(args []string) error {
 		var errs []error
 		if _, err := docgenenv.BuildManifest(sourcesDir, *docsDir); err != nil {
 			errs = append(errs, err)
+		} else {
+			errs = append(errs, repeatedStates(sourcesDir)...)
 		}
-		errs = append(errs, repeatedStates(sourcesDir)...)
 		unformatted, err := unformattedSources(sourcesDir)
 		if err != nil {
 			errs = append(errs, err)
