@@ -9,7 +9,7 @@ OpenCode supports both OpenAI and Anthropic models and can be configured to use 
 
 ## Centralized API Key
 
-You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
+You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (for example, `~/.config/opencode/opencode.json`):
 
 ```json
 {

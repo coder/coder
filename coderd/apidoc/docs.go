@@ -2963,7 +2963,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "description": "Only chats in this project.",
                         "name": "project_id",
                         "in": "query"
                     }
@@ -4129,6 +4129,48 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            }
+        },
+        "/api/v2/chats/{chat}/attachments": {
+            "get": {
+                "description": "Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat attachments",
+                "operationId": "list-chat-attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return attachments from messages with id \u003c before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAttachmentsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/chats/{chat}/clear": {
@@ -19187,6 +19229,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppStatusState"
                 },
                 "uri": {
+                    "description": "Only http, https, and file URIs are kept; others are dropped.",
                     "type": "string"
                 }
             }
@@ -19294,6 +19337,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for this interception. Nil\nwhen it was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
                 },
                 "thinking": {
                     "type": "array",
@@ -19411,6 +19462,27 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgePricedModel": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "description": "Model is the priced model, either the requested model or the model\nreported by the provider.",
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
                 }
             }
         },
@@ -19648,6 +19720,14 @@ const docTemplate = `{
                 "cache_write_input_tokens": {
                     "type": "integer"
                 },
+                "cost_micros": {
+                    "description": "CostMicros is the summed cost of the priced usage, in micro-units\n(1000000 is $1.00).",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports that some usage has no cost, so CostMicros\nis a lower bound.",
+                    "type": "boolean"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -19727,6 +19807,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for the root interception\n(the prompt). Other requests in the thread may use different models\nand prices, see agentic_actions[].priced_model. Nil when the root\ninterception was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
                 },
                 "prompt": {
                     "type": "string"
@@ -21552,6 +21640,79 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAttachment": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFile"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "part_index": {
+                    "description": "PartIndex is the file part's position in the message content the\nmessages endpoint returns.",
+                    "type": "integer"
+                },
+                "role": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentRole"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFile": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
+                },
+                "file_id": {
+                    "description": "Omitted, not null, for an inline file.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFileType"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFileType": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentFileTypeFile"
+            ]
+        },
+        "codersdk.ChatAttachmentRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "assistant"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentRoleUser",
+                "ChatAttachmentRoleAssistant"
+            ]
+        },
+        "codersdk.ChatAttachmentsResponse": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatAttachment"
+                    }
+                }
+            }
+        },
         "codersdk.ChatAutoArchiveDaysResponse": {
             "type": "object",
             "properties": {
@@ -22312,7 +22473,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_dir": {
-                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files.",
+                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files, and\nshown to the model for an invoked workspace skill so it can\nrun the skill's scripts.",
                     "type": "string"
                 },
                 "skill_name": {
@@ -23864,6 +24025,10 @@ const docTemplate = `{
         "codersdk.ConnectionLogSSHInfo": {
             "type": "object",
             "properties": {
+                "client_session_id": {
+                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
+                    "type": "string"
+                },
                 "connection_id": {
                     "type": "string",
                     "format": "uuid"
@@ -24470,7 +24635,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "model_invocable": {
-                    "description": "ModelInvocable defaults to true.",
+                    "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
                     "type": "boolean"
                 }
             }
@@ -25902,7 +26067,7 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
-                "chat-projects",
+                "chat-project-sharing",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
@@ -25918,7 +26083,7 @@ const docTemplate = `{
                 "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
-                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
+                "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
@@ -25942,7 +26107,7 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
-                "Enables organization-scoped projects that group agent chats.",
+                "Enables sharing agent chat projects with other users and groups.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
@@ -25962,7 +26127,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
-                "ExperimentChatProjects",
+                "ExperimentChatProjectSharing",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
@@ -28510,7 +28675,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "providers": {
-                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"

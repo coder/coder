@@ -71,6 +71,7 @@ endif
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/theme/icons.json \
@@ -361,7 +362,9 @@ site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
-		tar cf "../../../build/$(@F)" coder-*
+		# Group binaries by architecture so that zstd's long-distance matching
+		# window can deduplicate code shared across operating systems.
+		tar cf "../../../build/$(@F)" $$(ls coder-* | sort -t- -k3)
 	popd
 
 	# delete the uncompressed binaries from the embedded dir
@@ -612,6 +615,7 @@ scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json script
 
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -1222,6 +1226,7 @@ gen/mark-fresh:
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
 		codersdk/dbenums_gen.go \
+		site/src/api/appFamiliesGenerated.ts \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1431,6 +1436,9 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 	# Generate SDK constants for external API key scopes.
 	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
+
+site/src/api/appFamiliesGenerated.ts: site/node_modules/.installed scripts/typegen/appfamilies.tstmpl scripts/typegen/main.go codersdk/appname.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen appfamilies,./scripts/biome_format.sh)
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.

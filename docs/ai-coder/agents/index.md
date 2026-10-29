@@ -49,7 +49,9 @@ When a user submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google, Azure, AWS Bedrock, or any OpenAI-compatible endpoint).
 1. Receives the model's response, which may include tool calls such as reading files, writing code, or running shell commands.
-1. Executes tool calls by connecting to a Coder workspace over the existing workspace connection (the same path used for web terminals, port forwarding, and IDE access).
+1. Executes tool calls by connecting to a Coder workspace over the existing workspace connection.
+
+   This is the same path used for web terminals, port forwarding, and IDE access.
 1. Returns tool results to the model and continues the loop until the task is complete.
 
 The workspace itself has no knowledge of AI.
@@ -68,7 +70,8 @@ Not every chat requires a workspace.
 The agent uses the conversation and available tools when they're sufficient for your request.
 If missing tools, skills, MCP integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
 Workspaces also support reading code, running commands, and editing files.
-Requests to fix a bug or build an app authorize the necessary workspace setup; you don't need to ask for a workspace separately.
+Requests to fix a bug or build an app authorize the necessary workspace setup.
+You don't need to ask for a workspace separately.
 Questions and self-contained code examples don't need a workspace when the conversation and available tools are sufficient.
 
 This means:
@@ -134,7 +137,8 @@ Attachments are sent to the model as multimodal content alongside the text promp
 This is useful for sharing screenshots of errors, UI mockups, terminal output, logs, or other context that helps the agent understand the task.
 Messages can contain attachments alone or combined with text.
 Image attachments require a model that supports vision input, and Anthropic models (including Bedrock-hosted Claude) cap each inline image at 5&nbsp;MiB.
-Providers differ in which types they accept as native file content; a part the provider rejects is downgraded to text instead of being dropped.
+Providers differ in which types they accept as native file content.
+A part the provider rejects is downgraded to text instead of being dropped.
 
 ## Security benefits of the control plane architecture
 
@@ -154,7 +158,7 @@ Coder Agents eliminates this by moving the agent loop out of the workspace entir
   This eliminates a class of supply chain risk and removes the need to keep agent software up to date across all workspaces.
 - **Network boundaries are simpler.**
   Because the workspace doesn't need access to LLM APIs, you can apply strict egress rules.
-  An agent-only template might permit access to only your git provider (e.g., `github.com`) and nothing else.
+  An agent-only template might permit access to only your git provider (for example, `github.com`) and nothing else.
   The workspace never needs to reach the internet for AI functionality.
 - **Centralized, enforced control.**
   Platform teams configure models, system prompts, and tool permissions from the control plane.
@@ -271,7 +275,8 @@ While plan mode is active:
 - `ask_user_question` can gather structured clarification from the user before a plan is proposed.
 - `propose_plan` snapshots the current plan file into the transcript so you can review it before implementation starts.
 - `execute` and `process_output` remain available for exploration, such as cloning repositories, searching code, and running inspection commands.
-- External MCP tools are available to root chats only for the server configurations an administrator approved for plan mode; workspace MCP tools and MCP tools for plan-mode sub-agents are not available.
+- External MCP tools are available to root chats only for the server configurations an administrator approved for plan mode.
+   Workspace MCP tools and MCP tools for plan-mode sub-agents are not available.
 - Dynamic tools, provider-native tools, and computer-use tools are not available.
 - Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 

@@ -723,7 +723,8 @@ var (
 					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                    // Required for UpsertAISeatState.
 					rbac.ResourceAIProvider.Type:           {policy.ActionRead},                      // Required to load the provider snapshot (and per-provider keys) at startup.
 					rbac.ResourceGroup.Type:                {policy.ActionRead},                      // Required to read the effective group.
-					rbac.ResourceOrganization.Type:         {policy.ActionRead},                      // Required to name the organization in budget notification links.
+					rbac.ResourceOrganization.Type:         {policy.ActionRead},                      // Required to name the organization in budget notification links and to check org membership.
+					rbac.ResourceWorkspace.Type:            {policy.ActionRead},                      // Required to resolve the organization of a workspace session token.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -3705,6 +3706,15 @@ func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID u
 		return nil, err
 	}
 	return q.db.GetChatMessagesForPromptByChatID(ctx, chatID)
+}
+
+func (q *querier) GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg database.GetChatMessagesWithFilePartsByChatIDParams) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesWithFilePartsByChatID(ctx, arg)
 }
 
 func (q *querier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
@@ -7745,13 +7755,13 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (q *querier) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	// The push can update multiple chats bound to the agent, so authorize the
 	// chat resource class.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
+	return q.db.SyncAgentChatsContextLiveResources(ctx, agentID)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
