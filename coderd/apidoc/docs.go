@@ -2955,7 +2955,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns 100 results.",
                         "name": "limit",
                         "in": "query",
                         "required": true
