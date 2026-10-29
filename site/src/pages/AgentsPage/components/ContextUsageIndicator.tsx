@@ -657,7 +657,7 @@ export const ContextUsageIndicator: React.FC<{
 					className={cn(
 						"block h-full rounded-xs bg-current",
 						clampedPercent > 0 && "min-w-1",
-						toneClassName,
+						getIndicatorToneClassName(percentUsed, compactionPercent),
 					)}
 					style={{ width: `${clampedPercent}%` }}
 				/>
