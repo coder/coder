@@ -55,6 +55,12 @@ func TestUpdateStats(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "abc",
 		}
+		legacySessionSources = database.WorkspaceBuildDeadlineSources{
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "ssh", AgentID: agent.ID},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "reconnecting_pty", AgentID: agent.ID},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "jetbrains", AgentID: agent.ID},
+			{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "vscode", AgentID: agent.ID},
+		}
 		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{}
 	)
 
@@ -152,8 +158,9 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
+			DeadlineSources: legacySessionSources,
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -377,8 +384,9 @@ func TestUpdateStats(t *testing.T) {
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: nextAutostart,
+			DeadlineSources: database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agent.ID}},
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   nextAutostart,
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -489,8 +497,9 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
+			DeadlineSources: database.WorkspaceBuildDeadlineSources{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agent.ID}},
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -625,8 +634,9 @@ func TestUpdateStats(t *testing.T) {
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
+			DeadlineSources: legacySessionSources,
+			WorkspaceID:     workspace.ID,
+			NextAutostart:   time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.

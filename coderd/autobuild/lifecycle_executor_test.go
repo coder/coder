@@ -2007,10 +2007,11 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		// workspace will stop even though the user is active and the reminder
 		// must still fire. The deadline itself is left unchanged.
 		require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          workspace.LatestBuild.ID,
-			Deadline:    deadline,
-			MaxDeadline: deadline,
-			UpdatedAt:   tick,
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             workspace.LatestBuild.ID,
+			Deadline:       deadline,
+			MaxDeadline:    deadline,
+			UpdatedAt:      tick,
 		}))
 
 		go func() {
