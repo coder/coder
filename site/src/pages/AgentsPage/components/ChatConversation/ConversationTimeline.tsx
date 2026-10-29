@@ -405,7 +405,7 @@ type ConversationTimelineProps = {
 	isAwaitingFirstStreamChunk: boolean;
 	/**
 	 * PROTOTYPE: previews a collapsed live block's newest steps. Defaults to
-	 * the agents.workingBlockPeek localStorage key being "on".
+	 * true.
 	 */
 	workingBlockPeek?: boolean;
 };
@@ -436,9 +436,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 		workingBlockPeek,
 	}) => {
-		const peekEnabled =
-			workingBlockPeek ??
-			localStorage.getItem("agents.workingBlockPeek") === "on";
+		const peekEnabled = workingBlockPeek ?? true;
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
