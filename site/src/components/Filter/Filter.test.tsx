@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { render } from "#/testHelpers/renderHelpers";
 import { Filter, type UseFilterResult } from "./Filter";
 
-const filter: UseFilterResult = {
+const mockFilter: UseFilterResult = {
 	query: "",
 	values: {},
 	used: false,
@@ -17,7 +17,7 @@ describe(Filter.name, () => {
 		const user = userEvent.setup();
 		render(
 			<Filter
-				filter={filter}
+				filter={mockFilter}
 				isLoading={false}
 				optionsSkeleton={null}
 				presets={[{ name: "All", query: "" }]}

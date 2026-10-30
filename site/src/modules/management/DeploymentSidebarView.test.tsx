@@ -14,12 +14,12 @@ const renderSidebar = (showOrganizations: boolean) =>
 	);
 
 describe(DeploymentSidebarView.name, () => {
-	it("announces that Groups moves to organization settings", async () => {
+	it("announces that Groups opens organization settings", async () => {
 		renderSidebar(true);
 
 		expect(
 			await screen.findByRole("link", { name: /^Groups/ }),
-		).toHaveAccessibleName(/^Groups\s*\(in organization settings\)$/);
+		).toHaveAccessibleName(/^Groups\s*\(opens organization settings\)$/);
 	});
 
 	it("names Groups plainly without organizations", async () => {
