@@ -41,6 +41,41 @@ export const SingleImage: Story = {
 	},
 };
 
+// Focus on View, Paste inline or Remove shows Paste inline and Remove. The
+// hidden buttons stay in the tab order, so Shift+Tab from the end of the page
+// reaches Remove and then Paste inline.
+export const ViewFocused: Story = {
+	args: (() => {
+		const file = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "file-1" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([[file, "Pasted text."]]),
+		};
+	})(),
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
+export const PasteFocused: Story = {
+	args: ViewFocused.args,
+	play: async () => {
+		await userEvent.tab({ shift: true });
+		await userEvent.tab({ shift: true });
+	},
+};
+
+export const RemoveFocused: Story = {
+	args: ViewFocused.args,
+	play: async () => {
+		await userEvent.tab({ shift: true });
+	},
+};
+
 export const MultipleImages: Story = {
 	args: (() => {
 		const files = [

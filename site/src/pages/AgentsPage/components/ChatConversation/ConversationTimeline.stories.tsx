@@ -1329,21 +1329,26 @@ export const AssistantMessageWithImage: Story = {
 			`data:image/png;base64,${MockPngBase64}`,
 		);
 		expect(
-			canvas.queryByRole("link", { name: "Download generated-image.png" }),
-		).not.toBeInTheDocument();
-		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
-		const viewButton = canvas.getByRole("button", {
-			name: "View generated-image.png",
-		});
-		viewButton.focus();
-		expect(viewButton).toHaveFocus();
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("link", { name: "Download generated-image.png" }),
-			).toBeVisible();
-		});
+	},
+};
+
+// Focus on View shows the Download link.
+export const AssistantMessageWithImageViewFocused: Story = {
+	args: AssistantMessageWithImage.args,
+	play: ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: "View generated-image.png" }).focus();
+	},
+};
+
+// The hidden link stays in the tab order, so Shift+Tab from the end of the
+// page reaches it.
+export const AssistantMessageWithImageDownloadFocused: Story = {
+	args: AssistantMessageWithImage.args,
+	play: async () => {
+		await userEvent.tab({ shift: true });
 	},
 };
 
