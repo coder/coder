@@ -23,6 +23,22 @@ var (
 	// user tries to use a greater port, the proxy will just block it and not cause
 	// any issues. This is a good enough regex check.
 	PortRegex = regexp.MustCompile(`^\d{4,5}s?$`)
+	// previewSlugPrefix starts every agent static preview slug. The double
+	// hyphen keeps preview slugs disjoint from coder_app slugs, which cannot
+	// contain one.
+	previewSlugPrefix = "preview--"
+	// previewIDPattern is the format of the preview IDs that agents assign.
+	previewIDPattern = "[0-9a-f]{16}"
+	previewIDRegex   = regexp.MustCompile("^" + previewIDPattern + "$")
+	// previewPortPattern matches the HTTP ports a preview can serve. It has
+	// no leading zeros, so a preview port can never name a reserved port.
+	previewPortPattern = "[1-9][0-9]{3,4}"
+	previewPortRegex   = regexp.MustCompile("^" + previewPortPattern + "$")
+	// Unlike app URLs, preview URLs always name the agent.
+	// Format: preview--{PREVIEW_ID|PORT}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
+	previewAppURL = regexp.MustCompile(fmt.Sprintf(
+		`^(?P<AppSlug>%[2]s(?:%[3]s|%[4]s))--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
+		nameRegex, previewSlugPrefix, previewIDPattern, previewPortPattern))
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
@@ -143,6 +159,65 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 	return newAppURL
 }
 
+// IsPreviewID reports whether id has the format of an agent static preview
+// ID, e.g. "0123456789abcdef".
+func IsPreviewID(id string) bool {
+	return previewIDRegex.MatchString(id)
+}
+
+// Preview is what a preview slug serves: either files the agent published
+// under ID, or an HTTP server on Port. Exactly one is set.
+type Preview struct {
+	ID   string
+	Port uint16
+}
+
+// ParsePreviewSlug parses a preview slug, e.g. "preview--0123456789abcdef"
+// for published files or "preview--8080" for a port.
+func ParsePreviewSlug(slug string) (Preview, bool) {
+	target, ok := strings.CutPrefix(slug, previewSlugPrefix)
+	if !ok {
+		return Preview{}, false
+	}
+
+	if IsPreviewID(target) {
+		return Preview{ID: target}, true
+	}
+
+	if !previewPortRegex.MatchString(target) {
+		return Preview{}, false
+	}
+	port, err := strconv.ParseUint(target, 10, 16)
+	if err != nil {
+		return Preview{}, false
+	}
+	return Preview{Port: uint16(port)}, true
+}
+
+// IsPreviewHostname reports whether hostname is a preview app host under any
+// wildcard app hostname, such as
+// "preview--8080--agent--workspace--user.apps.example.com". It reads only the
+// first DNS label, so it also recognizes hosts of workspace proxies whose
+// wildcard pattern this server does not know.
+func IsPreviewHostname(hostname string) bool {
+	label, _, _ := strings.Cut(strings.ToLower(hostname), ".")
+	if i := strings.LastIndex(label, "---"); i >= 0 {
+		label = label[i+len("---"):]
+	}
+
+	target, ok := strings.CutPrefix(label, previewSlugPrefix)
+	if !ok {
+		return false
+	}
+	target, _, ok = strings.Cut(target, "--")
+	if !ok {
+		return false
+	}
+
+	_, ok = ParsePreviewSlug(previewSlugPrefix + target)
+	return ok
+}
+
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
 // the subdomain is not a valid application URL hostname, returns a non-nil
 // error. If the hostname is not a subdomain of the given base hostname, returns
@@ -154,6 +229,7 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 //
 // Where agent name is:
 //   - REQUIRED for ports: 8080--agent--workspace--user, 8080s--agent--workspace--user
+//   - REQUIRED for previews: preview--0123456789abcdef--agent--workspace--user, preview--8080--agent--workspace--user
 //   - OPTIONAL for app slugs: myapp--workspace--user (agent name omitted)
 //
 // Examples:
@@ -177,6 +253,16 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	if len(prefixSegments) > 1 {
 		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
 		subdomain = prefixSegments[len(prefixSegments)-1]
+	}
+
+	if matches := previewAppURL.FindStringSubmatch(subdomain); matches != nil {
+		return ApplicationURL{
+			Prefix:        prefix,
+			AppSlugOrPort: matches[previewAppURL.SubexpIndex("AppSlug")],
+			AgentName:     matches[previewAppURL.SubexpIndex("AgentName")],
+			WorkspaceName: matches[previewAppURL.SubexpIndex("WorkspaceName")],
+			Username:      matches[previewAppURL.SubexpIndex("Username")],
+		}, nil
 	}
 
 	matches := appURL.FindStringSubmatch(subdomain)
