@@ -12,7 +12,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
-import { isWorkspaceNotFound } from "#/api/errors";
+import { getErrorStatus, isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
@@ -2758,8 +2758,16 @@ export const deleteChatQueuedMessage = (
 	queryClient: QueryClient,
 	chatId: string,
 ) => ({
-	mutationFn: (queuedMessageId: number) =>
-		API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId),
+	mutationFn: async (queuedMessageId: number) => {
+		try {
+			await API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId);
+		} catch (error) {
+			// Delivery or deletion can race this request, so tolerate a missing row.
+			if (getErrorStatus(error) !== 404) {
+				throw error;
+			}
+		}
+	},
 	onSuccess: async () => {
 		await invalidateChatEntity(queryClient, chatId);
 		await invalidateChatMessages(queryClient, chatId);

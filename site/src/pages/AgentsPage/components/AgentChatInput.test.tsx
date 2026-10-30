@@ -579,7 +579,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
+	it("swaps Stop for the Send button once a draft is entered while streaming", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
 		const onSend = vi.fn();
@@ -607,7 +607,7 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 		expect(onSend).not.toHaveBeenCalled();
@@ -619,7 +619,7 @@ describe("AgentChatInput", () => {
 		});
 
 		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
-		await user.click(screen.getByRole("button", { name: "Queue" }));
+		await user.click(screen.getByRole("button", { name: "Send" }));
 		expect(onSend).toHaveBeenCalledWith("Also update the docs");
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 
@@ -628,12 +628,12 @@ describe("AgentChatInput", () => {
 			expect(inputRef.current?.getValue()).toBe("");
 		});
 
-		expect(screen.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
 
-	it("shows a disabled Queue button without a spinner while an interrupt is pending", async () => {
+	it("shows a disabled Send button without a spinner while an interrupt is pending", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
 
@@ -659,10 +659,10 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		const queueButton = screen.getByRole("button", { name: "Queue" });
-		expect(queueButton).toBeDisabled();
-		expect(within(queueButton).queryByTitle("Loading spinner")).toBeNull();
-		await user.click(queueButton);
+		const sendButton = screen.getByRole("button", { name: "Send" });
+		expect(sendButton).toBeDisabled();
+		expect(within(sendButton).queryByTitle("Loading spinner")).toBeNull();
+		await user.click(sendButton);
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
@@ -690,14 +690,14 @@ describe("AgentChatInput", () => {
 		const desktop = renderInput(<AgentChatInput {...props} />);
 		expect(
 			screen
-				.getByRole("button", { name: "Queue" })
+				.getByRole("button", { name: "Send" })
 				.getAttribute("aria-keyshortcuts"),
 		).toMatch(/Enter/);
 		desktop.unmount();
 
 		stubViewport(true);
 		renderInput(<AgentChatInput {...props} />);
-		expect(screen.getByRole("button", { name: "Queue" })).not.toHaveAttribute(
+		expect(screen.getByRole("button", { name: "Send" })).not.toHaveAttribute(
 			"aria-keyshortcuts",
 		);
 	});
