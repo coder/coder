@@ -268,6 +268,48 @@ describe("AskUserQuestionTool", () => {
 		);
 	});
 
+	it("answers every question of a set that grew while it streamed", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		const queryClient = createTestQueryClient();
+		const renderTool = (
+			props: Partial<React.ComponentProps<typeof AskUserQuestionTool>>,
+		) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionTool
+					questions={mockTwoQuestions}
+					status="running"
+					isError={false}
+					{...props}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = renderComponent(
+			renderTool({ questions: [questions[0]] }),
+		);
+		rerender(renderTool({}));
+		rerender(
+			renderTool({
+				status: "completed",
+				isChatCompleted: true,
+				isLatestAskUserQuestion: true,
+				onSubmitAnswer,
+			}),
+		);
+
+		await user.click(
+			screen.getByRole("radio", { name: "Use incremental migrations." }),
+		);
+		await user.keyboard("{Enter}");
+		await user.click(
+			screen.getByRole("radio", { name: "Ship it dark behind a flag." }),
+		);
+		await user.keyboard("{Enter}");
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"1. Implementation Approach: Use incremental migrations.\n2. Rollout: Ship it dark behind a flag.",
+		);
+	});
+
 	it("sends a skipped question as Skipped", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();

@@ -552,7 +552,10 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const displayedSubmittedResponseText =
 		previousResponseText ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
-	const { drafts } = formDraft;
+	// A streamed question set can grow after the form mounts.
+	const drafts = filteredQuestions.map(
+		(question, index) => formDraft.drafts[index] ?? getDefaultDraft(question),
+	);
 	const activeQuestionIndex = Math.min(
 		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
@@ -665,6 +668,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const handleBack = () => {
 		changeQuestion({
 			...formDraft,
+			drafts,
 			questionIndex: activeQuestionIndex - 1,
 		});
 	};
