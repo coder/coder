@@ -79,7 +79,7 @@ const meta: Meta<typeof ChatOverviewCardView> = {
 	component: ChatOverviewCardView,
 	args: {
 		overview: mockChatOverview,
-		onOpenTab: fn(),
+		onOpenTarget: fn(),
 	},
 	decorators: [
 		(Story) => (

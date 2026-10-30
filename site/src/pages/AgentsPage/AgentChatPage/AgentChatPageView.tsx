@@ -342,7 +342,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const [isOverviewOpen, setIsOverviewOpen] = useState(
 		getPersistedOverviewCardOpen,
 	);
-	const [overviewTarget, setOverviewTarget] = useState<OverviewTarget>();
+	const [overviewRequest, setOverviewRequest] = useState<{
+		id: number;
+		target: OverviewTarget;
+	}>();
 	const toggleOverview = () => {
 		savePersistedOverviewCardOpen(!isOverviewOpen);
 		setIsOverviewOpen(!isOverviewOpen);
@@ -526,9 +529,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// A card row unmounts the card, so the panel takes focus and, for Git,
 	// opens the row's view.
 	const openOverviewTarget = (target: OverviewTarget) => {
-		setOverviewTarget(target);
+		setOverviewRequest((previous) => ({ id: (previous?.id ?? 0) + 1, target }));
 		activateRightPanelTab(target.tabId);
 	};
+	const overviewTarget = overviewRequest?.target;
+	const gitViewRequest =
+		overviewRequest && overviewTarget?.tabId === "git"
+			? { id: overviewRequest.id, view: overviewTarget.view }
+			: undefined;
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
@@ -695,9 +703,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						remoteDiffStats={chat.diff_statuses}
 						primaryDiffStatus={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
-						viewRequest={
-							overviewTarget?.tabId === "git" ? overviewTarget.view : undefined
-						}
+						viewRequest={gitViewRequest}
 					/>
 				);
 			case "browser":
@@ -914,7 +920,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										repositories={gitWatcher.repositories}
 										hasMoreMessages={hasMoreMessages}
 										isHydratingMessages={isHydratingMessages}
-										onOpenTab={openOverviewTarget}
+										onOpenTarget={openOverviewTarget}
 									/>
 								)}
 							</div>
@@ -1043,7 +1049,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									setIsRightPanelExpanded((prev) => !prev)
 								}
 								chatTitle={chat.title}
-								focusRequest={overviewTarget}
+								focusRequestId={overviewRequest?.id}
 							/>
 						</RightPanel>
 					</div>

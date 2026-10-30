@@ -40,11 +40,11 @@ const mockChatOverview: ChatOverview = {
 };
 
 const renderCard = (overview = mockChatOverview) => {
-	const onOpenTab = vi.fn<(target: OverviewTarget) => void>();
+	const onOpenTarget = vi.fn<(target: OverviewTarget) => void>();
 	const { router } = render(
-		<ChatOverviewCardView overview={overview} onOpenTab={onOpenTab} />,
+		<ChatOverviewCardView overview={overview} onOpenTarget={onOpenTarget} />,
 	);
-	return { onOpenTab, router };
+	return { onOpenTarget, router };
 };
 
 const withSubagentStatuses = (statuses: ChatStatus[]): ChatOverview => ({
@@ -75,22 +75,22 @@ describe("ChatOverviewCardView", () => {
 		"opens $target.tabId from the row named $name",
 		async ({ name, target }) => {
 			const user = userEvent.setup();
-			const { onOpenTab } = renderCard();
+			const { onOpenTarget } = renderCard();
 
 			await user.click(screen.getByRole("button", { name }));
 
-			expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(target);
+			expect(onOpenTarget).toHaveBeenCalledExactlyOnceWith(target);
 		},
 	);
 
 	it("opens the child chat from a subagent row", async () => {
 		const user = userEvent.setup();
-		const { onOpenTab, router } = renderCard();
+		const { onOpenTarget, router } = renderCard();
 
 		await user.click(screen.getByRole("link", { name: /Find the flake/ }));
 
 		expect(router.state.location.pathname).toBe("/agents/child-1");
-		expect(onOpenTab).not.toHaveBeenCalled();
+		expect(onOpenTarget).not.toHaveBeenCalled();
 	});
 
 	it("lists at most 5 non-idle subagents, the ones that need the user first", () => {

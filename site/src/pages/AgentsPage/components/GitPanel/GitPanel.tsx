@@ -55,6 +55,9 @@ export type GitView =
 	| { type: "remote"; refId: string }
 	| { type: "local"; repoRoot: string };
 
+/** A request from outside the panel to show `view`, once per `id`. */
+type GitViewRequest = { id: number; view: GitView };
+
 /**
  * The view id for a tracked ref. Rows without origin and branch share the
  * empty-key id.
@@ -160,11 +163,11 @@ type GitPanelProps = {
 	 */
 	everDirty: ReadonlySet<string>;
 	/**
-	 * A view to show. Each new object switches the view once, mounted or
+	 * A view to show. Each new request id switches the view once, mounted or
 	 * not, and the user can switch away after. A view that no longer exists
 	 * falls back like any other stale view.
 	 */
-	viewRequest?: GitView;
+	viewRequest?: GitViewRequest;
 };
 
 /** The last path segment of `repoRoot`, or `repoRoot` when it has none. */
@@ -329,20 +332,15 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		? viewIdFor(primaryDiffStatus)
 		: "remote";
 	const [view, setView] = useState<GitView>(() => {
-		if (viewRequest) {
-			return viewRequest;
-		}
 		if (!showRemoteTab && localRepos.length > 0) {
 			return { type: "local", repoRoot: localRepos[0] };
 		}
 		return { type: "remote", refId: primaryRefId };
 	});
-	const [appliedViewRequest, setAppliedViewRequest] = useState(viewRequest);
-	if (viewRequest !== appliedViewRequest) {
-		setAppliedViewRequest(viewRequest);
-		if (viewRequest) {
-			setView(viewRequest);
-		}
+	const [appliedRequestId, setAppliedRequestId] = useState<number>();
+	if (viewRequest && viewRequest.id !== appliedRequestId) {
+		setAppliedRequestId(viewRequest.id);
+		setView(viewRequest.view);
 	}
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);

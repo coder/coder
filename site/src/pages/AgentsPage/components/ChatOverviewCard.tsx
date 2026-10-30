@@ -116,7 +116,7 @@ type ChatOverviewCardProps = {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	hasMoreMessages: boolean;
 	isHydratingMessages: boolean;
-	onOpenTab: (target: OverviewTarget) => void;
+	onOpenTarget: (target: OverviewTarget) => void;
 };
 
 /**
@@ -129,7 +129,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	repositories,
 	hasMoreMessages,
 	isHydratingMessages,
-	onOpenTab,
+	onOpenTarget,
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const costQuery = useQuery({
@@ -179,7 +179,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 				isHydratingMessages ||
 				earlier.isLoading
 			}
-			onOpenTab={onOpenTab}
+			onOpenTarget={onOpenTarget}
 			// The 16rem card with its 1rem inset and 1rem gap fits beside the
 			// centered 48rem transcript from an 84rem chat on.
 			className="absolute top-full right-4 z-20 mt-2 hidden @min-[84rem]/chat:flex"
@@ -211,18 +211,18 @@ type ChatOverviewCardViewProps = {
 	overview: ChatOverview;
 	/** Cost or messages are still loading, so an empty card is not final. */
 	isLoading?: boolean;
-	onOpenTab: (target: OverviewTarget) => void;
+	onOpenTarget: (target: OverviewTarget) => void;
 	className?: string;
 };
 
 /**
- * Leaves out empty sections. A row calls `onOpenTab` with the right panel
+ * Leaves out empty sections. A row calls `onOpenTarget` with the right panel
  * tab, and for Git the view, that holds its details.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
 	isLoading = false,
-	onOpenTab,
+	onOpenTarget,
 	className,
 }) => {
 	const { cost } = overview;
@@ -271,7 +271,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 								formatCostMicros(cost.total_cost_micros)
 							)
 						}
-						onClick={() => onOpenTab({ tabId: "summary" })}
+						onClick={() => onOpenTarget({ tabId: "summary" })}
 					/>
 				</div>
 			)}
@@ -298,7 +298,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 									)
 								}
 								onClick={() =>
-									onOpenTab({
+									onOpenTarget({
 										tabId: "git",
 										view: { type: "local", repoRoot: repo.root },
 									})
@@ -329,7 +329,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 										/>
 									}
 									onClick={() =>
-										onOpenTab({
+										onOpenTarget({
 											tabId: "git",
 											view: { type: "remote", refId: viewIdFor(status) },
 										})
@@ -372,7 +372,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 								key={attachment.key}
 								icon={FileIcon}
 								label={getAttachmentDisplayName(attachment.file)}
-								onClick={() => onOpenTab({ tabId: "summary" })}
+								onClick={() => onOpenTarget({ tabId: "summary" })}
 							/>
 						)}
 					/>

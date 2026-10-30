@@ -458,7 +458,10 @@ describe("GitPanel view requests", () => {
 
 		rerenderPanel({
 			...refs,
-			viewRequest: { type: "remote", refId: viewIdFor(mockFirstRef) },
+			viewRequest: {
+				id: 1,
+				view: { type: "remote", refId: viewIdFor(mockFirstRef) },
+			},
 		});
 
 		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
@@ -477,7 +480,7 @@ describe("GitPanel view requests", () => {
 				[repoRoot, repo],
 			]),
 			chatInputRef: { current: input },
-			viewRequest: { type: "local", repoRoot },
+			viewRequest: { id: 1, view: { type: "local", repoRoot } },
 		});
 
 		await user.click(screen.getByRole("button", { name: "Commit" }));
@@ -498,7 +501,10 @@ describe("GitPanel view requests", () => {
 
 		rerenderPanel({
 			...refs,
-			viewRequest: { type: "remote", refId: "remote:gone:branch" },
+			viewRequest: {
+				id: 1,
+				view: { type: "remote", refId: "remote:gone:branch" },
+			},
 		});
 
 		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
