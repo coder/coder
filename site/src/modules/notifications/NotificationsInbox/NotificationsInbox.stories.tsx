@@ -146,7 +146,9 @@ export const MarkNotificationAsRead: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const notifications = await body.findAllByRole("listitem");
+		const notifications = within(
+			await body.findByRole("list", { name: "Notifications" }),
+		).getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		within(secondNotification).getByText(/unread/i);
 
@@ -171,7 +173,9 @@ export const MarkNotificationAsReadFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const notifications = await body.findAllByRole("listitem");
+		const notifications = within(
+			await body.findByRole("list", { name: "Notifications" }),
+		).getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		await userEvent.click(secondNotification);
 		const markButton = body.getByRole("button", { name: /mark as read/i });
