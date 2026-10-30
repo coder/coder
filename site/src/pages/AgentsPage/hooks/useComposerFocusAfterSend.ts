@@ -4,7 +4,10 @@ import type { SubmitChatTurnParams } from "../components/ChatConversation/submit
 
 type SendChatMessage = SubmitChatTurnParams["sendMessage"];
 
-/** Wraps an answer's send so that the chat input takes focus once it is sent. */
+/**
+ * Wraps an answer's send so that the chat input takes focus once it is sent
+ * and enabled again, unless the user clicked or moved focus during the send.
+ */
 export const useComposerFocusAfterSend = (
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
 	send: SendChatMessage,
