@@ -1,6 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
 import { workspaceUsage } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -27,7 +26,7 @@ type TerminalPanelProps = {
 	reconnectionToken?: string;
 	/** Command run when the PTY session is first created, such as a command app. */
 	initialCommand?: string;
-	/** Whether this terminal should hold live xterm and WebSocket resources. */
+	/** Whether this terminal should hold live terminal and WebSocket resources. */
 	isHot: boolean;
 	/**
 	 * Gate on active-tab status, not just connect, so a tab connecting off screen
@@ -107,12 +106,10 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		const timer = setTimeout(signalReadyFallback, READY_FALLBACK_MS);
 		return () => clearTimeout(timer);
 	}, [shouldMountTerminal]);
-	const config = useQuery(deploymentConfig());
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
 	const terminalConfig = getTerminalConfig(
-		config.data,
 		appearanceSettingsQuery.data,
 		proxy.preferredPathAppURL,
 	);
@@ -156,7 +153,6 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 					<WorkspaceTerminal
 						ref={terminalRef}
 						agentId={workspaceAgent.id}
-						operatingSystem={workspaceAgent.operating_system}
 						isVisible={shouldMountTerminal}
 						autoFocus={isHot && autoFocus}
 						onStatusChange={handleStatusChange}
@@ -167,9 +163,8 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 						initialCommand={initialCommand}
 						baseUrl={terminalConfig.baseUrl}
 						terminalFontFamily={terminalConfig.fontFamily}
-						renderer={terminalConfig.renderer}
 						onOpenLink={handleOpenLink}
-						loading={config.isLoading || appearanceSettingsQuery.isLoading}
+						loading={appearanceSettingsQuery.isLoading}
 						testId="agents-sidebar-terminal"
 					/>
 				)}

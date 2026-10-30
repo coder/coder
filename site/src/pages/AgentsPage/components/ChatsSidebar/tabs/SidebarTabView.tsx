@@ -353,7 +353,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 							aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
 							className={cn(
 								"min-h-0 flex-1",
-								// Keep inactive panels in the tree but invisible: a canvas xterm
+								// Keep inactive panels in the tree but invisible: a canvas terminal
 								// preserves painted pixels while hidden, so switching back is instant.
 								!isActive && "invisible absolute inset-0",
 							)}

@@ -4028,7 +4028,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Web Terminal Renderer",
-			Description: "The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.",
+			Description: "Deprecated: this setting has no effect. The web terminal always renders to a canvas.",
 			Flag:        "web-terminal-renderer",
 			Env:         "CODER_WEB_TERMINAL_RENDERER",
 			Default:     "canvas",

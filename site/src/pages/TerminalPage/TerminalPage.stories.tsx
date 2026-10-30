@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -16,7 +16,6 @@ import {
 	MockAuthMethodsAll,
 	MockBuildInfo,
 	MockDefaultOrganization,
-	MockDeploymentConfig,
 	MockEntitlements,
 	MockExperiments,
 	MockUserAppearanceSettings,
@@ -82,16 +81,6 @@ const meta = {
 				data: { editWorkspaceProxies: true },
 			},
 			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
-			{
-				key: ["deployment", "config"],
-				data: {
-					...MockDeploymentConfig,
-					config: {
-						...MockDeploymentConfig.config,
-						web_terminal_renderer: "canvas",
-					},
-				},
-			},
 		],
 	},
 	decorators: [
@@ -187,13 +176,7 @@ export const RightClickMenu: Story = {
 			return;
 		}
 
-		const terminal = await waitFor(() => {
-			const element = canvasElement.querySelector<HTMLElement>(".xterm");
-			if (!element) {
-				throw new Error("terminal has not rendered yet");
-			}
-			return element;
-		});
+		const terminal = await within(canvasElement).findByTestId("terminal");
 
 		const rect = terminal.getBoundingClientRect();
 		terminal.dispatchEvent(

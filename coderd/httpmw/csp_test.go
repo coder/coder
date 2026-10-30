@@ -92,8 +92,9 @@ func TestCSP(t *testing.T) {
 	expected := []string{
 		"frame-src 'self' *.test.com *.coder.com *.coder2.com",
 		"media-src 'self' " + strings.Join(expectedMedia, " "),
+		"script-src 'self' 'wasm-unsafe-eval'",
 		strings.Join([]string{
-			"connect-src", "'self'",
+			"connect-src", "'self'", "data:",
 			// Added from host header.
 			"wss://example.com", "ws://example.com",
 			// Added via proxy hosts.

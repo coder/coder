@@ -1,7 +1,17 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Terminal } from "ghostty-web";
 import { HttpResponse, http } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	type MockInstance,
+	vi,
+} from "vitest";
+import "#/testHelpers/canvas";
 import { API } from "#/api/api";
 import type { Workspace, WorkspaceApp } from "#/api/typesGenerated";
 import {
@@ -24,8 +34,6 @@ vi.mock("#/utils/random", () => ({
 	generateUUID: () => "terminal-page-test-reconnect-token",
 	generateConnectionSessionId: () => mockSessionId,
 }));
-vi.stubGlobal("jest", vi);
-await import("jest-canvas-mock");
 const { default: WS } = await import("jest-websocket-mock");
 
 Object.defineProperty(window, "matchMedia", {
@@ -111,18 +119,20 @@ const mockAgentApp = (app: Partial<WorkspaceApp>) => {
 	);
 };
 
-const expectTerminalText = (container: HTMLElement, text: string) => {
+// The terminal renders to a canvas, so assert on the data written to it.
+const expectTerminalText = (
+	writeSpy: MockInstance<Terminal["write"]>,
+	text: string,
+) => {
 	return waitFor(
 		() => {
-			const elements = container.getElementsByClassName("xterm-rows");
-			if (elements.length === 0) {
-				throw new Error("no xterm-rows");
-			}
-			const row = elements[0] as HTMLDivElement;
-			if (!row.textContent) {
-				throw new Error("no text content");
-			}
-			expect(row.textContent).toContain(text);
+			const decoder = new TextDecoder();
+			const written = writeSpy.mock.calls
+				.map(([data]) =>
+					typeof data === "string" ? data : decoder.decode(data),
+				)
+				.join("");
+			expect(written).toContain(text);
 		},
 		{ timeout: 5_000 },
 	);
@@ -158,9 +168,10 @@ describe("TerminalPage", () => {
 			}),
 		);
 
-		const { container } = await renderTerminal();
+		const writeSpy = vi.spyOn(Terminal.prototype, "write");
+		await renderTerminal();
 
-		await expectTerminalText(container, "Unable to fetch workspace: ");
+		await expectTerminalText(writeSpy, "Unable to fetch workspace: ");
 	});
 
 	it("shows reconnect message when websocket fails", async () => {
@@ -180,11 +191,12 @@ describe("TerminalPage", () => {
 	it("renders data from the backend", async () => {
 		const ws = createWorkspaceTerminalWebSocket();
 		const text = "something to render";
+		const writeSpy = vi.spyOn(Terminal.prototype, "write");
 
-		const { container } = await renderTerminal();
+		await renderTerminal();
 		ws.send(text);
 
-		await expectTerminalText(container, text);
+		await expectTerminalText(writeSpy, text);
 	});
 
 	// Ideally we could just pass the correct size in the web socket URL without
@@ -207,27 +219,42 @@ describe("TerminalPage", () => {
 	it("supports workspace.agent syntax", async () => {
 		const ws = createWorkspaceTerminalWebSocket();
 		const text = "something to render";
+		const writeSpy = vi.spyOn(Terminal.prototype, "write");
 
-		const { container } = await renderTerminal(
+		await renderTerminal(
 			`/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
 		);
 
 		ws.send(text);
-		await expectTerminalText(container, text);
+		await expectTerminalText(writeSpy, text);
 	});
 
 	it("supports shift+enter", async () => {
 		const ws = createWorkspaceTerminalWebSocket();
 		const initialResizeMessage = ws.nextMessage;
 
-		const { container } = await renderTerminal();
+		await renderTerminal();
 		await initialResizeMessage;
 
 		const msg = ws.nextMessage;
-		const terminal = container.getElementsByClassName("xterm");
-		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
+		const terminal = screen.getByTestId("terminal");
+		await userEvent.type(terminal, "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
 		expect(req.data).toBe("\x1b\r");
+	});
+
+	it("sends ctrl+v to the terminal instead of pasting", async () => {
+		const ws = createWorkspaceTerminalWebSocket();
+		const initialResizeMessage = ws.nextMessage;
+
+		await renderTerminal();
+		await initialResizeMessage;
+
+		const msg = ws.nextMessage;
+		const terminal = screen.getByTestId("terminal");
+		await userEvent.type(terminal, "{Control>}v{/Control}");
+		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
+		expect(req.data).toBe("\x16");
 	});
 
 	it("shows confirmation dialog when command param is present", async () => {
