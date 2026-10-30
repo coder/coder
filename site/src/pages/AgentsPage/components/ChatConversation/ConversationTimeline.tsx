@@ -530,11 +530,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				latestUserRowIsPending = isPendingRowID(row.entry.message.id);
 			}
 		}
-		// Only the latest user row anchors the scroller, and only while its turn
-		// is active or the row is pending. The scroller never marks initially
-		// rendered anchors as handled, and its fallback for mutations that are
-		// neither clean appends nor clean prepends jumps to the oldest unhandled
-		// anchor, so historical rows must not be anchors at all.
+		// Only the latest user row anchors the scroller: while its turn is active,
+		// or while it is a pending row, which shows before the stream reports the
+		// turn. The scroller never marks initially rendered anchors as handled,
+		// and its fallback for mutations that are neither clean appends nor clean
+		// prepends jumps to the oldest unhandled anchor, so historical rows must
+		// not be anchors at all.
 		const anchorUserRowKey =
 			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
 				? userRowKeys[userRowKeys.length - 1]

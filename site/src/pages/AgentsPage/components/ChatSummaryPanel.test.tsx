@@ -135,7 +135,7 @@ describe("ChatSummaryPanel attachments", () => {
 				() => new Promise(() => {}),
 			);
 		});
-		// The edit shows only its pending row, whose ID the server never has.
+		// The oldest shown ID is not a valid before_id.
 		expect(
 			selectOrderedMessageIDs(store.getSnapshot()).every(isPendingRowID),
 		).toBe(true);
