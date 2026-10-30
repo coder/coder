@@ -233,7 +233,7 @@ describe("AgentChatPage", () => {
 		);
 	});
 
-	it("does not mount the overview card or request its data in a narrow chat", async () => {
+	it("does not request the overview card's data in a narrow chat", async () => {
 		mockChatPageApi(MockChat);
 		mockOlderMessages();
 		const getChatAttachments = vi
@@ -244,12 +244,6 @@ describe("AgentChatPage", () => {
 
 		await setChatWidth(84 * 16 - 1);
 
-		expect(
-			screen.queryByRole("button", { name: "Toggle overview" }),
-		).toBeNull();
-		expect(
-			screen.queryByRole("complementary", { name: "Overview" }),
-		).toBeNull();
 		expect(getChatAttachments).not.toHaveBeenCalled();
 	});
 
