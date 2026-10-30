@@ -155,16 +155,8 @@ ai_gateway:
 > Purging Audit Logs may impact your organization's ability to investigate security incidents or meet compliance requirements.
 > Consult your security and compliance teams before configuring Audit Log retention.
 
-Common compliance frameworks have varying retention requirements:
-
-- **SOC 2**:
-  Typically requires 1&nbsp;year of audit logs.
-- **HIPAA**:
-  Requires 6&nbsp;years for certain records.
-- **PCI DSS**:
-  Requires 1&nbsp;year of audit logs, with 3&nbsp;months immediately available.
-- **GDPR**:
-  Requires data minimization but does not specify maximum retention.
+Retention requirements depend on the regulations and frameworks your organization follows, and on how your organization applies them.
+Some frameworks set a minimum period for audit records, and others don't prescribe one, so Coder doesn't recommend a period for any specific framework.
 
 ### External Log Aggregation
 
