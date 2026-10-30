@@ -22,7 +22,7 @@ Use acp_spawn_agent to delegate a task and acp_wait_agent to collect its respons
 
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 
-const workspaceDetachedAwarenessBase = `This chat started without an attached workspace. Follow subsequent workspace tool results and context for its current state.
+const workspaceDetachedAwarenessBase = `No workspace is attached to this chat.
 Use the conversation and available tools, skills, and MCPs when they are sufficient for the request.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
@@ -32,6 +32,19 @@ Answer questions and self-contained code examples directly when the conversation
 If a workspace is needed, use list_templates before create_workspace and follow its ` + chattool.NextStepField + `. Call read_template only when you need template parameter or preset details.`
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`
+
+// workspaceAwareness tells the model whether the chat has a workspace.
+// Delegated chats cannot create one.
+func workspaceAwareness(attached, isRootChat bool) string {
+	switch {
+	case attached:
+		return workspaceAttachedAwareness
+	case isRootChat:
+		return workspaceDetachedAwareness
+	default:
+		return workspaceDetachedNoCreateAwareness
+	}
+}
 
 // DefaultSystemPrompt is used for new chats when no deployment override is
 // configured.
