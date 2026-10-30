@@ -122,11 +122,6 @@ const QueuedMessagePreview: React.FC<{
 	);
 };
 
-export const isQueuedMessageUnderEdit = (
-	message: ChatQueuedMessage,
-	queuedMessageUnderEditID: number | null,
-): boolean => message.id === queuedMessageUnderEditID;
-
 type QueuedMessageAction = "delete" | "promote" | "end_edit";
 
 type QueuedMessageActionButtonProps = {
@@ -198,14 +193,11 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	showEnterToSendHint,
 	className,
 }) => {
-	const underEditIndex = messages.findIndex((message) =>
-		isQueuedMessageUnderEdit(message, queuedMessageUnderEditID),
+	const underEditIndex = messages.findIndex(
+		(message) => message.id === queuedMessageUnderEditID,
 	);
 	const items = messages.map((message, index) => {
-		const isUnderEdit = isQueuedMessageUnderEdit(
-			message,
-			queuedMessageUnderEditID,
-		);
+		const isUnderEdit = message.id === queuedMessageUnderEditID;
 		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
 
 		let badge: { label: string; tooltip: string } | undefined;

@@ -96,10 +96,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import {
-	isQueuedMessageUnderEdit,
-	QueuedMessagesList,
-} from "./QueuedMessagesList";
+import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -607,7 +604,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const enterSendsHead =
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
-		!isQueuedMessageUnderEdit(queuedMessages[0], queuedMessageUnderEditID);
+		queuedMessages[0].id !== queuedMessageUnderEditID;
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
