@@ -6,11 +6,14 @@ export const asyncAnswerLead = "Answer to ask_user_question call ";
 
 const asyncAnswerPattern = new RegExp(`^${asyncAnswerLead}([^\\n]+):(?:\\n|$)`);
 
-const asyncAnswerPromptPattern = new RegExp(`^${asyncAnswerLead}\\S+:`);
+const asyncAnswerPromptPattern = new RegExp(
+	`^${asyncAnswerLead}[^\\n]+:(?:\\n|$|\\S)`,
+);
 
 /**
  * Reports whether prompt history text is an async answer. The history joins
- * text parts, so a chip right after the prefix line removes its line break.
+ * trimmed text parts, so a chip right after the prefix line puts the next
+ * part's text directly after the colon.
  */
 export const isAsyncAnswerPrompt = (text: string): boolean =>
 	asyncAnswerPromptPattern.test(text);
