@@ -741,12 +741,17 @@ const pendingEntry = (
 		case "send": {
 			const sent = { ...action.message, id: pendingRowID };
 			const row = queuedRow(sent);
-			// A busy chat queues the message.
-			if (isActiveChatStatus(status)) {
+			const head = status === "error" ? view.queuedMessages[0] : undefined;
+			// A busy or paused chat queues the message, and so does an errored chat
+			// whose queue head is under edit.
+			if (
+				isActiveChatStatus(status) ||
+				status === "paused" ||
+				head?.editing_since
+			) {
 				return { id, message: { queue: (rows) => [...rows, row] } };
 			}
 			// An errored chat with a queue sends its head and queues this one.
-			const head = status === "error" ? view.queuedMessages[0] : undefined;
 			if (head) {
 				return {
 					id,
@@ -763,15 +768,16 @@ const pendingEntry = (
 			if (!target) {
 				return { id };
 			}
-			// A running chat moves the row to the head. For a row already at the
-			// head, the server sends no queue update.
+			// A running chat ends the row's edit and moves the row to the head. For
+			// a head that is not under edit, the server sends no queue update.
 			if (running) {
+				const ready = { ...target, editing_since: undefined };
 				return {
 					id,
 					queue:
-						view.queuedMessages[0] === target
+						view.queuedMessages[0] === target && !target.editing_since
 							? undefined
-							: (rows) => [target, ...withoutRow(target.id)(rows)],
+							: (rows) => [ready, ...withoutRow(target.id)(rows)],
 				};
 			}
 			return {

@@ -714,8 +714,16 @@ const textOf = (content: readonly TypesGen.ChatMessagePart[] | undefined) => {
 	return part?.type === "text" ? part.text : "";
 };
 
-// What a viewer sees: the transcript, the queue texts, the status and the
-// error.
+// A queued row the owner is editing, which the server does not send.
+const underEdit = (
+	row: TypesGen.ChatQueuedMessage,
+): TypesGen.ChatQueuedMessage => ({
+	...row,
+	editing_since: "2025-01-01T00:01:00Z",
+});
+
+// What a viewer sees: the transcript, the queue texts with their edit
+// markers, the status and the error.
 const visible = (store: ChatStore) => {
 	const state = store.getSnapshot();
 	const byID = selectMessagesByID(state);
@@ -724,8 +732,9 @@ const visible = (store: ChatStore) => {
 			const message = byID.get(id);
 			return `${message?.role}:${textOf(message?.content)}`;
 		}),
-		queue: selectQueuedMessages(state).map((message) =>
-			textOf(message.content),
+		queue: selectQueuedMessages(state).map(
+			(message) =>
+				`${textOf(message.content)}${message.editing_since ? " (editing)" : ""}`,
 		),
 		status: selectChatStatus(state),
 		error: selectShownError(state)?.message ?? null,
@@ -1012,6 +1021,84 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			);
 		},
 		statusAfter: "interrupting",
+	},
+	{
+		name: "promote a row under edit from running",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [
+			makeQueuedMessage(10, "q10"),
+			underEdit(makeQueuedMessage(11, "q11")),
+		],
+		status: "running",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) => {
+			store.setQueuedMessages(
+				[makeQueuedMessage(11, "q11"), makeQueuedMessage(10, "q10")],
+				2,
+			);
+		},
+		statusAfter: "interrupting",
+	},
+	{
+		name: "promote the head under edit from running",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [
+			underEdit(makeQueuedMessage(10, "q10")),
+			makeQueuedMessage(11, "q11"),
+		],
+		status: "running",
+		action: { kind: "promoteQueued", queuedMessageID: 10 },
+		stream: (store) => {
+			store.setQueuedMessages(
+				[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+				2,
+			);
+		},
+		statusAfter: "interrupting",
+	},
+	{
+		name: "promote from paused",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [
+			underEdit(makeQueuedMessage(10, "q10")),
+			makeQueuedMessage(11, "q11"),
+		],
+		status: "paused",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) => {
+			store.upsertDurableMessages(
+				[{ ...makeMessage(2, "user", "q11"), queued_message_id: 11 }],
+				2,
+			);
+			store.setQueuedMessages([underEdit(makeQueuedMessage(10, "q10"))], 2);
+		},
+		statusAfter: "running",
+	},
+	{
+		name: "send to a paused chat",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [underEdit(makeQueuedMessage(10, "q10"))],
+		status: "paused",
+		action: pendingSend("q11"),
+		stream: (store) =>
+			store.setQueuedMessages(
+				[underEdit(makeQueuedMessage(10, "q10")), makeQueuedMessage(11, "q11")],
+				2,
+			),
+		statusAfter: "paused",
+	},
+	{
+		name: "send to an errored chat whose queue head is under edit",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [underEdit(makeQueuedMessage(10, "q10"))],
+		status: "error",
+		action: pendingSend("q11"),
+		stream: (store) =>
+			store.setQueuedMessages(
+				[underEdit(makeQueuedMessage(10, "q10")), makeQueuedMessage(11, "q11")],
+				2,
+			),
+		statusAfter: "error",
 	},
 	{
 		name: "another tab's message replaces the pending one",
