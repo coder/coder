@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 )
@@ -182,9 +184,10 @@ func TestLoadSkillFile(t *testing.T) {
 			Dir:  "/work/.agents/skills/my-skill",
 		}
 
-		conn.EXPECT().ReadFile(
+		conn.EXPECT().ReadFileInRoot(
 			gomock.Any(),
-			"/work/.agents/skills/my-skill/roles/reviewer.md",
+			"/work/.agents/skills/my-skill",
+			"roles/reviewer.md",
 			int64(0),
 			int64(512*1024+1),
 		).Return(
@@ -286,9 +289,10 @@ func TestLoadSkillFile(t *testing.T) {
 		// Build a file that exceeds maxSkillFileBytes (512KB).
 		bigContent := strings.Repeat("x", 512*1024+100)
 
-		conn.EXPECT().ReadFile(
+		conn.EXPECT().ReadFileInRoot(
 			gomock.Any(),
-			"/work/.agents/skills/my-skill/large.txt",
+			"/work/.agents/skills/my-skill",
+			"large.txt",
 			int64(0),
 			int64(512*1024+1),
 		).Return(
@@ -743,9 +747,10 @@ func TestReadSkillFileTool(t *testing.T) {
 			Dir:  "/work/.agents/skills/my-skill",
 		}}
 
-		conn.EXPECT().ReadFile(
+		conn.EXPECT().ReadFileInRoot(
 			gomock.Any(),
-			"/work/.agents/skills/my-skill/roles/reviewer.md",
+			"/work/.agents/skills/my-skill",
+			"roles/reviewer.md",
 			int64(0),
 			int64(512*1024+1),
 		).Return(
@@ -811,6 +816,82 @@ func TestReadSkillFileTool(t *testing.T) {
 		assert.Contains(t, resp.Content, "skill lookup is ambiguous")
 		assert.Contains(t, resp.Content, "personal/deploy")
 		assert.Contains(t, resp.Content, "workspace/deploy")
+	})
+
+	t.Run("AgentRefusalIsToolError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ReadFileInRoot(
+			gomock.Any(),
+			"/work/.agents/skills/my-skill",
+			"refs.md",
+			int64(0),
+			int64(512*1024+1),
+		).Return(nil, "", xerrors.New("openat refs.md: path escapes from parent"))
+
+		skills := []chattool.SkillMeta{{
+			Name: "my-skill",
+			Dir:  "/work/.agents/skills/my-skill",
+		}}
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return skills },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill_file",
+			Input: `{"name":"my-skill","path":"refs.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "path escapes from parent")
+	})
+
+	t.Run("AgentErrorsAreRewrittenForModel", func(t *testing.T) {
+		t.Parallel()
+
+		escape := codersdk.NewTestError(http.StatusBadRequest, http.MethodGet, "http://agent/api/v0/read-file?root=%2Fsecret")
+		escape.Message = "openat refs.md: path escapes from parent"
+		outdated := codersdk.NewTestError(http.StatusBadRequest, http.MethodGet, "http://agent/api/v0/read-file?root=%2Fsecret")
+		outdated.Message = "Query parameters have invalid values."
+		outdated.Validations = []codersdk.ValidationError{{Field: "root", Detail: `"root" is not a valid query param`}}
+
+		for _, tc := range []struct {
+			name string
+			err  error
+			want string
+		}{
+			{name: "Refusal", err: escape, want: "read skill file: openat refs.md: path escapes from parent"},
+			{name: "OutdatedAgent", err: outdated, want: "read skill file: the workspace agent is outdated; restart the workspace to read skill files"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				conn := agentconnmock.NewMockAgentConn(ctrl)
+				conn.EXPECT().ReadFileInRoot(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, "", tc.err)
+				skills := []chattool.SkillMeta{{Name: "my-skill", Dir: "/work/.agents/skills/my-skill"}}
+				tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil },
+					GetSkills:        func() []chattool.SkillMeta { return skills },
+				})
+
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "read_skill_file",
+					Input: `{"name":"my-skill","path":"refs.md"}`,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Equal(t, tc.want, resp.Content)
+			})
+		}
 	})
 
 	t.Run("TraversalRejected", func(t *testing.T) {
