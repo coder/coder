@@ -31,6 +31,7 @@ type AppLink = {
 	href: string | undefined;
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
+	// True while the on-click session token mint is in flight.
 	isLoading: boolean;
 	isBlocked: boolean;
 };
@@ -136,7 +137,6 @@ export const useAppLink = (
 		// the final URL with the freshly minted token and navigate to it via
 		// `location.href`, relying on the browser's protocol handler.
 		if (opensOnClick) {
-			e.preventDefault();
 			if (generateKeyMutation.isPending) {
 				return;
 			}
