@@ -1,5 +1,4 @@
 import * as path from "node:path";
-import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
@@ -30,8 +29,7 @@ compilerPreset.rolldown.filter = {
 
 const plugins: PluginOption[] = [
 	tailwindcss(),
-	react(),
-	babel({ presets: [compilerPreset] }),
+	react({ compiler: true }),
 	checker({
 		typescript: true,
 	}),
