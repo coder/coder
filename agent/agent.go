@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentpreview"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -344,6 +345,7 @@ type agent struct {
 	filesAPI         *agentfiles.API
 	gitAPI           *agentgit.API
 	processAPI       *agentproc.API
+	previewAPI       *agentpreview.API
 	toolCalls        *agenttoolcall.Table
 	desktopAPI       *agentdesktop.API
 	mcpManager       *agentmcp.Manager
@@ -457,6 +459,7 @@ func (a *agent) init() {
 		return ""
 	}
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.previewAPI = agentpreview.NewAPI()
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
@@ -1925,6 +1928,41 @@ func (a *agent) createTailnet(
 		return nil, err
 	}
 
+	// Previews get their own tailnet-only listener so the workspace app proxy
+	// can reach them without exposing the agent API or a workspace port.
+	previewListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentPreviewPort))
+	if err != nil {
+		return nil, xerrors.Errorf("preview listener: %w", err)
+	}
+	if err = a.trackGoroutine(func() {
+		defer previewListener.Close()
+		// Large preview assets need a longer write window than API calls.
+		server := &http.Server{
+			BaseContext:       func(net.Listener) context.Context { return ctx },
+			Handler:           a.previewAPI,
+			ReadTimeout:       10 * time.Second,
+			ReadHeaderTimeout: 10 * time.Second,
+			WriteTimeout:      time.Minute,
+			IdleTimeout:       time.Minute,
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("preview_server"), slog.LevelInfo),
+		}
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = server.Close()
+		}()
+
+		serveErr := server.Serve(previewListener)
+		if serveErr != nil && !xerrors.Is(serveErr, http.ErrServerClosed) && !strings.Contains(serveErr.Error(), "use of closed network connection") {
+			a.logger.Error(ctx, "serve preview server", slog.Error(serveErr))
+		}
+	}); err != nil {
+		_ = previewListener.Close()
+		return nil, err
+	}
+
 	return network, nil
 }
 
@@ -2298,6 +2336,10 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	if err := a.previewAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "preview API close", slog.Error(err))
 	}
 
 	if err := a.processAPI.Close(); err != nil {
