@@ -100,27 +100,18 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 const DefaultChatTitle = "New Chat"
 
 // FallbackTitle derives a deterministic chat title from title text:
-// the first six words, ellipsized when truncated, capped at 80 runes.
-// Empty input yields DefaultChatTitle.
+// the whole text with whitespace collapsed, capped at 80 runes and
+// ellipsized only when that cap cuts it. Clients truncate visually to
+// fit their layout. Empty input yields DefaultChatTitle.
 func FallbackTitle(message string) string {
-	const maxWords = 6
 	const maxRunes = 80
 
-	words := strings.Fields(message)
-	if len(words) == 0 {
+	title := strings.Join(strings.Fields(message), " ")
+	if title == "" {
 		return DefaultChatTitle
 	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
+	if len([]rune(title)) > maxRunes {
 		return stringutil.Truncate(title, maxRunes-1) + "…"
 	}
-
-	return stringutil.Truncate(title, maxRunes)
+	return title
 }
