@@ -310,7 +310,7 @@ export function sliceAtGraphemeBoundary(
 	}
 
 	if (graphemeSegmenter) {
-		// After the length check a cluster always holds index maxCodeUnitLength,
+		// After the checks above a cluster always holds index maxCodeUnitLength,
 		// and it starts at the largest boundary that fits; containing() finds it
 		// without walking earlier clusters.
 		return text.slice(
