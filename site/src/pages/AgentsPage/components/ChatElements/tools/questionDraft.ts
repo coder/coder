@@ -89,10 +89,14 @@ export const saveFormDraft = (
 	questions: readonly AskUserQuestion[],
 	formDraft: FormDraft,
 ): void => {
-	localStorage.setItem(
-		storageKeyPrefix + draftKey,
-		JSON.stringify({ questions, ...formDraft }),
-	);
+	try {
+		localStorage.setItem(
+			storageKeyPrefix + draftKey,
+			JSON.stringify({ questions, ...formDraft }),
+		);
+	} catch {
+		// QuotaExceededError, silently discard the draft.
+	}
 };
 
 /** Removes the saved draft, if any. */
