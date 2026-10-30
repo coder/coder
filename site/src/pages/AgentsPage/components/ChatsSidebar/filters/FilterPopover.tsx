@@ -5,6 +5,7 @@ import {
 	FilterIcon,
 	type LucideIcon,
 	MessagesSquareIcon,
+	RotateCcwIcon,
 } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import {
@@ -249,24 +250,11 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 
 				<DropdownMenuSeparator />
 
-				<DropdownMenuLabel className="flex items-center justify-between gap-2 pr-1">
+				<DropdownMenuLabel>
 					<span>
 						{modifiedFilterCount === 1 ? "Filter" : "Filters"}
 						{modifiedFilterCount > 0 && ` (${modifiedFilterCount})`}
 					</span>
-					<DropdownMenuItem
-						disabled={modifiedFilterCount === 0}
-						onSelect={(event) => {
-							keepMenuOpen(event);
-							onFiltersChange({
-								...DEFAULT_AGENT_SIDEBAR_FILTERS,
-								groupBy: filters.groupBy,
-							});
-						}}
-						className="px-1 py-0 text-xs font-medium text-content-secondary"
-					>
-						Reset
-					</DropdownMenuItem>
 				</DropdownMenuLabel>
 				<FilterSubmenu label="PR" summary={prSummary}>
 					{AGENT_PR_STATUS_ORDER.map((status) => (
@@ -331,6 +319,21 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				>
 					Archived
 				</DropdownMenuCheckboxItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					className="justify-center"
+					disabled={modifiedFilterCount === 0}
+					onSelect={(event) => {
+						keepMenuOpen(event);
+						onFiltersChange({
+							...DEFAULT_AGENT_SIDEBAR_FILTERS,
+							groupBy: filters.groupBy,
+						});
+					}}
+				>
+					<RotateCcwIcon />
+					Reset filters
+				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

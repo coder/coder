@@ -1991,7 +1991,9 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Reset filters" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
