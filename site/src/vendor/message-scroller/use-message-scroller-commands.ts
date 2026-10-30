@@ -332,6 +332,7 @@ function useMessageScrollerCommands({
     scrollToEnd,
     scrollToMessage,
     scrollToStart,
+    setTailSpacerHeight, // LOCAL CHANGE
   }
 }
 

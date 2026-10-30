@@ -213,6 +213,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					hasFetchMoreError={hasFetchMoreError}
 					hasTranscriptRows={parsedMessages.length > 0}
 					onFetchMoreMessages={onFetchMoreMessages}
+					isTurnActive={isActiveChatStatus(chatStatus)}
 				>
 					{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
