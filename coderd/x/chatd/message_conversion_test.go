@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,10 +15,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -952,6 +955,38 @@ func TestDecisionDetectsStopAfterToolAcrossHookContext(t *testing.T) {
 	got, err := historyHasStopAfterToolResult(messages, map[string]struct{}{"propose_plan": {}})
 	require.NoError(t, err)
 	require.True(t, got)
+}
+
+func TestCurrentTurnAdvisorUses(t *testing.T) {
+	t.Parallel()
+
+	advice, err := json.Marshal(chatadvisor.AdvisorResult{
+		Type:   chatadvisor.ResultTypeAdvice,
+		Advice: strings.Repeat("long advice ", 1000),
+	})
+	require.NoError(t, err)
+	truncatedAdvice, truncated := chatloop.TruncateToolResultText(string(advice), 1024)
+	require.True(t, truncated)
+	truncatedPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "advisor-truncated",
+		ToolName:   chatadvisor.ToolName,
+		Result:     fantasy.ToolResultOutputContentText{Text: truncatedAdvice},
+	})
+	interruptedPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "advisor-interrupted",
+		ToolName:   chatadvisor.ToolName,
+		Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(interruptedToolResultErrorMessage)},
+	})
+
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("plan")),
+		dbMessage(t, 2, database.ChatMessageRoleTool, false, truncatedPart),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, interruptedPart),
+	}
+	logger := slogtest.Make(t, nil)
+	got, err := currentTurnAdvisorUses(context.Background(), logger, messages)
+	require.NoError(t, err)
+	require.Equal(t, 1, got, "truncated advice consumed a use; an interrupted call did not")
 }
 
 func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {

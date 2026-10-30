@@ -116,7 +116,7 @@ export const AdvisorSettings: React.FC<AdvisorSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Advisor"
-			description="Cap advisor usage per turn. Configure its model in Organization settings above. Set limits to 0 for unlimited."
+			description="Cap advisor usage per turn. Configure its model in Organization settings above. Set uses to 0 for unlimited and tokens to 0 for the server default."
 			showSave={canSave}
 			isSaving={isSavingAdvisorConfig}
 			isSavedVisible={isSavedVisible}
@@ -205,7 +205,7 @@ const CompactIntegerField: React.FC<CompactIntegerFieldProps> = ({
 	return (
 		<label
 			className={cn(
-				"grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
+				"grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors focus-within:ring-2 focus-within:ring-content-link",
 				error && "border-border-destructive",
 				disabled && "opacity-50",
 				className,

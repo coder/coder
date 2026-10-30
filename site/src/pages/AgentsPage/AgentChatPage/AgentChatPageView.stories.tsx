@@ -185,7 +185,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		sshCommand: undefined as string | undefined,
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
@@ -663,7 +662,6 @@ export const WithWorkspace: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1498,7 +1496,6 @@ export const RestoresPersistedSidebarTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1519,7 +1516,6 @@ export const PersistsSidebarTabClick: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1616,7 +1612,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1637,7 +1632,6 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1659,7 +1653,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1691,7 +1684,6 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 				},
 			}}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1708,7 +1700,6 @@ export const PreservesUnavailableBrowserTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1732,7 +1723,6 @@ const renderWithSingletonSupport = () => (
 		workspace={MockWorkspace}
 		workspaceAgent={mockAgentWithBrowserApp}
 		desktopChatId={AGENT_ID}
-		sshCommand="ssh coder.workspace"
 	/>
 );
 
@@ -1883,7 +1873,6 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
 			desktopChatId={AGENT_ID}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1918,7 +1907,6 @@ export const HidesUnsupportedSingletonPanels: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1964,7 +1952,6 @@ export const DoesNotPersistForArchivedChat: Story = {
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {

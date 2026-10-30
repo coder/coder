@@ -23,7 +23,11 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
-import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockAdvisorConfig,
+	MockChat,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockChatProject,
@@ -118,8 +122,7 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		showAdvisorSettings={false}
-		advisorConfigData={undefined}
+		advisorConfigData={MockAdvisorConfig}
 		isAdvisorConfigLoading={false}
 		isAdvisorConfigFetching={false}
 		isAdvisorConfigLoadError={false}
@@ -127,12 +130,6 @@ const AgentsRouteElement = () => (
 		isSavingAdvisorConfig={false}
 		isSaveAdvisorConfigError={false}
 		saveAdvisorConfigError={undefined}
-		showVirtualDesktopSettings={false}
-		computerUseProviderData={undefined}
-		isLoadingComputerUseProvider={false}
-		onSaveComputerUseProvider={fn()}
-		isSavingComputerUseProvider={false}
-		computerUseProviderSaveError={null}
 	/>
 );
 

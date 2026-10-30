@@ -51,6 +51,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import { MockOrganizationSkillPreferences } from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -2902,6 +2903,10 @@ export const SlashCompactCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2951,6 +2956,10 @@ export const SlashClearCommandSubmits: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3001,6 +3010,10 @@ export const SlashClearCommandConflictShowsError: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3068,6 +3081,10 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			},
 		]);
 		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockDisabledSkill,
+	MockOrganizationSkillPreferences,
+	MockSkills,
+} from "#/testHelpers/skills";
+import {
+	activeOrganizationSkills,
 	buildSkillMarkdown,
 	filterSkillsByQuery,
 	getSkillContentSizeBytes,
@@ -353,6 +359,63 @@ describe("getSkillContentSizeBytes", () => {
 
 	it("exposes the backend size limit", () => {
 		expect(SKILL_MAX_SIZE_BYTES).toBe(65_536);
+	});
+});
+
+describe("activeOrganizationSkills", () => {
+	const [mockReviewer, mockDocs] = MockSkills;
+	const skills = [mockReviewer, mockDocs, MockDisabledSkill];
+	const mockOptedOutOfReviewerPreferences: TypesGen.OrganizationSkillPreferences =
+		{
+			...MockOrganizationSkillPreferences,
+			disabled_skill_ids: [mockReviewer.id],
+		};
+
+	it.each<{
+		name: string;
+		preferences: TypesGen.OrganizationSkillPreferences;
+		expected: readonly TypesGen.SkillMetadata[];
+	}>([
+		{
+			name: "ignores choices while the setting is off",
+			preferences: {
+				...mockOptedOutOfReviewerPreferences,
+				all_skills_disabled: true,
+			},
+			expected: [mockReviewer, mockDocs],
+		},
+		{
+			name: "drops opted-out skills",
+			preferences: {
+				...mockOptedOutOfReviewerPreferences,
+				members_can_disable_skills: true,
+			},
+			expected: [mockDocs],
+		},
+		{
+			name: "drops every skill with the master switch",
+			preferences: {
+				...MockOrganizationSkillPreferences,
+				members_can_disable_skills: true,
+				all_skills_disabled: true,
+			},
+			expected: [],
+		},
+	])("$name", ({ preferences, expected }) => {
+		expect(activeOrganizationSkills(skills, preferences)).toEqual(expected);
+	});
+
+	it("stays unknown until both requests load", () => {
+		expect(
+			activeOrganizationSkills(undefined, MockOrganizationSkillPreferences),
+		).toBeUndefined();
+		expect(activeOrganizationSkills(skills, undefined)).toBeUndefined();
+	});
+
+	it("resolves a list without enabled skills before the preferences load", () => {
+		expect(activeOrganizationSkills([MockDisabledSkill], undefined)).toEqual(
+			[],
+		);
 	});
 });
 

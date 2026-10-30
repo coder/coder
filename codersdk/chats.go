@@ -1232,6 +1232,7 @@ const (
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
 	ChatModelOverrideContextAdvisor         ChatModelOverrideContext = "advisor"
+	ChatModelOverrideContextComputerUse     ChatModelOverrideContext = "computer_use"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -1241,7 +1242,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
-		ChatModelOverrideContextAdvisor:
+		ChatModelOverrideContextAdvisor,
+		ChatModelOverrideContextComputerUse:
 		return true
 	default:
 		return false
@@ -1256,6 +1258,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
 		ChatModelOverrideContextAdvisor,
+		ChatModelOverrideContextComputerUse,
 	}
 }
 
@@ -1370,16 +1373,12 @@ type UpdateUserChatCompactionThresholdRequest struct {
 }
 
 // AdvisorConfig is the deployment-wide runtime configuration for the
-// experimental chat advisor.
-//
-// EXPERIMENTAL: this type is experimental and is subject to change.
+// chat advisor.
 type AdvisorConfig struct {
-	// Enabled reflects whether the chat-advisor experiment is active.
-	// The experiment flag is the sole gate; this field is read-only and
-	// always matches the experiment state regardless of the stored DB value.
+	// Enabled is always true and cannot be changed.
 	Enabled bool `json:"enabled"`
 	// MaxUsesPerRun caps how many times the advisor can be invoked per
-	// chat run. 0 means unlimited.
+	// chat turn. 0 means unlimited.
 	MaxUsesPerRun int `json:"max_uses_per_run"`
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
@@ -1392,8 +1391,9 @@ type UpdateAdvisorConfigRequest struct {
 	MaxOutputTokens int64 `json:"max_output_tokens"`
 }
 
-// ChatComputerUseProvider identifies the provider that backs computer use for
-// the virtual desktop.
+// ChatComputerUseProvider identifies the computer use tool flavor. Chatd
+// derives it from the AI provider type of the model a computer use chat runs
+// on.
 type ChatComputerUseProvider string
 
 const (
@@ -1410,18 +1410,6 @@ var AllChatComputerUseProviders = []ChatComputerUseProvider{
 // Valid reports whether p is a supported computer use provider.
 func (p ChatComputerUseProvider) Valid() bool {
 	return slices.Contains(AllChatComputerUseProviders, p)
-}
-
-// ChatComputerUseProviderResponse is the response for getting the computer use
-// provider setting.
-type ChatComputerUseProviderResponse struct {
-	Provider ChatComputerUseProvider `json:"provider"`
-}
-
-// UpdateChatComputerUseProviderRequest is the request to update the computer use
-// provider setting.
-type UpdateChatComputerUseProviderRequest struct {
-	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
@@ -3073,8 +3061,8 @@ func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPro
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.
-func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+func (c *Client) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/advisor", nil)
 	if err != nil {
 		return AdvisorConfig{}, err
 	}
@@ -3087,36 +3075,8 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 }
 
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
-func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// GetChatComputerUseProvider returns the deployment-wide computer use provider.
-func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (ChatComputerUseProviderResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", nil)
-	if err != nil {
-		return ChatComputerUseProviderResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatComputerUseProviderResponse
-	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// UpdateChatComputerUseProvider updates the deployment-wide computer use
-// provider.
-func (c *ExperimentalClient) UpdateChatComputerUseProvider(ctx context.Context, req UpdateChatComputerUseProviderRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
+func (c *Client) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/advisor", req)
 	if err != nil {
 		return err
 	}

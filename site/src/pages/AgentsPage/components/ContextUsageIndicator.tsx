@@ -647,7 +647,7 @@ export const ContextUsageIndicator: React.FC<{
 		<button
 			type="button"
 			aria-label={ariaLabel}
-			className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-none bg-transparent px-1 text-xs outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+			className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-none bg-transparent px-1 text-xs outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link"
 		>
 			<span
 				aria-hidden="true"

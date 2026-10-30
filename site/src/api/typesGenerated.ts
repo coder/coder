@@ -1317,20 +1317,16 @@ export const Addons: Addon[] = ["ai_governance"];
 // From codersdk/chats.go
 /**
  * AdvisorConfig is the deployment-wide runtime configuration for the
- * experimental chat advisor.
- *
- * EXPERIMENTAL: this type is experimental and is subject to change.
+ * chat advisor.
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
+	 * Enabled is always true and cannot be changed.
 	 */
 	readonly enabled: boolean;
 	/**
 	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
+	 * chat turn. 0 means unlimited.
 	 */
 	readonly max_uses_per_run: number;
 	/**
@@ -2328,15 +2324,6 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/chats.go
 export type ChatComputerUseProvider = "anthropic" | "openai";
 
-// From codersdk/chats.go
-/**
- * ChatComputerUseProviderResponse is the response for getting the computer use
- * provider setting.
- */
-export interface ChatComputerUseProviderResponse {
-	readonly provider: ChatComputerUseProvider;
-}
-
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 	"anthropic",
 	"openai",
@@ -3326,6 +3313,7 @@ export interface ChatModelOpenRouterProviderOptions {
 export type ChatModelOverrideContext =
 	| "advisor"
 	| "compaction"
+	| "computer_use"
 	| "explore"
 	| "general"
 	| "title_generation";
@@ -3333,6 +3321,7 @@ export type ChatModelOverrideContext =
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 	"advisor",
 	"compaction",
+	"computer_use",
 	"explore",
 	"general",
 	"title_generation",
@@ -5707,7 +5696,6 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-acp-subagents"
-	| "chat-advisor"
 	| "chat-inline-mcp-servers"
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
@@ -5715,7 +5703,6 @@ export type Experiment =
 	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
-	| "mcp-tool-search"
 	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
@@ -5788,7 +5775,6 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-acp-subagents",
-	"chat-advisor",
 	"chat-inline-mcp-servers",
 	"chat-project-sharing",
 	"chat-stage-metrics",
@@ -5796,7 +5782,6 @@ export const Experiments: Experiment[] = [
 	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
-	"mcp-tool-search",
 	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",
@@ -8167,9 +8152,45 @@ export interface OrganizationSkillGroup extends Group {
 }
 
 // From codersdk/skills.go
+/**
+ * OrganizationSkillPreferences is an organization member's choices about the
+ * organization skills that load into their chats. The choices apply only
+ * while MembersCanDisableSkills is true.
+ */
+export interface OrganizationSkillPreferences {
+	/**
+	 * MembersCanDisableSkills is the organization's setting.
+	 */
+	readonly members_can_disable_skills: boolean;
+	/**
+	 * AllSkillsDisabled turns off every organization skill, including
+	 * skills added later. DisabledSkillIDs is kept and applies again when it
+	 * is false.
+	 */
+	readonly all_skills_disabled: boolean;
+	/**
+	 * DisabledSkillIDs lists the organization skills the member turned off.
+	 */
+	readonly disabled_skill_ids: readonly string[];
+}
+
+// From codersdk/skills.go
 export type OrganizationSkillRole = "" | "read";
 
 export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillSettings is an organization's member opt-out setting for
+ * organization skills.
+ */
+export interface OrganizationSkillSettings {
+	/**
+	 * MembersCanDisableSkills lets each organization member turn off
+	 * organization skills for their own chats.
+	 */
+	readonly members_can_disable_skills: boolean;
+}
 
 // From codersdk/skills.go
 /**
@@ -10836,15 +10857,6 @@ export interface UpdateChatAutoArchiveDaysRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatComputerUseProviderRequest is the request to update the computer use
- * provider setting.
- */
-export interface UpdateChatComputerUseProviderRequest {
-	readonly provider: ChatComputerUseProvider;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
  * toggle whether users may opt into chat debug logging.
  */
@@ -11162,6 +11174,30 @@ export interface UpdateOrganizationRequest {
 export interface UpdateOrganizationSkillACLRequest {
 	readonly user_roles?: Record<string, OrganizationSkillRole>;
 	readonly group_roles?: Record<string, OrganizationSkillRole>;
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillPreferencesRequest is a sparse update of an
+ * organization member's organization skill choices. At least one field must
+ * be set, and only the listed skills change.
+ */
+export interface UpdateOrganizationSkillPreferencesRequest {
+	readonly all_skills_disabled?: boolean;
+	/**
+	 * Skills maps an organization skill ID to whether the skill is enabled
+	 * for the member's chats.
+	 */
+	readonly skills?: Record<string, boolean>;
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillSettingsRequest is the payload for updating an
+ * organization's member opt-out setting for organization skills.
+ */
+export interface UpdateOrganizationSkillSettingsRequest {
+	readonly members_can_disable_skills: boolean;
 }
 
 // From codersdk/users.go
