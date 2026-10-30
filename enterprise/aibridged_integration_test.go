@@ -825,7 +825,7 @@ func TestIntegrationResolvedOrganization(t *testing.T) {
 	// effective group, so it is under budget.
 	delegatedKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	delegatedCtx := agplaibridge.WithDelegatedAPIKeyID(ctx, delegatedKey.ID)
-	delegatedCtx = agplaibridge.WithDelegatedAttribution(delegatedCtx, agplaibridge.Attribution{OrganizationID: groupB.OrganizationID})
+	delegatedCtx = agplaibridge.WithDelegatedAttribution(delegatedCtx, agplaibridge.Attribution{ChatOrganizationID: groupB.OrganizationID})
 	req, err := http.NewRequestWithContext(delegatedCtx, http.MethodPost, "/openai/v1/chat/completions",
 		bytes.NewBufferString(`{"messages":[{"role":"user","content":"hi"}],"model":"gpt-4.1"}`))
 	require.NoError(t, err)

@@ -560,7 +560,7 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 			ctx := t.Context()
 			if tt.delegated {
 				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, "delegated-key")
-				ctx = agplaibridge.WithDelegatedAttribution(ctx, agplaibridge.Attribution{OrganizationID: tt.chatOrgID})
+				ctx = agplaibridge.WithDelegatedAttribution(ctx, agplaibridge.Attribution{ChatOrganizationID: tt.chatOrgID})
 			}
 			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil).WithContext(ctx)
 			if !tt.delegated {

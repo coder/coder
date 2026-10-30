@@ -90,8 +90,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
 		// chatd sets the chat's organization in-process, so coderd can resolve
 		// the request to it.
-		if attr, ok := agplaibridge.DelegatedAttributionFromContext(ctx); ok && attr.OrganizationID != uuid.Nil {
-			authReq.ChatOrganizationId = attr.OrganizationID.String()
+		if attr, ok := agplaibridge.DelegatedAttributionFromContext(ctx); ok && attr.ChatOrganizationID != uuid.Nil {
+			authReq.ChatOrganizationId = attr.ChatOrganizationID.String()
 		}
 	} else {
 		authReq = &proto.IsAuthorizedRequest{Key: key}
