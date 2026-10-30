@@ -19,11 +19,13 @@ const severityIcons = {
 
 type ContextAlertProps = React.ComponentProps<"div"> & {
 	severity?: ContextAlertSeverity;
+	variant?: "inline" | "panel";
 };
 
 /** A compact context notice with a severity-colored title. */
 export const ContextAlert: React.FC<ContextAlertProps> = ({
 	severity = "warning",
+	variant = "inline",
 	className,
 	...props
 }) => (
@@ -31,8 +33,11 @@ export const ContextAlert: React.FC<ContextAlertProps> = ({
 		<div
 			role={severity === "info" ? "status" : "alert"}
 			data-severity={severity}
+			data-variant={variant}
 			className={cn(
 				"group/context-alert grid grid-cols-[0.75rem_minmax(0,1fr)] gap-x-1.5 gap-y-1.5",
+				variant === "panel" &&
+					"gap-x-2 rounded-lg border border-solid border-border bg-surface-secondary p-3 text-xs font-normal",
 				className,
 			)}
 			{...props}
@@ -62,7 +67,9 @@ export const ContextAlertTitle: React.FC<ContextAlertTitleProps> = ({
 			{...props}
 		>
 			<Icon aria-hidden="true" className="mt-0.5 size-3" />
-			<span>{children}</span>
+			<span className="group-data-[variant=panel]/context-alert:text-content-primary">
+				{children}
+			</span>
 		</h3>
 	);
 };

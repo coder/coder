@@ -165,11 +165,11 @@ const ContextResourceIssues: React.FC<{
 	issues: readonly ContextIssueItem[];
 }> = ({ issues }) =>
 	issues.length > 0 ? (
-		<ContextAlert className="ml-5 gap-y-1">
+		<ContextAlert severity="warning" variant="panel">
 			<ContextAlertTitle>Issues</ContextAlertTitle>
-			<ContextAlertDescription className="gap-1">
+			<ContextAlertDescription>
 				{issues.map((issue) => (
-					<div
+					<span
 						key={`${issue.kind}:${issue.source}`}
 						className="flex flex-col gap-1"
 						title={issue.source}
@@ -181,7 +181,7 @@ const ContextResourceIssues: React.FC<{
 							</span>
 						</span>
 						{issue.error && <span>{issue.error}</span>}
-					</div>
+					</span>
 				))}
 			</ContextAlertDescription>
 		</ContextAlert>
