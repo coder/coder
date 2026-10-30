@@ -1050,7 +1050,8 @@ export const OverviewCardOpensPullRequest: Story = {
 	},
 	render: () => <OverviewCardWithRightPanel />,
 	play: async ({ canvasElement }) => {
-		const card = within(canvasElement).getByRole("complementary", {
+		// The card mounts once the chat's width is measured.
+		const card = await within(canvasElement).findByRole("complementary", {
 			name: "Overview",
 		});
 		await userEvent.click(within(card).getByRole("button", { name: /#4822/ }));
