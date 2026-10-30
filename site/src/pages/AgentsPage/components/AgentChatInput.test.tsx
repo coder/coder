@@ -393,7 +393,7 @@ describe("AgentChatInput", () => {
 					/>
 				</AppProviders>
 			);
-			const { rerender } = render(input(true));
+			const { rerender } = render(input(true), { wrapper: MemoryRouter });
 
 			const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
 			await user.click(elsewhere);
