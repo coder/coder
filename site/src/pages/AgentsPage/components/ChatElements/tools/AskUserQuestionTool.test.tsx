@@ -31,6 +31,7 @@ const mockTwoQuestions = [
 ];
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	localStorage.clear();
 });
 
@@ -330,6 +331,34 @@ describe("AskUserQuestionTool", () => {
 
 		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
 			"1. Implementation Approach: Skipped\n2. Rollout: Ship it dark behind a flag.",
+		);
+	});
+
+	it("sends the answer when storage rejects the draft", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("Storage is full.", "QuotaExceededError");
+		});
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={mockTwoQuestions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					toolCallId="call-1"
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Skip" }));
+		await user.click(screen.getByRole("button", { name: "Skip" }));
+
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"1. Implementation Approach: Skipped\n2. Rollout: Skipped",
 		);
 	});
 

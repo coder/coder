@@ -245,6 +245,7 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
 			prompts: [
+				{ id: 5, text: `${getAsyncAnswerPrefix("call 3")}Backend first.` },
 				{ id: 4, text: `${asyncAnswerLead}behavior in this code` },
 				// A chip after the call line drops its line break from the history.
 				{ id: 3, text: `${asyncAnswerLead}call-2:on the rollout plan.` },
