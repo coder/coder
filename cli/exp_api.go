@@ -37,17 +37,21 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 		Use:   "api [METHOD] <path> [REQUEST_ITEM ...]",
 		Short: "Make an authenticated HTTP request to the Coder API and print the response.",
 		Long: "The path is relative to /api/v2/, with or without a leading slash. " +
-			"Paths that start with /api/ are used as given, for example /api/experimental/chats.\n\n" +
+			"Paths that start with api/ or /api/ are used as given, for example /api/experimental/chats. " +
+			"Paths cannot contain . or .. segments.\n\n" +
 			"METHOD is optional and defaults to GET, or POST when the request has data items or --input.\n\n" +
 			"Request items use httpie syntax:\n" +
 			"  Name:value      request header\n" +
+			"  Name:           remove a request header, such as the default Content-Type\n" +
 			"  name==value     query parameter\n" +
 			"  name=value      JSON string field\n" +
 			"  name:=json      raw JSON field: number, bool, null, array, or object\n" +
 			"  name=@file      JSON string field read from a file, or - for stdin\n" +
 			"  name:=@file     raw JSON field read from a file, or - for stdin\n\n" +
 			"Data items build a JSON object body. Escape a separator character in a key with a backslash, " +
-			"for example foo\\==bar. Use --input to send a raw body instead of data items.\n\n" +
+			"for example foo\\==bar. Escapes also apply to file paths, so on Windows use forward slashes, " +
+			"for example name=@C:/data/file.json. Use --input to send a raw body instead of data items.\n\n" +
+			"Headers from the global --header and --header-command flags are sent in addition to header items.\n\n" +
 			FormatExamples(
 				Example{
 					Description: "Get the authenticated user",
@@ -66,8 +70,8 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 					Command:     "coder exp api audit 'q==resource_type:workspace action:delete' limit==25",
 				},
 				Example{
-					Description: "Create a user in an organization",
-					Command:     `coder exp api users username=alice email=alice@example.com password=Secure-Password1 'organization_ids:=["<org-id>"]'`,
+					Description: "Create a user in an organization, reading the password from stdin",
+					Command:     `printf '%s' "$PASSWORD" | coder exp api users username=alice email=alice@example.com password=@- 'organization_ids:=["<org-id>"]'`,
 				},
 				Example{
 					Description: "Send a JSON body from stdin",
@@ -84,15 +88,14 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			items, itemsReadStdin, err := parseAPIRequestItems(rawItems, inv.Stdin)
+			// Checked before parsing so that no file or stdin is read for a
+			// request that is rejected.
+			if input != "" && hasAPIDataItems(rawItems) {
+				return xerrors.New("--input cannot be combined with data items")
+			}
+			items, err := parseAPIRequestItems(rawItems, inv.Stdin)
 			if err != nil {
 				return err
-			}
-			if itemsReadStdin && input == "-" {
-				return xerrors.New("--input - and a request item cannot both read stdin")
-			}
-			if input != "" && len(items.data) > 0 {
-				return xerrors.New("--input cannot be combined with data items")
 			}
 			if method == "" {
 				method = http.MethodGet
@@ -135,6 +138,11 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 					req.URL.RawQuery += encoded
 				}
 				for k, vs := range items.headers {
+					// A Name: item with no value removes the header.
+					if len(vs) == 0 {
+						req.Header.Del(k)
+						continue
+					}
 					req.Header[k] = vs
 				}
 			})
@@ -196,21 +204,31 @@ func writeAPIError(w io.Writer, resp *http.Response) error {
 	return apiErr
 }
 
-// apiRequestPath turns a user-supplied path into a path on the configured
-// deployment. Absolute URLs are rejected so the session token is never sent
-// to another host.
+// apiRequestPath turns a user-supplied path into a path under /api/ on the
+// configured deployment. Absolute URLs and dot segments are rejected so the
+// session token is only sent to API routes on that deployment, never to
+// another host or to a workspace app proxied by it.
 func apiRequestPath(raw string) (string, error) {
-	u, err := url.Parse(raw)
+	pathPart, _, _ := strings.Cut(raw, "?")
+	if strings.Contains(pathPart, "://") || strings.HasPrefix(pathPart, "//") {
+		return "", xerrors.Errorf("path %q must not include a scheme or host; requests are always sent to the configured Coder URL", raw)
+	}
+	p := strings.TrimPrefix(raw, "/")
+	if p != "api" && !strings.HasPrefix(p, "api/") {
+		p = "api/v2/" + p
+	}
+	p = "/" + p
+	u, err := url.Parse(p)
 	if err != nil {
 		return "", xerrors.Errorf("parse path: %w", err)
 	}
-	if u.Scheme != "" || u.Host != "" {
-		return "", xerrors.Errorf("path %q must not include a scheme or host; requests are always sent to the configured Coder URL", raw)
+	// u.Path is decoded, so percent-encoded dot segments are rejected too.
+	for _, segment := range strings.Split(u.Path, "/") {
+		if segment == "." || segment == ".." {
+			return "", xerrors.Errorf("path %q must not contain . or .. segments", raw)
+		}
 	}
-	if strings.HasPrefix(raw, "/api/") {
-		return raw, nil
-	}
-	return "/api/v2/" + strings.TrimPrefix(raw, "/"), nil
+	return p, nil
 }
 
 // apiURLIsInsecure reports whether requests to u send the session token in
@@ -230,7 +248,9 @@ func apiURLIsInsecure(u *url.URL) bool {
 
 // apiItemSeparators lists request item separators from longest to shortest,
 // so the longest separator wins when several match at the same position.
-var apiItemSeparators = []string{":=@", "=@", "==", ":=", "=", ":"}
+// ==@ and :@ are matched only to reject them, because httpie reads their
+// values from a file and this command does not support that yet.
+var apiItemSeparators = []string{":=@", "==@", "=@", "==", ":=", ":@", "=", ":"}
 
 // apiEscapable holds the characters a backslash escapes in a request item.
 // A backslash before any other character is kept literally, as in httpie.
@@ -242,9 +262,9 @@ type apiRequestItems struct {
 	data    map[string]any
 }
 
-// parseAPIRequestItems parses httpie-style request items. It reports whether
-// an item read its value from stdin.
-func parseAPIRequestItems(raw []string, stdin io.Reader) (apiRequestItems, bool, error) {
+// parseAPIRequestItems parses httpie-style request items and reads the file
+// or stdin sources that data items refer to.
+func parseAPIRequestItems(raw []string, stdin io.Reader) (apiRequestItems, error) {
 	items := apiRequestItems{
 		headers: http.Header{},
 		query:   url.Values{},
@@ -254,33 +274,51 @@ func parseAPIRequestItems(raw []string, stdin io.Reader) (apiRequestItems, bool,
 	for _, arg := range raw {
 		key, sep, value, ok := splitAPIRequestItem(arg)
 		if !ok {
-			return items, false, xerrors.Errorf("invalid request item %q: expected Name:value, name==value, name=value, name:=json, name=@file, or name:=@file", arg)
+			return items, xerrors.Errorf("invalid request item %q: expected Name:value, name==value, name=value, name:=json, name=@file, or name:=@file", arg)
 		}
 		if key == "" {
-			return items, false, xerrors.Errorf("invalid request item %q: missing name", arg)
+			return items, xerrors.Errorf("invalid request item %q: missing name", arg)
 		}
 		switch sep {
 		case ":":
-			items.headers.Add(key, strings.TrimSpace(value))
+			key = http.CanonicalHeaderKey(key)
+			if key == "Host" {
+				return items, xerrors.Errorf("invalid request item %q: the Host header cannot be set; requests are always sent to the configured Coder URL", arg)
+			}
+			value = strings.TrimSpace(value)
+			if value == "" {
+				// An empty list removes the header and any earlier values for
+				// it, as Name: does in httpie.
+				items.headers[key] = []string{}
+				continue
+			}
+			items.headers.Add(key, value)
 			continue
 		case "==":
 			items.query.Add(key, value)
 			continue
+		case "==@", ":@":
+			return items, xerrors.Errorf("invalid request item %q: reading a query parameter or header from a file is not supported; escape the @ with a backslash to send it literally", arg)
 		}
 
+		// httpie reserves [ in field names for nested JSON, so reject it
+		// rather than send a literal key that a later version would change.
+		if strings.Contains(key, "[") {
+			return items, xerrors.Errorf("invalid request item %q: nested JSON field names are not supported; use name:=json to send a nested value", arg)
+		}
 		if _, exists := items.data[key]; exists {
-			return items, false, xerrors.Errorf("duplicate data field %q", key)
+			return items, xerrors.Errorf("duplicate data field %q", key)
 		}
 		if sep == "=@" || sep == ":=@" {
 			if value == "-" {
 				if readStdin {
-					return items, false, xerrors.Errorf("request item %q: only one request item can read stdin", arg)
+					return items, xerrors.Errorf("request item %q: only one request item can read stdin", arg)
 				}
 				readStdin = true
 			}
 			b, err := readAPIItemFile(value, stdin)
 			if err != nil {
-				return items, false, xerrors.Errorf("request item %q: %w", arg, err)
+				return items, xerrors.Errorf("request item %q: %w", arg, err)
 			}
 			value = string(b)
 		}
@@ -289,12 +327,28 @@ func parseAPIRequestItems(raw []string, stdin io.Reader) (apiRequestItems, bool,
 			items.data[key] = value
 		case ":=", ":=@":
 			if !json.Valid([]byte(value)) {
-				return items, false, xerrors.Errorf("request item %q: value is not valid JSON", arg)
+				return items, xerrors.Errorf("request item %q: value is not valid JSON", arg)
 			}
 			items.data[key] = json.RawMessage(value)
 		}
 	}
-	return items, readStdin, nil
+	return items, nil
+}
+
+// hasAPIDataItems reports whether any request item adds a field to the JSON
+// body. It does not read any file or stdin source.
+func hasAPIDataItems(raw []string) bool {
+	for _, arg := range raw {
+		_, sep, _, ok := splitAPIRequestItem(arg)
+		if !ok {
+			continue
+		}
+		switch sep {
+		case "=", ":=", "=@", ":=@":
+			return true
+		}
+	}
+	return false
 }
 
 func readAPIItemFile(name string, stdin io.Reader) ([]byte, error) {

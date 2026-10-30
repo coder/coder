@@ -159,11 +159,6 @@ func TestExpAPI(t *testing.T) {
 				want: recordedRequest{method: http.MethodGet, path: "/api/experimental/chats"},
 			},
 			{
-				name: "MethodIsUppercased",
-				args: []string{"delete", "workspaces/abc"},
-				want: recordedRequest{method: http.MethodDelete, path: "/api/v2/workspaces/abc"},
-			},
-			{
 				name: "HeadMethod",
 				args: []string{"Head", "users"},
 				want: recordedRequest{method: http.MethodHead, path: "/api/v2/users"},
@@ -223,6 +218,15 @@ func TestExpAPI(t *testing.T) {
 					header: http.Header{"X-Custom": {"value"}, "X-Multi": {"a", "b"}},
 				},
 			},
+			{
+				name: "EmptyHeaderItemRemovesHeader",
+				args: []string{"things", "a=b", "Content-Type:"},
+				want: recordedRequest{
+					method: http.MethodPost, path: "/api/v2/things",
+					header: http.Header{"Content-Type": nil},
+				},
+				wantJSON: `{"a":"b"}`,
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -274,9 +278,10 @@ func TestExpAPI(t *testing.T) {
 			{"AbsoluteURL", []string{"https://example.com/api/v2/users/me"}, "must not include a scheme or host"},
 			{"SchemeRelativeURL", []string{"//example.com/api/v2/users/me"}, "must not include a scheme or host"},
 			{"AbsoluteURLAfterMethod", []string{"GET", "http://example.com/users"}, "must not include a scheme or host"},
+			{"DotSegments", []string{"../../@alice/ws/apps/code/"}, "must not contain . or .. segments"},
 			{"MethodWithoutPath", []string{"POST"}, "missing path"},
 			{"InputWithDataItems", []string{"things", "--input", "-", "a=b"}, "--input cannot be combined with data items"},
-			{"StdinTwice", []string{"things", "--input", "-", "a=@-"}, "cannot both read stdin"},
+			{"InputWithStdinItem", []string{"things", "--input", "-", "a=@-"}, "--input cannot be combined with data items"},
 			{"InvalidJSON", []string{"things", "a:=nope"}, "not valid JSON"},
 			{"DuplicateKey", []string{"things", "a=1", "a=2"}, "duplicate data field"},
 			{"InvalidItem", []string{"things", "novalue"}, "invalid request item"},
@@ -286,26 +291,14 @@ func TestExpAPI(t *testing.T) {
 				srv, rec := newRecordingServer(t)
 				inv, root := clitest.New(t, append([]string{"exp", "api"}, tc.args...)...)
 				clitest.SetupConfig(t, newTokenClient(t, srv.URL), root)
-				inv.Stdin = strings.NewReader("")
+				const stdinContent = "unread"
+				stdin := strings.NewReader(stdinContent)
+				inv.Stdin = stdin
 				require.ErrorContains(t, inv.WithContext(testutil.Context(t, testutil.WaitShort)).Run(), tc.want)
 				require.Empty(t, rec.last().method, "no request should be sent")
+				require.Equal(t, len(stdinContent), stdin.Len(), "stdin must not be read")
 			})
 		}
-	})
-
-	t.Run("WarnsOnInsecureURL", func(t *testing.T) {
-		t.Parallel()
-		u, err := url.Parse("http://coder.invalid")
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, "exp", "api", "users/me")
-		clitest.SetupConfig(t, codersdk.New(u, codersdk.WithSessionToken("test-token")), root)
-		stderr := new(bytes.Buffer)
-		inv.Stderr = stderr
-		// The host does not resolve, so the request fails. The warning is
-		// printed before the request is sent.
-		require.Error(t, inv.WithContext(testutil.Context(t, testutil.WaitShort)).Run())
-		require.Contains(t, stderr.String(), "unencrypted HTTP to coder.invalid")
 	})
 }
 

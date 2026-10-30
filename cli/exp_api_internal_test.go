@@ -28,6 +28,42 @@ func TestAPIURLIsInsecure(t *testing.T) {
 	}
 }
 
+func TestAPIRequestPath(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		raw     string
+		want    string
+		wantErr string
+	}{
+		{raw: "organizations", want: "/api/v2/organizations"},
+		{raw: "/organizations", want: "/api/v2/organizations"},
+		{raw: "/api/v2/users", want: "/api/v2/users"},
+		{raw: "api/v2/users", want: "/api/v2/users"},
+		{raw: "/api/experimental/chats", want: "/api/experimental/chats"},
+		{raw: "users:me", want: "/api/v2/users:me"},
+		{raw: "workspaces?q=owner:me", want: "/api/v2/workspaces?q=owner:me"},
+		{raw: "users?redirect=https://example.com", want: "/api/v2/users?redirect=https://example.com"},
+		{raw: "https://example.com/api/v2/users/me", wantErr: "must not include a scheme or host"},
+		{raw: "//example.com/api/v2/users/me", wantErr: "must not include a scheme or host"},
+		{raw: "../../@alice/ws/apps/code/", wantErr: "must not contain . or .. segments"},
+		{raw: "workspaces/../../../@alice/ws/apps/code/", wantErr: "must not contain . or .. segments"},
+		{raw: "/api/../healthz", wantErr: "must not contain . or .. segments"},
+		{raw: "%2e%2e/%2E%2E/healthz", wantErr: "must not contain . or .. segments"},
+		{raw: "users/./me", wantErr: "must not contain . or .. segments"},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			t.Parallel()
+			got, err := apiRequestPath(tc.raw)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestSplitAPIArgs(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -82,6 +118,15 @@ func TestSplitAPIRequestItem(t *testing.T) {
 		// character is kept.
 		{`k=a\=b`, "k", "=", "a=b"},
 		{`path\x=y`, `path\x`, "=", "y"},
+		// Windows file paths keep their backslashes. Forward slashes avoid
+		// escaping an @ that starts a directory name.
+		{`script=@C:\Users\me\script.sh`, "script", "=@", `C:\Users\me\script.sh`},
+		{`meta:=@C:/proj/node_modules/@types/x.json`, "meta", ":=@", "C:/proj/node_modules/@types/x.json"},
+		// File separators for query parameters and headers are recognized so
+		// they can be rejected, and an escaped @ is literal.
+		{"q==@file", "q", "==@", "file"},
+		{"X-Token:@file", "X-Token", ":@", "file"},
+		{`q==\@me`, "q", "==", "@me"},
 	} {
 		t.Run(tc.arg, func(t *testing.T) {
 			t.Parallel()
@@ -121,6 +166,11 @@ func TestParseAPIRequestItems(t *testing.T) {
 			name:        "Headers",
 			items:       []string{"X-One: a ", "X-One:b", "content-type:text/plain"},
 			wantHeaders: http.Header{"X-One": {"a", "b"}, "Content-Type": {"text/plain"}},
+		},
+		{
+			name:        "EmptyHeaderRemovesHeader",
+			items:       []string{"Content-Type:", "X-One:a", "x-one:", "X-One:b"},
+			wantHeaders: http.Header{"Content-Type": {}, "X-One": {"b"}},
 		},
 		{
 			name:      "QueryAllowsRepeats",
@@ -165,16 +215,19 @@ func TestParseAPIRequestItems(t *testing.T) {
 		{name: "NoSeparator", items: []string{"novalue"}, wantErr: "invalid request item"},
 		{name: "EmptyKey", items: []string{"=value"}, wantErr: "missing name"},
 		{name: "TwoStdinItems", items: []string{"a=@-", "b:=@-"}, stdin: "1", wantErr: "only one request item can read stdin"},
+		{name: "HostHeader", items: []string{"host:example.com"}, wantErr: "Host header cannot be set"},
+		{name: "QueryFromFile", items: []string{"q==@" + textFile}, wantErr: "from a file is not supported"},
+		{name: "HeaderFromFile", items: []string{"X-Token:@" + textFile}, wantErr: "from a file is not supported"},
+		{name: "NestedJSONKey", items: []string{"search[type]=id"}, wantErr: "nested JSON field names are not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, readStdin, err := parseAPIRequestItems(tc.items, strings.NewReader(tc.stdin))
+			got, err := parseAPIRequestItems(tc.items, strings.NewReader(tc.stdin))
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.stdin != "", readStdin)
 			if tc.wantHeaders == nil {
 				tc.wantHeaders = http.Header{}
 			}
