@@ -477,7 +477,9 @@ const LayoutToggle: React.FC = () => {
 	return (
 		<button
 			type="button"
-			onClick={(event) => userLayoutIntent(event.currentTarget)}
+			onClick={(event) =>
+				userLayoutIntent(event.currentTarget, { revealEnd: false })
+			}
 		>
 			Toggle
 		</button>
