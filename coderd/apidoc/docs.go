@@ -15516,6 +15516,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets": {
             "get": {
+                "description": "Returns the metadata of a user's secrets, without their values.\nYou can read only your own secrets, because no built-in role grants access to other users' secrets.",
                 "produces": [
                     "application/json"
                 ],
@@ -15527,7 +15528,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15551,6 +15552,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a secret for a user and returns its metadata without its value.\nAn enabled secret is injected into the user's workspaces as the environment variable ` + "`" + `env_name` + "`" + `, the file ` + "`" + `file_path` + "`" + `, or both, so it needs at least one of them.\nEach user can store up to 50 secrets and 200 KiB in total, and the secrets that set an ` + "`" + `env_name` + "`" + ` can total up to 24 KiB.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15565,13 +15567,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create secret request",
+                        "description": "Secret to create. ` + "`" + `name` + "`" + ` and ` + "`" + `value` + "`" + ` are required, and ` + "`" + `value` + "`" + ` can be up to 24 KiB. ` + "`" + `enabled` + "`" + ` defaults to ` + "`" + `true` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15609,6 +15611,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/batch": {
             "post": {
+                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets, and the import is atomic, so if any entry is invalid none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15623,13 +15626,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Import secrets request",
+                        "description": "Secrets file to import. ` + "`" + `format` + "`" + ` is ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` is the file's text, up to 1 MiB.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15676,6 +15679,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/{name}": {
             "get": {
+                "description": "Returns the metadata of one of a user's secrets by name, without its value.",
                 "produces": [
                     "application/json"
                 ],
@@ -15687,14 +15691,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret name",
+                        "description": "Name of the secret, as set when it was created.",
                         "name": "name",
                         "in": "path",
                         "required": true
@@ -15715,6 +15719,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes one of a user's secrets by name.",
                 "tags": [
                     "Secrets"
                 ],
@@ -15723,14 +15728,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret name",
+                        "description": "Name of the secret, as set when it was created.",
                         "name": "name",
                         "in": "path",
                         "required": true
@@ -15748,6 +15753,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates the fields you send on one of a user's secrets and returns its metadata.\nSend at least one field, and keep an ` + "`" + `env_name` + "`" + ` or ` + "`" + `file_path` + "`" + ` on a secret that stays enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15762,20 +15768,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret name",
+                        "description": "Name of the secret, as set when it was created.",
                         "name": "name",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update secret request",
+                        "description": "Fields to change. Send at least one field, and fields you omit stay as they are.",
                         "name": "request",
                         "in": "body",
                         "required": true,
