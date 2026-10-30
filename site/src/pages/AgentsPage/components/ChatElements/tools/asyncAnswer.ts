@@ -6,6 +6,15 @@ export const asyncAnswerLead = "Answer to ask_user_question call ";
 
 const asyncAnswerPattern = new RegExp(`^${asyncAnswerLead}([^\\n]+):(?:\\n|$)`);
 
+const asyncAnswerPromptPattern = new RegExp(`^${asyncAnswerLead}\\S+:`);
+
+/**
+ * Reports whether prompt history text is an async answer. The history joins
+ * text parts, so a chip right after the prefix line removes its line break.
+ */
+export const isAsyncAnswerPrompt = (text: string): boolean =>
+	asyncAnswerPromptPattern.test(text);
+
 /** Returns the prefix line, newline included, that starts an answer to the call. */
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
 	`${asyncAnswerLead}${toolCallId}:\n`;

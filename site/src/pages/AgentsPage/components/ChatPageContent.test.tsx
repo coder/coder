@@ -273,6 +273,7 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
 			prompts: [
+				{ id: 4, text: `${asyncAnswerLead}behavior in this code` },
 				// A chip after the call line drops its line break from the history.
 				{ id: 3, text: `${asyncAnswerLead}call-2:on the rollout plan.` },
 				{
@@ -292,6 +293,10 @@ describe("ChatPageInput", () => {
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowUp}");
+		expect(inputRef.current?.getValue()).toBe(
+			`${asyncAnswerLead}behavior in this code`,
+		);
 		await user.keyboard("{ArrowUp}");
 
 		expect(inputRef.current?.getValue()).toBe("Build the settings page");
