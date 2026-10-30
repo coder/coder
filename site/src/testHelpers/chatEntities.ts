@@ -287,3 +287,8 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	deletions: 0,
 	changed_files: 1,
 };
+
+export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	editing_since: MOCK_TIMESTAMP,
+};

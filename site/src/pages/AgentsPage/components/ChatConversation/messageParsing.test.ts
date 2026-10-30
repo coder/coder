@@ -4,7 +4,7 @@ import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
-	getEditableUserMessagePayload,
+	getEditableContentPayload,
 	getPendingToolCallIDs,
 	mergeTools,
 	parseMessageContent,
@@ -76,7 +76,7 @@ describe("parseToolResultIsError", () => {
 	});
 });
 
-describe("getEditableUserMessagePayload", () => {
+describe("getEditableContentPayload", () => {
 	it("keeps only editable stored attachments", () => {
 		const cases = [
 			{
@@ -151,7 +151,7 @@ describe("getEditableUserMessagePayload", () => {
 		];
 
 		for (const { message, want } of cases) {
-			expect(getEditableUserMessagePayload(message)).toEqual(want);
+			expect(getEditableContentPayload(message.content)).toEqual(want);
 		}
 	});
 
@@ -171,7 +171,7 @@ describe("getEditableUserMessagePayload", () => {
 			content: [{ type: "text", text: "Please use this file." }, workspacePart],
 		};
 
-		const payload = getEditableUserMessagePayload(message);
+		const payload = getEditableContentPayload(message.content);
 		expect(payload?.text).toBe("Please use this file.");
 		expect(payload?.fileBlocks).toEqual([workspacePart]);
 	});
@@ -192,8 +192,15 @@ describe("getEditableUserMessagePayload", () => {
 				{ type: "text", text: "world" },
 			],
 		};
-		expect(getEditableUserMessagePayload(message)).toEqual({
+		expect(getEditableContentPayload(message.content)).toEqual({
 			text: "hello   world",
+			fileBlocks: undefined,
+		});
+	});
+
+	it("returns empty text and no attachments when content is absent", () => {
+		expect(getEditableContentPayload(undefined)).toEqual({
+			text: "",
 			fileBlocks: undefined,
 		});
 	});
