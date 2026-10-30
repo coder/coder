@@ -63,8 +63,8 @@ Cards and groups
 - I can archive a card from its menu, which archives its chats and its
   assistant, or one chat of a group from that chat's menu, which first
   hands the card to the remaining chats. Both are off while a chat or one
-  of its subagents works, since the server refuses, and the confirmation
-  offers Undo. An undone group chat comes back as a card of its own.
+  of its subagents works or has a queued message under edit, since the
+  server refuses, and the confirmation offers Undo. An undone group chat comes back as a card of its own.
 
 Notes
 
