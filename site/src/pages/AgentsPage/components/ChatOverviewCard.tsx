@@ -132,7 +132,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	const statusOverrides = useChatSelector(store, selectSubagentStatusOverrides);
 	const { activeChatChildren } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-	const { attachments, earlierAttachmentsQuery } = useChatAttachments({
+	const { attachments, earlier } = useChatAttachments({
 		chatId: chat.id,
 		store,
 		hasMoreMessages,
@@ -170,7 +170,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 			isLoading={
 				(showCost && costQuery.isPending) ||
 				isHydratingMessages ||
-				(hasMoreMessages && earlierAttachmentsQuery.isPending)
+				earlier.isLoading
 			}
 			onOpenTab={onOpenTab}
 			// The 16rem card with its 1rem inset and 1rem gap fits beside the
