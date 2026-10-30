@@ -55,6 +55,15 @@ export function useConversationEditingState(deps: {
 		onLoadedTargetChange,
 	} = deps;
 	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
+	// Holds the editor state of an open queued edit, so typed text survives
+	// a reload or a return to the chat until the edit ends.
+	const queuedEditStorageKey = (id: number) =>
+		`${draftStorageKey}.queued.${id}`;
+	const removeQueuedEdit = (target: EditingTarget | undefined) => {
+		if (target?.kind === "queued") {
+			localStorage.removeItem(queuedEditStorageKey(target.id));
+		}
+	};
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
@@ -154,6 +163,7 @@ export function useConversationEditingState(deps: {
 	};
 
 	const restoreDraftBeforeEdit = () => {
+		removeQueuedEdit(loadedTarget?.target);
 		loadEditorText(draftBeforeEdit?.text ?? "", draftBeforeEdit?.editorState);
 		setLoadedTarget(null);
 		setDraftBeforeEdit(null);
@@ -167,11 +177,14 @@ export function useConversationEditingState(deps: {
 	// stays as a new-message draft, and in follow mode it does not load a
 	// newly marked row. If an unchanged edit's target goes away, the pre-edit
 	// draft comes back and the composer follows the row the server marks.
-	// The pre-edit draft is captured once per session.
+	// The pre-edit draft is captured once per session. A queued row with
+	// text saved from an earlier mount loads that text, which counts as
+	// changed against the row's content.
 	const loadTargetIntoEditor = useEffectEvent(() => {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
 		}
+		removeQueuedEdit(loadedTarget?.target);
 		if (isEditorChanged() && (target === null || composerMode === "follow")) {
 			if (loadedTarget !== null) {
 				onLoadedTargetChange?.();
@@ -200,6 +213,15 @@ export function useConversationEditingState(deps: {
 			});
 		}
 		loadEditorText(text, editorState);
+		const savedEdit =
+			target.kind === "queued"
+				? localStorage.getItem(queuedEditStorageKey(target.id))
+				: null;
+		if (savedEdit !== null) {
+			const saved = parseStoredDraft(savedEdit);
+			loadEditorText(saved.text, saved.editorState);
+			loadedContentRef.current = { text, editorState };
+		}
 		setLoadedTarget({ target, text, fileBlocks: fileBlocks ?? noFileBlocks });
 		targetLoadCountRef.current++;
 	});
@@ -285,6 +307,7 @@ export function useConversationEditingState(deps: {
 		}
 
 		if (sendTarget?.kind === "queued") {
+			removeQueuedEdit(sendTarget);
 			// Saving puts the row back in the queue, and on a paused chat's
 			// head it also sends it. The composer text is not a new message,
 			// so the pre-edit draft is restored, unless an edit opened during
@@ -308,6 +331,22 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 		hasFileReferencesRef.current = hasFileReferences;
+
+		const loaded = loadedTarget?.target;
+		if (loaded?.kind === "queued") {
+			if (isEditorChanged() && (content.trim() || hasFileReferences)) {
+				try {
+					localStorage.setItem(
+						queuedEditStorageKey(loaded.id),
+						serializedEditorState,
+					);
+				} catch {
+					// QuotaExceededError, silently discard the saved edit.
+				}
+			} else {
+				removeQueuedEdit(loaded);
+			}
+		}
 
 		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.

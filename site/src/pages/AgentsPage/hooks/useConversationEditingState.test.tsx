@@ -1555,6 +1555,51 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
+		// The page remounts the composer on reload and on a return to the chat.
+		it("text typed into a queued edit comes back when the row loads again, and still counts as typed", async () => {
+			const first = renderEditingWithEditor();
+			await first.type("draft");
+			await first.beginEdit(42, "queued text");
+			await first.type(" edit");
+			const typed = first.editorText();
+			first.unmount();
+
+			const { unmount, current, editorText, markOnServer } =
+				renderEditingWithEditor();
+			await markOnServer(42, "queued text");
+			expect(current().editingTarget).toEqual({ kind: "queued", id: 42 });
+			expect(editorText()).toBe(typed);
+
+			await markOnServer(null);
+			expect(current().composerMode).toBe("draft");
+			expect(editorText()).toBe(typed);
+			unmount();
+		});
+
+		it.each(["save", "cancel"] as const)(
+			"after a %s, the row loads its own content again",
+			async (ending) => {
+				const first = renderEditingWithEditor();
+				await first.beginEdit(42, "queued text");
+				await first.type(" edit");
+				await act(async () => {
+					if (ending === "save") {
+						await first.current().handleSendFromInput({
+							message: first.current().inputValueRef.current,
+						});
+					} else {
+						first.current().handleCancelEdit();
+					}
+				});
+				first.unmount();
+
+				const { unmount, editorText, markOnServer } = renderEditingWithEditor();
+				await markOnServer(42, "saved text");
+				expect(editorText()).toBe("saved text");
+				unmount();
+			},
+		);
+
 		describe("edit sessions", () => {
 			it("cancelling a modified history edit while a row is marked opens that row, and its end gives the draft back", () => {
 				const { result, unmount, beginEdit, markOnServer } = renderEditing();
