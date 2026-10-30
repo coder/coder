@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -38,39 +37,14 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
 
-	const {
-		messages,
-		oldestLoadedMessageId,
-		earlierAttachmentsQuery,
-		earlierAttachments,
-		attachments,
-	} = useChatAttachments({
-		chatId,
-		store,
-		hasMoreMessages,
-		isHydratingMessages,
-		enabled: isVisible,
-	});
-	// A retry clears the error of a query with no data, so keep the retried
-	// error until the retry settles, unless older messages have loaded since
-	// and moved the query to a new `beforeId`.
-	const [retriedFailure, setRetriedFailure] = useState<{
-		beforeId: number | undefined;
-		error: unknown;
-	}>();
-	const retriedError =
-		retriedFailure && retriedFailure.beforeId === oldestLoadedMessageId
-			? retriedFailure.error
-			: null;
-	const earlierAttachmentsError =
-		hasMoreMessages && !earlierAttachmentsQuery.data
-			? (earlierAttachmentsQuery.error ?? retriedError)
-			: null;
-	const isLoadingEarlierAttachments =
-		hasMoreMessages &&
-		!earlierAttachmentsQuery.data &&
-		!earlierAttachmentsError;
-
+	const { messages, earlierAttachments, attachments, earlier } =
+		useChatAttachments({
+			chatId,
+			store,
+			hasMoreMessages,
+			isHydratingMessages,
+			enabled: isVisible,
+		});
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
@@ -102,18 +76,10 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 			<ChatAttachments
 				attachments={attachments}
 				evictedFileIds={evictedFileIds}
-				isLoadingEarlierAttachments={isLoadingEarlierAttachments}
-				earlierAttachmentsError={earlierAttachmentsError}
-				isRetrying={earlierAttachmentsQuery.isFetching}
-				onRetry={() => {
-					setRetriedFailure({
-						beforeId: oldestLoadedMessageId,
-						error: earlierAttachmentsError,
-					});
-					void earlierAttachmentsQuery
-						.refetch()
-						.finally(() => setRetriedFailure(undefined));
-				}}
+				isLoadingEarlierAttachments={earlier.isLoading}
+				earlierAttachmentsError={earlier.error}
+				isRetrying={earlier.isRetrying}
+				onRetry={earlier.retry}
 			/>
 		</div>
 	);
