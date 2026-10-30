@@ -11,12 +11,19 @@ import {
 	getQuestionHeader,
 	getQuestionLabel,
 	getQuestionText,
-	getSelectedValue,
 	OTHER_OPTION_VALUE,
 } from "./questionAnswers";
 import type { QuestionDraft } from "./questionDraft";
 
 const OTHER_PLACEHOLDER = "Something else: type your own answer";
+
+const getSelectedValue = (draft: QuestionDraft): string => {
+	if (typeof draft.selection === "number") {
+		return `option-${draft.selection}`;
+	}
+	// An empty value keeps the radio group controlled with nothing selected.
+	return draft.selection === "other" ? OTHER_OPTION_VALUE : "";
+};
 
 type QuestionOptionProps = {
 	id: string;

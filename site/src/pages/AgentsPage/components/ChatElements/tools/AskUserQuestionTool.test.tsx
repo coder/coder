@@ -268,7 +268,7 @@ describe("AskUserQuestionTool", () => {
 		);
 	});
 
-	it("answers every question of a set that grew while it streamed", async () => {
+	it("answers a question set that streamed in after the form mounted", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();
 		const queryClient = createTestQueryClient();
@@ -285,7 +285,7 @@ describe("AskUserQuestionTool", () => {
 			</QueryClientProvider>
 		);
 		const { rerender } = renderComponent(
-			renderTool({ questions: [questions[0]] }),
+			renderTool({ questions: [{ ...questions[0], options: [] }] }),
 		);
 		rerender(renderTool({}));
 		rerender(
@@ -297,16 +297,13 @@ describe("AskUserQuestionTool", () => {
 			}),
 		);
 
-		await user.click(
-			screen.getByRole("radio", { name: "Use incremental migrations." }),
-		);
-		await user.keyboard("{Enter}");
+		await user.click(screen.getByRole("button", { name: "Next" }));
 		await user.click(
 			screen.getByRole("radio", { name: "Ship it dark behind a flag." }),
 		);
 		await user.keyboard("{Enter}");
 		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
-			"1. Implementation Approach: Use incremental migrations.\n2. Rollout: Ship it dark behind a flag.",
+			"1. Implementation Approach: Use a single migration.\n2. Rollout: Ship it dark behind a flag.",
 		);
 	});
 
