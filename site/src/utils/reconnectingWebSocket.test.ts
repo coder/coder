@@ -550,6 +550,8 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
 
+	const silenceTimeoutMs = 40_000;
+
 	it("reconnects when no message arrives within silenceTimeoutMs", () => {
 		let activeSocket = createMockSocket();
 		const connect = vi.fn(() => {
@@ -563,12 +565,12 @@ describe("createReconnectingWebSocket", () => {
 			onDisconnect,
 			baseMs: 1000,
 			jitter: 0,
-			silenceTimeoutMs: 40_000,
+			silenceTimeoutMs,
 		});
 		const silentSocket = activeSocket;
 		silentSocket.emit("open");
 
-		vi.advanceTimersByTime(39_999);
+		vi.advanceTimersByTime(silenceTimeoutMs - 1);
 		expect(silentSocket.close).not.toHaveBeenCalled();
 		vi.advanceTimersByTime(1);
 		expect(silentSocket.close).toHaveBeenCalledTimes(1);
@@ -577,7 +579,7 @@ describe("createReconnectingWebSocket", () => {
 		vi.advanceTimersByTime(1000);
 		expect(connect).toHaveBeenCalledTimes(2);
 
-		// The close event of the abandoned socket arrives late, if at all.
+		// The close event of silentSocket arrives late, if at all.
 		silentSocket.emit("close");
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
 	});
@@ -589,12 +591,12 @@ describe("createReconnectingWebSocket", () => {
 		createReconnectingWebSocket({
 			connect: () => socket,
 			onDisconnect,
-			silenceTimeoutMs: 40_000,
+			silenceTimeoutMs,
 		});
 
-		vi.advanceTimersByTime(30_000);
+		vi.advanceTimersByTime(silenceTimeoutMs * 0.75);
 		socket.emit("message");
-		vi.advanceTimersByTime(39_999);
+		vi.advanceTimersByTime(silenceTimeoutMs - 1);
 		expect(socket.close).not.toHaveBeenCalled();
 		expect(onDisconnect).not.toHaveBeenCalled();
 		vi.advanceTimersByTime(1);
@@ -610,10 +612,10 @@ describe("createReconnectingWebSocket", () => {
 		const dispose = createReconnectingWebSocket({
 			connect,
 			onDisconnect,
-			silenceTimeoutMs: 40_000,
+			silenceTimeoutMs,
 		});
 		dispose();
-		vi.advanceTimersByTime(40_000);
+		vi.advanceTimersByTime(silenceTimeoutMs);
 
 		expect(socket.close).toHaveBeenCalledTimes(1);
 		expect(onDisconnect).not.toHaveBeenCalled();
