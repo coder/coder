@@ -7,6 +7,11 @@ import {
 } from "lucide-react";
 import { useId, useState } from "react";
 import type { ChatCost, ChatDiffStatus } from "#/api/typesGenerated";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { formatCostMicros } from "#/utils/currency";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
@@ -272,6 +277,10 @@ type OverviewRowProps = {
 	onClick?: () => void;
 };
 
+/**
+ * A card row. Its label and subtitle truncate, so a tooltip shows them in
+ * full on hover and on keyboard focus.
+ */
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
 	iconClassName,
@@ -301,20 +310,31 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 		</>
 	);
 	const className =
-		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
-	if (!onClick) {
-		return <div className={className}>{content}</div>;
-	}
+		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				className,
-				"hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
-			)}
-		>
-			{content}
-		</button>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{onClick ? (
+					<button
+						type="button"
+						onClick={onClick}
+						className={cn(className, "hover:bg-surface-secondary")}
+					>
+						{content}
+					</button>
+				) : (
+					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the plain-text row takes focus only so the keyboard can open its tooltip.
+					<div tabIndex={0} className={className}>
+						{content}
+					</div>
+				)}
+			</TooltipTrigger>
+			<TooltipContent side="left" className="max-w-xs">
+				<p className="m-0 break-words">{label}</p>
+				{subtitle && (
+					<p className="m-0 break-words text-content-secondary">{subtitle}</p>
+				)}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
