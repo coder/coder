@@ -133,25 +133,6 @@ const meta: Meta<typeof WorkspacePill> = {
 				preferredWildcardHostname: "*.coder.com",
 			},
 		}),
-		// Pixel crops non-fullscreen stories to the story root, so leave room
-		// for the menu and its tooltips. Fullscreen phone stories place the pill
-		// below the menu, as in the chat composer.
-		(Story, { parameters }) =>
-			parameters.layout === "fullscreen" ? (
-				<div className="flex h-svh items-end p-4 pb-20">
-					<div className="w-44">
-						<Story />
-					</div>
-				</div>
-			) : parameters.menuClosed ? (
-				<Story />
-			) : (
-				<div className="w-150 pt-52 pl-40">
-					<div className="w-44">
-						<Story />
-					</div>
-				</div>
-			),
 	],
 
 	parameters: {
@@ -192,8 +173,6 @@ export const WithRemoveAction: Story = {
 		agent: agentWithApps,
 		onRemoveWorkspace: fn(),
 	},
-	// The play function closes the menu, so the story needs no room for it.
-	parameters: { menuClosed: true },
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const workspaceMenuButton = canvas.getByRole("button", {
@@ -451,7 +430,6 @@ const mobilePortsStoryConfig = {
 		},
 	},
 	parameters: {
-		layout: "fullscreen",
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
 		queries: [
