@@ -61,12 +61,14 @@ var (
 )
 
 // @Summary Get workspace metadata by ID
+// @Description Returns one workspace, including its latest build and template.
+// @Description Use `include_related` to return only part of the related data.
 // @ID get-workspace-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_deleted query bool false "Set to `true` to return a deleted workspace. Otherwise the call returns `410` for a deleted workspace."
 // @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/workspaces/{workspace} [get]
@@ -172,13 +174,15 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // Optional filters with query params
 //
 // @Summary List workspaces
+// @Description Returns the workspaces you can read, filtered by the `q` search query.
+// @Description Use it to find workspaces by owner, template, or status, for example `owner:me status:running`.
 // @ID list-workspaces
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `id`, `owner`, `template`, `name`, `status`, `has-agent`, `dormant`, `outdated`, `last_used_after`, `last_used_before`, `has_external_agent`, `healthy`, `organization`, `user`, `shared`, `shared_with_user`, `shared_with_group`, `param`, and `include_agent_metadata` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or `owner/name`. Other keys return `400`."
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /api/v2/workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
@@ -292,13 +296,15 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace metadata by user and workspace name
+// @Description Returns one workspace, found by its owner and name, including its latest build and template.
+// @Description Use it when you know the workspace name but not its ID.
 // @ID get-workspace-metadata-by-user-and-workspace-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param user path string true "User ID, name, or me"
-// @Param workspacename path string true "Workspace name"
-// @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param workspacename path string true "Name of the workspace, owned by `user`."
+// @Param include_deleted query bool false "Set to `true` to return a deleted workspace. Otherwise the call returns `404` for a deleted workspace."
 // @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspace/{workspacename} [get]
@@ -424,9 +430,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Accept json
 // @Produce json
 // @Tags Workspaces
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param user path string true "Username, UUID, or me"
-// @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.CreateWorkspaceRequest true "Workspace to create. Set `name` and either `template_id` or `template_version_id`."
 // @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -486,8 +492,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Accept json
 // @Produce json
 // @Tags Workspaces
-// @Param user path string true "Username, UUID, or me"
-// @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.CreateWorkspaceRequest true "Workspace to create. Set `name` and either `template_id` or `template_version_id`."
 // @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
@@ -1199,12 +1205,15 @@ func (api *API) notifyWorkspaceCreated(
 }
 
 // @Summary Update workspace metadata by ID
+// @Description Renames a workspace.
+// @Description Returns `400` unless the deployment or the workspace's template allows workspace renames.
+// @Description Requires permission to update the workspace.
 // @ID update-workspace-metadata-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceRequest true "Metadata update request"
+// @Param request body codersdk.UpdateWorkspaceRequest true "New workspace `name`. An empty or unchanged name changes nothing."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace} [patch]
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
@@ -1302,12 +1311,16 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update workspace autostart schedule by ID
+// @Description Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`.
+// @Description An empty or omitted `schedule` turns autostart off.
+// @Description Returns `400` if the workspace's template doesn't allow users to set an autostart schedule, and `409` for prebuilt workspaces.
+// @Description Requires permission to update the workspace.
 // @ID update-workspace-autostart-schedule-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Schedule update request"
+// @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Autostart schedule to set. Omit `schedule` or set it to an empty string to turn autostart off."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/autostart [put]
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
@@ -1405,12 +1418,17 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update workspace TTL by ID
+// @Description Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
+// @Description The value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.
+// @Description The template's autostop requirement still applies.
+// @Description Returns `400` if the workspace's template doesn't allow a custom autostop, and `409` for prebuilt workspaces.
+// @Description Requires permission to update the workspace.
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceTTLRequest true "Workspace TTL update request"
+// @Param request body codersdk.UpdateWorkspaceTTLRequest true "Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace. The template's autostop requirement still applies."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/ttl [put]
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
@@ -1533,13 +1551,17 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update workspace dormancy status by id.
+// @Description Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
+// @Description Returns `304` if the workspace is already in that state, and `409` for prebuilt workspaces.
+// @Description When you mark another user's workspace dormant, Coder notifies its owner.
+// @Description Requires permission to update the workspace.
 // @ID update-workspace-dormancy-status-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceDormancy true "Make a workspace dormant or active"
+// @Param request body codersdk.UpdateWorkspaceDormancy true "Set `dormant` to `true` to make the workspace dormant, or `false` to make it active."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/workspaces/{workspace}/dormant [put]
 func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
@@ -1699,13 +1721,16 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Extend workspace deadline by ID
+// @Description Sets a new autostop deadline for a running workspace.
+// @Description The new `deadline` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.
+// @Description Returns `409` if the workspace isn't running, is still building, has no autostop deadline, or is a prebuilt workspace.
 // @ID extend-workspace-deadline-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.PutExtendWorkspaceRequest true "Extend deadline update request"
+// @Param request body codersdk.PutExtendWorkspaceRequest true "New autostop deadline, in `deadline`, as an RFC 3339 timestamp."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/extend [put]
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
@@ -1808,12 +1833,15 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Post Workspace Usage by ID
+// @Description Marks a workspace as recently used.
+// @Description When the `workspace-usage` experiment is enabled and the request body sets both `agent_id` and `app_name`, it also counts a session for that app on that workspace agent.
+// @Description Requires permission to update the workspace.
 // @ID post-workspace-usage-by-id
 // @Security CoderSessionToken
 // @Tags Workspaces
 // @Accept json
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.PostWorkspaceUsageRequest false "Post workspace usage request"
+// @Param request body codersdk.PostWorkspaceUsageRequest false "Optional usage report. Set `agent_id` and `app_name` together to count a session for that app."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/usage [post]
 func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
@@ -1912,6 +1940,8 @@ func normalizeUsageAppName(appName string) string {
 }
 
 // @Summary Favorite workspace by ID.
+// @Description Marks a workspace as one of your favorites.
+// @Description You can favorite only workspaces that you own.
 // @ID favorite-workspace-by-id
 // @Security CoderSessionToken
 // @Tags Workspaces
@@ -1959,6 +1989,8 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Unfavorite workspace by ID.
+// @Description Removes a workspace from your favorites.
+// @Description You can unfavorite only workspaces that you own.
 // @ID unfavorite-workspace-by-id
 // @Security CoderSessionToken
 // @Tags Workspaces
@@ -2006,12 +2038,14 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Update workspace automatic updates by ID
+// @Description Sets whether the workspace moves to the template's active version when it starts, with `automatic_updates` set to `always` or `never`.
+// @Description Requires permission to update the workspace.
 // @ID update-workspace-automatic-updates-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceAutomaticUpdatesRequest true "Automatic updates request"
+// @Param request body codersdk.UpdateWorkspaceAutomaticUpdatesRequest true "Automatic updates setting, in `automatic_updates`, which is `always` or `never`."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/autoupdates [put]
 func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request) {
@@ -2067,6 +2101,8 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Resolve workspace autostart by id.
+// @Description Reports whether an autostart would fail because the template's active version needs parameter values that the workspace's latest build doesn't have.
+// @Description `parameter_mismatch` is `true` only when the template requires the active version or the workspace has automatic updates set to `always`, the latest build uses an older version, and a parameter of the active version can't be resolved from the build's values.
 // @ID resolve-workspace-autostart-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -2161,6 +2197,9 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Watch workspace by ID
+// @Description Streams server-sent events about a workspace, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data.
+// @Description The server sends a `ping` first, then the current workspace, and then the workspace again each time it or its template changes.
+// @Description Deprecated. Use `GET /api/v2/workspaces/{workspace}/watch-ws` instead.
 // @ID watch-workspace-by-id
 // @Security CoderSessionToken
 // @Produce text/event-stream
@@ -2413,6 +2452,8 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Get workspace timings by ID
+// @Description Returns how long each stage of the workspace's latest build took.
+// @Description The response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.
 // @ID get-workspace-timings-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -2448,6 +2489,8 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace ACLs
+// @Description Returns the users and groups that have been given access to a workspace, each with an `admin` or `use` role.
+// @Description Users appear with only their ID, username, name, and avatar, and groups with only their identity and member count.
 // @ID get-workspace-acls
 // @Security CoderSessionToken
 // @Produce json
@@ -2563,13 +2606,17 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update workspace ACL
+// @Description Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.
+// @Description The role is `admin` or `use`, and an empty string removes the entry.
+// @Description Returns `403` if workspace sharing is turned off for the organization, and `400` if you change your own role without permission to share any workspace in the organization.
+// @Description Requires permission to share the workspace.
 // @ID update-workspace-acl
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceACL true "Update workspace ACL request"
+// @Param request body codersdk.UpdateWorkspaceACL true "Roles to set. Each map goes from a user or group ID to `admin`, `use`, or an empty string to remove the entry."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/acl [patch]
 func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
@@ -2684,6 +2731,9 @@ type workspaceData struct {
 }
 
 // @Summary Completely clears the workspace's user and group ACLs.
+// @Description Removes every user and group from a workspace's ACL.
+// @Description Returns `403` if workspace sharing is turned off for the organization.
+// @Description Requires permission to share the workspace.
 // @ID completely-clears-the-workspaces-user-and-group-acls
 // @Security CoderSessionToken
 // @Tags Workspaces
@@ -3268,15 +3318,18 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 }
 
 // @Summary Get users available for workspace creation
+// @Description Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.
+// @Description The list covers users across the deployment, not only the members of the organization.
+// @Description Requires permission to create workspaces for other users in the organization.
 // @ID get-users-available-for-workspace-creation
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param user path string true "User ID, name, or me"
-// @Param q query string false "Search query"
-// @Param limit query int false "Limit results"
-// @Param offset query int false "Offset for pagination"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {array} codersdk.MinimalUser
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces/available-users [get]
 func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request) {

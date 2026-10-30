@@ -38,6 +38,9 @@ import (
 )
 
 // @Summary List template builder base templates
+// @Description Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.
+// @Description Requires permission to read templates in at least one organization.
+// @Description Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
 // @ID list-template-builder-base-templates
 // @Security CoderSessionToken
 // @Produce json
@@ -135,11 +138,14 @@ func baseVariablesToSDK(vars []templatebuilder.ModuleVariable) []codersdk.Templa
 }
 
 // @Summary List template builder modules
+// @Description Returns the modules you can add to a base template in the template builder.
+// @Description Set `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.
+// @Description Requires permission to read templates in at least one organization.
 // @ID list-template-builder-modules
 // @Security CoderSessionToken
 // @Produce json
 // @Tags TemplateBuilder
-// @Param base query string false "Base template example ID for OS-compatibility filtering"
+// @Param base query string false "ID of a base template from `GET /api/v2/templatebuilder/bases`. Returns only modules compatible with its operating system and not already included in it. By default, returns all modules."
 // @Success 200 {object} codersdk.TemplateBuilderModulesResponse
 // @Router /api/v2/templatebuilder/modules [get]
 func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) {
@@ -198,12 +204,15 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Compose template from base and modules
+// @Description Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.
+// @Description Requires permission to create templates in at least one organization.
+// @Description Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
 // @ID compose-template-from-base-and-modules
 // @Security CoderSessionToken
 // @Accept json
 // @Produce application/x-tar
 // @Tags TemplateBuilder
-// @Param request body codersdk.TemplateBuilderComposeRequest true "Compose request"
+// @Param request body codersdk.TemplateBuilderComposeRequest true "Base template and modules to compose. `base_template_id` is required, and `modules` lists the modules to add with their variable values."
 // @Success 200
 // @Router /api/v2/templatebuilder/compose [post]
 func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) {
@@ -311,12 +320,15 @@ func templateBuilderProvisionerFailureReason(category templatebuilder.Provisione
 }
 
 // @Summary Compose and create a template
+// @Description Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.
+// @Description The call waits up to 2 minutes for the import and returns `504` if it takes longer.
+// @Description Requires permission to create templates in the organization.
 // @ID compose-and-create-a-template
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags TemplateBuilder
-// @Param request body codersdk.TemplateBuilderCreateTemplateRequest true "Create template request"
+// @Param request body codersdk.TemplateBuilderCreateTemplateRequest true "Base template, modules, and the template to create. `base_template_id`, `organization_id`, and `name` are required."
 // @Success 201 {object} codersdk.TemplateBuilderCreateTemplateResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 404 {object} codersdk.Response
@@ -752,11 +764,13 @@ func (api *API) waitForProvisionerJob(
 }
 
 // @Summary Report a template builder session event
+// @Description Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.
+// @Description Requires permission to create templates in at least one organization.
 // @ID report-a-template-builder-session-event
 // @Security CoderSessionToken
 // @Accept json
 // @Tags TemplateBuilder
-// @Param request body codersdk.TemplateBuilderSessionRequest true "Session event"
+// @Param request body codersdk.TemplateBuilderSessionRequest true "Session event to report. `session_id` and `event_type` are required, and `event_type` is `wizard_entry` or `compose_completion`."
 // @Success 204
 // @Router /api/v2/templatebuilder/sessions [post]
 func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) {

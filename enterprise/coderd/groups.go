@@ -22,13 +22,17 @@ import (
 )
 
 // @Summary Create group for organization
+// @Description Creates a group in an organization.
+// @Description Returns `409` if the organization already has a group with that name.
+// @Description Requires permission to create groups in the organization.
+// @Description Requires a Premium license.
 // @ID create-group-for-organization
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.CreateGroupRequest true "Create group request"
-// @Param organization path string true "Organization ID"
+// @Param request body codersdk.CreateGroupRequest true "Group to create. `name` is required, must be 255 characters or fewer, and can't be `Everyone`, `new`, or `create`. `quota_allowance` is the workspace quota credits the group adds to the budget of each member."
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 201 {object} codersdk.Group
 // @Router /api/v2/organizations/{organization}/groups [post]
 func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -91,13 +95,17 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Update group by name
+// @Description Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.
+// @Description You can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.
+// @Description Requires permission to update the group.
+// @Description Requires a Premium license.
 // @ID update-group-by-name
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param group path string true "Group name"
-// @Param request body codersdk.PatchGroupRequest true "Patch group request"
+// @Param group path string true "Group ID."
+// @Param request body codersdk.PatchGroupRequest true "Changes to apply to the group. Omitted fields stay as they are. `add_users` and `remove_users` are lists of user IDs, and `name` can't be `Everyone`."
 // @Success 200 {object} codersdk.Group
 // @Router /api/v2/groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
@@ -336,11 +344,15 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete group by name
+// @Description Deletes a group by its ID.
+// @Description You can't delete the `Everyone` group.
+// @Description Requires permission to delete the group.
+// @Description Requires a Premium license.
 // @ID delete-group-by-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param group path string true "Group name"
+// @Param group path string true "Group ID."
 // @Success 200 {object} codersdk.Group
 // @Router /api/v2/groups/{group} [delete]
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
@@ -388,12 +400,15 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get group by organization and group name
+// @Description Returns a group in an organization by its name, with the members you can read.
+// @Description Requires permission to read the group.
+// @Description Requires a Premium license.
 // @ID get-group-by-organization-and-group-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param groupName path string true "Group name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
 // @Success 200 {object} codersdk.Group
 // @Router /api/v2/organizations/{organization}/groups/{groupName} [get]
 func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -401,12 +416,15 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get group by ID
+// @Description Returns a group by its ID, with the members you can read.
+// @Description Requires permission to read the group.
+// @Description Requires a Premium license.
 // @ID get-group-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param group path string true "Group id"
-// @Param exclude_members query bool false "Exclude members from the response"
+// @Param group path string true "Group ID."
+// @Param exclude_members query bool false "If `true`, returns the group without its `members`. `total_member_count` is still returned."
 // @Success 200 {object} codersdk.Group
 // @Router /api/v2/groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
@@ -451,16 +469,19 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get group members by organization and group name
+// @Description Returns a page of the members of a group in an organization, filtered by the `q` search query.
+// @Description Returns only the members you can read.
+// @Description Requires a Premium license.
 // @ID get-group-members-by-organization-and-group-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param groupName path string true "Group name"
-// @Param q query string false "Member search query"
-// @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.GroupMembersResponse
 // @Router /api/v2/organizations/{organization}/groups/{groupName}/members [get]
 func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -468,15 +489,18 @@ func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Get group members by group ID
+// @Description Returns a page of the members of a group, filtered by the `q` search query.
+// @Description Returns only the members you can read.
+// @Description Requires a Premium license.
 // @ID get-group-members-by-group-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param group path string true "Group id"
-// @Param q query string false "Member search query"
-// @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param group path string true "Group ID."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.GroupMembersResponse
 // @Router /api/v2/groups/{group}/members [get]
 func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
@@ -542,11 +566,14 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get groups by organization
+// @Description Returns the groups in an organization that you can read, each with the members you can read.
+// @Description To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups`, which returns each group's member count instead of its members and requires permission to read every group in the organization.
+// @Description Requires a Premium license.
 // @ID get-groups-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.Group
 // @Router /api/v2/organizations/{organization}/groups [get]
 func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -564,27 +591,17 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID or name"
-// @Param q query string false "Search query (see description for syntax and colon-quoting)"
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
-// @Param after_id query string false "After ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param q query string false "Search query in the format `key:value`. The only available key is `search`, which matches group names and display names, and text without a key does the same. Other keys return `400`."
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Success 200 {object} codersdk.PaginatedGroupsResponse
-// @Description Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
-// @Description which authorizes each group individually via its ACL, this endpoint requires
-// @Description organization-wide group read permission and does no per-group filtering. It is
-// @Description therefore not a drop-in replacement: callers without org-wide group read receive
-// @Description an error rather than a filtered subset.
-// @Description
-// @Description The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
-// @Description perform a free-text search over group name and display name. `search:` is the only
-// @Description accepted key and unknown keys return 400. Because group display names may contain
-// @Description colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
-// @Description unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
-// @Description
-// @Description This endpoint returns group summaries without the member roster: each group
-// @Description carries only `total_member_count` and no `members` field. Callers that need the
-// @Description roster use the group members endpoint (GET /groups/{group}/members).
+// @Description Returns the groups in an organization, ordered by name and paged with `limit`, with each group's `total_member_count` instead of its members.
+// @Description To list a group's members, use `GET /api/v2/groups/{group}/members`.
+// @Description Quote a `q` value that contains a colon, as in `search:"team: frontend"`.
+// @Description Requires permission to read every group in the organization, and returns `500` instead of a partial list without it.
+// @Description Requires a Premium license.
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -670,13 +687,16 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get groups
+// @Description Returns the groups you can read, filtered by `organization`, `has_member`, and `group_ids`, each with the members you can read.
+// @Description Use `has_member` to find the groups a user belongs to.
+// @Description Requires a Premium license.
 // @ID get-groups
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization query string true "Organization ID or name"
-// @Param has_member query string true "User ID or name"
-// @Param group_ids query string true "Comma separated list of group IDs"
+// @Param organization query string false "Only return groups in this organization. Accepts an organization ID or name."
+// @Param has_member query string false "Only return groups that this user belongs to. Accepts a user ID or username."
+// @Param group_ids query string false "Only return these groups, as a comma-separated list of group IDs."
 // @Success 200 {array} codersdk.Group
 // @Router /api/v2/groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {

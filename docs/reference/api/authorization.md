@@ -17,6 +17,10 @@ curl -X GET http://coder-server:8080/api/v2/auth/scopes \
 
 `GET /api/v2/auth/scopes`
 
+Returns the names of the API key scopes you can request when you create a token, including `all`, `application_connect`, the `coder:*` composite scopes, and the `resource:action` scopes.
+Use it to find valid values for `scopes` before you call `POST /api/v2/users/{user}/keys/tokens`.
+Doesn't require a session token.
+
 ### Example responses
 
 > 200 Response
@@ -49,6 +53,10 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 `POST /api/v2/authcheck`
 
+Returns whether the authenticated user can perform each requested action on each requested object, taking the user's roles and the scopes of the API key you call with into account.
+Use it to check several permissions in one request, and match each result to its check by the key you gave it.
+At most 10 checks can set `resource_id`.
+
 > Body parameter
 
 ```json
@@ -80,9 +88,9 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 ### Parameters
 
-| Name   | In   | Type                                                                     | Required | Description           |
-|--------|------|--------------------------------------------------------------------------|----------|-----------------------|
-| `body` | body | [codersdk.AuthorizationRequest](schemas.md#codersdkauthorizationrequest) | true     | Authorization request |
+| Name   | In   | Type                                                                     | Required | Description                                                                                                                                                                     |
+|--------|------|--------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.AuthorizationRequest](schemas.md#codersdkauthorizationrequest) | true     | Permission checks to run, keyed by a name you choose. Each check sets an `action` and an `object` that selects the resources, and its result in the response uses the same key. |
 
 ### Example responses
 
@@ -116,6 +124,10 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 `POST /api/v2/users/login`
 
+Signs in a user with an email address and password, returns a session token in `session_token`, and sets the session cookie.
+Works only for users with the `password` login type, and returns `403` when password authentication is turned off.
+Doesn't require a session token.
+
 > Body parameter
 
 ```json
@@ -127,9 +139,9 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description   |
-|--------|------|----------------------------------------------------------------------------------|----------|---------------|
-| `body` | body | [codersdk.LoginWithPasswordRequest](schemas.md#codersdkloginwithpasswordrequest) | true     | Login request |
+| Name   | In   | Type                                                                             | Required | Description                                        |
+|--------|------|----------------------------------------------------------------------------------|----------|----------------------------------------------------|
+| `body` | body | [codersdk.LoginWithPasswordRequest](schemas.md#codersdkloginwithpasswordrequest) | true     | Email address and password of the user to sign in. |
 
 ### Example responses
 
@@ -159,6 +171,10 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
 
 `POST /api/v2/users/otp/change-password`
 
+Sets a new password for the user with the given email address when you supply the one-time passcode from `POST /api/v2/users/otp/request`, and revokes all of that user's API keys.
+Returns `400` when the passcode is wrong or expired, or when the new password matches the old one.
+Doesn't require a session token.
+
 > Body parameter
 
 ```json
@@ -171,9 +187,9 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                             | Required | Description             |
-|--------|------|------------------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [codersdk.ChangePasswordWithOneTimePasscodeRequest](schemas.md#codersdkchangepasswordwithonetimepasscoderequest) | true     | Change password request |
+| Name   | In   | Type                                                                                                             | Required | Description                                                                                                                      |
+|--------|------|------------------------------------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.ChangePasswordWithOneTimePasscodeRequest](schemas.md#codersdkchangepasswordwithonetimepasscoderequest) | true     | Email address of the account, the one-time passcode, and the new password. The new password must meet the password requirements. |
 
 ### Responses
 
@@ -193,6 +209,10 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 
 `POST /api/v2/users/otp/request`
 
+Requests a one-time passcode for resetting a password, which Coder delivers to the user as a notification and which expires after 20 minutes.
+Returns `204` whether or not an account with that email address exists, so the response doesn't reveal which addresses are registered.
+Returns `403` when password authentication is turned off, and doesn't require a session token.
+
 > Body parameter
 
 ```json
@@ -203,9 +223,9 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                       | Required | Description               |
-|--------|------|--------------------------------------------------------------------------------------------|----------|---------------------------|
-| `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | One-time passcode request |
+| Name   | In   | Type                                                                                       | Required | Description                                             |
+|--------|------|--------------------------------------------------------------------------------------------|----------|---------------------------------------------------------|
+| `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | Email address of the account to reset the password for. |
 
 ### Responses
 
@@ -221,11 +241,14 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/validate-password \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /api/v2/users/validate-password`
+
+Checks whether a password meets Coder's password requirements, returning `valid` and, when it doesn't, the reason in `details`.
+Use it to give feedback on a new password before you set it.
+Doesn't require a session token.
 
 > Body parameter
 
@@ -237,9 +260,9 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description                    |
-|--------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
-| `body` | body | [codersdk.ValidateUserPasswordRequest](schemas.md#codersdkvalidateuserpasswordrequest) | true     | Validate user password request |
+| Name   | In   | Type                                                                                   | Required | Description                                          |
+|--------|------|----------------------------------------------------------------------------------------|----------|------------------------------------------------------|
+| `body` | body | [codersdk.ValidateUserPasswordRequest](schemas.md#codersdkvalidateuserpasswordrequest) | true     | Password to check against the password requirements. |
 
 ### Example responses
 
@@ -258,8 +281,6 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ValidateUserPasswordResponse](schemas.md#codersdkvalidateuserpasswordresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Convert user from password to oauth authentication
 
 ### Code samples
@@ -274,6 +295,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 
 `POST /api/v2/users/{user}/convert-login`
 
+Starts converting a password-based account to GitHub or OpenID Connect (OIDC) sign-in, and returns an OAuth state string that expires after 5 minutes.
+The call also sets a cookie, so finish the conversion by signing in with the identity provider in the same browser before it expires.
+Requires the user's current password in `password`, and works only for users with the `password` login type.
+
 > Body parameter
 
 ```json
@@ -285,10 +310,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 
 ### Parameters
 
-| Name   | In   | Type                                                                   | Required | Description          |
-|--------|------|------------------------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                                 | true     | User ID, name, or me |
-| `body` | body | [codersdk.ConvertLoginRequest](schemas.md#codersdkconvertloginrequest) | true     | Convert request      |
+| Name   | In   | Type                                                                   | Required | Description                                                                             |
+|--------|------|------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------|
+| `user` | path | string                                                                 | true     | User ID, username, or `me` for the authenticated user.                                  |
+| `body` | body | [codersdk.ConvertLoginRequest](schemas.md#codersdkconvertloginrequest) | true     | Login type to convert to, which is `github` or `oidc`, and the user's current password. |
 
 ### Example responses
 

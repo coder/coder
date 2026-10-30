@@ -19,6 +19,10 @@ curl -X POST http://coder-server:8080/api/v2/files \
 
 `POST /api/v2/files`
 
+Uploads a tar or zip archive of up to 100 MiB, such as a template source archive, and returns its ID.
+Coder stores a zip archive as tar, and returns `200` with the existing ID when you already uploaded the same contents.
+Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
+
 > Body parameter
 
 ```yaml
@@ -66,11 +70,23 @@ curl -X GET http://coder-server:8080/api/v2/files/{fileID} \
 
 `GET /api/v2/files/{fileID}`
 
+Returns the contents of an uploaded file, such as a template source archive, with its stored `Content-Type`, which is `application/x-tar` because Coder converts zip uploads to tar.
+Set `format` to `zip` to download a tar file as a zip archive, and any other `format` value, or a file that isn't a tar, returns `400`.
+Requires permission to read the file, which you have for files you uploaded, or permission to update a template that uses the file.
+Returns `404` for a file you can't read.
+
 ### Parameters
 
-| Name     | In   | Type         | Required | Description |
-|----------|------|--------------|----------|-------------|
-| `fileID` | path | string(uuid) | true     | File ID     |
+| Name     | In    | Type         | Required | Description                                           |
+|----------|-------|--------------|----------|-------------------------------------------------------|
+| `fileID` | path  | string(uuid) | true     | File ID, as returned by `POST /api/v2/files`.         |
+| `format` | query | string       | false    | Set to `zip` to download a tar file as a zip archive. |
+
+#### Enumerated Values
+
+| Parameter | Value(s) |
+|-----------|----------|
+| `format`  | `zip`    |
 
 ### Responses
 

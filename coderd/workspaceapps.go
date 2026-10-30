@@ -25,6 +25,8 @@ import (
 )
 
 // @Summary Get applications host
+// @Description Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty `host` when the deployment doesn't set one.
+// @Description Deprecated. Use `GET /api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.
 // @ID get-applications-host
 // @Security CoderSessionToken
 // @Produce json
@@ -46,10 +48,13 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // in production unless the user messes with the URL.
 //
 // @Summary Redirect to URI with encrypted API key
+// @Description Redirects to `redirect_uri` with an encrypted API key added to the query, which lets a subdomain workspace app sign you in.
+// @Description The key can only connect to workspace apps, and it expires when your session does or after the default session duration, whichever comes first.
+// @Description Redirects you to the login page when you aren't signed in.
 // @ID redirect-to-uri-with-encrypted-api-key
 // @Security CoderSessionToken
 // @Tags Applications
-// @Param redirect_uri query string false "Redirect destination"
+// @Param redirect_uri query string false "URL to redirect to. The route returns `400` without it, and the URL must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname."
 // @Success 307
 // @Router /api/v2/applications/auth-redirect [get]
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {

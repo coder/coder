@@ -19,6 +19,9 @@ curl -X POST http://coder-server:8080/api/v2/notifications/custom \
 
 `POST /api/v2/notifications/custom`
 
+Sends a custom notification with your own title and message to yourself.
+System users can't send custom notifications.
+
 > Body parameter
 
 ```json
@@ -32,9 +35,9 @@ curl -X POST http://coder-server:8080/api/v2/notifications/custom \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                          |
-|--------|------|------------------------------------------------------------------------------------|----------|--------------------------------------|
-| `body` | body | [codersdk.CustomNotificationRequest](schemas.md#codersdkcustomnotificationrequest) | true     | Provide a non-empty title or message |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                |
+|--------|------|------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CustomNotificationRequest](schemas.md#codersdkcustomnotificationrequest) | true     | Custom notification content. `content.title` and `content.message` are required, up to 120 and 2000 bytes. |
 
 ### Example responses
 
@@ -76,6 +79,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 ```
 
 `GET /api/v2/notifications/dispatch-methods`
+
+Returns the available notification delivery methods and the default method this deployment uses.
+The inbox method isn't listed, because it's an implicit delivery target.
 
 ### Example responses
 
@@ -123,14 +129,17 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 `GET /api/v2/notifications/inbox`
 
+Returns up to 25 of your inbox notifications, newest first, with your `unread_count`.
+Use `starting_before` to page through older notifications.
+
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                                                                     |
-|-------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `targets`         | query | string       | false    | Comma-separated list of target IDs to filter notifications                                                      |
-| `templates`       | query | string       | false    | Comma-separated list of template IDs to filter notifications                                                    |
-| `read_status`     | query | string       | false    | Filter notifications by read status. Possible values: read, unread, all                                         |
-| `starting_before` | query | string(uuid) | false    | ID of the last notification from the current page. Notifications returned will be older than the associated one |
+| Name              | In    | Type         | Required | Description                                                                                                                                            |
+|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `targets`         | query | string       | false    | Comma-separated list of target IDs. Returns only notifications that have all of these targets.                                                         |
+| `templates`       | query | string       | false    | Comma-separated list of notification template IDs. Returns only notifications from these templates.                                                    |
+| `read_status`     | query | string       | false    | Filter by read status: `all`, `read`, or `unread`. The default is `all`.                                                                               |
+| `starting_before` | query | string(uuid) | false    | ID of the last notification on the previous page. Returns the notifications created before it. If no notification has this ID, returns the first page. |
 
 ### Example responses
 
@@ -183,6 +192,8 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/mark-all-as-read
 
 `PUT /api/v2/notifications/inbox/mark-all-as-read`
 
+Marks all of your unread inbox notifications as read.
+
 ### Responses
 
 | Status | Meaning                                                         | Description | Schema |
@@ -204,14 +215,18 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
 
 `GET /api/v2/notifications/inbox/watch`
 
+Streams your new inbox notifications over a WebSocket as they arrive.
+Each message is a JSON object with the `notification` and your current `unread_count`.
+Use the query parameters to filter which notifications you receive.
+
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                                             |
-|---------------|-------|--------|----------|-------------------------------------------------------------------------|
-| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
-| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
-| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
-| `format`      | query | string | false    | Define the output format for notifications title and body.              |
+| Name          | In    | Type   | Required | Description                                                                                             |
+|---------------|-------|--------|----------|---------------------------------------------------------------------------------------------------------|
+| `targets`     | query | string | false    | Comma-separated list of target IDs. Sends only notifications that have all of these targets.            |
+| `templates`   | query | string | false    | Comma-separated list of notification template IDs. Sends only notifications from these templates.       |
+| `read_status` | query | string | false    | Filter by read status: `all`, `read`, or `unread`. The default is `all`.                                |
+| `format`      | query | string | false    | Format of the notification `title` and `content`: `markdown` or `plaintext`. The default is `markdown`. |
 
 #### Enumerated Values
 
@@ -269,11 +284,14 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 `PUT /api/v2/notifications/inbox/{id}/read-status`
 
+Marks one of your inbox notifications as read or unread by setting `is_read` in the request body.
+Returns the updated notification and your `unread_count`.
+
 ### Parameters
 
-| Name | In   | Type   | Required | Description            |
-|------|------|--------|----------|------------------------|
-| `id` | path | string | true     | id of the notification |
+| Name | In   | Type   | Required | Description      |
+|------|------|--------|----------|------------------|
+| `id` | path | string | true     | Notification ID. |
 
 ### Example responses
 
@@ -313,6 +331,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/settings \
 
 `GET /api/v2/notifications/settings`
 
+Returns the deployment-wide notification settings, which hold the `notifier_paused` flag.
+Any authenticated user can read them.
+
 ### Example responses
 
 > 200 Response
@@ -345,6 +366,10 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 `PUT /api/v2/notifications/settings`
 
+Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.
+Returns `304` when the settings are unchanged.
+Requires permission to update deployment configuration.
+
 > Body parameter
 
 ```json
@@ -355,9 +380,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ### Parameters
 
-| Name   | In   | Type                                                                       | Required | Description                    |
-|--------|------|----------------------------------------------------------------------------|----------|--------------------------------|
-| `body` | body | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) | true     | Notifications settings request |
+| Name   | In   | Type                                                                       | Required | Description                                                                        |
+|--------|------|----------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) | true     | Notification settings to apply. Set `notifier_paused` to `true` to pause delivery. |
 
 ### Example responses
 
@@ -390,6 +415,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/custom \
 ```
 
 `GET /api/v2/notifications/templates/custom`
+
+Returns the templates for custom notifications, which you send with `POST /api/v2/notifications/custom`.
+Any authenticated user can read them.
 
 ### Example responses
 
@@ -450,6 +478,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 
 `GET /api/v2/notifications/templates/system`
 
+Returns the notification templates that Coder sends for system events, such as workspace and account changes.
+Any authenticated user can read them.
+
 ### Example responses
 
 > 200 Response
@@ -508,6 +539,9 @@ curl -X POST http://coder-server:8080/api/v2/notifications/test \
 
 `POST /api/v2/notifications/test`
 
+Sends a test notification to you, to check that the deployment delivers notifications.
+Requires permission to update deployment configuration.
+
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema |
@@ -529,11 +563,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 `GET /api/v2/users/{user}/notifications/preferences`
 
+Returns the per-template notification preferences a user has set, including whether each template is turned off.
+You can read your own preferences, and reading another user's requires permission to read that user's notification preferences.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -582,6 +619,9 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 `PUT /api/v2/users/{user}/notifications/preferences`
 
+Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.
+You can update your own preferences, and updating another user's requires permission to update that user's notification preferences.
+
 > Body parameter
 
 ```json
@@ -595,10 +635,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ### Parameters
 
-| Name   | In   | Type                                                                                               | Required | Description          |
-|--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                                                             | true     | User ID, name, or me |
-| `body` | body | [codersdk.UpdateUserNotificationPreferences](schemas.md#codersdkupdateusernotificationpreferences) | true     | Preferences          |
+| Name   | In   | Type                                                                                               | Required | Description                                                                                                             |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, username, or `me` for the authenticated user.                                                                  |
+| `body` | body | [codersdk.UpdateUserNotificationPreferences](schemas.md#codersdkupdateusernotificationpreferences) | true     | Notification template IDs mapped to `true` to turn a template off or `false` to turn it on, in `template_disabled_map`. |
 
 ### Example responses
 

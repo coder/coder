@@ -12,6 +12,8 @@ import (
 )
 
 // @Summary Get organizations
+// @Description Returns the organizations you can read.
+// @Description Use it to find an organization's ID or name for other calls.
 // @ID get-organizations
 // @Security CoderSessionToken
 // @Produce json
@@ -37,11 +39,13 @@ func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get organization by ID
+// @Description Returns one organization.
+// @Description The `organization` path parameter also accepts the organization name, or `default` for the default organization.
 // @ID get-organization-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.Organization
 // @Router /api/v2/organizations/{organization} [get]
 func (*API) organization(rw http.ResponseWriter, r *http.Request) {

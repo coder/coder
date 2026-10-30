@@ -734,10 +734,19 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 // This is used for the web terminal.
 //
 // @Summary Open PTY to workspace agent
+// @Description Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.
+// @Description Requires permission to SSH to the workspace.
 // @ID open-pty-to-workspace-agent
 // @Security CoderSessionToken
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param reconnect query string true "ID that identifies the terminal session, so that a client can reconnect to it." format(uuid)
+// @Param height query int false "Terminal height in rows. The default is `80`."
+// @Param width query int false "Terminal width in columns. The default is `80`."
+// @Param command query string false "Command to run in the session. Without it, the session runs the user's login shell."
+// @Param container query string false "Dev container to open the session in, when the agent has dev containers turned on."
+// @Param container_user query string false "User to run the session as inside `container`."
+// @Param backend_type query string false "Session backend, `screen` or `buffered`. Without it, the agent uses `screen` on Linux when it's installed, and `buffered` otherwise."
 // @Success 101
 // @Router /api/v2/workspaceagents/{workspaceagent}/pty [get]
 func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {

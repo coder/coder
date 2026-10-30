@@ -47,6 +47,8 @@ import (
 )
 
 // @Summary Get template version by ID
+// @Description Returns a template version, including the status of its import job.
+// @Description While the import job is pending, the response includes `matched_provisioners`, which shows how many provisioners can run the job.
 // @ID get-template-version-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -107,13 +109,16 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Patch template version by ID
+// @Description Updates the `name` or `message` of a template version.
+// @Description Renaming a version to a name that another version of the same template uses returns `400`.
+// @Description Requires permission to update the template.
 // @ID patch-template-version-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param request body codersdk.PatchTemplateVersionRequest true "Patch template version request"
+// @Param request body codersdk.PatchTemplateVersionRequest true "Template version fields to change. Omit `name` or `message` to keep its current value."
 // @Success 200 {object} codersdk.TemplateVersion
 // @Router /api/v2/templateversions/{templateversion} [patch]
 func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -222,6 +227,9 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Cancel template version by ID
+// @Description Cancels the import job of a template version that hasn't finished.
+// @Description Returns `400` if the job has already completed or been canceled.
+// @Description Requires permission to update the template.
 // @ID cancel-template-version-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -278,6 +286,8 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Get rich parameters by template version
+// @Description Returns the parameters that a template version defines, such as their types, defaults, and options.
+// @Description The call returns `425` until the template version's import job has completed.
 // @ID get-rich-parameters-by-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -324,6 +334,8 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary Get external auth by template version
+// @Description Returns the external authentication providers a template version uses and whether the user is authenticated with each.
+// @Description Setting `user_id` to another user requires permission to create workspaces for that user.
 // @ID get-external-auth-by-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -455,6 +467,9 @@ func (api *API) templateVersionExternalAuthForUser(ctx context.Context, template
 }
 
 // @Summary Get template variables by template version
+// @Description Returns the Terraform variables that a template version declares.
+// @Description For sensitive variables, `value` and `default_value` are `*redacted*`.
+// @Description Returns `403` until the template version's import job has completed.
 // @ID get-template-variables-by-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -493,13 +508,17 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Create template version dry-run
+// @Description Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.
+// @Description The response is the dry-run job, so poll it with `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` or stream its logs, then read the planned resources after it completes.
+// @Description The template version's import job must have finished, or the call returns `425`.
+// @Description Requires permission to create workspaces in the template version's organization.
 // @ID create-template-version-dry-run
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Dry-run request"
+// @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Workspace name and parameter values to plan the template version with."
 // @Success 201 {object} codersdk.ProvisionerJob
 // @Router /api/v2/templateversions/{templateversion}/dry-run [post]
 func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
@@ -611,12 +630,15 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Get template version dry-run by job ID
+// @Description Returns a dry-run job, including its status and any error.
+// @Description Use it to poll until the job succeeds, fails, or is canceled.
+// @Description Returns `403` if the job isn't a dry run of this template version.
 // @ID get-template-version-dry-run-by-job-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobID path string true "Job ID" format(uuid)
+// @Param jobID path string true "ID of the dry-run job, returned when you created the dry run." format(uuid)
 // @Success 200 {object} codersdk.ProvisionerJob
 // @Router /api/v2/templateversions/{templateversion}/dry-run/{jobID} [get]
 func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
@@ -630,12 +652,14 @@ func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get template version dry-run matched provisioners
+// @Description Returns how many provisioners match a dry-run job's tags and how many of them are available to run it.
+// @Description Use it to find out why a dry run is still pending.
 // @ID get-template-version-dry-run-matched-provisioners
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobID path string true "Job ID" format(uuid)
+// @Param jobID path string true "ID of the dry-run job, returned when you created the dry run." format(uuid)
 // @Success 200 {object} codersdk.MatchedProvisioners
 // @Router /api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners [get]
 func (api *API) templateVersionDryRunMatchedProvisioners(rw http.ResponseWriter, r *http.Request) {
@@ -667,12 +691,14 @@ func (api *API) templateVersionDryRunMatchedProvisioners(rw http.ResponseWriter,
 }
 
 // @Summary Get template version dry-run resources by job ID
+// @Description Returns the resources that a dry run planned, including their workspace agents.
+// @Description The call returns `400` until the job has completed.
 // @ID get-template-version-dry-run-resources-by-job-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobID path string true "Job ID" format(uuid)
+// @Param jobID path string true "ID of the dry-run job, returned when you created the dry run." format(uuid)
 // @Success 200 {array} codersdk.WorkspaceResource
 // @Router /api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources [get]
 func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.Request) {
@@ -685,15 +711,18 @@ func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Get template version dry-run logs by job ID
+// @Description Returns the provisioner logs of a dry-run job.
+// @Description Include the `follow` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.
+// @Description Without `follow`, the call returns the logs recorded so far, and you can pass the `id` of the last log you received as `after` to skip logs you already have.
 // @ID get-template-version-dry-run-logs-by-job-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobID path string true "Job ID" format(uuid)
-// @Param before query int false "Before Unix timestamp"
-// @Param after query int false "After Unix timestamp"
-// @Param follow query bool false "Follow log stream"
+// @Param jobID path string true "ID of the dry-run job, returned when you created the dry run." format(uuid)
+// @Param before query int false "Not used. The server ignores this parameter."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID."
+// @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes."
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs [get]
@@ -707,11 +736,14 @@ func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Cancel template version dry-run by job ID
+// @Description Cancels a dry-run job that hasn't completed.
+// @Description The call returns `400` if the job has already completed or been canceled.
+// @Description Requires permission to update both the template and workspaces owned by the user who started the dry run.
 // @ID cancel-template-version-dry-run-by-job-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param jobID path string true "Job ID" format(uuid)
+// @Param jobID path string true "ID of the dry-run job, returned when you created the dry run." format(uuid)
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel [patch]
@@ -832,15 +864,17 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary List template versions by template ID
+// @Description Returns the versions of a template, oldest first.
+// @Description Archived versions are excluded unless you set `include_archived` to `true`.
 // @ID list-template-versions-by-template-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Param after_id query string false "After ID" format(uuid)
-// @Param include_archived query bool false "Include archived versions in the list"
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param include_archived query bool false "Includes archived versions in the list. The default, `false`, excludes them."
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {array} codersdk.TemplateVersion
 // @Router /api/v2/templates/{template}/versions [get]
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -956,12 +990,14 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Get template version by template ID and name
+// @Description Returns the version of a template with the given name.
+// @Description While the version's import job is pending, the response includes `matched_provisioners`.
 // @ID get-template-version-by-template-id-and-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Param templateversionname path string true "Template version name"
+// @Param templateversionname path string true "Template version name. Names are unique within a template."
 // @Success 200 {array} codersdk.TemplateVersion
 // @Router /api/v2/templates/{template}/versions/{templateversionname} [get]
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
@@ -1020,13 +1056,15 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get template version by organization, template, and name
+// @Description Returns the version with the given name of a template that you look up by organization and template name.
+// @Description While the version's import job is pending, the response includes `matched_provisioners`.
 // @ID get-template-version-by-organization-template-and-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param templatename path string true "Template name"
-// @Param templateversionname path string true "Template version name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param templatename path string true "Template name. The match is case-insensitive."
+// @Param templateversionname path string true "Template version name. Names are unique within a template."
 // @Success 200 {object} codersdk.TemplateVersion
 // @Router /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname} [get]
 func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
@@ -1208,13 +1246,17 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 }
 
 // @Summary Archive template unused versions by template id
+// @Description Archives the unused versions of a template and returns the IDs it archived.
+// @Description By default, only versions whose import job failed are archived, and setting `all` to `true` archives every unused version.
+// @Description A version is unused when no workspace's latest build uses it and it isn't the template's active version.
+// @Description Requires permission to update the template.
 // @ID archive-template-unused-versions-by-template-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Param request body codersdk.ArchiveTemplateVersionsRequest true "Archive request"
+// @Param request body codersdk.ArchiveTemplateVersionsRequest true "Archive options. Set `all` to `true` to archive every unused version instead of only failed ones."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/templates/{template}/versions/archive [post]
 func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Request) {
@@ -1275,6 +1317,9 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Archive template version
+// @Description Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.
+// @Description Returns `500` if a workspace's latest build uses the version or if it is the template's active version.
+// @Description Requires permission to update the template.
 // @ID archive-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -1287,6 +1332,8 @@ func (api *API) postArchiveTemplateVersion() func(rw http.ResponseWriter, r *htt
 }
 
 // @Summary Unarchive template version
+// @Description Restores an archived template version so that it appears in version lists and can be used again.
+// @Description Requires permission to update the template.
 // @ID unarchive-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -1375,12 +1422,15 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 }
 
 // @Summary Update active template version by template ID
+// @Description Sets the active version of a template, which is the version new workspaces use by default.
+// @Description The version must belong to the template, must have built successfully, and can't be archived.
+// @Description Requires permission to update the template.
 // @ID update-active-template-version-by-template-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
-// @Param request body codersdk.UpdateActiveTemplateVersion true "Modified template version"
+// @Param request body codersdk.UpdateActiveTemplateVersion true "Template version to make active, identified by `id`."
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/templates/{template}/versions [patch]
@@ -1478,13 +1528,17 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // postTemplateVersionsByOrganization creates a new version of a template. An import job is queued to parse the storage method provided.
 //
 // @Summary Create template version by organization
+// @Description Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.
+// @Description Set either `file_id`, which you get from `POST /api/v2/files`, or `example_id`, but not both.
+// @Description Set `template_id` to add the version to an existing template, or omit it to create a version for a new template.
+// @Description Requires permission to create templates in the organization.
 // @ID create-template-version-by-organization
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CreateTemplateVersionRequest true "Create template version request"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param request body codersdk.CreateTemplateVersionRequest true "Template version to create. Set `file_id` or `example_id` to choose its source."
 // @Success 201 {object} codersdk.TemplateVersion
 // @Router /api/v2/organizations/{organization}/templateversions [post]
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -1937,6 +1991,8 @@ func (api *API) classicTemplateVersionTags(ctx context.Context, rw http.Response
 // agents associated with any particular workspace.
 //
 // @Summary Get resources by template version
+// @Description Returns the resources that a template version defines, including their workspace agents.
+// @Description The resources belong to the template version and not to any workspace, and the call returns `400` until the import job has completed.
 // @ID get-resources-by-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -1967,14 +2023,17 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
 //
 // @Summary Get logs by template version
+// @Description Returns the provisioner logs from a template version's import job, such as `terraform plan` output.
+// @Description Include the `follow` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.
+// @Description Without `follow`, the call returns the logs recorded so far, and you can pass the `id` of the last log you received as `after` to skip logs you already have.
 // @ID get-logs-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param before query int false "Before log id"
-// @Param after query int false "After log id"
-// @Param follow query bool false "Follow log stream"
+// @Param before query int false "Not used. The server ignores this parameter."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID."
+// @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes."
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /api/v2/templateversions/{templateversion}/logs [get]

@@ -370,8 +370,21 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		comment.router == "/api/v2/users/otp/request" ||
 		comment.router == "/api/v2/users/otp/change-password" ||
 		comment.router == "/api/v2/init-script/{os}/{arch}" ||
-		comment.router == "/api/v2/chats/files/{file}/download" {
-		return // endpoints do not require authorization
+		comment.router == "/api/v2/chats/files/{file}/download" ||
+		comment.router == "/api/v2/csp/reports" ||
+		comment.router == "/api/v2/derp-map" ||
+		comment.router == "/api/v2/entitlements" ||
+		comment.router == "/api/v2/users/authmethods" ||
+		comment.router == "/api/v2/users/first" ||
+		comment.router == "/api/v2/users/oauth2/github/callback" ||
+		comment.router == "/api/v2/users/oauth2/github/device" ||
+		comment.router == "/api/v2/users/oidc/callback" ||
+		comment.router == "/api/v2/users/validate-password" ||
+		comment.router == "/api/v2/workspaceagents/aws-instance-identity" ||
+		comment.router == "/api/v2/workspaceagents/azure-instance-identity" ||
+		comment.router == "/api/v2/workspaceagents/google-instance-identity" {
+		assert.Emptyf(t, comment.security, "%s doesn't take a session token, so it must not declare @Security", comment.router)
+		return
 	}
 	if comment.router == "/api/v2/ai-gateway/serve" {
 		assert.Equal(t, "AIGatewayKey", comment.security, "@Security must be AIGatewayKey")

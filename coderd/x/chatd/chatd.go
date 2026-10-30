@@ -106,6 +106,8 @@ const (
 	// when the admin config omits the field (or sets it to <= 0).
 	// It is intentionally generous relative to the advisor's concise
 	// guidance remit so short plans are not truncated mid-reasoning.
+	// The GET and PUT advisor config @Description text in coderd/exp_chats.go
+	// states this value.
 	defaultAdvisorMaxOutputTokens = 16384
 )
 

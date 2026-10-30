@@ -11,20 +11,24 @@ title: Audit
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
+curl -X GET http://coder-server:8080/api/v2/audit \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /api/v2/audit`
 
+Returns the audit logs you can read, newest first, filtered by the `q` search query.
+Requires permission to read audit logs.
+Coder records audit logs only while the deployment has a Premium license.
+
 ### Parameters
 
-| Name     | In    | Type    | Required | Description  |
-|----------|-------|---------|----------|--------------|
-| `q`      | query | string  | false    | Search query |
-| `limit`  | query | integer | true     | Page limit   |
-| `offset` | query | integer | false    | Page offset  |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                                                                                              |
+|----------|-------|---------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`, matched case-insensitively. Available keys are: `resource_type`, `resource_id`, `resource_target` (the resource's name), `action`, `username` (or `me`), `email`, `organization` (ID or name), `date_from` and `date_to` (inclusive, as `YYYY-MM-DD`), `build_reason`, and `request_id`. Text without a key filters by `resource_type`. Other keys return `400`. |
+| `limit`  | query | integer | false    | Maximum number of results to return. A value of `0` returns up to `100` results.                                                                                                                                                                                                                                                                                                                         |
+| `offset` | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                                                      |
 
 ### Example responses
 

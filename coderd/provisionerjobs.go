@@ -31,12 +31,14 @@ import (
 )
 
 // @Summary Get provisioner job
+// @Description Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.
+// @Description Requires permission to read provisioner jobs in the organization.
 // @ID get-provisioner-job
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param job path string true "Job ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param job path string true "Provisioner job ID." format(uuid)
 // @Success 200 {object} codersdk.ProvisionerJob
 // @Router /api/v2/organizations/{organization}/provisionerjobs/{job} [get]
 func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
@@ -67,12 +69,14 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get provisioner jobs
+// @Description Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.
+// @Description Requires permission to read provisioner jobs in the organization.
 // @ID get-provisioner-jobs
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param limit query int false "Page limit"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param limit query int false "Maximum number of results to return. The default is `50`, and `0` returns all results."
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
 // @Param tags query string false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"

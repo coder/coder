@@ -17,6 +17,10 @@ curl -X GET http://coder-server:8080/.well-known/oauth-authorization-server \
 
 `GET /.well-known/oauth-authorization-server`
 
+Returns the metadata that OAuth2 clients use to discover Coder's OAuth2 endpoints, supported grants, and scopes (RFC 8414).
+Doesn't require a session token, and includes `registration_endpoint` only when dynamic client registration is enabled.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Example responses
 
 > 200 Response
@@ -64,6 +68,10 @@ curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
 
 `GET /.well-known/oauth-protected-resource`
 
+Returns the metadata that tells an OAuth2 client which authorization server protects this deployment and which scopes it supports (RFC 9728).
+Doesn't require a session token, and answers only for the deployment root and the Coder MCP endpoint's path.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Example responses
 
 > 200 Response
@@ -102,11 +110,15 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id} \
 
 `GET /api/v2/agent-firewall/sessions/{id}`
 
+Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.
+Requires permission to read Agent Firewall logs.
+Requires a Premium license.
+
 ### Parameters
 
-| Name | In   | Type         | Required | Description               |
-|------|------|--------------|----------|---------------------------|
-| `id` | path | string(uuid) | true     | Agent firewall session ID |
+| Name | In   | Type         | Required | Description                |
+|------|------|--------------|----------|----------------------------|
+| `id` | path | string(uuid) | true     | Agent Firewall session ID. |
 
 ### Example responses
 
@@ -143,11 +155,16 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
 
 `GET /api/v2/agent-firewall/sessions/{id}/logs`
 
+Returns the logs for an Agent Firewall session in ascending sequence order.
+Use `seq_after` and `seq_before` to fetch a range of sequence numbers, and `limit` to change the number of logs returned, which defaults to `100`.
+Requires permission to read Agent Firewall logs.
+Requires a Premium license.
+
 ### Parameters
 
 | Name         | In    | Type         | Required | Description                                    |
 |--------------|-------|--------------|----------|------------------------------------------------|
-| `id`         | path  | string(uuid) | true     | Agent firewall session ID                      |
+| `id`         | path  | string(uuid) | true     | Agent Firewall session ID.                     |
 | `seq_after`  | query | integer      | false    | Inclusive lower bound on sequence number       |
 | `seq_before` | query | integer      | false    | Exclusive upper bound on sequence number       |
 | `limit`      | query | integer      | false    | Maximum number of logs to return (default 100) |
@@ -195,6 +212,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
 ```
 
 `GET /api/v2/ai-gateway/keys`
+
+Lists the AI Gateway keys, oldest first.
+Each key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.
+Requires permission to read AI Gateway keys.
+Requires a Premium license.
 
 ### Example responses
 
@@ -247,6 +269,11 @@ curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
 
 `POST /api/v2/ai-gateway/keys`
 
+Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.
+The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
+Requires permission to create AI Gateway keys.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -257,9 +284,9 @@ curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                   |
-|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------|
-| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | Create AI Gateway key request |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                                                                            |
+|--------|------|------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | AI Gateway key to create. `name` must be unique, 64 characters or fewer, and made of lowercase letters, numbers, and non-consecutive hyphens, and it can't start or end with a hyphen. |
 
 ### Example responses
 
@@ -295,11 +322,16 @@ curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
 
 `DELETE /api/v2/ai-gateway/keys/{key}`
 
+Deletes an AI Gateway key.
+A standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.
+Requires permission to delete AI Gateway keys.
+Requires a Premium license.
+
 ### Parameters
 
-| Name  | In   | Type         | Required | Description |
-|-------|------|--------------|----------|-------------|
-| `key` | path | string(uuid) | true     | Key ID      |
+| Name  | In   | Type         | Required | Description        |
+|-------|------|--------------|----------|--------------------|
+| `key` | path | string(uuid) | true     | AI Gateway key ID. |
 
 ### Responses
 
@@ -321,6 +353,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
 
 `GET /api/v2/ai-gateway/serve`
 
+Upgrades the connection to a WebSocket that carries the AI Gateway DRPC services from `coderd` to a standalone AI Gateway replica.
+The replica calls this, not you, and authenticates with an AI Gateway key in the `X-Coder-AI-Governance-Gateway-Key` header instead of a session token.
+Coder closes the connection when the key is deleted or the license no longer includes AI Governance.
+Requires a Premium license.
+
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |
@@ -341,6 +378,10 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 ```
 
 `GET /api/v2/appearance`
+
+Returns the deployment's appearance settings, which are the application name, logo URL, announcement banners, support links, and docs URL.
+Accepts either a session token or a workspace agent token.
+The application name, logo URL, and announcement banners are empty unless the license includes the appearance feature.
 
 ### Example responses
 
@@ -397,6 +438,10 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 `PUT /api/v2/appearance`
 
+Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.
+Requires permission to update deployment configuration.
+The application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.
+
 > Body parameter
 
 ```json
@@ -421,9 +466,9 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description               |
-|--------|------|------------------------------------------------------------------------------|----------|---------------------------|
-| `body` | body | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) | true     | Update appearance request |
+| Name   | In   | Type                                                                         | Required | Description                                                                                                                                                                                  |
+|--------|------|------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) | true     | Appearance settings to save. Each `background_color` in `announcement_banners` must be a hex color such as `#004852`. `service_banner` is deprecated, so use `announcement_banners` instead. |
 
 ### Example responses
 
@@ -463,20 +508,26 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
+curl -X GET http://coder-server:8080/api/v2/connectionlog \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /api/v2/connectionlog`
 
+Returns connection log entries, newest first, filtered by the `q` search query.
+Returns only the entries you can read.
+Requires permission to read connection logs.
+The `count` in the response is capped at the value of `count_cap`.
+Requires a Premium license.
+
 ### Parameters
 
-| Name     | In    | Type    | Required | Description  |
-|----------|-------|---------|----------|--------------|
-| `q`      | query | string  | false    | Search query |
-| `limit`  | query | integer | true     | Page limit   |
-| `offset` | query | integer | false    | Page offset  |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: `organization` (ID or name), `workspace_owner` (username or `me`), `workspace_owner_email`, `username` (or `me`), `user_email`, `connected_after` and `connected_before` (RFC 3339 timestamps), `workspace_id`, `connection_id`, `client_session_id` (32 hexadecimal characters), `status` (`ongoing` or `completed`), `method` (`ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`), `type` (`ssh`, `vscode`, `jetbrains`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`, which can't be combined with `method` or `app`), and `app` (repeat to match any of several apps). Other keys, and text without a key, return `400`. |
+| `limit`  | query | integer | false    | Maximum number of results to return. A value of `0` returns up to `100` results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `offset` | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ### Example responses
 
@@ -569,6 +620,10 @@ curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
 
 `POST /api/v2/deployment/premium-funnel-events`
 
+Records through telemetry that a user selected the call to action on a Premium paywall.
+The dashboard calls this when a user selects a paywall button, so you don't need to call it.
+Requires permission to read licenses, and returns `404` without it.
+
 > Body parameter
 
 ```json
@@ -581,9 +636,9 @@ curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description          |
-|--------|------|------------------------------------------------------------------------------------|----------|----------------------|
-| `body` | body | [codersdk.PremiumFunnelEventRequest](schemas.md#codersdkpremiumfunneleventrequest) | true     | Premium funnel event |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                                                                                                                                                 |
+|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.PremiumFunnelEventRequest](schemas.md#codersdkpremiumfunneleventrequest) | true     | Paywall event to record. `id` identifies the event, and a later trial request can pass it as `attribution_id`. `source` is the feature that the paywall is for, and `variant` is the paywall presentation, which is `premium`, `small`, or `ai_governance`. |
 
 ### Responses
 
@@ -600,11 +655,15 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/entitlements \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `GET /api/v2/entitlements`
+
+Returns the features the deployment's licenses enable, with each feature's entitlement, whether it's enabled, its limit, and its current usage.
+It also returns license warnings and errors, whether the deployment has a license or a trial license, whether telemetry is required, and when the entitlements were last refreshed.
+The dashboard reads it to decide which features to turn on.
+Doesn't require a session token.
 
 ### Example responses
 
@@ -661,28 +720,30 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Entitlements](schemas.md#codersdkentitlements) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get groups
 
 ### Code samples
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string&group_ids=string \
+curl -X GET http://coder-server:8080/api/v2/groups \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /api/v2/groups`
 
+Returns the groups you can read, filtered by `organization`, `has_member`, and `group_ids`, each with the members you can read.
+Use `has_member` to find the groups a user belongs to.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In    | Type   | Required | Description                       |
-|----------------|-------|--------|----------|-----------------------------------|
-| `organization` | query | string | true     | Organization ID or name           |
-| `has_member`   | query | string | true     | User ID or name                   |
-| `group_ids`    | query | string | true     | Comma separated list of group IDs |
+| Name           | In    | Type   | Required | Description                                                                  |
+|----------------|-------|--------|----------|------------------------------------------------------------------------------|
+| `organization` | query | string | false    | Only return groups in this organization. Accepts an organization ID or name. |
+| `has_member`   | query | string | false    | Only return groups that this user belongs to. Accepts a user ID or username. |
+| `group_ids`    | query | string | false    | Only return these groups, as a comma-separated list of group IDs.            |
 
 ### Example responses
 
@@ -781,12 +842,16 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 `GET /api/v2/groups/{group}`
 
+Returns a group by its ID, with the members you can read.
+Requires permission to read the group.
+Requires a Premium license.
+
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                       |
-|-------------------|-------|---------|----------|-----------------------------------|
-| `group`           | path  | string  | true     | Group id                          |
-| `exclude_members` | query | boolean | false    | Exclude members from the response |
+| Name              | In    | Type    | Required | Description                                                                                 |
+|-------------------|-------|---------|----------|---------------------------------------------------------------------------------------------|
+| `group`           | path  | string  | true     | Group ID.                                                                                   |
+| `exclude_members` | query | boolean | false    | If `true`, returns the group without its `members`. `total_member_count` is still returned. |
 
 ### Example responses
 
@@ -844,11 +909,16 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 
 `DELETE /api/v2/groups/{group}`
 
+Deletes a group by its ID.
+You can't delete the `Everyone` group.
+Requires permission to delete the group.
+Requires a Premium license.
+
 ### Parameters
 
 | Name    | In   | Type   | Required | Description |
 |---------|------|--------|----------|-------------|
-| `group` | path | string | true     | Group name  |
+| `group` | path | string | true     | Group ID.   |
 
 ### Example responses
 
@@ -907,6 +977,11 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 `PATCH /api/v2/groups/{group}`
 
+Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.
+You can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.
+Requires permission to update the group.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -926,10 +1001,10 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 ### Parameters
 
-| Name    | In   | Type                                                               | Required | Description         |
-|---------|------|--------------------------------------------------------------------|----------|---------------------|
-| `group` | path | string                                                             | true     | Group name          |
-| `body`  | body | [codersdk.PatchGroupRequest](schemas.md#codersdkpatchgrouprequest) | true     | Patch group request |
+| Name    | In   | Type                                                               | Required | Description                                                                                                                                           |
+|---------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group` | path | string                                                             | true     | Group ID.                                                                                                                                             |
+| `body`  | body | [codersdk.PatchGroupRequest](schemas.md#codersdkpatchgrouprequest) | true     | Changes to apply to the group. Omitted fields stay as they are. `add_users` and `remove_users` are lists of user IDs, and `name` can't be `Everyone`. |
 
 ### Example responses
 
@@ -987,6 +1062,11 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 `GET /api/v2/groups/{group}/ai/budget`
 
+Returns the AI budget of a group, which is the spend limit that applies to each of its members.
+Returns `404` if the group has no budget.
+Requires permission to read the group.
+Requires a Premium license.
+
 ### Parameters
 
 | Name    | In   | Type         | Required | Description |
@@ -1028,6 +1108,10 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 `PUT /api/v2/groups/{group}/ai/budget`
 
+Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.
+Requires permission to update the group.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -1038,10 +1122,10 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 ### Parameters
 
-| Name    | In   | Type                                                                                 | Required | Description                    |
-|---------|------|--------------------------------------------------------------------------------------|----------|--------------------------------|
-| `group` | path | string(uuid)                                                                         | true     | Group ID                       |
-| `body`  | body | [codersdk.UpsertGroupAIBudgetRequest](schemas.md#codersdkupsertgroupaibudgetrequest) | true     | Upsert group AI budget request |
+| Name    | In   | Type                                                                                 | Required | Description                                                                                                                                           |
+|---------|------|--------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group` | path | string(uuid)                                                                         | true     | Group ID                                                                                                                                              |
+| `body`  | body | [codersdk.UpsertGroupAIBudgetRequest](schemas.md#codersdkupsertgroupaibudgetrequest) | true     | AI budget for the group. `spend_limit_micros` is the limit per member for each budget period, in millionths of a dollar, from `0` to `1000000000000`. |
 
 ### Example responses
 
@@ -1075,6 +1159,11 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 ```
 
 `DELETE /api/v2/groups/{group}/ai/budget`
+
+Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.
+Returns `404` if the group has no budget.
+Requires permission to update the group.
+Requires a Premium license.
 
 ### Parameters
 
@@ -1147,15 +1236,19 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
 
 `GET /api/v2/groups/{group}/members`
 
+Returns a page of the members of a group, filtered by the `q` search query.
+Returns only the members you can read.
+Requires a Premium license.
+
 ### Parameters
 
-| Name       | In    | Type         | Required | Description         |
-|------------|-------|--------------|----------|---------------------|
-| `group`    | path  | string       | true     | Group id            |
-| `q`        | query | string       | false    | Member search query |
-| `after_id` | query | string(uuid) | false    | After ID            |
-| `limit`    | query | integer      | false    | Page limit          |
-| `offset`   | query | integer      | false    | Page offset         |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                                                            |
+|------------|-------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group`    | path  | string       | true     | Group ID.                                                                                                                                                                                                                                                                                                                                                              |
+| `q`        | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`. |
+| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                                                            |
+| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                                                            |
+| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
 
@@ -1262,6 +1355,9 @@ curl -X GET http://coder-server:8080/api/v2/licenses \
 
 `GET /api/v2/licenses`
 
+Returns the licenses installed on the deployment, with the claims each one asserts.
+Returns only the licenses you can read, which requires permission to read licenses.
+
 ### Example responses
 
 > 200 Response
@@ -1311,6 +1407,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 `POST /api/v2/licenses`
 
+Adds a license to the deployment and recomputes its entitlements.
+A deployment can hold several licenses at once, and it doesn't need a license to add the first one.
+Requires permission to create licenses.
+
 > Body parameter
 
 ```json
@@ -1321,9 +1421,9 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-|--------|------|--------------------------------------------------------------------|----------|---------------------|
-| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | Add license request |
+| Name   | In   | Type                                                               | Required | Description                                                                                                                      |
+|--------|------|--------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | License to add. `license` is the license key string. Returns `400` if the key is invalid or is locked to a different deployment. |
 
 ### Example responses
 
@@ -1358,6 +1458,11 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 ```
 
 `POST /api/v2/licenses/refresh-entitlements`
+
+Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
+Use it to apply changes that don't trigger a refresh on their own, such as a license expiring or the number of active users changing, instead of waiting up to 10 minutes for the next automatic refresh.
+Returns `400` with a `Retry-After` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.
+Requires permission to create licenses.
 
 ### Example responses
 
@@ -1398,6 +1503,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 `POST /api/v2/licenses/trial`
 
+Requests a trial license from the Coder license server and installs it.
+Returns `409` if the deployment already has a license, so delete the existing license first.
+Requires permission to create licenses.
+
 > Body parameter
 
 ```json
@@ -1417,9 +1526,9 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description           |
-|--------|------|------------------------------------------------------------------------------------|----------|-----------------------|
-| `body` | body | [codersdk.CreateTrialLicenseRequest](schemas.md#codersdkcreatetriallicenserequest) | true     | Trial license request |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                                                                                                                                                                                       |
+|--------|------|------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CreateTrialLicenseRequest](schemas.md#codersdkcreatetriallicenserequest) | true     | Contact details for the trial. `email`, `first_name`, `last_name`, `phone_number`, `job_title`, `company_name`, `country`, and `developers` are required and go to the license server. `source` and `attribution_id` are optional, are used for telemetry, and aren't sent to the license server. |
 
 ### Example responses
 
@@ -1454,11 +1563,14 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 
 `DELETE /api/v2/licenses/{id}`
 
+Deletes a license by its numeric ID and recomputes the deployment's entitlements.
+Requires permission to delete licenses.
+
 ### Parameters
 
-| Name | In   | Type           | Required | Description |
-|------|------|----------------|----------|-------------|
-| `id` | path | string(number) | true     | License ID  |
+| Name | In   | Type           | Required | Description                                                                |
+|------|------|----------------|----------|----------------------------------------------------------------------------|
+| `id` | path | string(number) | true     | License ID, which is the integer `id` that `GET /api/v2/licenses` returns. |
 
 ### Responses
 
@@ -1480,11 +1592,15 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notificatio
 
 `PUT /api/v2/notifications/templates/{notification_template}/method`
 
+Sets the delivery method of a notification template to `smtp`, `webhook`, or `inbox`.
+Returns `304` if the template already uses that method.
+Requires permission to update notification templates.
+
 ### Parameters
 
-| Name                    | In   | Type   | Required | Description                |
-|-------------------------|------|--------|----------|----------------------------|
-| `notification_template` | path | string | true     | Notification template UUID |
+| Name                    | In   | Type   | Required | Description               |
+|-------------------------|------|--------|----------|---------------------------|
+| `notification_template` | path | string | true     | Notification template ID. |
 
 ### Responses
 
@@ -1508,11 +1624,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 `GET /api/v2/oauth2-provider/apps`
 
+Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.
+Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name      | In    | Type   | Required | Description                                  |
-|-----------|-------|--------|----------|----------------------------------------------|
-| `user_id` | query | string | false    | Filter by applications authorized for a user |
+| Name      | In    | Type   | Required | Description                                                                                                                                            |
+|-----------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user_id` | query | string | false    | ID of a user. Returns only the applications that user has authorized, instead of all applications. Must be a UUID, so the `me` shortcut does not work. |
 
 ### Example responses
 
@@ -1590,6 +1710,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 `POST /api/v2/oauth2-provider/apps`
 
+Registers an OAuth2 application that can use Coder as its authorization server.
+Requires permission to create OAuth2 applications.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```json
@@ -1656,11 +1780,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `GET /api/v2/oauth2-provider/apps/{app}`
 
+Returns one OAuth2 application, including its redirect URIs and scope allowlist.
+Any member can read an application.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Example responses
 
@@ -1709,6 +1837,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `PUT /api/v2/oauth2-provider/apps/{app}`
 
+Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send `scope`.
+Requires permission to update OAuth2 applications.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```json
@@ -1725,10 +1857,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description                   |
-|--------|------|----------------------------------------------------------------------------------------|----------|-------------------------------|
-| `app`  | path | string                                                                                 | true     | App ID                        |
-| `body` | body | [codersdk.PutOAuth2ProviderAppRequest](schemas.md#codersdkputoauth2providerapprequest) | true     | Update an OAuth2 application. |
+| Name   | In   | Type                                                                                   | Required | Description                                                                                                                                                                                      |
+|--------|------|----------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `app`  | path | string                                                                                 | true     | OAuth2 application ID.                                                                                                                                                                           |
+| `body` | body | [codersdk.PutOAuth2ProviderAppRequest](schemas.md#codersdkputoauth2providerapprequest) | true     | New settings for the OAuth2 application. Omit both `redirect_uris` and `callback_url` to keep the stored redirect URIs, and omit `scope` to keep the scope allowlist. Omitting `icon` clears it. |
 
 ### Example responses
 
@@ -1775,11 +1907,15 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `DELETE /api/v2/oauth2-provider/apps/{app}`
 
+Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.
+Requires permission to delete OAuth2 applications.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Responses
 
@@ -1802,11 +1938,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
 
 `GET /api/v2/oauth2-provider/apps/{app}/secrets`
 
+Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.
+Requires permission to read OAuth2 application secrets.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Example responses
 
@@ -1854,11 +1994,15 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 
 `POST /api/v2/oauth2-provider/apps/{app}/secrets`
 
+Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.
+Requires permission to create OAuth2 application secrets, and returns `400` for a public client, which has no secret.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Example responses
 
@@ -1904,12 +2048,17 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 `DELETE /api/v2/oauth2-provider/apps/{app}/secrets/{secretID}`
 
+Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.
+It also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.
+Requires permission to delete OAuth2 application secrets.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name       | In   | Type   | Required | Description |
-|------------|------|--------|----------|-------------|
-| `app`      | path | string | true     | App ID      |
-| `secretID` | path | string | true     | Secret ID   |
+| Name       | In   | Type   | Required | Description                          |
+|------------|------|--------|----------|--------------------------------------|
+| `app`      | path | string | true     | OAuth2 application ID.               |
+| `secretID` | path | string | true     | ID of the OAuth2 application secret. |
 
 ### Responses
 
@@ -1931,6 +2080,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/settings \
 ```
 
 `GET /api/v2/oauth2-provider/settings`
+
+Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.
+Requires permission to read deployment configuration.
+Works while the OAuth2 provider is disabled.
 
 ### Example responses
 
@@ -1964,6 +2117,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 
 `PUT /api/v2/oauth2-provider/settings`
 
+Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
+Requires permission to update deployment configuration.
+Works while the OAuth2 provider is disabled.
+
 > Body parameter
 
 ```json
@@ -1974,9 +2131,9 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description                      |
-|--------|------|------------------------------------------------------------------------------|----------|----------------------------------|
-| `body` | body | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) | true     | OAuth2 provider settings request |
+| Name   | In   | Type                                                                         | Required | Description                                                                  |
+|--------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------|
+| `body` | body | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) | true     | OAuth2 provider settings to change. Omitted fields keep their current value. |
 
 ### Example responses
 
@@ -2016,15 +2173,15 @@ Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name            | In    | Type              | Required | Description                     |
-|-----------------|-------|-------------------|----------|---------------------------------|
-| `organization`  | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
-| `user_id`       | query | string(uuid)      | false    | User ID                         |
-| `group_id`      | query | string(uuid)      | false    | Effective group ID              |
-| `provider_name` | query | string            | false    | Configured provider name        |
-| `model`         | query | string            | false    | Model name                      |
+| Name            | In    | Type              | Required | Description                                                           |
+|-----------------|-------|-------------------|----------|-----------------------------------------------------------------------|
+| `organization`  | path  | string            | true     | Organization ID, name, or `default` for the default organization.     |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                                       |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                                       |
+| `user_id`       | query | string(uuid)      | false    | Only include spend by this user. Accepts a user ID.                   |
+| `group_id`      | query | string(uuid)      | false    | Only include spend attributed to this group.                          |
+| `provider_name` | query | string            | false    | Only include spend through the AI provider with this configured name. |
+| `model`         | query | string            | false    | Only include spend on this model.                                     |
 
 ### Responses
 
@@ -2047,11 +2204,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 
 `GET /api/v2/organizations/{organization}/groups`
 
+Returns the groups in an organization that you can read, each with the members you can read.
+To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups`, which returns each group's member count instead of its members and requires permission to read every group in the organization.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2151,6 +2312,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 `POST /api/v2/organizations/{organization}/groups`
 
+Creates a group in an organization.
+Returns `409` if the organization already has a group with that name.
+Requires permission to create groups in the organization.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -2164,10 +2330,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 ### Parameters
 
-| Name           | In   | Type                                                                 | Required | Description          |
-|----------------|------|----------------------------------------------------------------------|----------|----------------------|
-| `organization` | path | string                                                               | true     | Organization ID      |
-| `body`         | body | [codersdk.CreateGroupRequest](schemas.md#codersdkcreategrouprequest) | true     | Create group request |
+| Name           | In   | Type                                                                 | Required | Description                                                                                                                                                                                                      |
+|----------------|------|----------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                               | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                |
+| `body`         | body | [codersdk.CreateGroupRequest](schemas.md#codersdkcreategrouprequest) | true     | Group to create. `name` is required, must be 255 characters or fewer, and can't be `Everyone`, `new`, or `create`. `quota_allowance` is the workspace quota credits the group adds to the budget of each member. |
 
 ### Example responses
 
@@ -2231,10 +2397,10 @@ Unknown or unreadable group IDs are silently omitted.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                     |
-|----------------|-------|--------------|----------|-------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                 |
-| `group_ids`    | query | string       | true     | Comma-separated list of group IDs (maximum 100) |
+| Name           | In    | Type   | Required | Description                                                       |
+|----------------|-------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path  | string | true     | Organization ID, name, or `default` for the default organization. |
+| `group_ids`    | query | string | true     | Comma-separated list of group IDs (maximum 100)                   |
 
 ### Example responses
 
@@ -2276,12 +2442,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 `GET /api/v2/organizations/{organization}/groups/{groupName}`
 
+Returns a group in an organization by its name, with the members you can read.
+Requires permission to read the group.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `groupName`    | path | string       | true     | Group name      |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `groupName`    | path | string | true     | Group name in the organization. Matching is case-insensitive.     |
 
 ### Example responses
 
@@ -2339,16 +2509,20 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 `GET /api/v2/organizations/{organization}/groups/{groupName}/members`
 
+Returns a page of the members of a group in an organization, filtered by the `q` search query.
+Returns only the members you can read.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In    | Type         | Required | Description         |
-|----------------|-------|--------------|----------|---------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID     |
-| `groupName`    | path  | string       | true     | Group name          |
-| `q`            | query | string       | false    | Member search query |
-| `after_id`     | query | string(uuid) | false    | After ID            |
-| `limit`        | query | integer      | false    | Page limit          |
-| `offset`       | query | integer      | false    | Page offset         |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                                                            |
+|----------------|-------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                                                                                      |
+| `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.                                                                                                                                                                                                                                                                                                          |
+| `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`. |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                                                            |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                                                            |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
 
@@ -2403,11 +2577,11 @@ User IDs that are not members of the group, or that the caller has no read acces
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                    |
-|----------------|-------|--------------|----------|------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                |
-| `groupName`    | path  | string       | true     | Group name                                     |
-| `user_ids`     | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+| Name           | In    | Type   | Required | Description                                                       |
+|----------------|-------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path  | string | true     | Organization ID, name, or `default` for the default organization. |
+| `groupName`    | path  | string | true     | Group name in the organization. Matching is case-insensitive.     |
+| `user_ids`     | query | string | true     | Comma-separated list of user IDs (maximum 100)                    |
 
 ### Example responses
 
@@ -2456,12 +2630,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota`
 
+Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.
+The budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.
+Requires permission to read the user, which you have for yourself.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description          |
-|----------------|------|--------------|----------|----------------------|
-| `user`         | path | string       | true     | User ID, name, or me |
-| `organization` | path | string(uuid) | true     | Organization ID      |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `user`         | path | string | true     | User ID, username, or `me` for the authenticated user.            |
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2495,31 +2673,21 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 `GET /api/v2/organizations/{organization}/paginated-groups`
 
-Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
-which authorizes each group individually via its ACL, this endpoint requires
-organization-wide group read permission and does no per-group filtering. It is
-therefore not a drop-in replacement: callers without org-wide group read receive
-an error rather than a filtered subset.
-
-The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
-perform a free-text search over group name and display name. `search:` is the only
-accepted key and unknown keys return 400. Because group display names may contain
-colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
-unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
-
-This endpoint returns group summaries without the member roster: each group
-carries only `total_member_count` and no `members` field. Callers that need the
-roster use the group members endpoint (GET /groups/{group}/members).
+Returns the groups in an organization, ordered by name and paged with `limit`, with each group's `total_member_count` instead of its members.
+To list a group's members, use `GET /api/v2/groups/{group}/members`.
+Quote a `q` value that contains a colon, as in `search:"team: frontend"`.
+Requires permission to read every group in the organization, and returns `500` instead of a partial list without it.
+Requires a Premium license.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                 |
-|----------------|-------|--------------|----------|-------------------------------------------------------------|
-| `organization` | path  | string       | true     | Organization ID or name                                     |
-| `q`            | query | string       | false    | Search query (see description for syntax and colon-quoting) |
-| `limit`        | query | integer      | false    | Page limit                                                  |
-| `offset`       | query | integer      | false    | Page offset                                                 |
-| `after_id`     | query | string(uuid) | false    | After ID                                                    |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                             |
+|----------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                                                                                                       |
+| `q`            | query | string       | false    | Search query in the format `key:value`. The only available key is `search`, which matches group names and display names, and text without a key does the same. Other keys return `400`. |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                             |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                     |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                             |
 
 ### Example responses
 
@@ -2565,11 +2733,21 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerdaemons/serve`
 
+Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.
+Authenticates with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
+Send `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.
+A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
+A pre-shared key works only for the default organization.
+With a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.
+Starting any other daemon with a session token requires permission to create provisioner daemons in the organization.
+The WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Responses
 
@@ -2592,11 +2770,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerkeys`
 
+Returns the provisioner keys in an organization, oldest first, without their secrets.
+The list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.
+Requires permission to read provisioner daemons in the organization.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2652,11 +2835,17 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
 
 `POST /api/v2/organizations/{organization}/provisionerkeys`
 
+Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.
+Set `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.
+The response holds the key secret, which Coder stores only as a hash, so save it when you create the key.
+Requires permission to create provisioner daemons in the organization.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2689,11 +2878,17 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerkeys/daemons`
 
+Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.
+Use it to check which external provisioner daemons are connected.
+Returns only the keys you can read.
+Requires permission to read provisioner daemons in the organization.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2813,12 +3008,17 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 
 `DELETE /api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}`
 
+Deletes a provisioner key, and daemons that authenticated with it lose their connection.
+You can't delete the reserved `built-in`, `user-auth`, and `psk` keys.
+Requires permission to delete provisioner daemons in the organization.
+Requires a Premium license.
+
 ### Parameters
 
-| Name             | In   | Type   | Required | Description          |
-|------------------|------|--------|----------|----------------------|
-| `organization`   | path | string | true     | Organization ID      |
-| `provisionerkey` | path | string | true     | Provisioner key name |
+| Name             | In   | Type   | Required | Description                                                       |
+|------------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization`   | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `provisionerkey` | path | string | true     | Name of the provisioner key to delete.                            |
 
 ### Responses
 
@@ -2841,11 +3041,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/available-fields`
 
+Returns the claim field names found in the stored OIDC claims of this organization's members.
+Use it to choose a `field` for group or role sync.
+Requires permission to read IdP sync settings in the organization.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2880,12 +3084,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/field-values`
 
+Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.
+Use it to find the values to put in a group or role `mapping`.
+Requires permission to read IdP sync settings in the organization.
+
 ### Parameters
 
-| Name           | In    | Type           | Required | Description     |
-|----------------|-------|----------------|----------|-----------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID |
-| `claimField`   | query | string(string) | true     | Claim Field     |
+| Name           | In    | Type           | Required | Description                                                                                                            |
+|----------------|-------|----------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string         | true     | Organization ID, name, or `default` for the default organization.                                                      |
+| `claimField`   | query | string(string) | true     | Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty. |
 
 ### Example responses
 
@@ -2920,11 +3128,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/groups`
 
+Returns how an organization syncs its groups from the identity provider, including the claim `field`, the `mapping` to Coder groups, and any `regex_filter`.
+Requires permission to read IdP sync settings in the organization.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2972,6 +3183,11 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups`
 
+Replaces all of an organization's group sync settings, so any field you omit resets.
+To change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.
+Requires permission to update IdP sync settings in the organization.
+Returns `400` for a request that sets the deprecated `legacy_group_name_mapping`.
+
 > Body parameter
 
 ```json
@@ -2996,10 +3212,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                               | Required | Description     |
-|----------------|------|--------------------------------------------------------------------|----------|-----------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID |
-| `body`         | body | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) | true     | New settings    |
+| Name           | In   | Type                                                               | Required | Description                                                       |
+|----------------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string                                                             | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) | true     | New group sync settings, which replace the current ones.          |
 
 ### Example responses
 
@@ -3047,6 +3263,9 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`
 
+Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.
+Requires permission to update IdP sync settings in the organization.
+
 > Body parameter
 
 ```json
@@ -3059,10 +3278,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                         | Required | Description             |
-|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------|
-| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name |
-| `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New config values       |
+| Name           | In   | Type                                                                                         | Required | Description                                                                                           |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                                                       | true     | Organization ID, name, or `default` for the default organization.                                     |
+| `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New values for `field`, `regex_filter`, and `auto_create_missing_groups`. The mapping stays as it is. |
 
 ### Example responses
 
@@ -3110,6 +3329,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`
 
+Adds and removes entries in an organization's group `mapping`, and keeps the claim `field`, `regex_filter`, and `auto_create_missing_groups`.
+An entry that appears in both `add` and `remove` ends up removed.
+Requires permission to update IdP sync settings in the organization.
+
 > Body parameter
 
 ```json
@@ -3131,10 +3354,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                           | Required | Description                                   |
-|----------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
-| `organization` | path | string(uuid)                                                                                   | true     | Organization ID or name                       |
-| `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+| Name           | In   | Type                                                                                           | Required | Description                                                       |
+|----------------|------|------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string                                                                                         | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove                     |
 
 ### Example responses
 
@@ -3181,11 +3404,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/roles`
 
+Returns how an organization syncs organization roles from the identity provider, including the claim `field` and the `mapping` to role names.
+Requires permission to read IdP sync settings in the organization.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3227,6 +3453,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles`
 
+Replaces all of an organization's role sync settings, so any field you omit resets.
+To change only the claim `field`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`.
+Requires permission to update IdP sync settings in the organization.
+
 > Body parameter
 
 ```json
@@ -3245,10 +3475,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                             | Required | Description     |
-|----------------|------|------------------------------------------------------------------|----------|-----------------|
-| `organization` | path | string(uuid)                                                     | true     | Organization ID |
-| `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New settings    |
+| Name           | In   | Type                                                             | Required | Description                                                       |
+|----------------|------|------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string                                                           | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New role sync settings, which replace the current ones.           |
 
 ### Example responses
 
@@ -3290,6 +3520,9 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`
 
+Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
+Requires permission to update IdP sync settings in the organization.
+
 > Body parameter
 
 ```json
@@ -3300,10 +3533,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                       | Required | Description             |
-|----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------|
-| `organization` | path | string(uuid)                                                                               | true     | Organization ID or name |
-| `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New config values       |
+| Name           | In   | Type                                                                                       | Required | Description                                                       |
+|----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string                                                                                     | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New value for `field`. The mapping stays as it is.                |
 
 ### Example responses
 
@@ -3345,6 +3578,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`
 
+Adds and removes entries in an organization's role `mapping`, and keeps the claim `field`.
+An entry that appears in both `add` and `remove` ends up removed.
+Requires permission to update IdP sync settings in the organization.
+
 > Body parameter
 
 ```json
@@ -3366,10 +3603,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                         | Required | Description                                   |
-|----------------|------|----------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
-| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name                       |
-| `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+| Name           | In   | Type                                                                                         | Required | Description                                                       |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string                                                                                       | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove                     |
 
 ### Example responses
 
@@ -3410,11 +3647,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/workspace-sharing`
 
+Returns whether workspaces in an organization can be shared, and whose workspaces can be shared: `none`, `everyone`, or `service_accounts`.
+When the deployment disables workspace sharing with `--disable-workspace-sharing`, `sharing_globally_disabled` is `true` and `shareable_workspace_owners` is `none` whatever the organization setting is.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3450,6 +3690,11 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/workspace-sharing`
 
+Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.
+Choosing `none` removes every workspace share in the organization.
+Choosing `service_accounts` removes the shares on workspaces that service accounts don't own.
+Requires permission to update the organization.
+
 > Body parameter
 
 ```json
@@ -3461,10 +3706,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                                       | Required | Description                |
-|----------------|------|------------------------------------------------------------------------------------------------------------|----------|----------------------------|
-| `organization` | path | string(uuid)                                                                                               | true     | Organization ID            |
-| `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings |
+| Name           | In   | Type                                                                                                       | Required | Description                                                                                                                                                       |
+|----------------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                                                                     | true     | Organization ID, name, or `default` for the default organization.                                                                                                 |
+| `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings to apply. Set `shareable_workspace_owners`. The deprecated `sharing_disabled` applies only when `shareable_workspace_owners` is empty. |
 
 ### Example responses
 
@@ -3498,11 +3743,14 @@ curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
 
 `GET /api/v2/provisionerkeys/{provisionerkey}`
 
+Returns the details of the provisioner key that you authenticate with, without its secret.
+Authenticates with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
+
 ### Parameters
 
-| Name             | In   | Type   | Required | Description     |
-|------------------|------|--------|----------|-----------------|
-| `provisionerkey` | path | string | true     | Provisioner Key |
+| Name             | In   | Type   | Required | Description                                                                                                      |
+|------------------|------|--------|----------|------------------------------------------------------------------------------------------------------------------|
+| `provisionerkey` | path | string | true     | Provisioner key name. Coder ignores this value and returns the key in the `Coder-Provisioner-Daemon-Key` header. |
 
 ### Example responses
 
@@ -3541,6 +3789,9 @@ curl -X GET http://coder-server:8080/api/v2/replicas \
 ```
 
 `GET /api/v2/replicas`
+
+Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.
+Requires permission to read replicas.
 
 ### Example responses
 
@@ -3596,6 +3847,10 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 
 `GET /api/v2/settings/idpsync/available-fields`
 
+Returns the claim field names found in the stored OIDC claims of all users on the deployment.
+Use it to choose a `field` for organization sync.
+Requires permission to read IdP sync settings across the deployment.
+
 ### Parameters
 
 | Name           | In   | Type         | Required | Description     |
@@ -3635,12 +3890,16 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimF
 
 `GET /api/v2/settings/idpsync/field-values`
 
+Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.
+Use it to find the values to put in an organization `mapping`.
+Requires permission to read IdP sync settings across the deployment.
+
 ### Parameters
 
-| Name           | In    | Type           | Required | Description     |
-|----------------|-------|----------------|----------|-----------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID |
-| `claimField`   | query | string(string) | true     | Claim Field     |
+| Name           | In    | Type           | Required | Description                                                                                                            |
+|----------------|-------|----------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID                                                                                                        |
+| `claimField`   | query | string(string) | true     | Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty. |
 
 ### Example responses
 
@@ -3674,6 +3933,10 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/organization \
 ```
 
 `GET /api/v2/settings/idpsync/organization`
+
+Returns how the deployment syncs organization membership from the identity provider, including the claim `field`, the `mapping` to organizations, and `organization_assign_default`.
+This setting is deployment-wide and isn't scoped to one organization.
+Requires permission to read IdP sync settings across the deployment.
 
 ### Example responses
 
@@ -3716,6 +3979,10 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 `PATCH /api/v2/settings/idpsync/organization`
 
+Replaces all of the deployment's organization sync settings, so any field you omit resets.
+To change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
+Requires permission to update IdP sync settings across the deployment.
+
 > Body parameter
 
 ```json
@@ -3735,9 +4002,9 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description  |
-|--------|------|----------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) | true     | New settings |
+| Name   | In   | Type                                                                             | Required | Description                                                     |
+|--------|------|----------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| `body` | body | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) | true     | New organization sync settings, which replace the current ones. |
 
 ### Example responses
 
@@ -3780,6 +4047,10 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
 
 `PATCH /api/v2/settings/idpsync/organization/config`
 
+Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.
+This setting is deployment-wide and isn't scoped to one organization.
+Requires permission to update IdP sync settings across the deployment.
+
 > Body parameter
 
 ```json
@@ -3791,9 +4062,9 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                       | Required | Description       |
-|--------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------|
-| `body` | body | [codersdk.PatchOrganizationIDPSyncConfigRequest](schemas.md#codersdkpatchorganizationidpsyncconfigrequest) | true     | New config values |
+| Name   | In   | Type                                                                                                       | Required | Description                                                              |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------|
+| `body` | body | [codersdk.PatchOrganizationIDPSyncConfigRequest](schemas.md#codersdkpatchorganizationidpsyncconfigrequest) | true     | New values for `field` and `assign_default`. The mapping stays as it is. |
 
 ### Example responses
 
@@ -3835,6 +4106,10 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapp
 ```
 
 `PATCH /api/v2/settings/idpsync/organization/mapping`
+
+Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.
+An entry that appears in both `add` and `remove` ends up removed.
+Requires permission to update IdP sync settings across the deployment.
 
 > Body parameter
 
@@ -3900,6 +4175,10 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 ```
 
 `GET /api/v2/templates/{template}/acl`
+
+Returns the users and groups that have access to a template, each with its role, either `admin` or `use`.
+Requires permission to update the template.
+Requires a Premium license.
 
 ### Parameters
 
@@ -3997,6 +4276,11 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 `PATCH /api/v2/templates/{template}/acl`
 
+Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in `user_perms` and group IDs in `group_perms` to a role, either `admin` or `use`.
+Set a role to an empty string to remove that user or group, and entries you leave out stay as they are.
+Requires permission to create the template, not only to update it.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4014,10 +4298,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ### Parameters
 
-| Name       | In   | Type                                                               | Required | Description                 |
-|------------|------|--------------------------------------------------------------------|----------|-----------------------------|
-| `template` | path | string(uuid)                                                       | true     | Template ID                 |
-| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Update template ACL request |
+| Name       | In   | Type                                                               | Required | Description                                                                                                  |
+|------------|------|--------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `template` | path | string(uuid)                                                       | true     | Template ID                                                                                                  |
+| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Users and groups to add, change, or remove, each mapped to a template role. An empty role removes the entry. |
 
 ### Example responses
 
@@ -4057,11 +4341,19 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 
 `GET /api/v2/templates/{template}/acl/available`
 
+Returns the users and groups you can add to a template's access control list.
+Requires permission to update the template.
+Requires a Premium license.
+
 ### Parameters
 
-| Name       | In   | Type         | Required | Description |
-|------------|------|--------------|----------|-------------|
-| `template` | path | string(uuid) | true     | Template ID |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                   |
+|------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `template` | path  | string(uuid) | true     | Template ID                                                                                                                                                                                                   |
+| `q`        | query | string       | false    | Search query in the format `key:value`, with the same keys as `q` on `GET /api/v2/users`. It filters the users, and text without a key, or with the `search` key, also matches group names and display names. |
+| `limit`    | query | integer      | false    | Maximum number of users, and separately of groups, to return. The default, `0`, returns all of them.                                                                                                          |
+| `offset`   | query | integer      | false    | Number of users to skip, for paging through users with `limit`. It doesn't apply to groups.                                                                                                                   |
+| `after_id` | query | string(uuid) | false    | ID of the last user on the previous page. Returns the users after it, and doesn't apply to groups.                                                                                                            |
 
 ### Example responses
 
@@ -4182,6 +4474,11 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 
 `POST /api/v2/templates/{template}/prebuilds/invalidate`
 
+Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.
+Returns the invalidated presets.
+Requires permission to update the template.
+Requires a Premium license.
+
 ### Parameters
 
 | Name       | In   | Type         | Required | Description |
@@ -4225,11 +4522,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 `GET /api/v2/users/{user}/ai/budget/override`
 
+Returns the AI budget override of a user, which replaces the budgets of their groups.
+Returns `404` if the user has no override.
+Requires permission to read the user, which you have for yourself.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4267,6 +4569,11 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 `PUT /api/v2/users/{user}/ai/budget/override`
 
+Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.
+The user must be a member of that group, and you can't set an override for a system user.
+Requires permission to update both the user and the group.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4278,10 +4585,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                               | Required | Description                            |
-|--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------------------------|
-| `user` | path | string                                                                                             | true     | User ID, username, or me               |
-| `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | Upsert user AI budget override request |
+| Name   | In   | Type                                                                                               | Required | Description                                                                                                                                                                                                               |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                    |
+| `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | AI budget override for the user. `group_id` is the group that the user's spend is attributed to. `spend_limit_micros` is the user's limit for each budget period, in millionths of a dollar, from `0` to `1000000000000`. |
 
 ### Example responses
 
@@ -4317,11 +4624,16 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 `DELETE /api/v2/users/{user}/ai/budget/override`
 
+Deletes the AI budget override of a user, which returns them to the budget of their effective group.
+Returns `404` if the user has no override.
+Requires permission to update both the user and the group the override attributes spend to.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Responses
 
@@ -4344,11 +4656,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 
 `GET /api/v2/users/{user}/ai/spend`
 
+Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.
+Requires permission to read the user, which you have for yourself.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4389,11 +4705,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 `GET /api/v2/users/{user}/quiet-hours`
 
+Returns the daily quiet hours schedule that applies to a user, which is the deployment default until the user sets their own.
+Check `user_set` to see whether the user set the schedule, and `user_can_set` to see whether the deployment lets users set their own.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type         | Required | Description |
-|--------|------|--------------|----------|-------------|
-| `user` | path | string(uuid) | true     | User ID     |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4448,6 +4768,11 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 `PUT /api/v2/users/{user}/quiet-hours`
 
+Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
+Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
+You can update your own schedule, and updating another user's schedule requires permission to update personal user data.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4458,10 +4783,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                   | Required | Description             |
-|--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `user` | path | string(uuid)                                                                                           | true     | User ID                 |
-| `body` | body | [codersdk.UpdateUserQuietHoursScheduleRequest](schemas.md#codersdkupdateuserquiethoursschedulerequest) | true     | Update schedule request |
+| Name   | In   | Type                                                                                                   | Required | Description                                            |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------|
+| `user` | path | string                                                                                                 | true     | User ID, username, or `me` for the authenticated user. |
+| `body` | body | [codersdk.UpdateUserQuietHoursScheduleRequest](schemas.md#codersdkupdateuserquiethoursschedulerequest) | true     | Quiet hours schedule to set.                           |
 
 ### Example responses
 
@@ -4515,11 +4840,14 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
 
 `GET /api/v2/workspace-quota/{user}`
 
+Returns a user's workspace quota in the default organization.
+Deprecated. Use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4552,6 +4880,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
 ```
 
 `GET /api/v2/workspaceproxies`
+
+Returns the primary region and every workspace proxy, each with its health status, under `regions`.
+Every member can read workspace proxies.
+Requires a Premium license.
 
 ### Example responses
 
@@ -4649,6 +4981,12 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 
 `POST /api/v2/workspaceproxies`
 
+Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
+Set `name` (not `primary`), and optionally `display_name` and `icon`.
+Save the token from the response, because Coder doesn't show it again unless you regenerate it.
+Requires permission to create workspace proxies.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4661,9 +4999,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description                    |
-|--------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
-| `body` | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Create workspace proxy request |
+| Name   | In   | Type                                                                                   | Required | Description                |
+|--------|------|----------------------------------------------------------------------------------------|----------|----------------------------|
+| `body` | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Workspace proxy to create. |
 
 ### Example responses
 
@@ -4720,11 +5058,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
 
 `GET /api/v2/workspaceproxies/{workspaceproxy}`
 
+Returns a workspace proxy, including its health status.
+Requires a Premium license.
+
 ### Parameters
 
-| Name             | In   | Type         | Required | Description      |
-|------------------|------|--------------|----------|------------------|
-| `workspaceproxy` | path | string(uuid) | true     | Proxy ID or name |
+| Name             | In   | Type   | Required | Description                                                              |
+|------------------|------|--------|----------|--------------------------------------------------------------------------|
+| `workspaceproxy` | path | string | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
 
 ### Example responses
 
@@ -4781,11 +5122,16 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
 
 `DELETE /api/v2/workspaceproxies/{workspaceproxy}`
 
+Deletes a workspace proxy, so Coder stops offering it as a region.
+You can't delete the primary proxy.
+Requires permission to delete workspace proxies.
+Requires a Premium license.
+
 ### Parameters
 
-| Name             | In   | Type         | Required | Description      |
-|------------------|------|--------------|----------|------------------|
-| `workspaceproxy` | path | string(uuid) | true     | Proxy ID or name |
+| Name             | In   | Type   | Required | Description                                                              |
+|------------------|------|--------|----------|--------------------------------------------------------------------------|
+| `workspaceproxy` | path | string | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
 
 ### Example responses
 
@@ -4826,6 +5172,12 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 
 `PATCH /api/v2/workspaceproxies/{workspaceproxy}`
 
+Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.
+Set `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.
+For the primary proxy, you can change only `display_name` and `icon`.
+Requires permission to update workspace proxies.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4840,10 +5192,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 
 ### Parameters
 
-| Name             | In   | Type                                                                   | Required | Description                    |
-|------------------|------|------------------------------------------------------------------------|----------|--------------------------------|
-| `workspaceproxy` | path | string(uuid)                                                           | true     | Proxy ID or name               |
-| `body`           | body | [codersdk.PatchWorkspaceProxy](schemas.md#codersdkpatchworkspaceproxy) | true     | Update workspace proxy request |
+| Name             | In   | Type                                                                   | Required | Description                                                                              |
+|------------------|------|------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------|
+| `workspaceproxy` | path | string                                                                 | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy.                 |
+| `body`           | body | [codersdk.PatchWorkspaceProxy](schemas.md#codersdkpatchworkspaceproxy) | true     | Workspace proxy fields to update. Set `regenerate_token` to `true` to issue a new token. |
 
 ### Example responses
 
@@ -4900,12 +5252,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
 
 `GET /api/v2/workspaces/{workspace}/external-agent/{agent}/credentials`
 
+Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.
+Treat the response as a secret, because the token lets the holder act as the workspace agent.
+Requires permission to SSH to the workspace.
+Requires a Premium license.
+
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
-| `agent`     | path | string       | true     | Agent name   |
+| Name        | In   | Type         | Required | Description                                                                        |
+|-------------|------|--------------|----------|------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID                                                                       |
+| `agent`     | path | string       | true     | Name of the external workspace agent, as it appears in the latest workspace build. |
 
 ### Example responses
 
@@ -4938,13 +5295,17 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_
 
 `GET /oauth2/authorize`
 
+Shows the consent page where a signed-in user approves an OAuth2 client's request for access to their Coder account (RFC 6749 section 4.1.1).
+The OAuth2 client sends the user's browser here, and a browser without a session goes to the login page first.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
 | Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
 |-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `client_id`             | query | string | true     | Client ID of the requesting OAuth2 client, which is the ID of its application.                                                                                                                                                                                     |
 | `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
-| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `response_type`         | query | string | true     | Response type. Only `code` is supported.                                                                                                                                                                                                                           |
 | `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
 | `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 | `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
@@ -4982,13 +5343,17 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response
 
 `POST /oauth2/authorize`
 
+Records the user's approval and redirects the browser to the client's registered callback with a single-use authorization code that expires after 10 minutes (RFC 6749 section 4.1.2).
+The consent page submits the same query parameters as the `GET` request, and the route needs the user's session.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
 | Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
 |-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `client_id`             | query | string | true     | Client ID of the requesting OAuth2 client, which is the ID of its application.                                                                                                                                                                                     |
 | `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
-| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `response_type`         | query | string | true     | Response type. Only `code` is supported.                                                                                                                                                                                                                           |
 | `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
 | `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 | `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
@@ -5036,11 +5401,15 @@ curl -X GET http://coder-server:8080/oauth2/clients/{client_id} \
 
 `GET /oauth2/clients/{client_id}`
 
+Returns the registered configuration of a dynamically registered OAuth2 client, without its secret (RFC 7592).
+Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name        | In   | Type   | Required | Description |
-|-------------|------|--------|----------|-------------|
-| `client_id` | path | string | true     | Client ID   |
+| Name        | In   | Type   | Required | Description                                      |
+|-------------|------|--------|----------|--------------------------------------------------|
+| `client_id` | path | string | true     | Client ID that `POST /oauth2/register` returned. |
 
 ### Example responses
 
@@ -5098,6 +5467,10 @@ curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
 
 `PUT /oauth2/clients/{client_id}`
 
+Replaces the registered metadata of a dynamically registered OAuth2 client (RFC 7592).
+Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```json
@@ -5131,10 +5504,10 @@ curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                           | Required | Description           |
-|-------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------|
-| `client_id` | path | string                                                                                         | true     | Client ID             |
-| `body`      | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client update request |
+| Name        | In   | Type                                                                                           | Required | Description                                                                                                  |
+|-------------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `client_id` | path | string                                                                                         | true     | Client ID that `POST /oauth2/register` returned.                                                             |
+| `body`      | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | New client metadata. It replaces the registered metadata, using the same fields as the registration request. |
 
 ### Example responses
 
@@ -5192,11 +5565,15 @@ curl -X DELETE http://coder-server:8080/oauth2/clients/{client_id}
 
 `DELETE /oauth2/clients/{client_id}`
 
+Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it (RFC 7592).
+Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name        | In   | Type   | Required | Description |
-|-------------|------|--------|----------|-------------|
-| `client_id` | path | string | true     | Client ID   |
+| Name        | In   | Type   | Required | Description                                      |
+|-------------|------|--------|----------|--------------------------------------------------|
+| `client_id` | path | string | true     | Client ID that `POST /oauth2/register` returned. |
 
 ### Responses
 
@@ -5216,6 +5593,10 @@ curl -X POST http://coder-server:8080/oauth2/register \
 ```
 
 `POST /oauth2/register`
+
+Registers a new OAuth2 client and returns its `client_id`, its `client_secret` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).
+Doesn't require a session token, but returns `403` unless dynamic client registration is enabled in the OAuth2 provider settings.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 > Body parameter
 
@@ -5250,9 +5631,9 @@ curl -X POST http://coder-server:8080/oauth2/register \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                           | Required | Description                 |
-|--------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------|
-| `body` | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client registration request |
+| Name   | In   | Type                                                                                           | Required | Description                                                                    |
+|--------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------|
+| `body` | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client metadata to register, as defined by RFC 7591. Requires `redirect_uris`. |
 
 ### Example responses
 
@@ -5312,6 +5693,10 @@ curl -X POST http://coder-server:8080/oauth2/revoke \
 
 `POST /oauth2/revoke`
 
+Revokes an access token or a refresh token that was issued to the calling OAuth2 client (RFC 7009).
+Doesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, and a `200` response doesn't confirm that the token existed or belonged to the client.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```yaml
@@ -5366,6 +5751,10 @@ curl -X POST http://coder-server:8080/oauth2/tokens \
 
 `POST /oauth2/tokens`
 
+Exchanges an authorization code or a refresh token for an access token and a new refresh token (RFC 6749 sections 4.1.3 and 6).
+Doesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, or with `code_verifier` when it is a public client.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```yaml
@@ -5388,7 +5777,7 @@ grant_type: authorization_code
 | `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code                                                                                             |
 | `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.                                                            |
 | `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token                                                                                                       |
-| `» grant_type`    | body | string | true     | Grant type                                                                                                                                                |
+| `» grant_type`    | body | string | true     | Grant type. Use `authorization_code` with `code`, or `refresh_token` with `refresh_token`. Other values return `unsupported_grant_type`.                  |
 
 #### Enumerated Values
 
@@ -5431,11 +5820,15 @@ curl -X DELETE http://coder-server:8080/oauth2/tokens?client_id=string \
 
 `DELETE /oauth2/tokens`
 
+Revokes the signed-in user's authorization codes and tokens for one OAuth2 application, so the application loses that user's access.
+Authenticates with the user's session token instead of client credentials, so to revoke one token as the OAuth2 client, use `POST /oauth2/revoke`.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name        | In    | Type   | Required | Description |
-|-------------|-------|--------|----------|-------------|
-| `client_id` | query | string | true     | Client ID   |
+| Name        | In    | Type   | Required | Description                                                       |
+|-------------|-------|--------|----------|-------------------------------------------------------------------|
+| `client_id` | query | string | true     | Client ID of the OAuth2 application, which is the application ID. |
 
 ### Responses
 
@@ -5457,6 +5850,11 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 
 `GET /scim/v2/ServiceProviderConfig`
 
+Returns the service provider configuration for SCIM, which lists the features Coder supports.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
+
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema |
@@ -5474,6 +5872,11 @@ curl -X GET http://coder-server:8080/scim/v2/Users \
 ```
 
 `GET /scim/v2/Users`
+
+Returns an empty user list with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 ### Responses
 
@@ -5496,6 +5899,11 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 ```
 
 `POST /scim/v2/Users`
+
+Creates a user with the OIDC login type from a SCIM user that has `active` and a primary entry in `emails`, or returns the existing user with the same email or username.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 > Body parameter
 
@@ -5530,9 +5938,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Parameters
 
-| Name   | In   | Type                                                 | Required | Description |
-|--------|------|------------------------------------------------------|----------|-------------|
-| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | New user    |
+| Name   | In   | Type                                                 | Required | Description                                                             |
+|--------|------|------------------------------------------------------|----------|-------------------------------------------------------------------------|
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | SCIM user to create. Requires `active` and a primary entry in `emails`. |
 
 ### Example responses
 
@@ -5587,11 +5995,16 @@ curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
 
 `GET /scim/v2/Users/{id}`
 
+Returns `404` with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
+
 ### Parameters
 
-| Name | In   | Type         | Required | Description |
-|------|------|--------------|----------|-------------|
-| `id` | path | string(uuid) | true     | User ID     |
+| Name | In   | Type         | Required | Description                                                                  |
+|------|------|--------------|----------|------------------------------------------------------------------------------|
+| `id` | path | string(uuid) | true     | ID of the Coder user, which is the `id` that `POST /scim/v2/Users` returned. |
 
 ### Responses
 
@@ -5614,6 +6027,11 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 ```
 
 `PUT /scim/v2/Users/{id}`
+
+Suspends or reactivates a user according to `active`, which is required, and returns `400` when `userName` differs from the user's current username.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 > Body parameter
 
@@ -5648,10 +6066,10 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                                 | Required | Description          |
-|--------|------|------------------------------------------------------|----------|----------------------|
-| `id`   | path | string(uuid)                                         | true     | User ID              |
-| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Replace user request |
+| Name   | In   | Type                                                 | Required | Description                                                                                     |
+|--------|------|------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------|
+| `id`   | path | string(uuid)                                         | true     | ID of the Coder user, which is the `id` that `POST /scim/v2/Users` returned.                    |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | SCIM user to apply. Requires `active`, and `userName`, if set, must match the current username. |
 
 ### Example responses
 
@@ -5707,6 +6125,11 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 
 `PATCH /scim/v2/Users/{id}`
 
+Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -5740,10 +6163,10 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                                 | Required | Description         |
-|--------|------|------------------------------------------------------|----------|---------------------|
-| `id`   | path | string(uuid)                                         | true     | User ID             |
-| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Update user request |
+| Name   | In   | Type                                                 | Required | Description                                                                    |
+|--------|------|------------------------------------------------------|----------|--------------------------------------------------------------------------------|
+| `id`   | path | string(uuid)                                         | true     | ID of the Coder user, which is the `id` that `POST /scim/v2/Users` returned.   |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | SCIM user to apply. Requires `active`, and Coder ignores the other attributes. |
 
 ### Example responses
 

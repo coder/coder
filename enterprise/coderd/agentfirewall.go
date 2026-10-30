@@ -14,11 +14,14 @@ import (
 )
 
 // @Summary Get agent firewall session by ID
+// @Description Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.
+// @Description Requires permission to read Agent Firewall logs.
+// @Description Requires a Premium license.
 // @ID get-agent-firewall-session-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param id path string true "Agent firewall session ID" format(uuid)
+// @Param id path string true "Agent Firewall session ID." format(uuid)
 // @Success 200 {object} codersdk.AgentFirewallSession
 // @Router /api/v2/agent-firewall/sessions/{id} [get]
 func (api *API) agentFirewallSessionByID(rw http.ResponseWriter, r *http.Request) {
@@ -49,11 +52,15 @@ func (api *API) agentFirewallSessionByID(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Get agent firewall session logs
+// @Description Returns the logs for an Agent Firewall session in ascending sequence order.
+// @Description Use `seq_after` and `seq_before` to fetch a range of sequence numbers, and `limit` to change the number of logs returned, which defaults to `100`.
+// @Description Requires permission to read Agent Firewall logs.
+// @Description Requires a Premium license.
 // @ID get-agent-firewall-session-logs
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param id path string true "Agent firewall session ID" format(uuid)
+// @Param id path string true "Agent Firewall session ID." format(uuid)
 // @Param seq_after query int false "Inclusive lower bound on sequence number"
 // @Param seq_before query int false "Exclusive upper bound on sequence number"
 // @Param limit query int false "Maximum number of logs to return (default 100)"

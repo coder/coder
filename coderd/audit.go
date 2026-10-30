@@ -34,13 +34,16 @@ import (
 const auditLogCountCap = 2000
 
 // @Summary Get audit logs
+// @Description Returns the audit logs you can read, newest first, filtered by the `q` search query.
+// @Description Requires permission to read audit logs.
+// @Description Coder records audit logs only while the deployment has a Premium license.
 // @ID get-audit-logs
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Audit
-// @Param q query string false "Search query"
-// @Param limit query int true "Page limit"
-// @Param offset query int false "Page offset"
+// @Param q query string false "Search query in the format `key:value`, matched case-insensitively. Available keys are: `resource_type`, `resource_id`, `resource_target` (the resource's name), `action`, `username` (or `me`), `email`, `organization` (ID or name), `date_from` and `date_to` (inclusive, as `YYYY-MM-DD`), `build_reason`, and `request_id`. Text without a key filters by `resource_type`. Other keys return `400`."
+// @Param limit query int false "Maximum number of results to return. A value of `0` returns up to `100` results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.AuditLogResponse
 // @Router /api/v2/audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
