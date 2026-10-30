@@ -429,7 +429,6 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 								rel="noreferrer"
 							>
 								Learn more
-								<span className="sr-only"> (link opens in new tab)</span>
 							</Link>
 						</Alert>
 					)}

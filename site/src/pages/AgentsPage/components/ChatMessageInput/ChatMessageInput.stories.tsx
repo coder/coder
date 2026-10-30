@@ -1,10 +1,19 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
-import { expect, fn, userEvent, within } from "storybook/test";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockSkill, MockSkills } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+	MockSkills,
+} from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
@@ -193,6 +202,13 @@ export const ClickSelectsSkill: Story = {
 	},
 };
 
+export const SkillChipBetweenText: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "Use /rev");
+		await userEvent.keyboard("{Enter}on the latest diff");
+	},
+};
+
 export const OpensWithPersonalAndWorkspaceSkills: Story = {
 	args: {
 		hasWorkspace: true,
@@ -216,6 +232,21 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 
 const mockOrganizationId = "organization-skills-story";
 
+const mockOrganizationMenuSkills: TypesGen.SkillMetadata[] = [
+	{
+		...MockSkill,
+		id: "skill-release-notes",
+		name: "release-notes",
+		description: "Write release notes in the organization style.",
+	},
+	{
+		...MockSkill,
+		id: "skill-org-reviewer",
+		name: "reviewer",
+		description: "Organization review checklist.",
+	},
+];
+
 export const OpensWithAllSkillSources: Story = {
 	args: {
 		hasWorkspace: true,
@@ -226,25 +257,150 @@ export const OpensWithAllSkillSources: Story = {
 		queries: [
 			{
 				key: organizationSkills(mockOrganizationId).queryKey,
-				data: [
-					{
-						...MockSkill,
-						id: "skill-release-notes",
-						name: "release-notes",
-						description: "Write release notes in the organization style.",
-					},
-					{
-						...MockSkill,
-						id: "skill-org-reviewer",
-						name: "reviewer",
-						description: "Organization review checklist.",
-					},
-				],
+				data: mockOrganizationMenuSkills,
+			},
+			{
+				key: organizationSkillPreferencesKey(mockOrganizationId),
+				data: MockOrganizationSkillPreferences,
 			},
 		],
 	},
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
+	},
+};
+
+const mockReviewerTurnedOffPreferences: TypesGen.OrganizationSkillPreferences =
+	{
+		...MockOrganizationSkillPreferences,
+		members_can_disable_skills: true,
+		disabled_skill_ids: ["skill-org-reviewer"],
+	};
+
+// With the organization reviewer turned off, the personal reviewer no longer
+// collides and shows as a bare /reviewer.
+export const HidesOrganizationSkillsTurnedOff: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: mockOrganizationMenuSkills,
+			},
+			{
+				key: organizationSkillPreferencesKey(mockOrganizationId),
+				data: mockReviewerTurnedOffPreferences,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
+export const OrganizationSkillChoicesError: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: mockOrganizationMenuSkills,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockRejectedValue(new Error("Failed to load your skill choices."));
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
+export const CommandsHiddenWhileOrganizationSkillChoicesLoad: Story = {
+	args: {
+		organizationId: mockOrganizationId,
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: mockOrganizationMenuSkills,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillPreferences").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
+export const OrganizationWithoutSkillsIgnoresChoicesError: Story = {
+	args: {
+		personalSkillsOverride: [],
+		organizationId: mockOrganizationId,
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	parameters: {
+		queries: [
+			{ key: organizationSkills(mockOrganizationId).queryKey, data: [] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockRejectedValue(new Error("Failed to load your skill choices."));
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+	},
+};
+
+// A 404 from the project skills request means the caller lost access to the
+// project, so the menu offers built-in commands without a retry prompt.
+export const LostProjectAccessOffersCommands: Story = {
+	args: {
+		personalSkillsOverride: [],
+		organizationId: mockOrganizationId,
+		projectId: "project-access-lost-story",
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	parameters: {
+		queries: [
+			{ key: organizationSkills(mockOrganizationId).queryKey, data: [] },
+			{
+				key: organizationSkillPreferencesKey(mockOrganizationId),
+				data: MockOrganizationSkillPreferences,
+			},
+			{ key: chatProjectsKey, data: [] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+			isAxiosError: true,
+			response: { status: 404, data: { message: "Project not found." } },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		// Built-in commands appear once the project source has resolved.
+		await findVisibleText(COMPACT_SLASH_COMMAND.description);
 	},
 };
 

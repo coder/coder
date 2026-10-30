@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { WorkspaceAgentScriptStatus } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
@@ -33,7 +34,7 @@ import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {
 	name: string;
-	status: string;
+	status: WorkspaceAgentScriptStatus;
 	exitCode: number;
 	range: TimeRange;
 };
@@ -93,7 +94,7 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<FocusableBar
-												aria-label={`Status: ${legend.label}, exit code ${t.exitCode}`}
+												aria-label={`${t.name}: ${legend.label}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
@@ -104,7 +105,7 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 											side="bottom"
 											className="border-surface-quaternary text-content-primary"
 										>
-											Script exited with <strong>code {t.exitCode}</strong>
+											{tooltipContent(t)}
 										</TooltipContent>
 									</Tooltip>
 
@@ -119,7 +120,32 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	);
 };
 
-function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
+// The runner reports 255 when it has no exit code, so a timeout or an open
+// pipe must not be shown as an exit code.
+function tooltipContent(t: ScriptTiming): React.ReactNode {
+	switch (t.status) {
+		case "timed_out":
+			return "Script timed out.";
+		case "pipes_left_open":
+			return "Script exited without closing its output pipes.";
+		case "skipped":
+			return "Script was skipped because a script it depends on failed, timed out, or was skipped.";
+		case "canceled":
+			return "Script was canceled because the agent shut down before it finished.";
+		default:
+			return (
+				<>
+					Script exited with <strong>code {t.exitCode}</strong>
+				</>
+			);
+	}
+}
+
+// Keyed by the union so a status without a legend fails the type check
+// instead of throwing on .colors at runtime.
+function getLegendsByStatus(
+	theme: Theme,
+): Record<WorkspaceAgentScriptStatus, ChartLegend> {
 	return {
 		ok: {
 			label: "success",
@@ -135,11 +161,34 @@ function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.error.outline,
 			},
 		},
-		timeout: {
+		timed_out: {
 			label: "timed out",
 			colors: {
 				fill: theme.roles.warning.background,
 				stroke: theme.roles.warning.outline,
+			},
+		},
+		pipes_left_open: {
+			label: "output pipes left open",
+			colors: {
+				fill: theme.roles.warning.background,
+				stroke: theme.roles.warning.outline,
+			},
+		},
+		skipped: {
+			label: "skipped",
+			colors: {
+				fill: theme.roles.inactive.background,
+				stroke: theme.roles.inactive.outline,
+			},
+		},
+		// The notice role rather than info: info and inactive share the same
+		// fill in both themes, so canceled and skipped bars would look alike.
+		canceled: {
+			label: "canceled",
+			colors: {
+				fill: theme.roles.notice.background,
+				stroke: theme.roles.notice.outline,
 			},
 		},
 	};

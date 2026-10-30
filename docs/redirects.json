@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "source": "/docs/admin/templates/extending-templates/dynamic-parameters",
+    "destination": "/docs/admin/templates/extending-templates/parameters"
+  },
+  {
+    "source": "/docs/about/screenshots",
+    "destination": "/docs"
+  }
+]

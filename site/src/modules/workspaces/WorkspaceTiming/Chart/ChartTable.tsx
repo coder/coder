@@ -94,7 +94,7 @@ export const ChartTableSection: React.FC<ChartTableSectionProps> = ({
 						<XAxisTicks ticks={ticks} />
 					</th>
 				) : (
-					<td className="border-t border-l" />
+					<td aria-hidden className="border-t border-l" />
 				)}
 			</tr>
 			{children}

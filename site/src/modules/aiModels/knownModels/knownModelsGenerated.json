@@ -373,8 +373,8 @@
 			"maxOutputTokens": 128000,
 			"inputCost": 4,
 			"outputCost": 20,
-			"cacheReadCost": 0.5,
-			"cacheWriteCost": 6.25
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 5
 		},
 		{
 			"provider": "azure",
@@ -885,10 +885,10 @@
 			"aliases": [],
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
-			"inputCost": 2,
-			"outputCost": 10,
-			"cacheReadCost": 0.2,
-			"cacheWriteCost": 2.5
+			"inputCost": 4,
+			"outputCost": 20,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 5
 		},
 		{
 			"provider": "openrouter",
@@ -942,9 +942,10 @@
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 117964,
-			"inputCost": 0.037,
-			"outputCost": 0.17
+			"maxOutputTokens": 65536,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "openrouter",
@@ -953,9 +954,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.5,
+			"inputCost": 0.192,
 			"outputCost": 15,
-			"cacheReadCost": 0.28
+			"cacheReadCost": 0.182
 		},
 		{
 			"provider": "openrouter",
@@ -964,9 +965,9 @@
 			"aliases": [],
 			"contextLimit": 262144,
 			"maxOutputTokens": 235929,
-			"inputCost": 0.6712,
-			"outputCost": 3.35,
-			"cacheReadCost": 0.18
+			"inputCost": 0.56,
+			"outputCost": 3.1,
+			"cacheReadCost": 0.15
 		},
 		{
 			"provider": "openrouter",
@@ -975,9 +976,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.079,
-			"outputCost": 4.8,
-			"cacheReadCost": 0.059
+			"inputCost": 0.0699,
+			"outputCost": 1.4,
+			"cacheReadCost": 0.0689
 		},
 		{
 			"provider": "openrouter",
@@ -985,9 +986,9 @@
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 943717,
-			"inputCost": 0.15,
-			"outputCost": 0.5,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.0457,
+			"outputCost": 0.0742,
 			"cacheReadCost": 0.03
 		},
 		{
@@ -997,9 +998,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.06,
+			"inputCost": 0.006,
 			"outputCost": 7,
-			"cacheReadCost": 0.059
+			"cacheReadCost": 0.005
 		},
 		{
 			"provider": "openrouter",
@@ -1127,7 +1128,7 @@
 			"displayName": "Gemini 4 Argon",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 65536,
+			"maxOutputTokens": 943718,
 			"inputCost": 2,
 			"outputCost": 10,
 			"cacheReadCost": 0.1,
@@ -1176,9 +1177,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.01584,
-			"outputCost": 0.891,
-			"cacheReadCost": 0.0054
+			"inputCost": 0.045,
+			"outputCost": 0.5,
+			"cacheReadCost": 0.006
 		},
 		{
 			"provider": "openrouter",
@@ -1198,9 +1199,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.398808,
-			"outputCost": 0.797616,
-			"cacheReadCost": 0.033234
+			"inputCost": 0.95526,
+			"outputCost": 1.91052,
+			"cacheReadCost": 0.079605
 		},
 		{
 			"provider": "openrouter",
@@ -1613,9 +1614,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 32768,
-			"inputCost": 0.3,
-			"outputCost": 1.2,
-			"cacheReadCost": 0.007
+			"inputCost": 0.075,
+			"outputCost": 0.3,
+			"cacheReadCost": 0.0015
 		},
 		{
 			"provider": "vercel",

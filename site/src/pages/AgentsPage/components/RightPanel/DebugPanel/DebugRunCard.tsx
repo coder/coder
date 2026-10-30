@@ -15,6 +15,7 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { clampContent } from "#/utils/text";
 import { DebugStepCard } from "./DebugStepCard";
 import {
 	buildDebugExportBlob,
@@ -23,7 +24,6 @@ import {
 	debugExportFilename,
 } from "./debugExport";
 import {
-	clampContent,
 	coerceRunSummary,
 	compactDuration,
 	computeDurationMs,
@@ -158,7 +158,7 @@ export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-0.5 text-left transition-colors hover:bg-surface-secondary/20"
+						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-0.5 text-left transition-colors hover:bg-surface-secondary/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2.5 overflow-hidden">
 							<p className="min-w-0 flex-1 truncate text-sm font-semibold text-content-primary">

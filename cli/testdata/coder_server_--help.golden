@@ -592,10 +592,6 @@ NETWORKING / HTTP OPTIONS:
           The maximum lifetime duration administrators can specify when creating
           an API token.
 
-      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
-          The interval in which coderd should be checking the status of
-          workspace proxies.
-
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
           longer if they are actively making requests, but this functionality
@@ -954,8 +950,8 @@ that data type.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.
+information before sending data to our servers. Only disable telemetry when
+required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage
@@ -1037,6 +1033,10 @@ These options are only available in the Enterprise Edition.
           operation it is recommended to only set one key unless you are in the
           process of rotating keys with the `coder server dbcrypt rotate`
           command.
+
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
 
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM

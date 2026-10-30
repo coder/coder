@@ -101,7 +101,7 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<FocusableBar
-												aria-label={`Action: ${legend.label}`}
+												aria-label={`${label}: ${legend.label}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}

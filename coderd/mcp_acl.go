@@ -44,14 +44,14 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := resolveACLUsers(ctx, api.Database, config.UserACL, func(user codersdk.MinimalUser) codersdk.MCPServerConfigUser {
+	users, err := resolveACLUsers(ctx, api.Database, config.UserACL, func(user codersdk.MinimalUser, _ database.ChatACLEntry) codersdk.MCPServerConfigUser {
 		return codersdk.MCPServerConfigUser{MinimalUser: user, Role: codersdk.MCPServerConfigRoleRead}
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	groups, err := resolveACLGroups(ctx, api.Database, config.GroupACL, func(group codersdk.Group) codersdk.MCPServerConfigGroup {
+	groups, err := resolveACLGroups(ctx, api.Database, uuid.Nil, config.GroupACL, func(group codersdk.Group, _ database.ChatACLEntry) codersdk.MCPServerConfigGroup {
 		return codersdk.MCPServerConfigGroup{Group: group, Role: codersdk.MCPServerConfigRoleRead}
 	})
 	if err != nil {
@@ -258,31 +258,32 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// resolveACLUsers resolves user ACL entries for callers that already passed
-// the resource's share check.
-func resolveACLUsers[T any](ctx context.Context, db database.Store, entries database.ChatACL, entry func(codersdk.MinimalUser) T) ([]T, error) {
+// resolveACLUsers resolves user ACL entries for callers that already
+// authorized reading the resource's ACL.
+func resolveACLUsers[T any](ctx context.Context, db database.Store, entries database.ChatACL, entry func(codersdk.MinimalUser, database.ChatACLEntry) T) ([]T, error) {
 	ids := parseACLIDs(entries)
-	//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
+	//nolint:gocritic // Callers that can read the ACL see shared users without user read permission.
 	users, err := db.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get ACL users: %w", err)
 	}
 	result := make([]T, 0, len(users))
 	for _, user := range users {
-		result = append(result, entry(db2sdk.MinimalUser(user)))
+		result = append(result, entry(db2sdk.MinimalUser(user), entries[user.ID.String()]))
 	}
 	return result, nil
 }
 
 // resolveACLGroups resolves group ACL entries, including member counts, for
-// callers that already passed the resource's share check.
-func resolveACLGroups[T any](ctx context.Context, db database.Store, entries database.ChatACL, entry func(codersdk.Group) T) ([]T, error) {
+// callers that already authorized reading the resource's ACL. Unless
+// organizationID is uuid.Nil, groups from other organizations are left out.
+func resolveACLGroups[T any](ctx context.Context, db database.Store, organizationID uuid.UUID, entries database.ChatACL, entry func(codersdk.Group, database.ChatACLEntry) T) ([]T, error) {
 	ids := parseACLIDs(entries)
 	var groups []database.GetGroupsRow
 	if len(ids) > 0 {
 		var err error
-		//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
-		groups, err = db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: ids})
+		//nolint:gocritic // Callers that can read the ACL see shared groups without group read permission.
+		groups, err = db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{OrganizationID: organizationID, GroupIds: ids})
 		if err != nil {
 			return nil, xerrors.Errorf("get ACL groups: %w", err)
 		}
@@ -291,14 +292,14 @@ func resolveACLGroups[T any](ctx context.Context, db database.Store, entries dat
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.Group.ID)
 	}
-	//nolint:gocritic // ACL managers may resolve group sizes after the share gate passes.
+	//nolint:gocritic // Callers that can read the ACL see shared group sizes without group read permission.
 	countByGroup, err := aclGroupMemberCounts(dbauthz.AsSystemRestricted(ctx), db, groupIDs)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]T, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, entry(db2sdk.Group(group, nil, int(countByGroup[group.Group.ID]))))
+		result = append(result, entry(db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])), entries[group.Group.ID.String()]))
 	}
 	return result, nil
 }

@@ -34,7 +34,7 @@ If some error occurs during the above, a workspace may fall into one of the foll
 Workspaces are created from [templates](../admin/templates/index.md) via the CLI, API, or dashboard.
 
 By default, there is no limit on the number of workspaces a user may create, regardless of the template's resource demands.
-Enterprise administrators may limit the number of workspaces per template, group, and organization using [quotas](../admin/users/quotas.md) to prevent over provisioning and control costs.
+On Premium deployments, administrators can use [quotas](../admin/users/quotas.md) to limit each user's workspace spend in each organization, which prevents over provisioning and controls costs.
 
 When a user creates a workspace, they're sending a build request to the control plane.
 Coder takes this and uses [Terraform](https://www.terraform.io/) to provision a workspace defined by your [template](../admin/templates/index.md).
@@ -70,14 +70,14 @@ Similarly to stopping, workspaces may be deleted manually or automatically by Co
 A delete workspace build runs `terraform destroy`, destroying both persistent and ephemeral resources.
 This action can not be reverted.
 
-When enabled on enterprise deployments, workspaces will become dormant after a specified duration of inactivity.
+When enabled on Premium deployments, workspaces will become dormant after a specified duration of inactivity.
 Then, if left dormant, the workspaces will be queued for deletion.
 Learn about configuring workspace dormancy in the template scheduling docs.
 
 ### Orphan resources
 
 Typically, when a workspace is deleted, all of the workspace's resources are deleted along with it.
-Rarely, one may wish to delete a workspace without deleting its resources, e.g. a workspace in a broken state.
+Rarely, one may wish to delete a workspace without deleting its resources, for example, a workspace in a broken state.
 Users with the Template Admin role have the option to do so both in the UI, and also in the CLI by running the delete command with the `--orphan` flag.
 This option should be considered cautiously as orphaning may lead to unaccounted cloud resources.
 

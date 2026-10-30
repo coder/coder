@@ -76,6 +76,12 @@ message RecordInterceptionRequest {
   // Absent when the request did not pass through Agent Firewall.
   optional int32 agent_firewall_sequence_number = 16;
   string workspace_id = 17; // UUID. Empty when workspace attribution is unknown.
+  // UUID of the organization the interception is attributed to. Empty when
+  // none was resolved. Set together with organization_source.
+  string organization_id = 18;
+  // How organization_id was chosen: "workspace", "chatd" or "effective_group".
+  // Empty when organization_id is empty.
+  string organization_source = 19;
 }
 
 message RecordInterceptionResponse {}
@@ -189,10 +195,20 @@ message IsAuthorizedResponse {
   string username = 3;
   string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
   string email = 5;
+  // UUID. Always set from v1.6, which rejects a request when no organization
+  // resolves. Earlier versions leave it empty in that case.
+  string organization_id = 6;
+  // How organization_id was chosen, as an aibridge_interception_organization_source
+  // value. Set exactly when organization_id is set.
+  string organization_source = 7;
 }
 
 message IsBudgetExceededRequest {
   string user_id = 1; // UUID
+  // UUID of the organization from IsAuthorizedResponse. The budget is resolved
+  // inside this organization. Always set from v1.6. Only gateways older than
+  // v1.6 send it empty, which means site-wide resolution.
+  string organization_id = 2;
 }
 
 message IsBudgetExceededResponse {

@@ -3,14 +3,13 @@ title: OpenCode
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Gateway by setting custom base URLs for each provider.
 
 ## Centralized API Key
 
-You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
+You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (for example, `~/.config/opencode/opencode.json`):
 
 ```json
 {
@@ -151,4 +150,5 @@ The selected SDK sends requests to `/v1/responses`, `/v1/chat/completions`, or `
 Use a model that supports the selected API.
 For more configuration options, refer to [OpenCode custom providers](https://opencode.ai/docs/providers/#custom-provider).
 
-**References:** [OpenCode Documentation](https://opencode.ai/docs/providers/#config)
+**References:**
+[OpenCode Documentation](https://opencode.ai/docs/providers/#config)

@@ -57,7 +57,6 @@ export const GlobalErrorBoundaryInner: React.FC<
 								rel="noreferrer"
 							>
 								Coder Discord community
-								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>{" "}
 							or{" "}
 							<Link
@@ -70,7 +69,6 @@ export const GlobalErrorBoundaryInner: React.FC<
 								)}
 							>
 								open an issue on GitHub
-								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>
 							.
 						</p>

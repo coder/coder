@@ -29,7 +29,7 @@ import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
@@ -42,6 +42,11 @@ import { getChatDisplayConfig } from "./statusConfig";
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
+	/**
+	 * Drag handle props for this row's chat link. Subagent rows get none, so
+	 * pressing on one does not drag its root chat.
+	 */
+	readonly dragHandleProps?: React.ComponentProps<"a">;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -49,6 +54,7 @@ const CHILD_INDENT_PX = 26;
 export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
+	dragHandleProps,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -209,7 +215,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving: isArchivingThisChat,
 		isUpdatingReadState,
-		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
@@ -265,7 +271,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							className={cn(
 								"flex size-5 items-center justify-center rounded-md",
 								hasChildren &&
-									"[@media(hover:hover)]:group-hover/icon:invisible",
+									"[@media(hover:hover)]:group-hover/icon:invisible group-has-focus-visible/icon:invisible",
 							)}
 						>
 							<StatusIcon
@@ -285,8 +291,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 								size="icon"
 								onClick={() => toggleExpanded(chatID)}
 								className={cn(
-									"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-									"[@media(hover:hover)]:group-hover/icon:visible",
+									"absolute inset-0 flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 opacity-0 pointer-events-none hover:text-content-primary [&>svg]:size-3.5",
+									"[@media(hover:hover)]:group-hover/icon:opacity-100 [@media(hover:hover)]:group-hover/icon:pointer-events-auto focus-visible:opacity-100",
 								)}
 								data-testid={`agents-tree-toggle-${chat.id}`}
 								aria-label={isExpanded ? "Collapse" : "Expand"}
@@ -297,6 +303,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						)}
 					</div>
 					<NavLink
+						{...dragHandleProps}
 						to={{
 							pathname: `/agents/${chat.id}`,
 							search: locationSearch,
@@ -348,8 +355,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									className={cn(
 										"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 										// The timestamp swaps out for the actions trigger on
-										// hover or while a menu is open.
-										"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+										// hover, keyboard focus, or while a menu is open.
+										"[@media(hover:hover)]:group-hover:hidden group-has-focus-visible:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
 										isActiveChat && "hidden",
 									)}
 								>
@@ -390,7 +397,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									size="icon"
 									variant="subtle"
 									className={cn(
-										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
+										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
 										isActiveChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}

@@ -25,7 +25,7 @@ import { clearPersistedSidebarTabId } from "../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";
@@ -58,7 +58,7 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:border-surface-tertiary group-hover:bg-surface-tertiary group-has-[[data-state=open]]:border-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary"
+			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary"
 		>
 			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
 		</Badge>
@@ -134,7 +134,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					pathname: buildAgentChatPath({ chatId: chat.id }),
 					search: normalizeLocationSearch(location.search),
 				}}
-				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-primary no-underline"
+				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-secondary no-underline"
 			>
 				<StatusIcon
 					role="img"
@@ -164,9 +164,10 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						chat={chat}
 						canManage={canManage}
 						hasWorkspace={Boolean(workspaceId)}
-						isArchiveBlocked={
-							!chatFamilyAllowsArchive(chat.status, chat.children)
-						}
+						archiveBlockedReason={getArchiveBlockedReason(
+							chat.status,
+							chat.children,
+						)}
 						onPinAgent={() => pinMutation.mutate(chat.id)}
 						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => archiveMutation.mutate(chat.id)}

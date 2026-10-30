@@ -145,9 +145,9 @@ Refer to the [enterprise-desktop](https://github.com/coder/images/tree/main/imag
 
 ### Desktop Client
 
-Use a VNC client (e.g., [TigerVNC](https://tigervnc.org/)) by forwarding the VNC port to your local machine.
+Use a VNC client (for example, [TigerVNC](https://tigervnc.org/)) by forwarding the VNC port to your local machine.
 
-<div class="tab">
+<div class="tabs">
 
 #### Coder Desktop
 
