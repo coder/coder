@@ -220,10 +220,12 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			: undefined;
 	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
-	// A streamed question set can grow after the form mounts.
-	const drafts = filteredQuestions.map(
-		(question, index) => formDraft.drafts[index] ?? getDefaultDraft(question),
-	);
+	// Questions and their options can stream in after the form mounts, so a
+	// question the user has not answered takes its default from its options now.
+	const drafts = filteredQuestions.map((question, index) => {
+		const draft = formDraft.drafts.at(index);
+		return draft?.selection === undefined ? getDefaultDraft(question) : draft;
+	});
 	const { answeredQuestionCount } = formDraft;
 	const activeQuestionIndex = Math.min(
 		formDraft.questionIndex,
