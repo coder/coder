@@ -30,16 +30,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// testMsg builds a database.ChatMessage for ParseContent tests.
-// ContentVersion defaults to 0 (legacy), which exercises the
-// heuristic detection path.
-func testMsg(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.ChatMessage {
-	return database.ChatMessage{
-		Role:    database.ChatMessageRole(role),
-		Content: raw,
-	}
-}
-
 func TestConvertMessagesWithFilesPreservesEmptyReplayableReasoning(t *testing.T) {
 	t.Parallel()
 
@@ -989,49 +979,24 @@ func nullRaw(data json.RawMessage) pqtype.NullRawMessage {
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
 }
 
-func TestParseContent_BackwardCompat(t *testing.T) {
+func TestParseContent_V1(t *testing.T) {
 	t.Parallel()
 
 	fileID := uuid.New()
-
-	// Build new SDK format using MarshalParts.
 	sdkMetadata := json.RawMessage(`{"anthropic":{"type":"anthropic.cache_control_options","data":{"cache_control":{"type":"ephemeral"}}}}`)
-
-	newAssistantWithMeta, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:             codersdk.ChatMessagePartTypeText,
-		Text:             "here is my answer",
-		ProviderMetadata: sdkMetadata,
-	}})
-	require.NoError(t, err)
-
-	newAssistantToolCall, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: "call_456",
-		ToolName:   "execute",
-		Args:       json.RawMessage(`{"cmd":"ls"}`),
-	}})
-	require.NoError(t, err)
-
-	newToolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: "call_456",
-		ToolName:   "execute",
-		Result:     json.RawMessage(`{"output":"file1.go"}`),
-	}})
-	require.NoError(t, err)
 
 	tests := []struct {
 		name  string
 		role  codersdk.ChatMessageRole
-		raw   pqtype.NullRawMessage
+		parts []codersdk.ChatMessagePart
 		check func(t *testing.T, parts []codersdk.ChatMessagePart)
 	}{
 		{
 			name: "user/sdk_text",
 			role: codersdk.ChatMessageRoleUser,
-			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+			parts: []codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeText, Text: "hello sdk"},
-			})),
+			},
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
 				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
@@ -1041,9 +1006,9 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		{
 			name: "user/sdk_file_reference",
 			role: codersdk.ChatMessageRoleUser,
-			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+			parts: []codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
-			})),
+			},
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
 				assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
@@ -1056,9 +1021,9 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		{
 			name: "user/sdk_file",
 			role: codersdk.ChatMessageRoleUser,
-			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+			parts: []codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: fileID, Valid: true}, MediaType: "image/png"},
-			})),
+			},
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
 				assert.Equal(t, codersdk.ChatMessagePartTypeFile, parts[0].Type)
@@ -1070,7 +1035,11 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		{
 			name: "assistant/sdk_text_with_metadata",
 			role: codersdk.ChatMessageRoleAssistant,
-			raw:  newAssistantWithMeta,
+			parts: []codersdk.ChatMessagePart{{
+				Type:             codersdk.ChatMessagePartTypeText,
+				Text:             "here is my answer",
+				ProviderMetadata: sdkMetadata,
+			}},
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
 				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
@@ -1081,7 +1050,12 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		{
 			name: "assistant/sdk_tool_call",
 			role: codersdk.ChatMessageRoleAssistant,
-			raw:  newAssistantToolCall,
+			parts: []codersdk.ChatMessagePart{{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: "call_456",
+				ToolName:   "execute",
+				Args:       json.RawMessage(`{"cmd":"ls"}`),
+			}},
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
 				assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
@@ -1093,7 +1067,12 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		{
 			name: "tool/sdk_tool_result",
 			role: codersdk.ChatMessageRoleTool,
-			raw:  newToolResult,
+			parts: []codersdk.ChatMessagePart{{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: "call_456",
+				ToolName:   "execute",
+				Result:     json.RawMessage(`{"output":"file1.go"}`),
+			}},
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
 				assert.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
@@ -1106,15 +1085,11 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			parts, err := chatprompt.ParseContent(testMsg(tc.role, tc.raw))
+			parts, err := chatprompt.ParseContent(testMsgV1(tc.role, mustMarshalParts(t, tc.parts...)))
 			require.NoError(t, err)
 			tc.check(t, parts)
 		})
 	}
-}
-
-func TestParseContent_V1(t *testing.T) {
-	t.Parallel()
 
 	t.Run("system", func(t *testing.T) {
 		t.Parallel()
@@ -1608,27 +1583,6 @@ func TestParseContent_ErrorPaths(t *testing.T) {
 		_, err := chatprompt.ParseContent(testMsgV1(codersdk.ChatMessageRoleTool, nullRaw(json.RawMessage(`{not json`))))
 		require.Error(t, err)
 	})
-
-	for _, role := range []codersdk.ChatMessageRole{
-		codersdk.ChatMessageRoleSystem,
-		codersdk.ChatMessageRoleUser,
-		codersdk.ChatMessageRoleAssistant,
-		codersdk.ChatMessageRoleTool,
-	} {
-		t.Run("v0/"+string(role)+"/malformed_json", func(t *testing.T) {
-			t.Parallel()
-			_, err := chatprompt.ParseContent(testMsg(role, nullRaw(json.RawMessage(`{not json`))))
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "parse "+string(role)+" content")
-		})
-	}
-}
-
-func mustJSON(t *testing.T, v any) json.RawMessage {
-	t.Helper()
-	data, err := json.Marshal(v)
-	require.NoError(t, err)
-	return data
 }
 
 func mustMarshalParts(t *testing.T, parts ...codersdk.ChatMessagePart) pqtype.NullRawMessage {
