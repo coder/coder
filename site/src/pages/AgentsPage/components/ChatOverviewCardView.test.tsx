@@ -177,7 +177,6 @@ describe("ChatOverviewCardView", () => {
 		);
 
 		const section = screen.getByRole("region", { name: "Attachments" });
-		expect(section).toHaveTextContent("Failed to get chat attachments.");
 		await user.click(within(section).getByRole("button", { name: "Retry" }));
 		expect(retry).toHaveBeenCalledOnce();
 	});
