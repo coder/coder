@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { chatAttachments } from "#/api/queries/chats";
 import {
@@ -21,7 +22,8 @@ type UseChatAttachmentsOptions = {
 /**
  * A chat's attachments, newest first: the files in the loaded messages,
  * then the server's list for the messages before them. `attachments` is
- * undefined until the first messages hydrate.
+ * undefined until the first messages hydrate. `earlier` is the state of the
+ * server's list, with a retry for a failed request.
  */
 export const useChatAttachments = ({
 	chatId,
@@ -49,11 +51,32 @@ export const useChatAttachments = ({
 		isHydratingMessages && messages.length === 0
 			? undefined
 			: [...getMessageAttachments(messages), ...earlierAttachments];
-	return {
-		messages,
-		oldestLoadedMessageId,
-		earlierAttachmentsQuery,
-		earlierAttachments,
-		attachments,
+
+	// A retry clears the error of a query with no data, so keep the retried
+	// error until the retry settles, unless older messages have loaded since
+	// and moved the query to a new `beforeId`.
+	const [retriedFailure, setRetriedFailure] = useState<{
+		beforeId: number | undefined;
+		error: unknown;
+	}>();
+	const retriedError =
+		retriedFailure && retriedFailure.beforeId === oldestLoadedMessageId
+			? retriedFailure.error
+			: null;
+	const error =
+		hasMoreMessages && !earlierAttachmentsQuery.data
+			? (earlierAttachmentsQuery.error ?? retriedError)
+			: null;
+	const earlier = {
+		isLoading: hasMoreMessages && !earlierAttachmentsQuery.data && !error,
+		error,
+		isRetrying: earlierAttachmentsQuery.isFetching,
+		retry: () => {
+			setRetriedFailure({ beforeId: oldestLoadedMessageId, error });
+			void earlierAttachmentsQuery
+				.refetch()
+				.finally(() => setRetriedFailure(undefined));
+		},
 	};
+	return { messages, earlierAttachments, attachments, earlier };
 };
