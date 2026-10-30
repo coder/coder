@@ -405,16 +405,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 		titleSource = database.ChatTitleSourceFallback
 	}
 
-	workspaceAwareness := savedWorkspaceDetachedNoCreateAwareness
-	if parent.WorkspaceID.Valid {
-		workspaceAwareness = savedWorkspaceAttachedAwareness
-	}
-	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText(workspaceAwareness),
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
-	}
 	childUserParts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)}
 	childUserParts = append(childUserParts, chathooks.UserPromptParts(promptResult)...)
 	userContent, err := chatprompt.MarshalParts(childUserParts)
@@ -422,7 +412,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
 
-	initialMessages := make([]chatstate.Message, 0, 5)
+	initialMessages := make([]chatstate.Message, 0, 4)
 	if deploymentPrompt != "" {
 		deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(deploymentPrompt),
@@ -450,7 +440,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 		}
 		initialMessages = append(initialMessages, systemMessage(childSystemPromptContent, modelConfigID))
 	}
-	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, modelConfigID))
 
 	// The child shares the parent's workspace and agent, so it inherits
 	// workspace context the same way a top-level chat does: pinned from the
