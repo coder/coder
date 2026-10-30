@@ -3,7 +3,6 @@ import {
 	BotIcon,
 	CircleAlertIcon,
 	FileIcon,
-	InfoIcon,
 	PlugIcon,
 	TriangleAlertIcon,
 	ZapIcon,
@@ -484,27 +483,37 @@ export const ContextUsageIndicator: React.FC<{
 								</span>
 							</div>
 						) : (
-							<ContextAlert severity="info" className="mt-2">
-								<ContextAlertTitle icon={InfoIcon} className="font-normal">
+							<div
+								role="status"
+								className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+							>
+								<h3 className="m-0 text-xs font-semibold text-content-primary">
 									Context usage unavailable.
-								</ContextAlertTitle>
-							</ContextAlert>
+								</h3>
+							</div>
 						)
 					) : (
-						<ContextAlert severity="info" className="mt-2">
-							<ContextAlertTitle icon={InfoIcon} className="font-normal">
+						<div
+							role="status"
+							className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+						>
+							<h3 className="m-0 text-xs font-semibold text-content-primary">
 								Usage not available yet
-							</ContextAlertTitle>
-							<ContextAlertDescription>
+							</h3>
+							<p className="mb-0 mt-2 text-xs font-normal text-content-secondary max-w-48 mx-auto leading-5">
 								Context usage will appear after sending a message.
-							</ContextAlertDescription>
-						</ContextAlert>
+							</p>
+						</div>
 					)}
 					{hasPercent && compactionLabel !== undefined && (
 						<div className="mt-2 text-content-secondary">{compactionLabel}</div>
 					)}
 					{hasPercent && usage.estimated && (
-						<ContextAlert severity="info" className="mt-2 max-w-64 font-normal">
+						<ContextAlert
+							severity="info"
+							variant="panel"
+							className="mt-2 font-normal"
+						>
 							<ContextAlertTitle className="font-normal">
 								Estimated usage
 							</ContextAlertTitle>
@@ -636,7 +645,8 @@ export const ContextUsageIndicator: React.FC<{
 				{(isDirty || hasContextError) && (
 					<ContextAlert
 						severity={hasContextError ? "error" : "warning"}
-						className="px-3 py-3.5"
+						variant="panel"
+						className="mx-3 mb-3 mt-2"
 					>
 						<ContextAlertTitle>
 							{hasContextError ? "Context error" : "Context changed"}
