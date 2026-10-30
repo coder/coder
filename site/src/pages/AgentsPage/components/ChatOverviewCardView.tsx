@@ -76,8 +76,9 @@ type ChatOverviewCardViewProps = {
 
 /**
  * Leaves out empty sections. A row calls `onOpenTarget` with the right panel
- * tab, and for Git the view, that holds its details. A repository without changes is not a row
- * button, because the Git panel has nothing to show for it.
+ * tab, and for Git the view, that holds its details. A repository without
+ * changes is not a row button, because the Git panel has nothing to show
+ * for it.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
