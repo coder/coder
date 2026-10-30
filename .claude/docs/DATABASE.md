@@ -76,6 +76,26 @@ built on it cannot surface this. To catch it, seed a row using the new value,
 then apply the affected migrations in a single transaction (see
 `TestMigration000504AIProvidersBackfillEnumInSingleTxn`).
 
+### Expand and Contract
+
+coderd migrates on startup, so during a rolling upgrade the previous version
+keeps running against the new schema. Split breaking changes across releases:
+
+1. **Expand** (release X.Y): add the new table, column, or type. Columns that
+   old code will not write need a `DEFAULT` or must be nullable. Update code to
+   use the new shape and stop using the old one.
+2. **Contract** (release X.(Y+1) or later): drop or rename what X.Y no longer
+   uses.
+
+Never expand and contract in the same PR or the same minor release.
+
+`make sqlc-vet-backcompat` (`scripts/check_migration_compat.sh`) checks this.
+It prepares the queries of the PR base and of the previous minor release tag
+against a database migrated to HEAD, and flags new migrations that add
+`NOT NULL` without a `DEFAULT`. It runs in CI and at release as an advisory
+check that reports warnings. Set `MIGRATION_COMPAT_BLOCKING=1` to fail on
+findings.
+
 ## Handling Nullable Fields
 
 Use `sql.NullString`, `sql.NullBool`, etc. for optional database fields:

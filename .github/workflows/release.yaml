@@ -181,7 +181,7 @@ jobs:
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm go:github.com/coder/sqlc/cmd/sqlc
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
@@ -229,6 +229,13 @@ jobs:
       - name: Test migrations from current ref to main
         run: |
           POSTGRES_VERSION=13 make test-migrations
+
+      # Advisory: warns when this release contracts schema that the previous
+      # minor release still uses, which breaks rolling upgrades.
+      - name: Check migration compatibility with previous minor
+        continue-on-error: true
+        run: |
+          POSTGRES_VERSION=13 make sqlc-vet-backcompat
 
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
