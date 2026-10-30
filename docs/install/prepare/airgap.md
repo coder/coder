@@ -109,6 +109,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 
 > [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the provider version matches any templates or [example templates](../../../examples/templates) you intend to use.
+> After you change the bundled provider versions, push new versions of your templates.
 
 ```tf
 # filesystem-mirror-example.tfrc

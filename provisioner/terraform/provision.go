@@ -194,14 +194,20 @@ func (s *server) initWithoutImportedLockFile(ctx, killCtx context.Context, e *ex
 	s.logger.Warn(ctx, "terraform init failed with the lock file captured during template import, retrying without it",
 		slog.Error(initErr))
 	sess.ProvisionLog(proto.LogLevel_WARN,
-		"Retrying terraform init without the provider versions selected when this template version was imported. "+
-			"Push a new template version to select provider versions this provisioner can install.")
+		"Retrying terraform init without the provider versions selected when this template version was imported.")
 
 	err := os.Remove(sess.Files.TerraformLockFile())
 	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
 		return xerrors.Errorf("remove imported lock file after init failed (%v): %w", initErr, err)
 	}
-	return e.init(ctx, killCtx, sess)
+	err = e.init(ctx, killCtx, sess)
+	if err == nil {
+		// The retry only succeeding without the imported provider versions
+		// means this provisioner can't install them.
+		sess.ProvisionLog(proto.LogLevel_WARN,
+			"Push a new template version to make builds reuse provider versions again.")
+	}
+	return err
 }
 
 func (s *server) Plan(
