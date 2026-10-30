@@ -35,6 +35,7 @@ const readInfiniteChats = (
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatStreamKeepaliveIntervalSeconds } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
@@ -3974,6 +3975,65 @@ describe("useChatStore", () => {
 			expect(result.current.reconnectState).toBeNull();
 			expect(result.current.chatStatus).toBe("running");
 		});
+	});
+
+	it("skips empty keepalive batches without changing state", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-keepalive";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper: createWrapper(createTestQueryClient()) },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+		const socket = sockets[0];
+		if (socket === undefined) {
+			throw new Error("watchChat did not return a socket");
+		}
+		act(() => {
+			socket.emitOpen();
+			socket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		for (let i = 0; i < 2; i++) {
+			await act(async () => {
+				vi.advanceTimersByTime(ChatStreamKeepaliveIntervalSeconds * 1000);
+				socket.emitDataBatch([]);
+			});
+		}
+
+		expect(result.current.streamError).toBeNull();
+		expect(result.current.chatStatus).toBe("running");
+		expect(watchMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("reconnects a chat stream that stays silent for the silence timeout", async () => {
