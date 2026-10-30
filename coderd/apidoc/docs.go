@@ -2859,6 +2859,7 @@ const docTemplate = `{
         },
         "/api/v2/applications/auth-redirect": {
             "get": {
+                "description": "Redirects to ` + "`" + `redirect_uri` + "`" + ` with an encrypted API key added to the query, which lets a subdomain workspace app sign you in.\nThe key can only connect to workspace apps, and it expires when your session does or after the default session duration, whichever comes first.\nRedirects you to the login page when you aren't signed in.",
                 "tags": [
                     "Applications"
                 ],
@@ -2867,7 +2868,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Redirect destination",
+                        "description": "URL to redirect to. The route returns ` + "`" + `400` + "`" + ` without it, and the URL must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname.",
                         "name": "redirect_uri",
                         "in": "query"
                     }
@@ -2886,6 +2887,7 @@ const docTemplate = `{
         },
         "/api/v2/applications/host": {
             "get": {
+                "description": "Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty ` + "`" + `host` + "`" + ` when the deployment doesn't set one.\nDeprecated. Use ` + "`" + `/api/v2/regions` + "`" + ` and read the ` + "`" + `wildcard_hostname` + "`" + ` of the primary workspace proxy instead.",
                 "produces": [
                     "application/json"
                 ],
