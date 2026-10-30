@@ -123,8 +123,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    parts with a blank line, also before the first part, so each
 //    part's bold title renders on its own line. Upstream as
 //    charmbracelet/fantasy#436.
-// See: https://github.com/coder/fantasy/commits/2e8e2cbf4aea
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027133624-2e8e2cbf4aea
+// 17) coder/fantasy#78, replay OpenAI web searches inline from their
+//    result metadata unless they go back as an item reference, which
+//    needs a stored request, a stored source response and the reasoning
+//    item right before the search. Each search replays at most once.
+// See: https://github.com/coder/fantasy/commits/e1c559d180b6
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261029190405-e1c559d180b6
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -170,7 +174,7 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
 	github.com/chromedp/chromedp v0.14.1
 	github.com/cli/safeexec v1.0.1
-	github.com/coder/acp-go-sdk v0.13.5
+	github.com/coder/acp-go-sdk v0.13.6-0.20261028153106-0da7315c23b5
 	github.com/coder/flog v1.1.0
 	github.com/coder/guts v1.7.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0

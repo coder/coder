@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -203,7 +202,6 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
-	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -288,6 +286,7 @@ func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg advisorRuntimeConfig,
+	priorUses int,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -351,6 +350,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		PriorUses:            priorUses,
 	})
 	if err != nil {
 		logger.Warn(
@@ -1255,11 +1255,8 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	// ExperimentEvaluator decides user-scoped experiments for a chat's
-	// owner. It is required.
-	ExperimentEvaluator *experiments.Evaluator
-	PrometheusRegistry  prometheus.Registerer
-	TracerProvider      trace.TracerProvider
+	PrometheusRegistry             prometheus.Registerer
+	TracerProvider                 trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1283,9 +1280,6 @@ type Config struct {
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
-	if cfg.ExperimentEvaluator == nil {
-		return nil, xerrors.New("chatd: experiment evaluator is required")
-	}
 	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
 		return nil, xerrors.Errorf("chatd: %w", err)
 	}
@@ -1383,7 +1377,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
-		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -1856,44 +1849,6 @@ func (p *Server) resolveUserProviderAPIKeysForProvider(
 		userKeys,
 	)
 	return keys, nil
-}
-
-func (p *Server) resolveUserProviderAPIKeysForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, error) {
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
-	return keys, err
-}
-
-func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, nil, err
-		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
-			return keys, &provider, nil
-		}
-	}
-	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, err
-	}
-	return keys, nil, nil
 }
 
 func (p *Server) resolveUserProviderAPIKeys(
