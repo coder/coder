@@ -32,10 +32,33 @@ export const portForwardURL = (
 	pathname?: string,
 	search?: string,
 ): string => {
-	const { location } = window;
 	const suffix = protocol === "https" ? "s" : "";
+	return workspaceAppURL(
+		host,
+		`${port}${suffix}`,
+		agentName,
+		workspaceName,
+		username,
+		pathname,
+		search,
+	);
+};
 
-	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
+/**
+ * Builds the URL of an agent's subdomain app, such as a forwarded port or a
+ * preview.
+ */
+export const workspaceAppURL = (
+	host: string,
+	appSlug: string,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+	pathname?: string,
+	search?: string,
+): string => {
+	const { location } = window;
+	const subdomain = `${appSlug}--${agentName}--${workspaceName}--${username}`;
 
 	const baseUrl = `${location.protocol}//${host.replace(/\*/g, subdomain)}`;
 	try {

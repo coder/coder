@@ -62,18 +62,19 @@ export type DesktopWorkspaceStateProps = {
 	workspace: Workspace;
 	onStartWorkspace: () => void;
 	isStartingWorkspace: boolean;
+	/** What the stopped-workspace message offers to reconnect to. */
+	subject?: "desktop" | "preview";
 };
 
 /**
- * Renders why the desktop cannot connect yet at the workspace level:
- * stopped (with a start action), deleted, or still transitioning.
- * Callers gate on `isDesktopReachable` and fall through to the
- * connection status once it returns true.
+ * Explains why the workspace cannot serve the desktop or preview yet. Callers
+ * stop rendering it once the workspace is ready.
  */
 export const DesktopWorkspaceState: React.FC<DesktopWorkspaceStateProps> = ({
 	workspace,
 	onStartWorkspace,
 	isStartingWorkspace,
+	subject = "desktop",
 }) => {
 	const workspaceStatus = workspace.latest_build.status;
 	const startAction = getDesktopStartAction(workspace);
@@ -84,7 +85,7 @@ export const DesktopWorkspaceState: React.FC<DesktopWorkspaceStateProps> = ({
 				<span className="text-center text-sm">
 					{startAction === "update"
 						? "The workspace is stopped and must be updated to the template's active version to start."
-						: "The workspace is stopped. Start it to reconnect to the desktop."}
+						: `The workspace is stopped. Start it to reconnect to the ${subject}.`}
 				</span>
 				<Button
 					variant="outline"
