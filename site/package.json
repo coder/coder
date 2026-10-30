@@ -4,7 +4,7 @@
 	"repository": "https://github.com/coder/coder",
 	"private": true,
 	"license": "AGPL-3.0",
-	"packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
+	"packageManager": "pnpm@12.16.1+sha512.091d1dee7927575661b25dab3c2ae31cafc1c54d6b71ed6a6600cf0c1cb10434a447eae14015f1b23e2e6bedeed79df94a932e2164d2832280dce3fb32f656d1",
 	"scripts": {
 		"build": "NODE_ENV=production pnpm vite build",
 		"check": "biome check --error-on-warnings .",
@@ -184,31 +184,8 @@
 		"firefox 128",
 		"safari 16.4"
 	],
-	"resolutions": {
-		"optionator": "0.9.3",
-		"semver": "7.8.5"
-	},
 	"engines": {
-		"pnpm": ">=10.0.0 <11.0.0",
+		"pnpm": ">=12.0.0 <13.0.0",
 		"node": ">=22.0.0 <25.0.0"
-	},
-	"pnpm": {
-		"overrides": {
-			"esbuild": "0.28.2",
-			"prismjs": "1.30.0",
-			"dompurify": "3.4.14",
-			"qs": "6.16.0"
-		},
-		"ignoredBuiltDependencies": [
-			"cpu-features",
-			"msw",
-			"protobufjs",
-			"storybook-addon-remix-react-router"
-		],
-		"onlyBuiltDependencies": [
-			"esbuild",
-			"odiff-bin",
-			"ssh2"
-		]
 	}
 }
