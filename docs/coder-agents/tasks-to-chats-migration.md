@@ -191,7 +191,7 @@ Each event has a `type` field:
 | `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
 | `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
-An array that encodes to more than 256&nbsp;KiB arrives instead as consecutive objects of the form `{"chunk": "...", "last": false}`, with no other message between them.
+If you add `chunks=true` to the query, an array that encodes to more than 256&nbsp;KiB arrives instead as consecutive objects of the form `{"chunk": "...", "last": false}`, each up to 512&nbsp;KiB, with no other message between them.
 Concatenate the `chunk` strings up to and including the object where `last` is `true`, then parse the result as the array.
 Discard a partial array when you reconnect.
 
@@ -212,7 +212,8 @@ To keep your client in sync with the chat:
    1. If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
 When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
-To detect a connection that stops delivering data without closing, start a 75-second timer when you open the WebSocket and restart it on every message.
+To detect a connection that stops delivering data without closing, start a timer when you open the WebSocket and restart it on every message.
+Use 40&nbsp;seconds with `chunks=true`; without it, use 75&nbsp;seconds so that one large array has time to download.
 When it fires, close the connection and reconnect as for a closed connection.
 
 On the next connection, the server again sends the `message_part` events of the response that the agent is writing.

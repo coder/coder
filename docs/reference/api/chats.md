@@ -4210,8 +4210,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 `GET /api/v2/chats/{chat}/stream`
 
 Each WebSocket message is a JSON array of events.
-An array that encodes to more than 256 KiB arrives instead as consecutive `codersdk.ChatStreamChunk` objects.
-Concatenating their `chunk` strings up to the one with `last` set gives the array.
+With `chunks=true`, an array that encodes to more than 256 KiB arrives instead as consecutive `codersdk.ChatStreamChunk` messages, each up to twice that size, with no other message between them.
+A chunk message is an object with a string field `chunk` and a boolean field `last`.
+Concatenate the `chunk` strings up to the message whose `last` is true, then parse the array.
+Discard a partial array when you reconnect.
 
 The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
 A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
@@ -4262,6 +4264,7 @@ When the server can't subscribe to the chat or read it, the server returns `500 
 | `chat`             | path  | string(uuid) | true     | Chat ID                                                                                       |
 | `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set |
 | `snapshot_version` | query | integer      | false    | Send what changed at this snapshot version or later                                           |
+| `chunks`           | query | boolean      | false    | Split arrays over 256 KiB into codersdk.ChatStreamChunk messages                              |
 
 ### Example responses
 

@@ -3094,19 +3094,16 @@ type StreamChatOptions struct {
 // live updates. Callers must close the returned io.Closer to release the
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
-	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
+	query := url.Values{"chunks": {"true"}}
 	if opts != nil {
-		query := url.Values{}
 		if opts.AfterID != nil {
 			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
 		}
 		if opts.SnapshotVersion > 0 {
 			query.Set("snapshot_version", strconv.FormatInt(opts.SnapshotVersion, 10))
 		}
-		if len(query) > 0 {
-			path += "?" + query.Encode()
-		}
 	}
+	path := fmt.Sprintf("/api/v2/chats/%s/stream?%s", chatID, query.Encode())
 
 	conn, err := c.Dial(
 		ctx,

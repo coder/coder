@@ -69,8 +69,8 @@ describe("api.ts", () => {
 			return Object.fromEntries(route.searchParams.entries());
 		};
 
-		it("opens the stream at the given snapshot version", () => {
-			expect(routeOf(7)).toEqual({ snapshot_version: "7" });
+		it("opens the stream at the given snapshot version with chunk messages", () => {
+			expect(routeOf(7)).toEqual({ chunks: "true", snapshot_version: "7" });
 		});
 	});
 
