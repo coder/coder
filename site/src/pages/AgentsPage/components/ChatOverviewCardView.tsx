@@ -16,8 +16,15 @@ import { DiffStatBadge } from "./DiffViewer/DiffStats";
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
-/** The right panel tabs that the overview card can open. */
-export type OverviewTabId = "summary" | "git";
+/** Where a card row leads: the right panel tab that holds its details. */
+export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
+
+type OverviewRepo = {
+	root: string;
+	branch: string;
+	additions: number;
+	deletions: number;
+};
 
 /** What the overview card shows. */
 export type ChatOverview = {
@@ -31,12 +38,7 @@ export type ChatOverview = {
 	/** The cost covers the parent chat and its other subagents too. */
 	isSubagent: boolean;
 	/** Every git watcher repository, clean ones too, labeled by branch. */
-	repos: Array<{
-		root: string;
-		branch: string;
-		additions: number;
-		deletions: number;
-	}>;
+	repos: OverviewRepo[];
 	pullRequests: Array<{ number: string; status: ChatDiffStatus }>;
 	/** Files in the chat's messages, newest first. */
 	attachments: MessageAttachment[];
@@ -46,18 +48,19 @@ type ChatOverviewCardViewProps = {
 	overview: ChatOverview;
 	/** Cost or messages are still loading, so an empty card is not final. */
 	isLoading?: boolean;
-	onOpenTab: (tabId: OverviewTabId) => void;
+	onOpenTarget: (target: OverviewTarget) => void;
 	className?: string;
 };
 
 /**
- * Leaves out empty sections. A row calls `onOpenTab` with the right panel
- * tab that holds its details.
+ * Leaves out empty sections. A row calls `onOpenTarget` with the right panel
+ * tab that holds its details. A repository without changes is not a row
+ * button, because the Git panel has nothing to show for it.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
 	isLoading = false,
-	onOpenTab,
+	onOpenTarget,
 	className,
 }) => {
 	const { cost } = overview;
@@ -104,81 +107,65 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 								formatCostMicros(cost.total_cost_micros)
 							)
 						}
-						onClick={() => onOpenTab("summary")}
+						onClick={() => onOpenTarget({ tabId: "summary" })}
 					/>
 				</div>
 			)}
 
-			{overview.repos.length > 0 && (
-				<OverviewSection title="Changes">
-					<OverviewList
-						items={overview.repos}
-						render={(repo) => (
-							<OverviewRow
-								key={repo.root}
-								icon={GitBranchIcon}
-								label={repo.branch}
-								detail={
-									repo.additions === 0 && repo.deletions === 0 ? (
-										<span className="font-mono text-[13px] text-content-secondary">
-											+0 &minus;0
-										</span>
-									) : (
-										<DiffStatBadge
-											additions={repo.additions}
-											deletions={repo.deletions}
-										/>
-									)
-								}
-								onClick={() => onOpenTab("git")}
-							/>
-						)}
+			<OverviewListSection
+				title="Changes"
+				items={overview.repos}
+				render={(repo) => (
+					<OverviewRow
+						key={repo.root}
+						icon={GitBranchIcon}
+						label={repo.branch}
+						detail={<RepoDiffStat {...repo} />}
+						onClick={
+							repo.additions === 0 && repo.deletions === 0
+								? undefined
+								: () => onOpenTarget({ tabId: "git" })
+						}
 					/>
-				</OverviewSection>
-			)}
+				)}
+			/>
 
-			{overview.pullRequests.length > 0 && (
-				<OverviewSection title="Pull requests">
-					<OverviewList
-						items={overview.pullRequests}
-						render={({ number, status }) => {
-							const iconConfig = getPRIconConfig(status);
-							return (
-								<OverviewRow
-									key={status.url ?? number}
-									icon={iconConfig?.icon ?? GitBranchIcon}
-									iconClassName={iconConfig?.className}
-									iconLabel={iconConfig?.label}
-									label={`#${number} ${status.pull_request_title || "Pull request"}`}
-									detail={
-										<DiffStatBadge
-											additions={status.additions}
-											deletions={status.deletions}
-										/>
-									}
-									onClick={() => onOpenTab("git")}
+			<OverviewListSection
+				title="Pull requests"
+				items={overview.pullRequests}
+				render={({ number, status }) => {
+					const iconConfig = getPRIconConfig(status);
+					return (
+						<OverviewRow
+							key={status.url ?? number}
+							icon={iconConfig?.icon ?? GitBranchIcon}
+							iconClassName={iconConfig?.className}
+							iconLabel={iconConfig?.label}
+							label={`#${number} ${status.pull_request_title || "Pull request"}`}
+							detail={
+								<DiffStatBadge
+									additions={status.additions}
+									deletions={status.deletions}
 								/>
-							);
-						}}
-					/>
-				</OverviewSection>
-			)}
+							}
+							onClick={() => onOpenTarget({ tabId: "git" })}
+						/>
+					);
+				}}
+			/>
 
-			{overview.attachments.length > 0 && (
-				<OverviewSection title="Attachments">
-					<OverviewList
-						items={overview.attachments}
-						render={(attachment) => (
-							<OverviewRow
-								key={attachment.key}
-								icon={FileIcon}
-								label={getAttachmentDisplayName(attachment.file)}
-								onClick={() => onOpenTab("summary")}
-							/>
-						)}
+			<OverviewListSection
+				title="Attachments"
+				items={overview.attachments}
+				render={(attachment) => (
+					<OverviewRow
+						key={attachment.key}
+						icon={FileIcon}
+						label={getAttachmentDisplayName(attachment.file)}
+						onClick={() => onOpenTarget({ tabId: "summary" })}
 					/>
-				</OverviewSection>
-			)}
+				)}
+			/>
 		</aside>
 	);
 };
@@ -200,6 +187,19 @@ const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 	}
 	return parts.join(" · ");
 };
+
+/** A clean repository shows +0 −0, where the shared badge shows nothing. */
+const RepoDiffStat: React.FC<Pick<OverviewRepo, "additions" | "deletions">> = ({
+	additions,
+	deletions,
+}) =>
+	additions === 0 && deletions === 0 ? (
+		<span className="font-mono text-[13px] text-content-secondary">
+			+0 &minus;0
+		</span>
+	) : (
+		<DiffStatBadge additions={additions} deletions={deletions} />
+	);
 
 type OverviewSectionProps = React.PropsWithChildren<{ title: string }>;
 
@@ -225,6 +225,18 @@ type OverviewListProps<T> = {
 	items: readonly T[];
 	render: (item: T) => React.ReactNode;
 };
+
+/** A titled list, or nothing when the list is empty. */
+const OverviewListSection = <T,>({
+	title,
+	items,
+	render,
+}: OverviewListProps<T> & { title: string }) =>
+	items.length === 0 ? null : (
+		<OverviewSection title={title}>
+			<OverviewList items={items} render={render} />
+		</OverviewSection>
+	);
 
 /**
  * The first rows of a list and a toggle for the rest. The toggle stays
@@ -259,7 +271,8 @@ type OverviewRowProps = {
 	label: string;
 	subtitle?: string;
 	detail?: React.ReactNode;
-	onClick: () => void;
+	/** Without it, the row is plain text. */
+	onClick?: () => void;
 };
 
 const OverviewRow: React.FC<OverviewRowProps> = ({
@@ -270,26 +283,41 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 	subtitle,
 	detail,
 	onClick,
-}) => (
-	<button
-		type="button"
-		onClick={onClick}
-		className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<Icon
-			className={cn("size-4 shrink-0 text-content-secondary", iconClassName)}
-			{...(iconLabel
-				? { role: "img", "aria-label": iconLabel }
-				: { "aria-hidden": true })}
-		/>
-		<span className="flex min-w-0 flex-1 flex-col">
-			<span className="truncate">{label}</span>
-			{subtitle && (
-				<span className="truncate text-xs text-content-secondary">
-					{subtitle}
-				</span>
+}) => {
+	const content = (
+		<>
+			<Icon
+				className={cn("size-4 shrink-0 text-content-secondary", iconClassName)}
+				{...(iconLabel
+					? { role: "img", "aria-label": iconLabel }
+					: { "aria-hidden": true })}
+			/>
+			<span className="flex min-w-0 flex-1 flex-col">
+				<span className="truncate">{label}</span>
+				{subtitle && (
+					<span className="truncate text-xs text-content-secondary">
+						{subtitle}
+					</span>
+				)}
+			</span>
+			{detail && <span className="shrink-0 tabular-nums">{detail}</span>}
+		</>
+	);
+	const className =
+		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
+	if (!onClick) {
+		return <div className={className}>{content}</div>;
+	}
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={cn(
+				className,
+				"hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 			)}
-		</span>
-		{detail && <span className="shrink-0 tabular-nums">{detail}</span>}
-	</button>
-);
+		>
+			{content}
+		</button>
+	);
+};

@@ -4,8 +4,8 @@ import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
-	type OverviewTabId,
-} from "./ChatOverviewCard";
+	type OverviewTarget,
+} from "./ChatOverviewCardView";
 
 const mockChatOverview: ChatOverview = {
 	cost: { total_cost_micros: 1_250_000, unpriced_request_count: 0 },
@@ -34,26 +34,38 @@ const mockChatOverview: ChatOverview = {
 	],
 };
 
-const renderCard = () => {
-	const onOpenTab = vi.fn<(tabId: OverviewTabId) => void>();
+const renderCard = (overview = mockChatOverview) => {
+	const onOpenTarget = vi.fn<(target: OverviewTarget) => void>();
 	render(
-		<ChatOverviewCardView overview={mockChatOverview} onOpenTab={onOpenTab} />,
+		<ChatOverviewCardView overview={overview} onOpenTarget={onOpenTarget} />,
 	);
-	return { onOpenTab };
+	return { onOpenTarget };
 };
 
 describe("ChatOverviewCardView", () => {
-	it.each<{ name: RegExp; tab: OverviewTabId }>([
+	it.each<{ name: RegExp; tab: OverviewTarget["tabId"] }>([
 		{ name: /Cost/, tab: "summary" },
 		{ name: /ci\/queue-only-jobs/, tab: "git" },
 		{ name: /#123 Queue jobs/, tab: "git" },
 		{ name: /plan\.html/, tab: "summary" },
 	])("opens the $tab tab from the row named $name", async ({ name, tab }) => {
 		const user = userEvent.setup();
-		const { onOpenTab } = renderCard();
+		const { onOpenTarget } = renderCard();
 
 		await user.click(screen.getByRole("button", { name }));
 
-		expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(tab);
+		expect(onOpenTarget).toHaveBeenCalledExactlyOnceWith({ tabId: tab });
+	});
+
+	it("opens nothing from a repository without changes", async () => {
+		const user = userEvent.setup();
+		const { onOpenTarget } = renderCard({
+			...mockChatOverview,
+			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+		});
+
+		await user.click(screen.getByText("main"));
+
+		expect(onOpenTarget).not.toHaveBeenCalled();
 	});
 });

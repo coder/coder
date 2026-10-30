@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
-import { type ChatOverview, ChatOverviewCardView } from "./ChatOverviewCard";
+import {
+	type ChatOverview,
+	ChatOverviewCardView,
+} from "./ChatOverviewCardView";
 
 const mockAttachment = (
 	name: string,
@@ -69,11 +72,11 @@ const mockLongChatOverview: ChatOverview = {
 };
 
 const meta: Meta<typeof ChatOverviewCardView> = {
-	title: "pages/AgentsPage/ChatOverviewCard",
+	title: "pages/AgentsPage/ChatOverviewCardView",
 	component: ChatOverviewCardView,
 	args: {
 		overview: mockChatOverview,
-		onOpenTab: fn(),
+		onOpenTarget: fn(),
 	},
 	decorators: [
 		(Story) => (
@@ -120,7 +123,7 @@ export const CostUnavailable: Story = {
 
 /**
  * Without AI Gateway the card has no Cost row, and a clean repository still
- * shows its branch with +0 −0.
+ * shows its branch with +0 −0, as text and not as a button.
  */
 export const NoCostCleanRepo: Story = {
 	args: {
