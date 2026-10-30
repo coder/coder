@@ -6,6 +6,8 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import {
@@ -112,7 +114,7 @@ export const NoPromptHistoryUpArrowIsNoOp: Story = {
 
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
-		isEditingHistoryMessage: true,
+		editingKind: "history",
 		userPromptHistory: promptHistory,
 	},
 };
@@ -129,6 +131,43 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	args: {
 		isLoading: true,
 		userPromptHistory: promptHistory,
+	},
+};
+
+export const ChatPaused: Story = {
+	args: {
+		isChatPaused: true,
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+			"Also update the docs",
+		);
+		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
+	},
+};
+
+// The queue head is under edit on a chat that is not paused, for example
+// one in error.
+export const QueueHeadUnderEdit: Story = {
+	args: {
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+			"Also update the docs",
+		);
+		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
 	},
 };
 

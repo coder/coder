@@ -203,7 +203,7 @@ func insertChat(
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if ClassifyExecutionState(refreshed, false, true).IsRunnable() {
+		if ClassifyExecutionState(refreshed, QueueState{}, true).IsRunnable() {
 			if err := buffer.Publish(
 				coderdpubsub.ChatStateOwnershipChannel,
 				buildChatOwnershipMessage(refreshed),
@@ -274,7 +274,7 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 // clearQueue deletes all queued messages on the chat and returns the
 // IDs that were deleted in queue order.
 func (tx *Tx) clearQueue() ([]int64, error) {
-	queued, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	queued, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
 		return nil, xerrors.Errorf("get queued for clear: %w", err)
 	}
@@ -394,11 +394,12 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 		return SetArchivedResult{}, err
 	}
 	if input.Archived == chat.Archived {
-		// The matrix only allows SetArchived(true) from W/E0/E1 and
-		// SetArchived(false) from XW/XE0/XE1. A request whose Archived
-		// field already matches the chat's current archived flag is
-		// the wrong direction (or a no-op) and must be rejected so we
-		// do not silently roll the snapshot or publish a chat:update.
+		// The matrix only allows SetArchived(true) from W/E0/E1/E1P and
+		// SetArchived(false) from XW/XE0/XE1/XE1P. A request whose
+		// Archived field already matches the chat's current archived
+		// flag is the wrong direction (or a no-op) and must be rejected
+		// so we do not silently roll the snapshot or publish a
+		// chat:update.
 		return SetArchivedResult{}, newTransitionError(
 			TransitionSetArchived, from,
 			"SetArchived input matches the current archived flag",
@@ -430,8 +431,8 @@ type SetProjectResult struct {
 	Chat database.Chat
 }
 
-// SetProject sets or clears the chat's project. Like SetArchived, it runs
-// only from W, E0 and E1, so no step of the chat runs during a move.
+// SetProject sets or clears the chat's project. It runs only from W, E0,
+// E1, E1P and P, so no step of the chat runs during a move.
 func (tx *Tx) SetProject(input SetProjectInput) (SetProjectResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionSetProject)
 	if err != nil {
@@ -451,8 +452,8 @@ func (tx *Tx) SetProject(input SetProjectInput) (SetProjectResult, error) {
 }
 
 // BusyBehavior controls how SendMessage behaves when the chat is
-// currently busy (R*/I*/A*) or errored with a non-empty queue (E1).
-// From W and E0 the two behaviors are equivalent.
+// currently busy (R*/I*/A*), errored with a non-empty queue (E1, E1P),
+// or paused (P). From W and E0 the two behaviors are equivalent.
 type BusyBehavior string
 
 const (
@@ -512,28 +513,30 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 	}
-	if err := CheckSendMessageQueueCapacity(chat, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
+	if err := sendMessageQueueCapacityError(from, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
 		return SendMessageResult{}, err
 	}
 	if sendMessageInsertsDirectly(from, input.BusyBehavior) {
 		return tx.sendMessageDirect(chat, input)
 	}
 	switch from {
-	// Error-with-queue: append to tail, promote previous head into
+	// Error with a ready head: append to tail, promote the head into
 	// history, clear last_error.
 	case StateE1:
 		return tx.sendMessageE1(chat, input)
 
-	// Running or interrupting, with or without a queue. Interrupt
-	// lands in I1; queue keeps the input state.
-	case StateR0, StateR1, StateI0, StateI1:
+	// Running or interrupting, with or without a queue. An interrupt
+	// reaches I1, or I1P when it joins the tail behind a blocked head;
+	// a queued send keeps the input state.
+	case StateR0, StateR1, StateR1P, StateI0, StateI1, StateI1P:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageInterrupt(chat, from, input)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Requires-action: queue keeps A*.
-	case StateA0, StateA1:
+	// Error with a blocked head, requires-action, or paused: queue
+	// behind the head and keep the state.
+	case StateE1P, StateA0, StateA1, StateA1P, StateP:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
@@ -541,12 +544,14 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 
 // sendMessageInsertsDirectly reports whether SendMessage from the state
 // inserts the message into history instead of the queue. W and E0 take
-// every send directly; E1 and A* take only interrupts directly.
+// every send directly; E1, E1P, A*, and P take only interrupts directly.
+// A direct interrupt runs ahead of the queue, including a blocked head,
+// which stays queued and blocks again when the turn ends.
 func sendMessageInsertsDirectly(from ExecutionState, behavior BusyBehavior) bool {
 	switch from {
 	case StateW, StateE0:
 		return true
-	case StateE1, StateA0, StateA1:
+	case StateE1, StateE1P, StateA0, StateA1, StateA1P, StateP:
 		return behavior == BusyBehaviorInterrupt
 	default:
 		return false
@@ -554,11 +559,15 @@ func sendMessageInsertsDirectly(from ExecutionState, behavior BusyBehavior) bool
 }
 
 // CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
-// SendMessage from chat, with queuedCount queued messages, would add to
-// a full queue. [Tx.SendMessage] calls it under the row lock; callers
-// outside a transaction can call it first to reject a send early.
-func CheckSendMessageQueueCapacity(chat database.Chat, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
-	from := ClassifyExecutionState(chat, queuedCount > 0, true)
+// SendMessage from chat, with the given queue state and queuedCount
+// queued messages, would add to a full queue. [Tx.SendMessage] runs the
+// same check under the row lock; callers outside a transaction can call
+// it first to reject a send early.
+func CheckSendMessageQueueCapacity(chat database.Chat, queue QueueState, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
+	return sendMessageQueueCapacityError(ClassifyExecutionState(chat, queue, true), queuedCount, behavior, maxQueueSize)
+}
+
+func sendMessageQueueCapacityError(from ExecutionState, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
 	if sendMessageInsertsDirectly(from, behavior) {
 		return nil
 	}
@@ -596,41 +605,20 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
-	}
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
+	}
+	_, promoted, err := tx.promoteQueuedRow(chat, head)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	promoted, err := tx.messageFromQueuedRow(chat, head)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("resolve promoted queued head: %w", err)
-	}
-	inserted, err := tx.insertMessages(append(cancels, promoted))
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
-	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
-		return SendMessageResult{}, xerrors.Errorf("delete promoted queued head: %w", err)
-	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
-		Status:                   database.ChatStatusRunning,
-		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                pqtype.NullRawMessage{},
-		RequiresActionDeadlineAt: sql.NullTime{},
-	}); err != nil {
-		return SendMessageResult{}, xerrors.Errorf("set running: %w", err)
-	}
 	return SendMessageResult{
-		InsertedMessages: inserted,
+		InsertedMessages: append(promoted.Cancellations, *promoted.Message),
 		QueuedMessage:    &queued,
 		PromotedQueuedAt: head.CreatedAt,
 	}, nil
@@ -667,15 +655,16 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 }
 
 // sendMessageInterrupt queues the message and lands the chat in I1. A send
-// that starts an interruption goes ahead of queued messages; sends during an
-// interruption join the tail to keep arrival order. An unowned chat has no
-// runner to finish the interruption, so this transaction finishes it.
+// that starts an interruption goes ahead of queued messages, including a
+// blocked head; sends during an interruption join the tail to keep arrival
+// order. An unowned chat has no runner to finish the interruption, so this
+// transaction finishes it.
 func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
 	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	startsInterruption := from == StateR0 || from == StateR1
+	startsInterruption := from == StateR0 || from == StateR1 || from == StateR1P
 	if startsInterruption {
 		if _, err := tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
 			ID:     result.QueuedMessage.ID,
@@ -937,11 +926,17 @@ type DeleteQueuedMessageInput struct {
 // DeleteQueuedMessageResult is returned by [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
+	// Chat is the updated chat when the transition left P, else nil.
+	Chat *database.Chat
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
-// DeleteQueuedMessage removes a single queued user message.
+// DeleteQueuedMessage removes a single queued user message. From P it
+// leaves paused once the head is ready or the queue is empty (see
+// leavePaused).
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
-	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -965,8 +960,229 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if rows == 0 {
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
-	return DeleteQueuedMessageResult{
-		DeletedQueuedMessage: target,
+	result := DeleteQueuedMessageResult{DeletedQueuedMessage: target}
+	if from == StateP {
+		result.Chat, result.PromotedQueuedAt, err = tx.leavePaused(chat)
+		if err != nil {
+			return DeleteQueuedMessageResult{}, err
+		}
+	}
+	return result, nil
+}
+
+// EditQueuedMessageInput configures [Tx.EditQueuedMessage]. Nil fields
+// leave the corresponding column untouched.
+type EditQueuedMessageInput struct {
+	QueuedMessageID int64
+	// Content is the chatprompt.MarshalParts encoding of the message parts.
+	Content json.RawMessage
+	// ModelConfigIDOverride and ReasoningEffortOverride apply only
+	// together with Content.
+	ModelConfigIDOverride   uuid.NullUUID
+	ReasoningEffortOverride database.NullChatReasoningEffort
+	// Editing begins (true) or ends (false) the row's edit.
+	Editing *bool
+}
+
+// EditQueuedMessageResult is returned by [Tx.EditQueuedMessage].
+type EditQueuedMessageResult struct {
+	QueuedMessage database.ChatQueuedMessage
+	// Chat is the updated chat when the transition left P, else nil.
+	Chat *database.Chat
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
+}
+
+// EditQueuedMessage changes a queued row's content, edit marker, or
+// both. Beginning an edit on a row ends any other row's edit. From P,
+// ending the head's edit leaves paused once the head is ready (see
+// leavePaused); beginning an edit on a different row is refused with
+// [ErrPausedQueuedHeadUnderEdit].
+func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
+	if err != nil {
+		return EditQueuedMessageResult{}, err
+	}
+	if input.Content == nil && input.Editing == nil {
+		return EditQueuedMessageResult{}, newTransitionError(
+			TransitionEditQueuedMessage, from,
+			"EditQueuedMessage requires content or editing",
+		)
+	}
+	row, err := tx.store.GetChatQueuedMessageByID(tx.ctx, database.GetChatQueuedMessageByIDParams{
+		ID:     input.QueuedMessageID,
+		ChatID: tx.chatID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return EditQueuedMessageResult{}, ErrQueuedMessageNotFound
+	}
+	if err != nil {
+		return EditQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
+	}
+	if from == StateP && input.Editing != nil && *input.Editing && !row.EditingSince.Valid {
+		return EditQueuedMessageResult{}, ErrPausedQueuedHeadUnderEdit
+	}
+	var result EditQueuedMessageResult
+	if input.Content != nil {
+		modelConfig := row.ModelConfigID
+		if input.ModelConfigIDOverride.Valid {
+			modelConfig = input.ModelConfigIDOverride
+		}
+		reasoningEffort := row.ReasoningEffort
+		if input.ReasoningEffortOverride.Valid {
+			reasoningEffort = input.ReasoningEffortOverride
+		}
+		row, err = tx.store.UpdateChatQueuedMessageContent(tx.ctx, database.UpdateChatQueuedMessageContentParams{
+			ID:              row.ID,
+			ChatID:          tx.chatID,
+			Content:         input.Content,
+			ModelConfigID:   modelConfig,
+			ReasoningEffort: reasoningEffort,
+		})
+		if err != nil {
+			return EditQueuedMessageResult{}, xerrors.Errorf("update queued content: %w", err)
+		}
+	}
+	if input.Editing != nil {
+		if *input.Editing && !row.EditingSince.Valid {
+			if err := tx.endOtherEdit(row.ID); err != nil {
+				return EditQueuedMessageResult{}, err
+			}
+		}
+		row, err = tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID:      row.ID,
+			ChatID:  tx.chatID,
+			Editing: *input.Editing,
+		})
+		if err != nil {
+			return EditQueuedMessageResult{}, xerrors.Errorf("update queued editing: %w", err)
+		}
+		if from == StateP && !*input.Editing {
+			result.Chat, result.PromotedQueuedAt, err = tx.leavePaused(chat)
+			if err != nil {
+				return EditQueuedMessageResult{}, err
+			}
+		}
+	}
+	result.QueuedMessage = row
+	return result, nil
+}
+
+// endOtherEdit clears editing_since on the chat's row under edit if it
+// is not exceptID.
+func (tx *Tx) endOtherEdit(exceptID int64) error {
+	queue, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
+	if err != nil {
+		return xerrors.Errorf("get queued messages: %w", err)
+	}
+	for _, other := range queue {
+		if !other.EditingSince.Valid || other.ID == exceptID {
+			continue
+		}
+		if _, err := tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID:      other.ID,
+			ChatID:  tx.chatID,
+			Editing: false,
+		}); err != nil {
+			return xerrors.Errorf("end other row's edit: %w", err)
+		}
+	}
+	return nil
+}
+
+// leavePaused runs advanceQueue for a chat in P. It returns the updated
+// chat, or nil when the chat stays in P, and the promoted head's queued
+// time, or zero when nothing was promoted.
+func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error) {
+	updated, promoted, err := tx.advanceQueue(chat)
+	if err != nil || updated.Status == chat.Status {
+		return nil, time.Time{}, err
+	}
+	return &updated, promoted.QueuedAt, nil
+}
+
+// advanceQueue moves the chat on by its queue head when a turn or an
+// interruption ends, or when P may resume: an empty queue sets W, a
+// blocked head sets P, and a ready head is promoted and the chat runs.
+// A chat already in the resulting status is not written.
+func (tx *Tx) advanceQueue(chat database.Chat) (database.Chat, promotedQueuedRow, error) {
+	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
+	status := database.ChatStatusWaiting
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf("get queue head: %w", err)
+	case queuePaused(head):
+		status = database.ChatStatusPaused
+	default:
+		return tx.promoteQueuedRow(chat, head)
+	}
+	if chat.Status == status {
+		return chat, promotedQueuedRow{}, nil
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   status,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                chat.LastError,
+		RequiresActionDeadlineAt: sql.NullTime{},
+	})
+	if err != nil {
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf("set %s: %w", status, err)
+	}
+	return updated, promotedQueuedRow{}, nil
+}
+
+// promotedQueuedRow is a promoted queue row: the inserted user message,
+// the cancellation messages inserted before it, and when the row was
+// queued. The zero value means nothing was promoted.
+type promotedQueuedRow struct {
+	Message       *database.ChatMessage
+	Cancellations []database.ChatMessage
+	QueuedAt      time.Time
+}
+
+// promoteQueuedRow pops target out of the queue into active history and
+// sets the chat running with last_error cleared. Every outstanding tool
+// call, dynamic or not, is closed first so the LLM history stays valid.
+func (tx *Tx) promoteQueuedRow(chat database.Chat, target database.ChatQueuedMessage) (database.Chat, promotedQueuedRow, error) {
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
+	if err != nil {
+		return database.Chat{}, promotedQueuedRow{}, err
+	}
+	promotedMsg, err := tx.messageFromQueuedRow(chat, target)
+	if err != nil {
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf("resolve promoted queued message: %w", err)
+	}
+	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	if err != nil {
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf("insert promoted queued message: %w", err)
+	}
+	if len(inserted) != len(cancels)+1 {
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf(
+			"insert promoted queued message: expected %d rows, got %d",
+			len(cancels)+1, len(inserted),
+		)
+	}
+	if err := tx.deletePromotedQueuedMessage(target.ID); err != nil {
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf("delete promoted queued: %w", err)
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusRunning,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                pqtype.NullRawMessage{},
+		RequiresActionDeadlineAt: sql.NullTime{},
+	})
+	if err != nil {
+		return database.Chat{}, promotedQueuedRow{}, xerrors.Errorf("set running: %w", err)
+	}
+	return updated, promotedQueuedRow{
+		Message:       &inserted[len(inserted)-1],
+		Cancellations: inserted[:len(inserted)-1],
+		QueuedAt:      target.CreatedAt,
 	}, nil
 }
 
@@ -985,7 +1201,9 @@ type PromoteQueuedMessageResult struct {
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
-// queue head; from E1/A1 it also pops it into active history.
+// queue head; from E1/E1P/A1/A1P/P it also pops it into active
+// history. The target's edit, if any, is ended first, so the new head
+// is always ready.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
 	if err != nil {
@@ -1001,6 +1219,16 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
+	if target.EditingSince.Valid {
+		target, err = tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID:      target.ID,
+			ChatID:  tx.chatID,
+			Editing: false,
+		})
+		if err != nil {
+			return PromoteQueuedMessageResult{}, xerrors.Errorf("end queued edit: %w", err)
+		}
+	}
 	_, err = tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
 		ID:     input.QueuedMessageID,
 		ChatID: tx.chatID,
@@ -1009,11 +1237,12 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
 	}
 
-	// R1/I1: leave the target at the queue head and transition to
-	// status `interrupting` so the worker can drain the in-flight
-	// generation before promoting the queue head into active history.
-	// No history row is inserted here and no queue rows are deleted.
-	if from == StateR1 || from == StateI1 {
+	// R1/R1P/I1/I1P: leave the target at the queue head and
+	// transition to status `interrupting` so the worker can finish the
+	// in-flight generation before promoting the queue head into
+	// active history. No history row is inserted here and no queue
+	// rows are deleted.
+	if from == StateR1 || from == StateR1P || from == StateI1 || from == StateI1P {
 		if _, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusInterrupting,
 			Archived:                 false,
@@ -1029,47 +1258,15 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		}, nil
 	}
 
-	// E1/A1: synthesize cancellations, pop the head, insert into
-	// history, set running. Both paths insert a queued user message
-	// into active history, so every outstanding tool call must be
-	// closed (not just dynamic ones) to keep the LLM history valid.
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
+	// E1/E1P/A1/A1P/P: pop the target into history and set running.
+	_, promoted, err := tx.promoteQueuedRow(chat, target)
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
-	promotedMsg, err := tx.messageFromQueuedRow(chat, target)
-	if err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
-	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
-	if err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
-	}
-	if len(inserted) != len(cancels)+1 {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf(
-			"insert promoted queued message: expected %d rows, got %d",
-			len(cancels)+1, len(inserted),
-		)
-	}
-	if err := tx.deletePromotedQueuedMessage(target.ID); err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("delete promoted queued: %w", err)
-	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
-		Status:                   database.ChatStatusRunning,
-		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                pqtype.NullRawMessage{},
-		RequiresActionDeadlineAt: sql.NullTime{},
-	}); err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("set running: %w", err)
-	}
-	cancellations := inserted[:len(inserted)-1]
-	insertedUserMsg := inserted[len(inserted)-1]
 	return PromoteQueuedMessageResult{
 		QueuedMessage:        target,
-		InsertedMessage:      &insertedUserMsg,
-		CancellationMessages: cancellations,
+		InsertedMessage:      promoted.Message,
+		CancellationMessages: promoted.Cancellations,
 		PromotedQueuedAt:     target.CreatedAt,
 	}, nil
 }
@@ -1103,7 +1300,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		// interrupting chat is already being finished by its runner.
 		// An unowned one has no runner, and a worker would need a
 		// capacity slot to finish it, so finish it here instead.
-		if !errors.Is(err, ErrTransitionNotAllowed) || (from != StateI0 && from != StateI1) || chat.WorkerID.Valid {
+		if !errors.Is(err, ErrTransitionNotAllowed) || (from != StateI0 && from != StateI1 && from != StateI1P) || chat.WorkerID.Valid {
 			return InterruptResult{}, err
 		}
 		finished, err := tx.finishUnownedInterruption(chat, reason)
@@ -1117,7 +1314,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		}, nil
 	}
 	switch from {
-	case StateR0, StateR1:
+	case StateR0, StateR1, StateR1P:
 		if _, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusInterrupting,
 			Archived:                 false,
@@ -1140,7 +1337,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 			PromotedQueuedAt:     finished.PromotedQueuedAt,
 			FinishedInterruption: true,
 		}, nil
-	case StateA0, StateA1:
+	case StateA0, StateA1, StateA1P:
 		cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, true)
 		if err != nil {
 			return InterruptResult{}, err
@@ -1556,8 +1753,8 @@ type FinishInterruptionResult struct {
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
-// and lands the chat in waiting (I0) or running with the next queued
-// message promoted (I1).
+// and moves the chat to waiting (I0), running with the next queued
+// message promoted (I1), or paused (I1P).
 func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterruptionResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption)
 	if err != nil {
@@ -1579,58 +1776,17 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 		)
 	}
 
-	if from == StateI0 {
-		if _, err := tx.applyExecutionState(executionStateUpdate{
-			Status:                   database.ChatStatusWaiting,
-			Archived:                 false,
-			WorkerID:                 chat.WorkerID,
-			RunnerID:                 chat.RunnerID,
-			LastError:                chat.LastError,
-			RequiresActionDeadlineAt: sql.NullTime{},
-		}); err != nil {
-			return FinishInterruptionResult{}, xerrors.Errorf("set waiting: %w", err)
-		}
-		return FinishInterruptionResult{
-			InsertedMessages: insertedPartial,
-		}, nil
-	}
-
-	// I1: promote queue head into history.
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
+	_, promoted, err := tx.advanceQueue(chat)
 	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
+		return FinishInterruptionResult{}, err
 	}
-	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
-	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
+	result := FinishInterruptionResult{InsertedMessages: insertedPartial}
+	if promoted.Message != nil {
+		result.InsertedMessages = append(append(result.InsertedMessages, promoted.Cancellations...), *promoted.Message)
+		result.PromotedMessage = promoted.Message
+		result.PromotedQueuedAt = promoted.QueuedAt
 	}
-	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
-	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
-	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("delete promoted head: %w", err)
-	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
-		Status:                   database.ChatStatusRunning,
-		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                chat.LastError,
-		RequiresActionDeadlineAt: sql.NullTime{},
-	}); err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("set running: %w", err)
-	}
-	insertedPartial = append(insertedPartial, insertedHead...)
-	var promoted *database.ChatMessage
-	if len(insertedHead) == 1 {
-		promoted = &insertedHead[0]
-	}
-	return FinishInterruptionResult{
-		InsertedMessages: insertedPartial,
-		PromotedMessage:  promoted,
-		PromotedQueuedAt: head.CreatedAt,
-	}, nil
+	return result, nil
 }
 
 // FinishTurnInput configures [Tx.FinishTurn].
@@ -1644,65 +1800,21 @@ type FinishTurnResult struct {
 	PromotedQueuedAt time.Time
 }
 
-// FinishTurn completes a running turn.
+// FinishTurn completes a running turn: waiting (R0), running with the
+// next queued message promoted (R1), or paused (R1P).
 func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionFinishTurn)
+	chat, _, err := tx.requireFromAllowed(TransitionFinishTurn)
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
-	if from == StateR0 {
-		updated, err := tx.applyExecutionState(executionStateUpdate{
-			Status:                   database.ChatStatusWaiting,
-			Archived:                 false,
-			WorkerID:                 chat.WorkerID,
-			RunnerID:                 chat.RunnerID,
-			LastError:                chat.LastError,
-			RequiresActionDeadlineAt: sql.NullTime{},
-		})
-		if err != nil {
-			return FinishTurnResult{}, xerrors.Errorf("set waiting: %w", err)
-		}
-		return FinishTurnResult{Chat: updated}, nil
-	}
-	// R1.
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
-	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("get queue head: %w", err)
-	}
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
+	updated, promoted, err := tx.advanceQueue(chat)
 	if err != nil {
 		return FinishTurnResult{}, err
-	}
-	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
-	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
-	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
-	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
-	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("delete promoted head: %w", err)
-	}
-	updated, err := tx.applyExecutionState(executionStateUpdate{
-		Status:                   database.ChatStatusRunning,
-		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                chat.LastError,
-		RequiresActionDeadlineAt: sql.NullTime{},
-	})
-	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("set running: %w", err)
-	}
-	var promoted *database.ChatMessage
-	if len(inserted) > 0 {
-		promoted = &inserted[len(inserted)-1]
 	}
 	return FinishTurnResult{
 		Chat:             updated,
-		PromotedMessage:  promoted,
-		PromotedQueuedAt: head.CreatedAt,
+		PromotedMessage:  promoted.Message,
+		PromotedQueuedAt: promoted.QueuedAt,
 	}, nil
 }
 
