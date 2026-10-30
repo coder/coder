@@ -76,14 +76,6 @@ const formatAnswer = (
 	return getOptionLabel(question, draft.selection);
 };
 
-export const getSelectedValue = (draft: QuestionDraft): string => {
-	if (typeof draft.selection === "number") {
-		return `option-${draft.selection}`;
-	}
-	// An empty value keeps the radio group controlled with nothing selected.
-	return draft.selection === "other" ? OTHER_OPTION_VALUE : "";
-};
-
 export const formatOutgoingMessage = (
 	questions: AskUserQuestion[],
 	drafts: readonly AnsweredDraft[],
