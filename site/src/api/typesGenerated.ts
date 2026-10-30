@@ -7056,7 +7056,7 @@ export const MaxUserSecretEnvNameLength = 256;
  * See MaxUserSecretsPerUserCount for the rationale behind the other
  * two caps (count, total bytes).
  *
- * The @Description and @Param text in coderd/usersecrets.go states this limit.
+ * The @Description and @Param text in coderd/usersecrets.go state this limit.
  */
 export const MaxUserSecretValueBytes = 24576; // 24 KiB
 

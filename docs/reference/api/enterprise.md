@@ -1460,7 +1460,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 `POST /api/v2/licenses/refresh-entitlements`
 
 Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
-Use it to apply changes that don't trigger a refresh on their own, such as a license expiring or the number of active users changing, instead of waiting for the next automatic refresh.
+Use it to apply changes that don't trigger a refresh on their own, such as a license expiring or the number of active users changing, instead of waiting up to 10 minutes for the next automatic refresh.
 Returns `400` with a `Retry-After` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.
 Requires permission to create licenses.
 

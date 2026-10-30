@@ -74,6 +74,8 @@ import (
 // layer Enterprise functionality on top as much as possible.
 func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.EntitlementsUpdateInterval == 0 {
+		// The refresh entitlements @Description in licenses.go states this
+		// interval.
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
 	if options.LicenseKeys == nil {

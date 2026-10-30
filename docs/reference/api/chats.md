@@ -2219,7 +2219,7 @@ Updates a chat's title, labels, archived state, pin order, workspace, project, p
 Send only the fields you want to change.
 Only the chat owner can change `workspace_id` or `read`.
 Only a root chat can be archived or unarchived, and a sub-agent chat returns `400`.
-The change also applies to the root chat's sub-agent chats, so archiving returns `409` unless every chat in the family is idle or in an error state.
+Archiving or unarchiving also applies to the root chat's sub-agent chats, so archiving returns `409` unless every chat in the family is idle or in an error state.
 
 > Body parameter
 

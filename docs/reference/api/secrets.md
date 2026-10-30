@@ -86,8 +86,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 Creates a secret for a user and returns its metadata without its value.
 An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
-Each user can store up to 50 secrets and 200 KiB in total, and the secrets that set an `env_name` can total up to 24 KiB.
-The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values you send when the deployment encrypts secrets.
+Each user can store up to 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name`, and exceeding one of these limits returns `400`.
+The byte totals count stored bytes, and when the deployment sets `--external-token-encryption-keys`, a stored value is about a third larger than the value you send.
 
 > Body parameter
 
@@ -154,7 +154,7 @@ Creates several secrets at once from the contents of a secrets file, and returns
 Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
 The file can hold up to 50 secrets.
 The per-user limits of 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
-The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values in the file when the deployment encrypts secrets.
+The byte totals count stored bytes, and when the deployment sets `--external-token-encryption-keys`, a stored value is about a third larger than the value in the file.
 The import is atomic, so if any entry is invalid or would exceed a limit, none are created.
 A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 
@@ -312,6 +312,8 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
 
 Updates the fields you send on one of a user's secrets and returns its metadata.
 Send at least one field, and keep an `env_name` or `file_path` on a secret that stays enabled.
+Each user can store up to 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name`, and exceeding one of these limits returns `400`.
+The byte totals count stored bytes, and when the deployment sets `--external-token-encryption-keys`, a stored value is about a third larger than the value you send.
 
 > Body parameter
 
@@ -327,11 +329,11 @@ Send at least one field, and keep an `env_name` or `file_path` on a secret that 
 
 ### Parameters
 
-| Name   | In   | Type                                                                           | Required | Description                                                                      |
-|--------|------|--------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------|
-| `user` | path | string                                                                         | true     | User ID, username, or `me` for the authenticated user.                           |
-| `name` | path | string                                                                         | true     | Name of the secret, as set when it was created.                                  |
-| `body` | body | [codersdk.UpdateUserSecretRequest](schemas.md#codersdkupdateusersecretrequest) | true     | Fields to change. Send at least one field, and fields you omit stay as they are. |
+| Name   | In   | Type                                                                           | Required | Description                                                                                                   |
+|--------|------|--------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                         | true     | User ID, username, or `me` for the authenticated user.                                                        |
+| `name` | path | string                                                                         | true     | Name of the secret, as set when it was created.                                                               |
+| `body` | body | [codersdk.UpdateUserSecretRequest](schemas.md#codersdkupdateusersecretrequest) | true     | Fields to change. Send at least one field, and fields you omit stay as they are. `value` can be up to 24 KiB. |
 
 ### Example responses
 

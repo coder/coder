@@ -2714,7 +2714,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Description Send only the fields you want to change.
 // @Description Only the chat owner can change `workspace_id` or `read`.
 // @Description Only a root chat can be archived or unarchived, and a sub-agent chat returns `400`.
-// @Description The change also applies to the root chat's sub-agent chats, so archiving returns `409` unless every chat in the family is idle or in an error state.
+// @Description Archiving or unarchiving also applies to the root chat's sub-agent chats, so archiving returns `409` unless every chat in the family is idle or in an error state.
 // @ID update-chat
 // @Security CoderSessionToken
 // @Tags Chats

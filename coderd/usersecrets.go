@@ -138,8 +138,8 @@ func (api *API) userSecretsCapabilities(rw http.ResponseWriter, r *http.Request)
 // @Summary Create a new user secret
 // @Description Creates a secret for a user and returns its metadata without its value.
 // @Description An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
-// @Description Each user can store up to 50 secrets and 200 KiB in total, and the secrets that set an `env_name` can total up to 24 KiB.
-// @Description The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values you send when the deployment encrypts secrets.
+// @Description Each user can store up to 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name`, and exceeding one of these limits returns `400`.
+// @Description The byte totals count stored bytes, and when the deployment sets `--external-token-encryption-keys`, a stored value is about a third larger than the value you send.
 // @ID create-a-new-user-secret
 // @Security CoderSessionToken
 // @Accept json
@@ -224,7 +224,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Description Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
 // @Description The file can hold up to 50 secrets.
 // @Description The per-user limits of 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
-// @Description The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values in the file when the deployment encrypts secrets.
+// @Description The byte totals count stored bytes, and when the deployment sets `--external-token-encryption-keys`, a stored value is about a third larger than the value in the file.
 // @Description The import is atomic, so if any entry is invalid or would exceed a limit, none are created.
 // @Description A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 // @ID import-user-secrets-from-a-file
@@ -426,6 +426,8 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Summary Update a user secret
 // @Description Updates the fields you send on one of a user's secrets and returns its metadata.
 // @Description Send at least one field, and keep an `env_name` or `file_path` on a secret that stays enabled.
+// @Description Each user can store up to 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name`, and exceeding one of these limits returns `400`.
+// @Description The byte totals count stored bytes, and when the deployment sets `--external-token-encryption-keys`, a stored value is about a third larger than the value you send.
 // @ID update-a-user-secret
 // @Security CoderSessionToken
 // @Accept json
@@ -433,7 +435,7 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Tags Secrets
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Param name path string true "Name of the secret, as set when it was created."
-// @Param request body codersdk.UpdateUserSecretRequest true "Fields to change. Send at least one field, and fields you omit stay as they are."
+// @Param request body codersdk.UpdateUserSecretRequest true "Fields to change. Send at least one field, and fields you omit stay as they are. `value` can be up to 24 KiB."
 // @Success 200 {object} codersdk.UserSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
