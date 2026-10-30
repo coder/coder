@@ -47,11 +47,11 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-// The keepalive interval plus 60 s. A message starts at most 15 s after the
+// A message starts at most ChatStreamKeepaliveIntervalSeconds after the
 // previous one, so the timer leaves at least 60 s for it to download, for
 // example 14 MB at about 1.9 Mbit/s. The server's WSWatcher probe can close a
 // slow stream sooner.
-export const CHAT_STREAM_SILENCE_TIMEOUT_MS =
+export const CHAT_SOCKET_SILENCE_TIMEOUT_MS =
 	(ChatStreamKeepaliveIntervalSeconds + 60) * 1000;
 
 type UseChatStoreOptions = {
@@ -439,7 +439,7 @@ export const useChatStore = (
 			});
 		};
 		const disposeSocket = createReconnectingWebSocket({
-			silenceTimeoutMs: CHAT_STREAM_SILENCE_TIMEOUT_MS,
+			silenceTimeoutMs: CHAT_SOCKET_SILENCE_TIMEOUT_MS,
 			connect() {
 				// The server sends the changes made at or after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
