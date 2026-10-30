@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -26,15 +27,18 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
 
 type provisionerServeOptions struct {
 	binaryPath    string
+	cachePath     string
 	cliConfigPath string
 	exitTimeout   time.Duration
 	workDir       string
@@ -45,7 +49,10 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	if opts == nil {
 		opts = &provisionerServeOptions{}
 	}
-	cachePath := t.TempDir()
+	cachePath := opts.cachePath
+	if cachePath == "" {
+		cachePath = t.TempDir()
+	}
 	if opts.workDir == "" {
 		opts.workDir = t.TempDir()
 	}
@@ -367,16 +374,18 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 	// at e851c57.
 	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
 	require.NoError(t, err)
+	// Graph reads the state file that apply leaves in the working directory,
+	// so this fixture uses Terraform's state file format.
 	const stateJSON = `{
-		"format_version":"1.0",
+		"version":4,
 		"terraform_version":"1.15.0",
-		"values":{"root_module":{"resources":[
-			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
-			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
-			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
-			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
-		]}}
+		"resources":[
+			{"mode":"managed","type":"docker_container","name":"workspace","provider":"provider[\"registry.terraform.io/kreuzwerker/docker\"]","instances":[{"schema_version":0,"attributes":{}}]},
+			{"mode":"managed","type":"coder_agent","name":"main","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":1,"attributes":{"arch":"amd64","id":"agent-id"}}]},
+			{"mode":"managed","type":"coder_script","name":"prerequisite","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":0,"attributes":{"agent_id":"agent-id","run_on_start":true}}]},
+			{"mode":"managed","type":"coder_script","name":"dependent","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":0,"attributes":{"agent_id":"agent-id","run_on_start":true}}]},
+			{"mode":"data","type":"coder_script_order","name":"order","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":0,"attributes":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}]}
+		]
 	}`
 	// Keep both scripts bound to agent-id while changing the applied agent's ID.
 	mismatchedAgentStateJSON := strings.Replace(
@@ -433,12 +442,10 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
-			statePath := filepath.Join(dir, "state.json")
 			graphPath := filepath.Join(dir, "graph.dot")
 			showArgsPath := filepath.Join(dir, "show-args")
 			graphArgsPath := filepath.Join(dir, "graph-args")
 			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(test.stateJSON), 0o600))
 			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
 
 			binaryPath := filepath.Join(dir, "terraform")
@@ -449,11 +456,7 @@ version)
 	;;
 show)
 	printf '%%s\n' "$*" >> %q
-	if [ "$#" -eq 3 ]; then
-		cat %q
-	else
-		cat %q
-	fi
+	cat %q
 	;;
 graph)
 	printf '%%s\n' "$*" >> %q
@@ -466,16 +469,25 @@ plan|init)
 	exit 1
 	;;
 esac
-`, showArgsPath, statePath, planPath, graphArgsPath, graphPath)
+`, showArgsPath, planPath, graphArgsPath, graphPath)
 			// #nosec G306 - The test Terraform shim must be executable.
 			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
 
+			workDir := t.TempDir()
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binaryPath,
+				workDir:    workDir,
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
 			require.Empty(t, init.Error)
+			// Stand in for the state file apply would have written.
+			sessionDirs, err := filepath.Glob(tfpath.Session(workDir, "*").WorkDirectory())
+			require.NoError(t, err)
+			require.Len(t, sessionDirs, 1)
+			require.NoError(t, os.WriteFile(
+				tfpath.Layout(sessionDirs[0]).StateFilePath(), []byte(test.stateJSON), 0o600,
+			))
 			if test.planFirst {
 				require.NoError(t, sendPlan(sess, test.transition))
 				_, response := readProvisionLog(t, sess)
@@ -500,15 +512,16 @@ esac
 			} else {
 				require.Contains(t, graph.Error, test.errorContains)
 			}
+			// Only Plan runs `terraform show`, on the plan file. Graph reads the
+			// state file directly.
 			showArgs, err := os.ReadFile(showArgsPath)
-			require.NoError(t, err)
-			commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
 			if test.planFirst {
-				require.Len(t, commands, 2)
+				require.NoError(t, err)
+				commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
+				require.Len(t, commands, 1)
 				require.Contains(t, commands[0], "terraform.tfplan")
-				require.Equal(t, "show -json -no-color", commands[1])
 			} else {
-				require.Equal(t, []string{"show -json -no-color"}, commands)
+				require.ErrorIs(t, err, os.ErrNotExist)
 			}
 
 			if test.wantGraphCall {
@@ -518,6 +531,321 @@ esac
 			} else {
 				_, err := os.Stat(graphArgsPath)
 				require.ErrorIs(t, err, os.ErrNotExist)
+			}
+		})
+	}
+}
+
+// writeTerraformShim writes an executable script that stands in for the
+// terraform binary and returns its path.
+func writeTerraformShim(t *testing.T, dir, script string) string {
+	t.Helper()
+	binaryPath := filepath.Join(dir, "terraform")
+	// #nosec G306 - The test Terraform shim must be executable.
+	require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o700))
+	return binaryPath
+}
+
+// readShimCalls returns the argument lines a shim recorded in path, or nil if
+// it never ran the command.
+func readShimCalls(t *testing.T, path string) []string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	require.NoError(t, err)
+	return strings.Split(strings.TrimSpace(string(content)), "\n")
+}
+
+// TestGraphReusesPlanResults covers when Graph reuses the parsed plan and the
+// graph that Plan computed, and the fallbacks that run Terraform again.
+//
+//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
+func TestGraphReusesPlanResults(t *testing.T) {
+	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
+	require.NoError(t, err)
+	const graphDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+	// A deposed agent left by an interrupted create_before_destroy
+	// replacement shares the agent's label but has none of its edges.
+	const graphWithDeposedDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] coder_agent.main (deposed 00000001)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+	const rawStateJSON = `{
+		"version":4,
+		"terraform_version":"1.15.0",
+		"resources":[
+			{"mode":"managed","type":"docker_container","name":"workspace","provider":"provider[\"registry.terraform.io/kreuzwerker/docker\"]","instances":[{"schema_version":0,"attributes":{}}]},
+			{"mode":"managed","type":"coder_agent","name":"main","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":1,"attributes":{"arch":"amd64","id":"agent-id"}}]}
+		]
+	}`
+	// `terraform show -json` output for the same state.
+	const shownStateJSON = `{
+		"format_version":"1.0",
+		"terraform_version":"1.15.0",
+		"values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}}
+		]}}
+	}`
+
+	tests := []struct {
+		name      string
+		source    proto.GraphSource
+		graphDOT  string
+		stateFile string
+		// failFirstGraph makes the graph run during Plan fail.
+		failFirstGraph bool
+		wantShowCalls  []string
+		wantGraphCalls int
+	}{
+		{
+			name:           "PlanSourceReusesPlanAndGraph",
+			source:         proto.GraphSource_SOURCE_PLAN,
+			graphDOT:       graphDOT,
+			wantShowCalls:  []string{"plan"},
+			wantGraphCalls: 1,
+		},
+		{
+			name:           "StateSourceReusesGraph",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphDOT,
+			stateFile:      rawStateJSON,
+			wantShowCalls:  []string{"plan"},
+			wantGraphCalls: 1,
+		},
+		{
+			name:           "PriorStateNodesRebuildGraph",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphWithDeposedDOT,
+			stateFile:      rawStateJSON,
+			wantShowCalls:  []string{"plan"},
+			wantGraphCalls: 2,
+		},
+		{
+			name:           "GraphFailedDuringPlan",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphDOT,
+			stateFile:      rawStateJSON,
+			failFirstGraph: true,
+			wantShowCalls:  []string{"plan"},
+			wantGraphCalls: 2,
+		},
+		{
+			name:           "UnreadableStateFile",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphDOT,
+			stateFile:      `{"version":3}`,
+			wantShowCalls:  []string{"plan", "state"},
+			wantGraphCalls: 1,
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid "text file busy"; see above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planPath := filepath.Join(dir, "plan.json")
+			statePath := filepath.Join(dir, "state.json")
+			graphPath := filepath.Join(dir, "graph.dot")
+			failGraphPath := filepath.Join(dir, "fail-graph")
+			showArgsPath := filepath.Join(dir, "show-args")
+			graphArgsPath := filepath.Join(dir, "graph-args")
+			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
+			require.NoError(t, os.WriteFile(statePath, []byte(shownStateJSON), 0o600))
+			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
+			if test.failFirstGraph {
+				require.NoError(t, os.WriteFile(failGraphPath, nil, 0o600))
+			}
+
+			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+show)
+	if [ "$#" -eq 3 ]; then
+		echo state >> %[1]q
+		cat %[2]q
+	else
+		echo plan >> %[1]q
+		cat %[3]q
+	fi
+	;;
+graph)
+	echo graph >> %[4]q
+	if [ -f %[5]q ]; then
+		rm %[5]q
+		exit 1
+	fi
+	cat %[6]q
+	;;
+plan|init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`, showArgsPath, statePath, planPath, graphArgsPath, failGraphPath, graphPath))
+
+			workDir := t.TempDir()
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+				workDir:    workDir,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+			require.Empty(t, init.Error)
+			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_STOP))
+			_, response := readProvisionLog(t, sess)
+			require.NotNil(t, response.GetPlan())
+			require.Empty(t, response.GetPlan().Error)
+
+			if test.stateFile != "" {
+				// Stand in for the state file apply would have written.
+				sessionDirs, err := filepath.Glob(tfpath.Session(workDir, "*").WorkDirectory())
+				require.NoError(t, err)
+				require.Len(t, sessionDirs, 1)
+				require.NoError(t, os.WriteFile(
+					tfpath.Layout(sessionDirs[0]).StateFilePath(), []byte(test.stateFile), 0o600,
+				))
+			}
+			require.NoError(t, sess.Send(&proto.Request{
+				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+					Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_STOP},
+					Source:   test.source,
+				}},
+			}))
+			_, response = readProvisionLog(t, sess)
+			require.NotNil(t, response.GetGraph())
+			require.Empty(t, response.GetGraph().Error)
+
+			require.Equal(t, test.wantShowCalls, readShimCalls(t, showArgsPath))
+			require.Len(t, readShimCalls(t, graphArgsPath), test.wantGraphCalls)
+		})
+	}
+}
+
+// TestPlanRetriesOnlyWhenInitIsNeeded covers a build that skipped init and
+// whose plan then fails for a reason a real init would not fix. Plan must
+// report that error without running init and planning again.
+//
+//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
+func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip(initSkipOnlyOnLinux)
+	}
+
+	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
+	require.NoError(t, err)
+	const unrelated = `{"@level":"error","@message":"Error: Unsupported attribute","type":"diagnostic","diagnostic":{"severity":"error","summary":"Unsupported attribute","detail":"This object has no argument named \"x\"."}}`
+	const needsInit = `{"@level":"error","@message":"Error: Required plugins are not installed","type":"diagnostic","diagnostic":{"severity":"error","summary":"Required plugins are not installed","detail":"Run \"terraform init\" to install all required plugins."}}`
+	tests := []struct {
+		name        string
+		planOutput  string
+		wantInit    bool
+		wantError   string
+		wantInLog   string
+		wantNoInLog string
+	}{
+		{
+			name:        "UnrelatedFailure",
+			planOutput:  unrelated,
+			wantError:   "terraform plan",
+			wantInLog:   "Error: Unsupported attribute",
+			wantNoInLog: logFallbackToInit,
+		},
+		{
+			name:        "NeedsInit",
+			planOutput:  needsInit,
+			wantInit:    true,
+			wantInLog:   logFallbackToInit,
+			wantNoInLog: "Required plugins are not installed",
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid "text file busy"; see above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planOutputPath := filepath.Join(dir, "plan-output")
+			planPath := filepath.Join(dir, "plan.json")
+			initArgsPath := filepath.Join(dir, "init-args")
+			planFailedPath := filepath.Join(dir, "plan-failed")
+			require.NoError(t, os.WriteFile(planOutputPath, []byte(test.planOutput+"\n"), 0o600))
+			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
+			// The shim fails the first plan and succeeds after that.
+			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+init)
+	echo init >> %[1]q
+	;;
+plan)
+	if [ ! -f %[2]q ]; then
+		touch %[2]q
+		cat %[3]q
+		exit 1
+	fi
+	;;
+show)
+	cat %[4]q
+	;;
+graph)
+	echo 'digraph {}'
+	;;
+*)
+	exit 1
+	;;
+esac
+`, initArgsPath, planFailedPath, planOutputPath, planPath))
+
+			// The module archive captured at import pins one provider that
+			// is already in the plugin cache, so Init skips terraform init.
+			provider := "registry.terraform.io/coder/coder"
+			cachePath := t.TempDir()
+			providerDir := filepath.Join(cachePath, filepath.FromSlash(provider), "2.18.0", runtime.GOOS+"_"+runtime.GOARCH)
+			require.NoError(t, os.MkdirAll(providerDir, 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(providerDir, "terraform-provider-coder_v2.18.0"), nil, 0o600))
+			moduleArchive := testutil.CreateTar(t, map[string]string{
+				importedLockFileArchivePath(): fmt.Sprintf("provider %q {\n  version = \"2.18.0\"\n}\n", provider),
+			})
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+				cachePath:  cachePath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			initLog := sendBuildInit(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": ""}), moduleArchive)
+			require.Contains(t, initLog, logInitSkipped)
+
+			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+			planLog, response := readProvisionLog(t, sess)
+			plan := response.GetPlan()
+			require.NotNil(t, plan)
+			if test.wantError == "" {
+				require.Empty(t, plan.Error)
+			} else {
+				require.Contains(t, plan.Error, test.wantError)
+			}
+			require.Contains(t, planLog, test.wantInLog)
+			require.NotContains(t, planLog, test.wantNoInLog)
+			if test.wantInit {
+				require.Equal(t, []string{"init"}, readShimCalls(t, initArgsPath))
+				// The fallback init is reported under the init stage.
+				require.True(t, slices.ContainsFunc(plan.Timings, func(timing *proto.Timing) bool {
+					return timing.Stage == string(database.ProvisionerJobTimingStageInit)
+				}), "fallback init timings")
+			} else {
+				require.Nil(t, readShimCalls(t, initArgsPath))
 			}
 		})
 	}
@@ -1603,73 +1931,210 @@ func TestProvision_MalformedModules(t *testing.T) {
 	require.Contains(t, log, "Invalid block definition")
 }
 
+const lockFileTestCoderOnly = `terraform {
+	required_providers {
+	  coder = {
+		source  = "coder/coder"
+		version = "0.6.20"
+	  }
+	}
+}`
+
+// setupLockFileProvisioner starts a provisioner that installs the providers
+// files need from a local mirror, so tests do not depend on the public
+// registry or on a developer's ~/.terraformrc.
+func setupLockFileProvisioner(t *testing.T, files map[string]string) (context.Context, proto.DRPCProvisionerClient) {
+	t.Helper()
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
+	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
+	return setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+}
+
+// importTemplate runs Init the way a template import does and returns its
+// log and response.
+func importTemplate(ctx context.Context, t *testing.T, api proto.DRPCProvisionerClient, source []byte) (string, *proto.InitComplete) {
+	t.Helper()
+	sess := configure(ctx, t, api, &proto.Config{})
+	var log strings.Builder
+	resp := sendInitAndGetResp(t, sess, source, func(line string) {
+		t.Log(line)
+		_, _ = log.WriteString(line)
+	})
+	require.Empty(t, resp.Error)
+	return log.String(), resp
+}
+
+// sendBuildInit sends a workspace build's Init, streaming moduleArchive the
+// way provisionerd does for cached module files, and returns the Init log.
+func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleArchive []byte) string {
+	t.Helper()
+	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleArchive)
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
+		TemplateSourceArchive: source,
+		OmitModuleFiles:       true,
+		InitialModuleTarHash:  upload.DataHash,
+	}}})
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+		Type: &proto.FileUpload_DataUpload{DataUpload: upload},
+	}}})
+	require.NoError(t, err)
+	for _, chunk := range chunks {
+		err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+			Type: &proto.FileUpload_ChunkPiece{ChunkPiece: chunk},
+		}}})
+		require.NoError(t, err)
+	}
+	log, last := readProvisionLog(t, sess)
+	require.NotNil(t, last.GetInit())
+	require.Empty(t, last.GetInit().Error)
+	return log
+}
+
+const (
+	logInitSkipped      = "Skipping terraform init: using cached providers pinned by the dependency lock file"
+	logLockFileReused   = "Reusing previous version from the dependency lock file"
+	logFallbackToInit   = "Cached providers were not sufficient, running terraform init"
+	initSkipOnlyOnLinux = "init is only skipped on Linux, where the plugin cache is used"
+)
+
 // TestProvision_LockFileCached verifies that the lock file produced by the
 // import-time init is returned in the module archive, and that a later build
-// which receives that archive lets Terraform reuse the pinned providers rather
-// than resolving them from the registry again.
+// which receives that archive reuses the pinned providers: on Linux it skips
+// init and links them from the plugin cache, elsewhere init reuses the lock.
 func TestProvision_LockFileCached(t *testing.T) {
 	t.Parallel()
 
+	files := map[string]string{"main.tf": lockFileTestCoderOnly}
+	source := testutil.CreateTar(t, files)
+	ctx, api := setupLockFileProvisioner(t, files)
+
+	// Import: no module archive is available yet, so init must resolve the
+	// provider and write a fresh lock file.
+	importLog, importResp := importTemplate(ctx, t, api, source)
+	require.NotContains(t, importLog, logLockFileReused)
+	require.NotContains(t, importLog, logInitSkipped)
+	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
+
+	// The lock file is keyed by platform so builds on a different platform
+	// ignore it.
+	lockFile := readTarFile(t, importResp.ModuleFiles, importedLockFileArchivePath())
+	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
+
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	buildLog := sendBuildInit(t, buildSess, source, importResp.ModuleFiles)
+	if runtime.GOOS == "linux" {
+		// Every provider is pinned and already in the plugin cache, so init
+		// is replaced by linking the cached packages.
+		require.Contains(t, buildLog, logInitSkipped)
+		require.NotContains(t, buildLog, logLockFileReused)
+	} else {
+		require.Contains(t, buildLog, logLockFileReused)
+	}
+
+	// Plan must work against the linked providers without a real init.
+	err := sendPlan(buildSess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Empty(t, last.GetPlan().Error)
+	require.NotContains(t, planLog, logFallbackToInit)
+}
+
+// TestProvision_ImportRunsInitWithCommittedLockFile covers a template that
+// ships its own lock file whose providers are already cached. A committed
+// lock file may lack this platform's hashes, for example when it was
+// generated on another OS, so import must still run a real init: the lock
+// file it captures is the one builds trust to skip init.
+func TestProvision_ImportRunsInitWithCommittedLockFile(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{"main.tf": lockFileTestCoderOnly}
+	ctx, api := setupLockFileProvisioner(t, files)
+
+	// The first import fills the plugin cache and produces a lock file.
+	_, firstImport := importTemplate(ctx, t, api, testutil.CreateTar(t, files))
+	files[".terraform.lock.hcl"] = string(readTarFile(t, firstImport.ModuleFiles, importedLockFileArchivePath()))
+
+	importLog, _ := importTemplate(ctx, t, api, testutil.CreateTar(t, files))
+	require.NotContains(t, importLog, logInitSkipped)
+	require.Contains(t, importLog, logLockFileReused, "a real init reads the committed lock file")
+}
+
+// TestProvision_SkipInitRequiresModules covers a template with a local
+// module. Its module archive carries the lock file but no module manifest,
+// because only remote modules are archived, so linking providers is not
+// enough and init runs normally.
+func TestProvision_SkipInitRequiresModules(t *testing.T) {
+	t.Parallel()
+
 	files := map[string]string{
+		"main.tf": lockFileTestCoderOnly + `
+		module "local" {
+		  source = "./local"
+		}`,
+		"local/main.tf": `output "value" { value = "ok" }`,
+	}
+	source := testutil.CreateTar(t, files)
+	ctx, api := setupLockFileProvisioner(t, files)
+
+	_, importResp := importTemplate(ctx, t, api, source)
+	buildLog := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
+	require.NotContains(t, buildLog, logInitSkipped)
+	require.Contains(t, buildLog, logLockFileReused)
+}
+
+// TestProvision_SkipInitFallsBack covers a lock file that pins only some of
+// the providers the configuration needs. Init links what is cached, plan
+// fails because the rest is missing, and Plan falls back to a real init
+// before retrying without showing the first attempt's errors.
+func TestProvision_SkipInitFallsBack(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip(initSkipOnlyOnLinux)
+	}
+
+	withNull := map[string]string{
 		"main.tf": `terraform {
 			required_providers {
 			  coder = {
 				source  = "coder/coder"
 				version = "0.6.20"
 			  }
+			  null = {
+				source  = "hashicorp/null"
+				version = "3.2.2"
+			  }
 			}
-		}`,
+		}
+		resource "null_resource" "a" {}`,
 	}
-	source := testutil.CreateTar(t, files)
+	ctx, api := setupLockFileProvisioner(t, withNull)
 
-	// Install providers from a local mirror so the test does not depend on the
-	// public registry or on a developer's ~/.terraformrc.
-	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
-	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
-	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+	// The archive comes from a template version that only used coder, so its
+	// lock file knows nothing about the null provider.
+	_, importResp := importTemplate(ctx, t, api, testutil.CreateTar(t, map[string]string{"main.tf": lockFileTestCoderOnly}))
 
-	// Import: no module archive is available yet, so init must resolve the
-	// provider and write a fresh lock file.
-	importSess := configure(ctx, t, api, &proto.Config{})
-	var importLog strings.Builder
-	importResp := sendInitAndGetResp(t, importSess, source, func(log string) {
-		_, _ = importLog.WriteString(log)
-	})
-	require.Empty(t, importResp.Error)
-	require.NotContains(t, importLog.String(), "Reusing previous version from the dependency lock file")
-	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
-
-	// The lock file is keyed by platform so builds on a different platform
-	// ignore it.
-	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
-	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
-
-	// Build: stream the archive the same way provisionerd does for cached
-	// module files, then confirm Terraform picked the lock file up.
 	buildSess := configure(ctx, t, api, &proto.Config{})
-	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, importResp.ModuleFiles)
-	require.NoError(t, err)
-	err = buildSess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
-		TemplateSourceArchive: source,
-		OmitModuleFiles:       true,
-		InitialModuleTarHash:  upload.DataHash,
-	}}})
-	require.NoError(t, err)
-	err = buildSess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
-		Type: &proto.FileUpload_DataUpload{DataUpload: upload},
-	}}})
-	require.NoError(t, err)
-	for _, chunk := range chunks {
-		err = buildSess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
-			Type: &proto.FileUpload_ChunkPiece{ChunkPiece: chunk},
-		}}})
-		require.NoError(t, err)
-	}
+	initLog := sendBuildInit(t, buildSess, testutil.CreateTar(t, withNull), importResp.ModuleFiles)
+	require.Contains(t, initLog, logInitSkipped)
 
-	buildLog, last := readProvisionLog(t, buildSess)
-	require.NotNil(t, last.GetInit())
-	require.Empty(t, last.GetInit().Error)
-	require.Contains(t, buildLog, "Reusing previous version from the dependency lock file")
+	err := sendPlan(buildSess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Empty(t, last.GetPlan().Error)
+	require.Contains(t, planLog, logFallbackToInit)
+	require.Contains(t, planLog, logLockFileReused)
+	require.NotContains(t, planLog, "Inconsistent dependency lock file",
+		"errors the fallback recovers from stay out of the build log")
+}
+
+// importedLockFileArchivePath is where the module archive stores the lock
+// file captured during import on this platform.
+func importedLockFileArchivePath() string {
+	return ".terraform/coder/lockfiles/" + runtime.GOOS + "_" + runtime.GOARCH + ".lock.hcl"
 }
 
 func readTarFile(t *testing.T, archive []byte, name string) []byte {

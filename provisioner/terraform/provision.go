@@ -106,34 +106,24 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)
 	}
 
-	s.logger.Debug(ctx, "running terraform initialization")
+	sessState := s.sessionState(sess.Context(), sess)
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	err = e.init(ctx, killCtx, sess)
-	endStage(err)
-	if err != nil {
-		s.logger.Debug(ctx, "init failed", slog.Error(err))
-
-		// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
-		// We believe this might be due to some race condition that prevents the
-		// terraform-provider-coder process from exiting.  When terraform tries to install the
-		// provider during this init, it copies over the local cache. Normally this isn't an issue,
-		// but if the terraform-provider-coder process is still running from a previous build, Linux
-		// returns "text file busy" error when attempting to open the file.
-		//
-		// Capturing the stack trace from the process should help us figure out why it has not
-		// exited.  We'll drop these diagnostics in a CRITICAL log so that operators are likely to
-		// notice, and also because it indicates this provisioner could be permanently broken and
-		// require a restart.
-		var errTFB *textFileBusyError
-		if xerrors.As(err, &errTFB) {
-			stacktrace := tryGettingCoderProviderStacktrace(sess)
-			s.logger.Critical(ctx, "init: text file busy",
-				slog.Error(errTFB),
-				slog.F("stderr", errTFB.stderr),
-				slog.F("provider_coder_stacktrace", stacktrace),
-			)
+	// Only a lock file captured by a real `terraform init` on this platform
+	// during import is known to carry the provider hashes this platform
+	// needs. Any other lock file, such as one committed from another OS, may
+	// not, and template import and dry runs never have a captured one, so they
+	// always run a real init and the lock file they capture is complete.
+	if restored && prepareWithoutInit(ctx, s.logger, sess.Files, s.cachePath) {
+		sessState.initSkipped = true
+		sess.ProvisionLog(proto.LogLevel_INFO, "Skipping terraform init: using cached providers pinned by the dependency lock file")
+		endStage(nil)
+	} else {
+		s.logger.Debug(ctx, "running terraform initialization")
+		err = s.initWorkingDirectory(ctx, killCtx, e, sess)
+		endStage(err)
+		if err != nil {
+			return provisionersdk.InitErrorf("initialize terraform: %s", err)
 		}
-		return provisionersdk.InitErrorf("initialize terraform: %s", err)
 	}
 
 	modules, err := getModules(sess.Files)
@@ -175,6 +165,38 @@ func (s *server) Init(
 		ModuleFiles:     moduleFiles,
 		ModuleFilesHash: nil,
 	}
+}
+
+// initWorkingDirectory runs `terraform init` in the session's working
+// directory with e, adding diagnostics when it fails with "text file busy".
+func (s *server) initWorkingDirectory(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session) error {
+	err := e.init(ctx, killCtx, sess)
+	if err == nil {
+		return nil
+	}
+	s.logger.Debug(ctx, "init failed", slog.Error(err))
+
+	// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
+	// We believe this might be due to some race condition that prevents the
+	// terraform-provider-coder process from exiting.  When terraform tries to install the
+	// provider during this init, it copies over the local cache. Normally this isn't an issue,
+	// but if the terraform-provider-coder process is still running from a previous build, Linux
+	// returns "text file busy" error when attempting to open the file.
+	//
+	// Capturing the stack trace from the process should help us figure out why it has not
+	// exited.  We'll drop these diagnostics in a CRITICAL log so that operators are likely to
+	// notice, and also because it indicates this provisioner could be permanently broken and
+	// require a restart.
+	var errTFB *textFileBusyError
+	if xerrors.As(err, &errTFB) {
+		stacktrace := tryGettingCoderProviderStacktrace(sess)
+		s.logger.Critical(ctx, "init: text file busy",
+			slog.Error(errTFB),
+			slog.F("stderr", errTFB.stderr),
+			slog.F("provider_coder_stacktrace", stacktrace),
+		)
+	}
+	return err
 }
 
 func (s *server) Plan(
@@ -221,57 +243,50 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
+	sessState := s.sessionState(sess.Context(), sess)
+	// After a skipped init, hold back the first attempt's errors: if they only
+	// say that init is needed, the fallback below handles them and they would
+	// otherwise show up in the log of a build that succeeds.
+	planLogs := &errorCapturingSink{logSink: sess, holdErrors: sessState.initSkipped}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	result, err := e.plan(ctx, killCtx, env, vars, planLogs, request)
+	var fallbackInitTimings []*proto.Timing
+	if err != nil && sessState.initSkipped && planLogs.needsInit() {
+		// Init only linked cached providers, and Terraform reports that the
+		// working directory needs more, for example a module the archive did
+		// not include. Run the real init and plan once more.
+		s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init",
+			slog.Error(err), slog.F("plan_errors", planLogs.capturedErrors()))
+		sess.ProvisionLog(proto.LogLevel_WARN, "Cached providers were not sufficient, running terraform init")
+		sessState.initSkipped = false
+		// A separate executor keeps init's timings under the init stage.
+		initExecutor := s.executor(sess.Files, database.ProvisionerJobTimingStageInit)
+		endInit := initExecutor.timings.startStage(database.ProvisionerJobTimingStageInit)
+		initErr := s.initWorkingDirectory(ctx, killCtx, initExecutor, sess)
+		endInit(initErr)
+		if initErr != nil {
+			endStage(initErr)
+			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
+		}
+		fallbackInitTimings = initExecutor.timings.aggregate()
+		result, err = e.plan(ctx, killCtx, env, vars, sess, request)
+	} else {
+		planLogs.flushHeldErrors()
+	}
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
-	// State JSON omits configuration, so retain the plan configuration needed to
-	// finalize script ordering during post-apply graph conversion.
-	s.cachePlanConfig(sess.Context(), sess, planConfig)
 
-	resp.Timings = e.timings.aggregate()
+	sessState.plan = result.plan
+	sessState.graph = result.graph
+	if result.graphErr != nil {
+		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(result.graphErr))
+	}
+
+	resp := result.response
+	resp.Timings = append(e.timings.aggregate(), fallbackInitTimings...)
 	return resp
-}
-
-func (s *server) cachePlanConfig(
-	ctx context.Context, sess *provisionersdk.Session, config *tfjson.Config,
-) {
-	registerCleanup := false
-	s.planConfigsBySessionMu.Lock()
-	if _, cleanupRegistered := s.planConfigsBySession[sess]; cleanupRegistered {
-		s.planConfigsBySession[sess] = config
-	} else if config != nil {
-		if s.planConfigsBySession == nil {
-			s.planConfigsBySession = make(map[*provisionersdk.Session]*tfjson.Config)
-		}
-		s.planConfigsBySession[sess] = config
-		registerCleanup = true
-	}
-	s.planConfigsBySessionMu.Unlock()
-
-	if !registerCleanup {
-		return
-	}
-	context.AfterFunc(ctx, func() {
-		s.planConfigsBySessionMu.Lock()
-		delete(s.planConfigsBySession, sess)
-		s.planConfigsBySessionMu.Unlock()
-	})
-}
-
-func (s *server) loadPlanConfig(
-	sess *provisionersdk.Session,
-) (*tfjson.Config, bool) {
-	s.planConfigsBySessionMu.Lock()
-	defer s.planConfigsBySessionMu.Unlock()
-
-	config, ok := s.planConfigsBySession[sess]
-	if !ok || config == nil {
-		return nil, false
-	}
-	return config, true
 }
 
 func (s *server) Graph(
@@ -289,6 +304,10 @@ func (s *server) Graph(
 	}
 	logTerraformEnvVars(sess)
 
+	// Reuse the parsed plan (plan source) and the graph from this session's
+	// Plan when they are available, instead of running Terraform again.
+	sessState := s.sessionState(sess.Context(), sess)
+
 	modules := []*tfjson.StateModule{}
 	var planConfig *tfjson.Config
 	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
@@ -298,11 +317,15 @@ func (s *server) Graph(
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
 		scriptOrderSource = proto.GraphSource_SOURCE_PLAN
-		e.mut.Lock()
-		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
-		e.mut.Unlock()
-		if err != nil {
-			return provisionersdk.GraphError("parse plan for graph: %s", err)
+		plan := sessState.plan
+		if plan == nil {
+			var err error
+			e.mut.Lock()
+			plan, err = e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+			e.mut.Unlock()
+			if err != nil {
+				return provisionersdk.GraphError("parse plan for graph: %s", err)
+			}
 		}
 
 		modules = planModules(plan)
@@ -311,9 +334,15 @@ func (s *server) Graph(
 			planConfig = plan.Config
 		}
 	case proto.GraphSource_SOURCE_STATE:
-		e.mut.Lock()
-		tfState, err := e.state(ctx, killCtx)
-		e.mut.Unlock()
+		tfState, err := readStateFile(e.files.StateFilePath())
+		if err != nil {
+			// The file was just written by apply, so this should not happen.
+			// Let Terraform interpret it rather than failing the build.
+			s.logger.Warn(ctx, "reading terraform state file failed, falling back to terraform show", slog.Error(err))
+			e.mut.Lock()
+			tfState, err = e.state(ctx, killCtx)
+			e.mut.Unlock()
+		}
 		if err != nil {
 			return provisionersdk.GraphError("load tfstate for graph: %s", err)
 		}
@@ -322,23 +351,36 @@ func (s *server) Graph(
 		}
 		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
 		if convertScriptOrder {
-			cachedPlanConfig, ok := s.loadPlanConfig(sess)
-			if !ok {
+			// State JSON omits configuration, so script ordering takes it from
+			// this session's plan.
+			plan := sessState.plan
+			if plan == nil || !hasScriptOrderDataSource(planModules(plan)) {
 				return provisionersdk.GraphError(
 					"load plan configuration for script ordering: " +
 						"state graph requires a preceding successful plan",
 				)
 			}
-			planConfig = cachedPlanConfig
+			planConfig = plan.Config
 		}
 	default:
 		return provisionersdk.GraphError("unknown graph source: %q", request.Source.String())
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
-	e.mut.Lock()
-	rawGraph, err := e.graph(ctx, killCtx)
-	e.mut.Unlock()
+	rawGraph := sessState.graph
+	if request.Source == proto.GraphSource_SOURCE_STATE && graphHasPriorStateNodes(rawGraph) {
+		// The graph from Plan was built against the state before apply. Nodes
+		// for deposed or orphaned objects in that state share labels with the
+		// configuration's nodes but have none of their edges, so build the
+		// graph again from the state apply left behind.
+		rawGraph = ""
+	}
+	var err error
+	if rawGraph == "" {
+		e.mut.Lock()
+		rawGraph, err = e.graph(ctx, killCtx)
+		e.mut.Unlock()
+	}
 	endStage(err)
 	if err != nil {
 		return provisionersdk.GraphError("generate graph: %s", err)
@@ -382,6 +424,15 @@ func (s *server) Graph(
 		return provisionersdk.GraphError("%s", err)
 	}
 	return response
+}
+
+// graphHasPriorStateNodes reports whether a `terraform graph -type=plan`
+// output contains nodes that Terraform derived from the prior state rather
+// than the configuration: orphaned resources, including ones renamed by a
+// moved block, and deposed objects left by an interrupted
+// create_before_destroy replacement.
+func graphHasPriorStateNodes(rawGraph string) bool {
+	return strings.Contains(rawGraph, " (orphan)") || strings.Contains(rawGraph, " (deposed ")
 }
 
 // checkGraphCompleteSize rejects a Graph response that cannot cross the

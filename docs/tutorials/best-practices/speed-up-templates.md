@@ -95,8 +95,13 @@ Without caching, Terraform will download each provider on each build, and this c
 
 When Coder imports a template version, it keeps the lock file that `terraform init` produced.
 Workspace builds of that template version reuse the lock file when they run on a provisioner with the same operating system and architecture as the provisioner that imported the version.
-Those builds install the provider versions selected at import, and when those providers are already cached, Terraform verifies them against the lock file instead of fetching checksums and signatures for each provider.
-Terraform still queries the provider registry for the list of available versions.
+Those builds install the provider versions selected at import.
+When those providers are already cached, `terraform init` verifies them against the lock file instead of fetching checksums and signatures for each provider.
+It still queries the provider registry for the list of available versions.
+On Linux provisioners, Coder skips `terraform init` when every pinned provider is already cached and no modules need installing.
+Builds that skip `terraform init` don't contact the provider registry, and they don't check that your provider sources still offer the pinned versions.
+To make builds check again, remove those providers from the [cache directory](#cache-directory) of every provisioner.
+To change provider versions, push a new template version.
 Coder doesn't reuse the lock file when [module caching](../../admin/templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
 Committing your own lock file also pins provider versions across template pushes.
 

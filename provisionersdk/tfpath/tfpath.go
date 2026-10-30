@@ -68,6 +68,12 @@ func (l Layout) ModulesDirectory() string {
 	return filepath.Join(l.TerraformMetadataDir(), "modules")
 }
 
+// ProvidersDirectory returns the directory where `terraform init` installs
+// provider packages.
+func (l Layout) ProvidersDirectory() string {
+	return filepath.Join(l.TerraformMetadataDir(), "providers")
+}
+
 func (l Layout) ModulesFilePath() string {
 	return filepath.Join(l.ModulesDirectory(), "modules.json")
 }

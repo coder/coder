@@ -36,7 +36,9 @@ type executor struct {
 	server     *server
 	mut        *sync.Mutex
 	binaryPath string
-	// cachePath and files must not be used by multiple processes at once.
+	// cachePath and files must not be used by multiple processes at once,
+	// except for read-only commands that take no state lock, such as the
+	// `terraform show` and `terraform graph` that plan runs concurrently.
 	cachePath     string
 	cliConfigPath string
 	files         tfpath.Layout
@@ -48,15 +50,20 @@ func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if e.cachePath != "" && runtime.GOOS == "linux" {
+	if pluginCacheEnabled(e.cachePath) {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	if e.cliConfigPath != "" {
 		env = append(env, "TF_CLI_CONFIG_FILE="+e.cliConfigPath)
 	}
 	return env
+}
+
+// pluginCacheEnabled reports whether Terraform gets cachePath as its plugin
+// cache directory. Only Linux reliably works with the Terraform plugin cache
+// directory. It's unknown why this is.
+func pluginCacheEnabled(cachePath string) bool {
+	return cachePath != "" && runtime.GOOS == "linux"
 }
 
 // execWriteOutput must only be called while the lock is held.
@@ -290,8 +297,22 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
+// planResult holds the Plan response plus what later RPCs of the session
+// reuse.
+type planResult struct {
+	response *proto.PlanComplete
+	// plan is the parsed plan file, so the Graph RPC does not have to run
+	// `terraform show` on it again.
+	plan *tfjson.Plan
+	// graph is the output of `terraform graph`, computed while the plan
+	// file was being parsed. graphErr records why it is unavailable, in
+	// which case the Graph RPC runs the command itself.
+	graph    string
+	graphErr error
+}
+
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*planResult, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -328,17 +349,33 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("terraform plan: %w", err)
+		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
+	// Compute the dependency graph now, concurrently with parsing the plan
+	// file, instead of running it serially in the Graph RPC. Both commands
+	// are read only and take no state lock. The graph comes from the
+	// configuration and the state before apply; the Graph RPC builds it again
+	// after apply when that state added nodes for orphaned or deposed objects.
+	type graphResult struct {
+		raw string
+		err error
+	}
+	graphDone := make(chan graphResult, 1)
+	go func() {
+		raw, err := e.graph(ctx, killCtx)
+		graphDone <- graphResult{raw: raw, err: err}
+	}()
+
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
+	graph := <-graphDone
 	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("marshal plan: %w", err)
+		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	isPrebuildClaimAttempt := !destroy &&
@@ -360,7 +397,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	state, err := ConvertPlanState(plan)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("convert plan state: %w", err)
+		return nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
 	var resReps []*proto.ResourceReplacement
@@ -380,11 +417,12 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ResourceReplacements: resReps,
 	}
 
-	var planConfig *tfjson.Config
-	if hasScriptOrderDataSource(planModules(plan)) {
-		planConfig = plan.Config
-	}
-	return msg, planConfig, nil
+	return &planResult{
+		response: msg,
+		plan:     plan,
+		graph:    graph.raw,
+		graphErr: graph.err,
+	}, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {

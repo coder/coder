@@ -146,25 +146,65 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	execMut                *sync.Mutex
-	planConfigsBySessionMu sync.Mutex
-	// An entry is created only when a plan returns configuration. It remains
-	// until its session ends so only one cleanup callback is registered. A nil
-	// value means a later plan returned no configuration to cache, which can
-	// occur when template import runs its start and stop plans in one session.
-	planConfigsBySession map[*provisionersdk.Session]*tfjson.Config
-	binaryPath           string
-	cachePath            string
-	cliConfigPath        string
-	logger               slog.Logger
-	tracer               trace.Tracer
-	exitTimeout          time.Duration
+	execMut       *sync.Mutex
+	binaryPath    string
+	cachePath     string
+	cliConfigPath string
+	logger        slog.Logger
+	tracer        trace.Tracer
+	exitTimeout   time.Duration
 
 	// versionMu guards cachedVersion. The Terraform binary does not change
 	// for the lifetime of the server, so its version is resolved once and
 	// reused instead of spawning `terraform version` before every stage.
 	versionMu     sync.Mutex
 	cachedVersion *version.Version
+
+	// sessionsMu guards sessions, which carries state between the RPCs of
+	// one provisioner session (Init, Plan, Apply, Graph).
+	sessionsMu sync.Mutex
+	sessions   map[*provisionersdk.Session]*sessionState
+}
+
+// sessionState is what the RPCs of one session leave behind for the later
+// ones. A session runs its RPCs one at a time, so the fields need no lock.
+type sessionState struct {
+	// initSkipped is set when Init linked cached providers instead of
+	// running `terraform init`, so Plan can fall back to a real init if
+	// the shortcut turns out to be insufficient.
+	initSkipped bool
+
+	// plan is the parsed plan file and graph the `terraform graph` output
+	// from the most recent successful Plan, so Graph can reuse them instead
+	// of running Terraform again. Template import plans the start and stop
+	// transitions in one session, and each Plan replaces both. graph is
+	// empty when computing it during Plan failed.
+	plan  *tfjson.Plan
+	graph string
+}
+
+// sessionState returns the state shared by the RPCs of sess, creating it on
+// first use. ctx must be the session's context: the entry is removed when ctx
+// is done, so the state, which includes the parsed plan, never outlives its
+// session, including sessions that end before Graph because a later stage
+// failed or was canceled.
+func (s *server) sessionState(ctx context.Context, sess *provisionersdk.Session) *sessionState {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+	if st, ok := s.sessions[sess]; ok {
+		return st
+	}
+	if s.sessions == nil {
+		s.sessions = make(map[*provisionersdk.Session]*sessionState)
+	}
+	st := &sessionState{}
+	s.sessions[sess] = st
+	context.AfterFunc(ctx, func() {
+		s.sessionsMu.Lock()
+		defer s.sessionsMu.Unlock()
+		delete(s.sessions, sess)
+	})
+	return st
 }
 
 // terraformVersion returns the version of the configured Terraform binary,
