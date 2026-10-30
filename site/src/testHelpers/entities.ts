@@ -2756,15 +2756,28 @@ export const MockCancellationMessage = {
 	message: "Job successfully canceled",
 };
 
+type MockAPIRequest = {
+	method: string;
+	url: string;
+};
+
 type MockAPIInput = {
 	message?: string;
 	detail?: string;
 	validations?: FieldError[];
+	request?: MockAPIRequest;
+	status?: number;
+	statusText?: string;
+	headers?: Record<string, string>;
 };
 
 type MockAPIOutput = {
 	isAxiosError: true;
+	config: MockAPIRequest | undefined;
 	response: {
+		status: number | undefined;
+		statusText: string | undefined;
+		headers: Record<string, string> | undefined;
 		data: {
 			message: string;
 			detail: string | undefined;
@@ -2777,10 +2790,18 @@ export const mockApiError = ({
 	message = "Something went wrong.",
 	detail,
 	validations,
+	request,
+	status,
+	statusText,
+	headers,
 }: MockAPIInput): MockAPIOutput => ({
 	// This is how axios can check if it is an axios error when calling isAxiosError
 	isAxiosError: true,
+	config: request,
 	response: {
+		status,
+		statusText,
+		headers,
 		data: {
 			message,
 			detail,

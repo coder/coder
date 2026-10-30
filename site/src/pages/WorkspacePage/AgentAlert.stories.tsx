@@ -29,13 +29,6 @@ export const WarningSubtle: Story = {
 	},
 };
 
-export const InfoProminent: Story = {
-	args: {
-		severity: "info",
-		prominent: true,
-	},
-};
-
 export const InfoSubtle: Story = {
 	args: {
 		severity: "info",
