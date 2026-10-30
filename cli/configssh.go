@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +14,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/cli/safeexec"
+	"github.com/google/uuid"
 	"github.com/natefinch/atomic"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
@@ -23,6 +26,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/serpent"
 )
 
@@ -63,10 +67,9 @@ type sshConfigOptions struct {
 	coderBinaryPath        string
 	skipProxyCommand       bool
 	forceUnixSeparators    bool
-	// workspaceNames is populated when noWildcard is true. It holds the
-	// workspace names used to generate individual host entries. It is not
-	// persisted to the SSH config header.
-	workspaceNames []string
+	// hostNames holds the names to write individual host entries for when
+	// noWildcard is true. It is not persisted to the SSH config header.
+	hostNames []string
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -161,11 +164,11 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 	// Prefix block:
 	if o.userHostPrefix != "" {
 		if o.noWildcard {
-			for i, wsName := range o.workspaceNames {
+			for i, host := range o.hostNames {
 				if i > 0 {
 					_, _ = buf.WriteString("\n")
 				}
-				_, _ = fmt.Fprintf(buf, "Host %s%s\n", o.userHostPrefix, wsName)
+				_, _ = fmt.Fprintf(buf, "Host %s%s\n", o.userHostPrefix, host)
 				for _, v := range o.sshOptions {
 					_, _ = buf.WriteString("\t")
 					_, _ = buf.WriteString(v)
@@ -208,8 +211,8 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 	}
 
 	if o.noWildcard {
-		for _, wsName := range o.workspaceNames {
-			hostname := wsName + "." + o.hostnameSuffix
+		for _, host := range o.hostNames {
+			hostname := host + "." + o.hostnameSuffix
 			_, _ = fmt.Fprintf(buf, "\nHost %s\n", hostname)
 			for _, v := range o.sshOptions {
 				_, _ = buf.WriteString("\t")
@@ -465,7 +468,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if configOptions.noWildcard {
 				// Fetch all workspaces to generate individual host entries.
-				var wsNames []string
+				var workspaces []codersdk.Workspace
 				offset := 0
 				const pageSize = 100
 				for {
@@ -477,15 +480,14 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					if err != nil {
 						return xerrors.Errorf("fetch workspaces: %w", err)
 					}
-					for _, ws := range res.Workspaces {
-						wsNames = append(wsNames, ws.Name)
-					}
+					workspaces = append(workspaces, res.Workspaces...)
 					if len(res.Workspaces) < pageSize {
 						break
 					}
 					offset += pageSize
 				}
-				configOptions.workspaceNames = wsNames
+				versionResources := templateVersionResources(ctx, inv.Stderr, client, workspaces)
+				configOptions.hostNames = noWildcardHostNames(workspaces, versionResources)
 			}
 
 			err = configOptions.writeToBuffer(buf)
@@ -655,7 +657,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		{
 			Flag: "no-wildcard",
 			Env:  "CODER_CONFIGSSH_NO_WILDCARD",
-			Description: "Generate an individual host entry for each workspace instead of a wildcard host block. " +
+			Description: "Generate an individual host entry for each workspace and each of its agents instead of a wildcard host block. " +
 				"This allows third-party tools and SSH clients to discover workspaces by reading the config file.",
 			Value:   serpent.BoolOf(&sshConfigOpts.noWildcard),
 			Default: "false",
@@ -1011,4 +1013,88 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		b = nil
 	}
 	return b, nil
+}
+
+// noWildcardHostNames returns the names that --no-wildcard writes a host entry
+// for: each workspace name, followed by an <agent>.<workspace>.<owner> name for
+// each of its agents. The agent names match the hostnames shown in the
+// dashboard and served by Coder Connect. While a workspace runs, its latest
+// build also lists devcontainer sub-agents, so they get entries too. A
+// workspace whose latest build has no agents, such as a stopped one, uses the
+// agents of its template version from versionResources instead. Agent entries
+// are only written when every name in them is valid, so a server-supplied value
+// can never be written into ssh_config as syntax.
+func noWildcardHostNames(workspaces []codersdk.Workspace, versionResources map[uuid.UUID][]codersdk.WorkspaceResource) []string {
+	var names []string
+	for _, ws := range workspaces {
+		names = append(names, ws.Name)
+		if codersdk.NameValid(ws.Name) != nil || codersdk.NameValid(ws.OwnerName) != nil {
+			continue
+		}
+		agents := startAgentNames(ws.LatestBuild.Resources)
+		if len(agents) == 0 {
+			agents = startAgentNames(versionResources[ws.LatestBuild.TemplateVersionID])
+		}
+		for _, agent := range agents {
+			names = append(names, agent+"."+ws.Name+"."+ws.OwnerName)
+		}
+	}
+	return names
+}
+
+// startAgentNames returns the sorted names of the agents in start-transition
+// resources, skipping names that are not valid agent names. Template version
+// resources also include stop-transition ones.
+func startAgentNames(resources []codersdk.WorkspaceResource) []string {
+	var names []string
+	for _, resource := range resources {
+		if resource.Transition != codersdk.WorkspaceTransitionStart {
+			continue
+		}
+		for _, agent := range resource.Agents {
+			if provisioner.AgentNameRegex.MatchString(agent.Name) {
+				names = append(names, agent.Name)
+			}
+		}
+	}
+	// Agents come back in database order.
+	slices.Sort(names)
+	return names
+}
+
+// templateVersionResources fetches the resources of the template version of
+// each workspace whose latest build has no agents, such as a stopped one.
+// Each version is fetched once. If a fetch fails, it warns and leaves the
+// version out, so those workspaces still get their own host entry.
+func templateVersionResources(ctx context.Context, stderr io.Writer, client *codersdk.Client, workspaces []codersdk.Workspace) map[uuid.UUID][]codersdk.WorkspaceResource {
+	workspacesByVersion := make(map[uuid.UUID][]string)
+	for _, ws := range workspaces {
+		if len(startAgentNames(ws.LatestBuild.Resources)) == 0 {
+			id := ws.LatestBuild.TemplateVersionID
+			workspacesByVersion[id] = append(workspacesByVersion[id], ws.Name)
+		}
+	}
+
+	var (
+		mu        sync.Mutex
+		resources = make(map[uuid.UUID][]codersdk.WorkspaceResource, len(workspacesByVersion))
+		wg        sync.WaitGroup
+		limit     = make(chan struct{}, 8)
+	)
+	for id, wsNames := range workspacesByVersion {
+		limit <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-limit }()
+			res, err := client.TemplateVersionResources(ctx, id)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				cliui.Warnf(stderr, "Skipping agent host entries for %s: fetch template version resources: %v", strings.Join(wsNames, ", "), err)
+				return
+			}
+			resources[id] = res
+		})
+	}
+	wg.Wait()
+	return resources
 }

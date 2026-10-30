@@ -158,8 +158,8 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
    > [!TIP]
    > Gateway discovers hosts by parsing `~/.ssh/config`.
-   > If your workspaces do not appear in Gateway's host list, re-run `coder config-ssh
-   > --no-wildcard` to generate an individual `Host` entry per workspace instead of a wildcard block.
+   > If your workspaces don't appear in Gateway's host list, re-run `coder config-ssh --no-wildcard`.
+   > This command generates individual `Host` entries for each workspace and its agents instead of a wildcard block.
 
 1. Select **Test Connection** to validate these settings.
 

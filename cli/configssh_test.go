@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -987,21 +988,39 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 
 	// Create two workspaces with names in reverse lexical order so that we can
 	// verify the SSH config entries are sorted by name, not by creation order.
-	// ws1 sorts after ws2 alphabetically.
-	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	// ws-beta sorts after ws-alpha alphabetically.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-beta",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-beta"
-		return a
+		// A second agent, so both agents of the workspace get their own entry.
+		return append(a, &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "agent-gamma",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Env:  map[string]string{},
+		})
 	}).Do()
-	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-alpha",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-alpha"
+		return a
+	}).Do()
+	// A stopped workspace has no start-transition agents on its latest build,
+	// so its agent entries come from the template version.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		Name:           "ws-gamma",
+	}).Seed(database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStop,
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Name = "agent-delta"
 		return a
 	}).Do()
 
@@ -1043,12 +1062,26 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	// The server always injects a "coder." hostname prefix in addition to the
 	// user-supplied "--hostname-suffix coder" entries. With stable workspace
 	// names we can assert the complete, ordered host-entry list exactly.
-	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
+	// ws-alpha sorts before ws-beta even though ws-alpha was created second,
+	// and the stopped ws-gamma comes after the running workspaces.
+	// Each workspace entry is followed by an <agent>.<workspace>.<owner> entry
+	// per agent, matching the hostnames the dashboard and Coder Connect use.
+	owner := coderdtest.FirstUserParams.Username
 	wantHosts := []string{
-		"Host coder." + ws2.Workspace.Name,      // coder.ws-alpha
-		"Host coder." + ws1.Workspace.Name,      // coder.ws-beta
-		"Host " + ws2.Workspace.Name + ".coder", // ws-alpha.coder
-		"Host " + ws1.Workspace.Name + ".coder", // ws-beta.coder
+		"Host coder.ws-alpha",
+		"Host coder.agent-alpha.ws-alpha." + owner,
+		"Host coder.ws-beta",
+		"Host coder.agent-beta.ws-beta." + owner,
+		"Host coder.agent-gamma.ws-beta." + owner,
+		"Host coder.ws-gamma",
+		"Host coder.agent-delta.ws-gamma." + owner,
+		"Host ws-alpha.coder",
+		"Host agent-alpha.ws-alpha." + owner + ".coder",
+		"Host ws-beta.coder",
+		"Host agent-beta.ws-beta." + owner + ".coder",
+		"Host agent-gamma.ws-beta." + owner + ".coder",
+		"Host ws-gamma.coder",
+		"Host agent-delta.ws-gamma." + owner + ".coder",
 	}
 	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
 
