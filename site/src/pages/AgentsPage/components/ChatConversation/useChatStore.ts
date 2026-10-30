@@ -87,12 +87,12 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		isActiveChatStatus(state.chatStatus));
 
 // A message starts at most ChatStreamKeepaliveIntervalSeconds after the
-// previous one, so the timer leaves at least 60 s for it to download, for
-// example 14 MB at about 1.9 Mbit/s. A message that needs longer is requested
-// again on every reconnect, because the reconnect resumes from the same
-// after_id. The server's WSWatcher probe can close a slow stream sooner.
+// previous one. watchChat opts in to chunk messages, so no message is over
+// about 512 KiB (writeChatStreamBatch), and 25 s downloads one down to about
+// 0.17 Mbit/s however large the batch is. Below about 0.84 Mbit/s the server's
+// WSWatcher probe closes the stream first.
 export const CHAT_SOCKET_SILENCE_TIMEOUT_MS =
-	(ChatStreamKeepaliveIntervalSeconds + 60) * 1000;
+	(ChatStreamKeepaliveIntervalSeconds + 25) * 1000;
 
 type UseChatStoreOptions = {
 	chatID: string;
