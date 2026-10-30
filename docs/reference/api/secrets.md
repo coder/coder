@@ -151,7 +151,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 
 Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.
 Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
-The file can hold up to 50 secrets, and the per-user limits on secret count and size include the secrets the user already has.
+The file can hold up to 50 secrets.
+The per-user limits of 50 secrets, 200 KiB in total, and 24 KiB for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
 The import is atomic, so if any entry is invalid or would exceed a limit, none are created.
 A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 

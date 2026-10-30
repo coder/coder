@@ -4304,7 +4304,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.\nSend only the fields you want to change.\nOnly the chat owner can change ` + "`" + `workspace_id` + "`" + ` or ` + "`" + `read` + "`" + `, and archiving needs the chat to be idle or in an error state.",
+                "description": "Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.\nSend only the fields you want to change.\nOnly the chat owner can change ` + "`" + `workspace_id` + "`" + ` or ` + "`" + `read` + "`" + `, and archiving needs the chat to be idle or in an error state and returns ` + "`" + `409` + "`" + ` otherwise.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4672,7 +4672,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
-                "description": "Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.\nA running chat moves to ` + "`" + `interrupting` + "`" + ` until the chat worker stops it, and an idle chat returns a ` + "`" + `409` + "`" + ` conflict.",
+                "description": "Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.\nA running chat moves to ` + "`" + `interrupting` + "`" + ` until the chat worker stops it, and an idle chat returns ` + "`" + `409` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -5032,7 +5032,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/reconcile-invalid": {
             "post": {
-                "description": "Recovers a chat stuck in an invalid execution state by moving it to an error state.\nQueued messages are kept and pending client-executed tool calls are canceled. The call returns a ` + "`" + `409` + "`" + ` conflict when the chat isn't in an invalid state.",
+                "description": "Recovers a chat stuck in an invalid execution state by moving it to an error state.\nQueued messages are kept and pending client-executed tool calls are canceled. The call returns ` + "`" + `409` + "`" + ` when the chat isn't in an invalid state.",
                 "produces": [
                     "application/json"
                 ],
@@ -5224,7 +5224,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/tool-results": {
             "post": {
-                "description": "Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.\nUse it when the chat is in the ` + "`" + `requires_action` + "`" + ` status after calling a tool you declared in ` + "`" + `unsafe_dynamic_tools` + "`" + `.\nOnly the chat owner can submit results, and deployments that turn off caller-supplied tools reject the call.",
+                "description": "Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.\nUse it when the chat is in the ` + "`" + `requires_action` + "`" + ` status after calling a tool you declared in ` + "`" + `unsafe_dynamic_tools` + "`" + `.\nOnly the chat owner can submit results, and the call returns ` + "`" + `403` + "`" + ` for anyone else or when the deployment turns off caller-supplied tools.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7085,7 +7085,7 @@ const docTemplate = `{
                 "operationId": "add-new-license",
                 "parameters": [
                     {
-                        "description": "License to add. ` + "`" + `license` + "`" + ` is the license key string. The request fails with ` + "`" + `400` + "`" + ` if the key is invalid or is locked to a different deployment.",
+                        "description": "License to add. ` + "`" + `license` + "`" + ` is the license key string. Returns ` + "`" + `400` + "`" + ` if the key is invalid or is locked to a different deployment.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7111,7 +7111,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/refresh-entitlements": {
             "post": {
-                "description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply a license change immediately instead of waiting for the next automatic refresh.\nYou can call it once per minute, and an earlier call returns ` + "`" + `400` + "`" + ` with a ` + "`" + `Retry-After` + "`" + ` header.\nRequires permission to create licenses.",
+                "description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply a license change immediately instead of waiting for the next automatic refresh.\nReturns ` + "`" + `400` + "`" + ` with a ` + "`" + `Retry-After` + "`" + ` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.\nRequires permission to create licenses.",
                 "produces": [
                     "application/json"
                 ],
@@ -12441,7 +12441,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `, with the same keys as ` + "`" + `q` + "`" + ` on ` + "`" + `GET /api/v2/users` + "`" + `. It filters the users, and text without a key also matches group names and display names.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `, with the same keys as ` + "`" + `q` + "`" + ` on ` + "`" + `GET /api/v2/users` + "`" + `. It filters the users, and text without a key, or with the ` + "`" + `search` + "`" + ` key, also matches group names and display names.",
                         "name": "q",
                         "in": "query"
                     },
@@ -15611,7 +15611,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/batch": {
             "post": {
-                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets, and the per-user limits on secret count and size include the secrets the user already has.\nThe import is atomic, so if any entry is invalid or would exceed a limit, none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
+                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets.\nThe per-user limits of 50 secrets, 200 KiB in total, and 24 KiB for secrets that set an ` + "`" + `env_name` + "`" + ` include the secrets the user already has, and exceeding one returns ` + "`" + `400` + "`" + `.\nThe import is atomic, so if any entry is invalid or would exceed a limit, none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],

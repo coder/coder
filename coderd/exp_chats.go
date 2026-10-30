@@ -2712,7 +2712,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update chat
 // @Description Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.
 // @Description Send only the fields you want to change.
-// @Description Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state.
+// @Description Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state and returns `409` otherwise.
 // @ID update-chat
 // @Security CoderSessionToken
 // @Tags Chats
@@ -4100,7 +4100,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Interrupt chat
 // @Description Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.
-// @Description A running chat moves to `interrupting` until the chat worker stops it, and an idle chat returns a `409` conflict.
+// @Description A running chat moves to `interrupting` until the chat worker stops it, and an idle chat returns `409`.
 // @ID interrupt-chat
 // @Security CoderSessionToken
 // @Tags Chats
@@ -4289,7 +4289,7 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Reconcile invalid chat state
 // @Description Recovers a chat stuck in an invalid execution state by moving it to an error state.
-// @Description Queued messages are kept and pending client-executed tool calls are canceled. The call returns a `409` conflict when the chat isn't in an invalid state.
+// @Description Queued messages are kept and pending client-executed tool calls are canceled. The call returns `409` when the chat isn't in an invalid state.
 // @ID reconcile-invalid-chat-state
 // @Security CoderSessionToken
 // @Tags Chats
@@ -9580,7 +9580,7 @@ var (
 // @Summary Submit chat tool results
 // @Description Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.
 // @Description Use it when the chat is in the `requires_action` status after calling a tool you declared in `unsafe_dynamic_tools`.
-// @Description Only the chat owner can submit results, and deployments that turn off caller-supplied tools reject the call.
+// @Description Only the chat owner can submit results, and the call returns `403` for anyone else or when the deployment turns off caller-supplied tools.
 // @ID submit-chat-tool-results
 // @Security CoderSessionToken
 // @Tags Chats

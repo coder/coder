@@ -2217,7 +2217,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 
 Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.
 Send only the fields you want to change.
-Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state.
+Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state and returns `409` otherwise.
 
 > Body parameter
 
@@ -2759,7 +2759,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 `POST /api/v2/chats/{chat}/interrupt`
 
 Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.
-A running chat moves to `interrupting` until the chat worker stops it, and an idle chat returns a `409` conflict.
+A running chat moves to `interrupting` until the chat worker stops it, and an idle chat returns `409`.
 
 ### Parameters
 
@@ -4058,7 +4058,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
 `POST /api/v2/chats/{chat}/reconcile-invalid`
 
 Recovers a chat stuck in an invalid execution state by moving it to an error state.
-Queued messages are kept and pending client-executed tool calls are canceled. The call returns a `409` conflict when the chat isn't in an invalid state.
+Queued messages are kept and pending client-executed tool calls are canceled. The call returns `409` when the chat isn't in an invalid state.
 
 ### Parameters
 
@@ -4894,7 +4894,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 
 Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.
 Use it when the chat is in the `requires_action` status after calling a tool you declared in `unsafe_dynamic_tools`.
-Only the chat owner can submit results, and deployments that turn off caller-supplied tools reject the call.
+Only the chat owner can submit results, and the call returns `403` for anyone else or when the deployment turns off caller-supplied tools.
 
 > Body parameter
 

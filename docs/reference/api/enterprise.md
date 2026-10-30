@@ -1421,9 +1421,9 @@ Requires permission to create licenses.
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description                                                                                                                                     |
-|--------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | License to add. `license` is the license key string. The request fails with `400` if the key is invalid or is locked to a different deployment. |
+| Name   | In   | Type                                                               | Required | Description                                                                                                                      |
+|--------|------|--------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | License to add. `license` is the license key string. Returns `400` if the key is invalid or is locked to a different deployment. |
 
 ### Example responses
 
@@ -1461,7 +1461,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
 Use it to apply a license change immediately instead of waiting for the next automatic refresh.
-You can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.
+Returns `400` with a `Retry-After` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.
 Requires permission to create licenses.
 
 ### Example responses
@@ -4347,13 +4347,13 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                                                                                                                                                        |
-|------------|-------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `template` | path  | string(uuid) | true     | Template ID                                                                                                                                                                        |
-| `q`        | query | string       | false    | Search query in the format `key:value`, with the same keys as `q` on `GET /api/v2/users`. It filters the users, and text without a key also matches group names and display names. |
-| `limit`    | query | integer      | false    | Maximum number of users, and separately of groups, to return. The default, `0`, returns all of them.                                                                               |
-| `offset`   | query | integer      | false    | Number of users to skip, for paging through users with `limit`. It doesn't apply to groups.                                                                                        |
-| `after_id` | query | string(uuid) | false    | ID of the last user on the previous page. Returns the users after it, and doesn't apply to groups.                                                                                 |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                   |
+|------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `template` | path  | string(uuid) | true     | Template ID                                                                                                                                                                                                   |
+| `q`        | query | string       | false    | Search query in the format `key:value`, with the same keys as `q` on `GET /api/v2/users`. It filters the users, and text without a key, or with the `search` key, also matches group names and display names. |
+| `limit`    | query | integer      | false    | Maximum number of users, and separately of groups, to return. The default, `0`, returns all of them.                                                                                                          |
+| `offset`   | query | integer      | false    | Number of users to skip, for paging through users with `limit`. It doesn't apply to groups.                                                                                                                   |
+| `after_id` | query | string(uuid) | false    | ID of the last user on the previous page. Returns the users after it, and doesn't apply to groups.                                                                                                            |
 
 ### Example responses
 

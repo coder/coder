@@ -77,7 +77,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.AddLicenseRequest true "License to add. `license` is the license key string. The request fails with `400` if the key is invalid or is locked to a different deployment."
+// @Param request body codersdk.AddLicenseRequest true "License to add. `license` is the license key string. Returns `400` if the key is invalid or is locked to a different deployment."
 // @Success 201 {object} codersdk.License
 // @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
@@ -306,7 +306,7 @@ func (api *API) installLicense(
 // @Summary Update license entitlements
 // @Description Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
 // @Description Use it to apply a license change immediately instead of waiting for the next automatic refresh.
-// @Description You can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.
+// @Description Returns `400` with a `Retry-After` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.
 // @Description Requires permission to create licenses.
 // @ID update-license-entitlements
 // @Security CoderSessionToken
