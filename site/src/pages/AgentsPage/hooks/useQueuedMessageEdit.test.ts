@@ -229,14 +229,15 @@ describe("useQueuedMessageEdit", () => {
 		expect(t.result().composerTarget).toEqual(queued(5));
 	});
 
-	it("a failed begin closes the edit", async () => {
+	it("a failed begin returns the composer to the row it followed before Edit", async () => {
 		const t = setup({ storeQueue: [row5, row6Marked] });
 		await t.beginEdit(5);
 		expect(t.result().composerTarget).toEqual(queued(5));
 
 		await waitFor(() => expect(t.patches).toHaveLength(1));
 		await t.settle(t.patches[0], "reject");
-		await waitFor(() => expect(t.result().composerTarget).toBeNull());
+		await waitFor(() => expect(t.result().composerTarget).toEqual(queued(6)));
+		expect(t.result().composerMode).toBe("follow");
 	});
 
 	it("the failure of a begin that a later begin superseded does not affect the composer", async () => {

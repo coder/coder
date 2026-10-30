@@ -288,5 +288,36 @@ describe("AgentChatPage", () => {
 				),
 			);
 		});
+
+		it("an Edit the server refuses leaves the composer as it was, so it does not open another client's edit of the row", async () => {
+			const page = renderQueuedChat({ queuedMessages: [row] });
+			await screen.findByRole("button", { name: "Send now" });
+			await page.type("draft");
+			// Cancelling an edit leaves the composer writing a new message.
+			await page.rowAction("Edit");
+			await waitFor(() =>
+				expect(page.composer().textContent).toBe("queued text"),
+			);
+			await page.user.keyboard("{Escape}");
+			await waitFor(() => expect(page.composer().textContent).toBe("draft"));
+
+			page.editChatQueuedMessage.mockRejectedValueOnce({
+				...mockApiError({ message: "Another edit is open." }),
+				status: 409,
+			});
+			await page.rowAction("Edit");
+			await waitFor(() =>
+				expect(page.editChatQueuedMessage).toHaveBeenCalledTimes(3),
+			);
+			await waitFor(() => expect(page.composer().textContent).toBe("draft"));
+
+			await page.publish({
+				type: "queue_update",
+				chat_id: MockChat.id,
+				queued_messages: [{ ...row, editing_since: "2024-01-01T00:00:00Z" }],
+			});
+			await screen.findByRole("button", { name: "Editing" });
+			expect(page.composer().textContent).toBe("draft");
+		});
 	});
 });

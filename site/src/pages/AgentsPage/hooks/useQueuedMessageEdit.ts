@@ -1,3 +1,4 @@
+import { getErrorStatus } from "#/api/errors";
 import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import {
 	type ChatStore,
@@ -80,7 +81,7 @@ export const deriveComposerTarget = (
 export function useQueuedMessageEdit(deps: {
 	store: ChatStore;
 	composerMode: ComposerMode;
-	setComposerMode: (mode: ComposerMode) => void;
+	setComposerMode: React.Dispatch<React.SetStateAction<ComposerMode>>;
 	isOwner: boolean;
 	marker: MarkerRequest;
 	setQueuedMessageEditing: (id: number, editing: boolean) => Promise<void>;
@@ -113,8 +114,19 @@ export function useQueuedMessageEdit(deps: {
 		) {
 			return;
 		}
-		setComposerMode({ kind: "queued", id });
-		void deps.setQueuedMessageEditing(id, true).catch(() => undefined);
+		const editMode: ComposerMode = { kind: "queued", id };
+		setComposerMode(editMode);
+		void deps.setQueuedMessageEditing(id, true).catch((error: unknown) => {
+			// A refused begin returns the composer to the mode before Edit, so
+			// it does not open the row later when another client edits it,
+			// unless a later choice replaced this one. A 404 dropped the row,
+			// which closes the edit on its own.
+			if (getErrorStatus(error) !== 404) {
+				setComposerMode((current) =>
+					current === editMode ? composerMode : current,
+				);
+			}
+		});
 	};
 
 	const handleEndQueuedMessageEdit = (id: number) =>

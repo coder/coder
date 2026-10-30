@@ -176,7 +176,9 @@ export function useConversationEditingState(deps: {
 	// count. A changed editor keeps its content: if its target goes away it
 	// stays as a new-message draft, and in follow mode it does not load a
 	// newly marked row. If an unchanged edit's target goes away, the pre-edit
-	// draft comes back and the composer follows the row the server marks.
+	// draft comes back and the composer follows the row the server marks,
+	// unless the composer mode was already set to draft, as a refused Edit
+	// does.
 	// The pre-edit draft is captured once per session. A queued row with
 	// text saved from an earlier mount loads that text, which counts as
 	// changed against the row's content.
@@ -198,7 +200,9 @@ export function useConversationEditingState(deps: {
 		onLoadedTargetChange?.();
 		if (target === null) {
 			restoreDraftBeforeEdit();
-			setComposerMode("follow");
+			if (composerMode !== "draft") {
+				setComposerMode("follow");
+			}
 			return;
 		}
 		const { text, fileBlocks, editorState } =
