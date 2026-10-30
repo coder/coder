@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { type ChatStore, createChatStore } from "./chatStore";
 import {
 	type DeriveLiveStatusParams,
