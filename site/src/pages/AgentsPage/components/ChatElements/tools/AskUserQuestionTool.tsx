@@ -416,6 +416,10 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		otherTextRef.current?.focus();
 	};
 
+	// Skip moves past a question without answering it.
+	const answeredCount = drafts
+		.slice(0, answeredQuestionCount)
+		.filter((draft) => draft.selection !== "skipped").length;
 	const panelHeader = onToggleCollapsed && (
 		<QuestionPanelHeader
 			label={
@@ -429,7 +433,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			}
 			progress={
 				isCollapsed && isWizard
-					? `${answeredQuestionCount}/${filteredQuestions.length} questions answered`
+					? `${answeredCount}/${filteredQuestions.length} questions answered`
 					: undefined
 			}
 			isCollapsed={isCollapsed}

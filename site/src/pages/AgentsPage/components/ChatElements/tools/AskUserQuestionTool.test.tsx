@@ -7,7 +7,10 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
-import { AskUserQuestionTool } from "./AskUserQuestionTool";
+import {
+	AskUserQuestionForm,
+	AskUserQuestionTool,
+} from "./AskUserQuestionTool";
 import { getAsyncAnswerPrefix } from "./asyncAnswer";
 
 const questions = [
@@ -486,5 +489,28 @@ describe("AskUserQuestionTool", () => {
 		);
 
 		expect(screen.getByRole("status")).toHaveTextContent("The agent asked");
+	});
+	it("leaves a skipped question out of the collapsed panel's answered count", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const renderForm = (isCollapsed: boolean) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionForm
+					questions={mockTwoQuestions}
+					showSubmittedAnswer
+					onSubmitAnswer={vi.fn()}
+					isCollapsed={isCollapsed}
+					onToggleCollapsed={vi.fn()}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = renderComponent(renderForm(false));
+
+		await user.click(screen.getByRole("button", { name: "Skip" }));
+		rerender(renderForm(true));
+
+		expect(
+			screen.getByRole("button", { expanded: false }),
+		).toHaveAccessibleName(/0\/2 questions answered/);
 	});
 });
