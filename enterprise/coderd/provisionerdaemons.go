@@ -149,10 +149,19 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 // Serves the provisioner daemon protobuf API over a WebSocket.
 //
 // @Summary Serve provisioner daemon
+// @Description Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.
+// @Description Authenticate with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
+// @Description Send `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.
+// @Description A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
+// @Description A pre-shared key works only for the default organization.
+// @Description With a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.
+// @Description Starting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description The WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.
+// @Description Requires a Premium license.
 // @ID serve-provisioner-daemon
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 101
 // @Router /api/v2/organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {

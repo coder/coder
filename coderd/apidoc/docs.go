@@ -10367,6 +10367,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerdaemons/serve": {
             "get": {
+                "description": "Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and ` + "`" + `coder provisioner start` + "`" + ` connects here.\nAuthenticate with a provisioner key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header, with the deployment's pre-shared key in the ` + "`" + `Coder-Provisioner-Daemon-PSK` + "`" + ` header, or with a session token.\nSend ` + "`" + `provisioner` + "`" + ` (` + "`" + `echo` + "`" + ` or ` + "`" + `terraform` + "`" + `, repeatable) to say which provisioners the daemon runs, and optionally ` + "`" + `name` + "`" + `, ` + "`" + `version` + "`" + `, and ` + "`" + `tag` + "`" + ` (` + "`" + `key=value` + "`" + `, repeatable) to set the daemon's name, protocol version, and tags.\nA provisioner key sets the daemon's tags, so you can't send ` + "`" + `tag` + "`" + ` with one, and the key's organization applies instead of the organization in the path.\nA pre-shared key works only for the default organization.\nWith a session token, any user can start a daemon with the tag ` + "`" + `scope=user` + "`" + `, which runs only that user's jobs.\nStarting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nThe WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -10376,7 +10377,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10530,6 +10531,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerkeys": {
             "get": {
+                "description": "Returns the provisioner keys in an organization, oldest first, without their secrets.\nThe list leaves out the reserved ` + "`" + `built-in` + "`" + `, ` + "`" + `user-auth` + "`" + `, and ` + "`" + `psk` + "`" + ` keys, and returns only the keys you can read.\nRequires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10541,7 +10543,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10565,6 +10567,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.\nSet ` + "`" + `name` + "`" + ` (at most 64 characters, unique in the organization, and not ` + "`" + `built-in` + "`" + `, ` + "`" + `user-auth` + "`" + `, or ` + "`" + `psk` + "`" + `) and optionally ` + "`" + `tags` + "`" + `.\nThe response holds the key secret, which Coder stores only as a hash, so save it when you create the key.\nRequires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10576,7 +10579,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10599,6 +10602,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerkeys/daemons": {
             "get": {
+                "description": "Returns each provisioner key in an organization, including the reserved ` + "`" + `user-auth` + "`" + ` key, with the provisioner daemons that connected with it and were seen recently.\nUse it to check which external provisioner daemons are connected.\nReturns only the keys you can read.\nRequires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10610,7 +10614,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10636,6 +10640,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}": {
             "delete": {
+                "description": "Deletes a provisioner key, and daemons that authenticated with it lose their connection.\nYou can't delete the reserved ` + "`" + `built-in` + "`" + `, ` + "`" + `user-auth` + "`" + `, and ` + "`" + `psk` + "`" + ` keys.\nRequires permission to delete provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -10644,14 +10649,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Provisioner key name",
+                        "description": "Name of the provisioner key to delete.",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -11567,6 +11572,7 @@ const docTemplate = `{
         },
         "/api/v2/provisionerkeys/{provisionerkey}": {
             "get": {
+                "description": "Returns the details of the provisioner key that you authenticate with, without its secret.\nAuthenticate with the key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header instead of a session token, and the response describes that key.",
                 "produces": [
                     "application/json"
                 ],
@@ -11578,7 +11584,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provisioner Key",
+                        "description": "Provisioner key name. Coder ignores this value and returns the key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header.",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -11626,6 +11632,7 @@ const docTemplate = `{
         },
         "/api/v2/replicas": {
             "get": {
+                "description": "Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.\nRequires permission to read replicas, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -17505,6 +17512,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceproxies": {
             "get": {
+                "description": "Returns the primary region and every workspace proxy, each with its health status, under ` + "`" + `regions` + "`" + `.\nEvery member can read workspace proxies.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17531,6 +17539,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.\nSet ` + "`" + `name` + "`" + ` (not ` + "`" + `primary` + "`" + `), and optionally ` + "`" + `display_name` + "`" + ` and ` + "`" + `icon` + "`" + `.\nSave the token from the response, because Coder doesn't show it again unless you regenerate it.\nRequires permission to create workspace proxies, which the Owner role has.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17544,7 +17553,7 @@ const docTemplate = `{
                 "operationId": "create-workspace-proxy",
                 "parameters": [
                     {
-                        "description": "Create workspace proxy request",
+                        "description": "Workspace proxy to create.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17785,6 +17794,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceproxies/{workspaceproxy}": {
             "get": {
+                "description": "Returns a workspace proxy, including its health status.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17797,7 +17807,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Proxy ID or name",
+                        "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
                         "required": true
@@ -17818,6 +17828,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a workspace proxy, so Coder stops offering it as a region.\nYou can't delete the primary proxy.\nRequires permission to delete workspace proxies, which the Owner role has.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17830,7 +17841,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Proxy ID or name",
+                        "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
                         "required": true
@@ -17851,6 +17862,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a workspace proxy's ` + "`" + `name` + "`" + `, ` + "`" + `display_name` + "`" + `, and ` + "`" + `icon` + "`" + `, and returns the proxy.\nSet ` + "`" + `regenerate_token` + "`" + ` to ` + "`" + `true` + "`" + ` to issue a new token, which the response returns and which invalidates the old one.\nFor the primary proxy, you can change only ` + "`" + `display_name` + "`" + ` and ` + "`" + `icon` + "`" + `.\nRequires permission to update workspace proxies, which the Owner role has.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17866,13 +17878,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Proxy ID or name",
+                        "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update workspace proxy request",
+                        "description": "Workspace proxy fields to update. Set ` + "`" + `regenerate_token` + "`" + ` to ` + "`" + `true` + "`" + ` to issue a new token.",
                         "name": "request",
                         "in": "body",
                         "required": true,
