@@ -12,6 +12,7 @@ import type {
 	ChatSkillInvocationPart,
 	ChatTextPart,
 } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -116,8 +117,6 @@ const QueuedMessagePreview: React.FC<{
 	);
 };
 
-type QueuedMessageAction = "delete" | "promote";
-
 type QueuedMessageActionButtonProps = {
 	label: string;
 	// Defaults to label.
@@ -169,10 +168,30 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onPromote,
 	className,
 }) => {
-	const items = messages.map((message) => ({
-		id: message.id,
-		...getQueuedMessageInfo(message),
-	}));
+	const underEditIndex = messages.findIndex((message) => message.editing_since);
+	const items = messages.map((message, index) => {
+		const isUnderEdit = Boolean(message.editing_since);
+		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+		let badge: { label: string; tooltip: string } | undefined;
+		if (isUnderEdit) {
+			badge = {
+				label: "Editing",
+				tooltip: "Not sent until you finish editing.",
+			};
+		} else if (isWaitingBehindEdit) {
+			badge = {
+				label: "Waiting",
+				tooltip: "Waits for the edit above to finish.",
+			};
+		}
+		return {
+			id: message.id,
+			...getQueuedMessageInfo(message),
+			isUnderEdit,
+			isWaitingBehindEdit,
+			badge,
+		};
+	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	if (items.length === 0) {
@@ -271,44 +290,22 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Send now"
-											disabled={busyAction !== undefined || isPendingRow}
-											onClick={() => onPromote(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-										>
-											{busyAction === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Send now</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Remove from queue"
-											disabled={busyAction !== undefined || isPendingRow}
-											onClick={() => onDelete(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-										>
-											{busyAction === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Remove</TooltipContent>
-								</Tooltip>
+								<QueuedMessageActionButton
+									label="Send now"
+									icon={<ArrowUpIcon className="size-3.5" />}
+									busy={busyAction === "promote"}
+									disabled={busyAction !== undefined || isPendingRow}
+									onClick={() => onPromote(item.id)}
+								/>
+								<QueuedMessageActionButton
+									label="Remove from queue"
+									tooltip="Remove"
+									icon={<Trash2Icon className="size-3.5" />}
+									busy={busyAction === "delete"}
+									disabled={busyAction !== undefined || isPendingRow}
+									destructive
+									onClick={() => onDelete(item.id)}
+								/>
 							</div>
 						</div>
 					</div>

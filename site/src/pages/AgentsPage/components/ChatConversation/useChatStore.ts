@@ -26,6 +26,7 @@ import {
 	type ChatStoreState,
 	createChatStore,
 	isActiveChatStatus,
+	isTurnCompletedChatStatus,
 	selectOldestStoredMessageID,
 	selectShownError,
 	selectStreamState,
@@ -171,12 +172,12 @@ export const useChatStore = (
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
 		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
-		// Set when the stream reports "waiting", cleared by any other
+		// Set when the stream reports a completed turn, cleared by any other
 		// stream status. While set, parts are dropped: they are late
-		// leftovers from the finished turn.
-		let streamReportedWaiting = false;
+		// leftovers from the completed turn.
+		let streamReportedTurnCompleted = false;
 
-		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
+		const shouldKeepMessagePart = (): boolean => !streamReportedTurnCompleted;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -351,11 +352,12 @@ export const useChatStore = (
 								continue;
 							}
 
-							streamReportedWaiting = nextStatus === "waiting";
+							streamReportedTurnCompleted =
+								isTurnCompletedChatStatus(nextStatus);
 							store.clearRetryState();
 							const prevStatus = store.getSnapshot().chatStatus;
 							store.applyServerChatStatus(nextStatus);
-							if (nextStatus === "waiting") {
+							if (streamReportedTurnCompleted) {
 								discardBufferedParts();
 							}
 							if (nextStatus !== "error") {

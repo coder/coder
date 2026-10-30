@@ -44,7 +44,7 @@ type RequestInFlight = {
 	message: string;
 	editorState: string | undefined;
 	fileBlocks: readonly ChatMessagePart[];
-	editedMessageId: number | null;
+	target: EditingTarget | null;
 };
 
 type ComposerContent = {
@@ -148,8 +148,8 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = text;
 	};
 
-	const handleEditUserMessage = (
-		messageId: number,
+	const handleBeginEdit = (
+		target: EditingTarget,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
@@ -159,7 +159,7 @@ export function useConversationEditingState(deps: {
 		if (requestInFlightRef.current) {
 			return;
 		}
-		if (editingMessageId === null) {
+		if (editingTarget === null) {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
 			// the stale initialEditorState React state.
@@ -171,21 +171,18 @@ export function useConversationEditingState(deps: {
 				editorState: currentEditorState,
 			});
 		}
-		setEditingMessageId(messageId);
+		setEditingTarget(target);
 		showInComposer(text, editorState);
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
 	const showComposeDraft = () =>
-		showInComposer(
-			draftBeforeHistoryEdit?.text ?? "",
-			draftBeforeHistoryEdit?.editorState,
-		);
+		showInComposer(draftBeforeEdit?.text ?? "", draftBeforeEdit?.editorState);
 
-	const handleCancelHistoryEdit = () => {
+	const handleCancelEdit = () => {
 		showComposeDraft();
-		setEditingMessageId(null);
-		setDraftBeforeHistoryEdit(null);
+		setEditingTarget(null);
+		setDraftBeforeEdit(null);
 		setEditingFileBlocks([]);
 	};
 
@@ -197,33 +194,33 @@ export function useConversationEditingState(deps: {
 			message,
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
-			editedMessageId: editingMessageId,
+			target: editingTarget,
 		};
 
 		requestInFlightRef.current = snapshot;
-		if (snapshot.editedMessageId === null) {
+		if (snapshot.target === null) {
 			chatInputRef.current?.clear();
 			inputValueRef.current = "";
 		} else {
 			showComposeDraft();
 		}
 		hasFileReferencesRef.current = false;
-		setEditingMessageId(null);
+		setEditingTarget(null);
 
 		return () => {
 			const shown = composerContent();
-			const isEdit = snapshot.editedMessageId !== null;
+			const isEdit = snapshot.target !== null;
 			const { text, editorState } = isEdit
 				? { text: snapshot.message, editorState: snapshot.editorState }
 				: restoredDraft(snapshot, shown);
 			if (isEdit) {
-				setDraftBeforeHistoryEdit({
+				setDraftBeforeEdit({
 					text: shown.text,
 					editorState: shown.editorState,
 				});
 			}
 			showInComposer(text, editorState);
-			setEditingMessageId(snapshot.editedMessageId);
+			setEditingTarget(snapshot.target);
 			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
@@ -246,14 +243,14 @@ export function useConversationEditingState(deps: {
 
 	// After a successful request the composer shows the chat's draft: for a
 	// send what was typed since, for an edit the compose draft as edited since.
-	const finalizeSuccessfulRequest = (editedMessageID: number | undefined) => {
+	const finalizeSuccessfulRequest = (target: EditingTarget | undefined) => {
 		saveDraft(
 			hasContent(composerContent())
 				? serializedEditorStateRef.current
 				: undefined,
 		);
-		if (editedMessageID !== undefined) {
-			setDraftBeforeHistoryEdit(null);
+		if (target !== undefined) {
+			setDraftBeforeEdit(null);
 			setEditingFileBlocks([]);
 		}
 	};
@@ -295,7 +292,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		finalizeSuccessfulRequest(editedMessageID);
+		finalizeSuccessfulRequest(target);
 	};
 
 	const handleContentChange = (
@@ -313,7 +310,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 		const requestInFlight = requestInFlightRef.current;
-		if (requestInFlight && requestInFlight.editedMessageId === null) {
+		if (requestInFlight && requestInFlight.target === null) {
 			const draft = restoredDraft(requestInFlight, composerContent());
 			saveDraft(draft.editorState ?? draft.text);
 			return;
@@ -348,7 +345,7 @@ export function useConversationEditingState(deps: {
 		editingTarget,
 		editingFileBlocks,
 		handleBeginEdit,
-		handleCancelEdit: restoreDraftBeforeEdit,
+		handleCancelEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,

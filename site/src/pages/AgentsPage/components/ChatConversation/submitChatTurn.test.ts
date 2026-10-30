@@ -278,7 +278,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
-				editedMessageID: 5,
+				editingTarget: { kind: "history", id: 5 },
 				store: seededStore([originalMessage]),
 				editMessage,
 				scrollToEnd,
@@ -306,13 +306,17 @@ describe("submitChatTurn", () => {
 		},
 	])("$name when a history edit fails", async ({ queueUpdate }) => {
 		const store = createChatStore();
-		store.setActiveChatID("chat-1");
 		const queued = { ...MockChatQueuedMessage, id: 7 };
-		store.setQueuedMessages([queued]);
+		store.seed({
+			messages: [textMessage(5, "user", "first")],
+			queued_messages: [queued],
+			has_more: false,
+			snapshot_version: 1,
+		});
 		const updated = [{ ...queued, editing_since: "2024-01-01T00:00:01Z" }];
 		const editMessage = vi.fn(async () => {
 			if (queueUpdate) {
-				store.applyAuthoritativeQueuedMessages(updated);
+				store.setQueuedMessages(updated, 2);
 			}
 			throw new Error("edit failed");
 		});
@@ -322,14 +326,13 @@ describe("submitChatTurn", () => {
 				buildParams({
 					message: "new text",
 					editingTarget: { kind: "history", id: 5 },
-					chatMessages: [{ ...MockChatMessage, id: 5 }],
 					store,
 					editMessage,
 				}),
 			),
 		).rejects.toThrow("edit failed");
 
-		expect(store.getSnapshot().queuedMessages).toEqual(
+		expect(selectQueuedMessages(store.getSnapshot())).toEqual(
 			queueUpdate ? updated : [queued],
 		);
 	});
@@ -344,7 +347,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
-				editedMessageID: 5,
+				editingTarget: { kind: "history", id: 5 },
 				store: seededStore([originalMessage]),
 				effectiveReasoningEffort: "high",
 				isEditReasoningEffortDirtyRef: { current: false },
@@ -404,7 +407,7 @@ describe("submitChatTurn", () => {
 		const submitted = submitChatTurn(
 			buildParams({
 				message: "new",
-				editedMessageID: 3,
+				editingTarget: { kind: "history", id: 3 },
 				store,
 				editMessage,
 			}),
@@ -445,7 +448,7 @@ describe("submitChatTurn", () => {
 			submitChatTurn(
 				buildParams({
 					message: "new",
-					editedMessageID: 1,
+					editingTarget: { kind: "history", id: 1 },
 					store,
 					editMessage: vi.fn().mockRejectedValue(error),
 					onRequestError,

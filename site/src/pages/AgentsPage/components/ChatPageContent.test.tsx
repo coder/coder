@@ -11,6 +11,7 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
+import type { EditingTarget } from "./ChatConversation/types";
 import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
 
 const skillResource = (
@@ -368,21 +369,26 @@ describe("ChatPageInput", () => {
 		// pending as AgentChatPage does: Edit enters edit mode, and an edit
 		// submit leaves it while the request runs.
 		const EditingChatPageInput: React.FC<ChatPageInputProps> = (props) => {
-			const [isEditing, setIsEditing] = useState(false);
+			const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(
+				null,
+			);
 			const [isSendPending, setIsSendPending] = useState(false);
 			return (
 				<>
-					<button type="button" onClick={() => setIsEditing(true)}>
+					<button
+						type="button"
+						onClick={() => setEditingTarget({ kind: "history", id: 1 })}
+					>
 						Start edit
 					</button>
 					<ChatPageInput
 						{...props}
-						isEditing={isEditing}
+						editingTarget={editingTarget}
 						isSendPending={isSendPending}
-						initialValue={isEditing ? "edited" : ""}
-						remountKey={isEditing ? 1 : 0}
+						initialValue={editingTarget ? "edited" : ""}
+						remountKey={editingTarget ? 1 : 0}
 						onSend={async () => {
-							setIsEditing(false);
+							setEditingTarget(null);
 							setIsSendPending(true);
 							try {
 								await edit.promise;

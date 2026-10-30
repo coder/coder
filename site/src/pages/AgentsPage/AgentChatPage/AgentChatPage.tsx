@@ -735,7 +735,7 @@ const AgentChatPage: React.FC = () => {
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
-					editing={{ ...editing, handleEditUserMessage }}
+					editing={{ ...editing, handleBeginHistoryEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}

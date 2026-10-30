@@ -403,26 +403,26 @@ describe("setQueuedMessages", () => {
 			notified = true;
 		});
 
-		// Different object reference, same ID.
-		store.setQueuedMessages([{ ...qm }], 2);
+		// Different object reference, same row.
+		store.setQueuedMessages([{ ...qm, content: [...qm.content] }], 2);
 
 		expect(notified).toBe(false);
 	});
 
-	it("applies a snapshot that only changes editing_since or content", () => {
+	it("applies a queue update that only changes editing_since or content", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
-		store.setQueuedMessages([qm]);
+		store.setQueuedMessages([qm], 2);
 
 		const editing = { ...qm, editing_since: "2025-01-01T00:01:00Z" };
-		store.applyAuthoritativeQueuedMessages([editing]);
+		store.setQueuedMessages([editing], 3);
 		expect(store.getSnapshot().queuedMessages).toEqual([editing]);
 
 		const edited: TypesGen.ChatQueuedMessage = {
 			...editing,
 			content: [{ type: "text", text: "edited" }],
 		};
-		store.setQueuedMessages([edited]);
+		store.setQueuedMessages([edited], 4);
 		expect(store.getSnapshot().queuedMessages).toEqual([edited]);
 	});
 });
