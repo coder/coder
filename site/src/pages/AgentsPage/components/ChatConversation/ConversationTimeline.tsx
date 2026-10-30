@@ -131,6 +131,7 @@ const ChatMessageItem = memo<{
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
+	dockedAskUserQuestion?: MergedTool;
 	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
@@ -161,6 +162,7 @@ const ChatMessageItem = memo<{
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		latestAskUserQuestion,
+		dockedAskUserQuestion,
 		askUserQuestionResponseTextByTool,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
@@ -312,6 +314,7 @@ const ChatMessageItem = memo<{
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
 									latestAskUserQuestion={latestAskUserQuestion}
+									dockedAskUserQuestion={dockedAskUserQuestion}
 									askUserQuestionResponseTextByTool={
 										askUserQuestionResponseTextByTool
 									}
@@ -388,6 +391,7 @@ type ConversationTimelineProps = {
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
 	askUserQuestionState: AskUserQuestionState;
+	dockedAskUserQuestion?: MergedTool;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -415,6 +419,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
 		askUserQuestionState,
+		dockedAskUserQuestion,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -557,6 +562,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
 						latestAskUserQuestion={latestAskUserQuestion}
+						dockedAskUserQuestion={dockedAskUserQuestion}
 						askUserQuestionResponseTextByTool={
 							askUserQuestionResponseTextByTool
 						}
@@ -591,6 +597,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestion={latestAskUserQuestion}
+					dockedAskUserQuestion={dockedAskUserQuestion}
 					askUserQuestionResponseTextByTool={askUserQuestionResponseTextByTool}
 					isLatestAskUserQuestionAnswered={
 						askUserQuestionState.isLatestAnswered

@@ -15,6 +15,7 @@ export type QuestionDraft = {
 export type FormDraft = {
 	drafts: QuestionDraft[];
 	questionIndex: number;
+	answeredQuestionCount: number;
 };
 
 const storageKeyPrefix = "agents.ask-user-question-draft.";
@@ -61,7 +62,12 @@ export const readFormDraft = (
 	if (!stored) {
 		return undefined;
 	}
-	const { questions: savedQuestions, drafts, questionIndex } = stored;
+	const {
+		questions: savedQuestions,
+		drafts,
+		questionIndex,
+		answeredQuestionCount,
+	} = stored;
 	if (
 		!isEqual(savedQuestions, questions) ||
 		!Array.isArray(drafts) ||
@@ -69,11 +75,12 @@ export const readFormDraft = (
 		!drafts.every((draft: unknown, index): draft is QuestionDraft =>
 			isQuestionDraft(draft, questions[index].options.length),
 		) ||
-		!isIntegerInRange(questionIndex, questions.length - 1)
+		!isIntegerInRange(questionIndex, questions.length - 1) ||
+		!isIntegerInRange(answeredQuestionCount, questions.length)
 	) {
 		return undefined;
 	}
-	return { drafts, questionIndex };
+	return { drafts, questionIndex, answeredQuestionCount };
 };
 
 /** Saves the draft with the questions it answers, which a read must match. */

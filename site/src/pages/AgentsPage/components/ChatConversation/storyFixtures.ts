@@ -627,7 +627,7 @@ export const MockAsyncQuestionResult = {
 };
 
 /** Completes MockQuestionCallMessage's call, so a transcript with both messages has an open async question. */
-const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+export const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 5,
 	role: "tool",
@@ -648,6 +648,40 @@ export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 1),
 	MockQuestionCallMessage,
 	MockAsyncQuestionResultMessage,
+];
+
+/** Keeps MockAsyncQuestionResultMessage's IDs, so it answers MockQuestionCallMessage. */
+export const buildQuestionResultMessage = (
+	result: unknown,
+): TypesGen.ChatMessage => ({
+	...MockAsyncQuestionResultMessage,
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result,
+		},
+	],
+});
+
+/** Asks two questions in MockQuestionCallMessage's call, so stories can step through the form. */
+export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages.slice(0, 2),
+	buildQuestionResultMessage({
+		...MockAsyncQuestionResult,
+		questions: [
+			...MockAsyncQuestionResult.questions,
+			{
+				header: "Testing",
+				question: "How should the change be verified?",
+				options: [
+					{ label: "Cover the change with unit tests." },
+					{ label: "Check it by hand in a dev deployment." },
+				],
+			},
+		],
+	}),
 ];
 
 /** Its prefix names MockQuestionCallMessage's call ID, so it answers that call's question. */

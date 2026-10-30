@@ -1,6 +1,8 @@
 import { cn } from "cn";
 import {
 	CheckIcon,
+	ChevronDownIcon,
+	ChevronUpIcon,
 	CornerDownLeftIcon,
 	LoaderIcon,
 	MessageCircleQuestionIcon,
@@ -46,6 +48,7 @@ type AskUserQuestionToolProps = {
 	startedAt?: string;
 	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
+	isDocked?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
@@ -383,6 +386,8 @@ type QuestionStepProps = {
 	questionCount: number;
 	idPrefix: string;
 	draft: QuestionDraft;
+	/** Off while the panel header above the form shows the label. */
+	showsLabel: boolean;
 	isEnabled: boolean;
 	questionTextRef: React.Ref<HTMLDivElement>;
 	optionRefs: React.RefObject<Array<HTMLButtonElement | null>>;
@@ -398,6 +403,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	questionCount,
 	idPrefix,
 	draft,
+	showsLabel,
 	isEnabled,
 	questionTextRef,
 	optionRefs,
@@ -412,13 +418,15 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 
 	return (
 		<div>
-			<p
-				id={questionLabelId}
-				className="m-0 flex items-center gap-1.5 text-xs text-content-secondary"
-			>
-				<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
-				{getQuestionLabel(question, questionIndex, questionCount)}
-			</p>
+			{showsLabel && (
+				<p
+					id={questionLabelId}
+					className="m-0 flex items-center gap-1.5 text-xs text-content-secondary"
+				>
+					<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
+					{getQuestionLabel(question, questionIndex, questionCount)}
+				</p>
+			)}
 			<Response
 				ref={questionTextRef}
 				id={questionTextId}
@@ -428,7 +436,9 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 				{getQuestionText(question)}
 			</Response>
 			<RadioGroup
-				aria-labelledby={`${questionLabelId} ${questionTextId}`}
+				aria-labelledby={
+					showsLabel ? `${questionLabelId} ${questionTextId}` : questionTextId
+				}
 				className="mt-4 gap-1.5"
 				name={`${questionIdBase}-options`}
 				value={getSelectedValue(draft)}
@@ -464,6 +474,39 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 		</div>
 	);
 };
+
+type QuestionPanelHeaderProps = {
+	label: string;
+	progress: string | undefined;
+	isCollapsed: boolean;
+	onToggle: () => void;
+};
+
+const QuestionPanelHeader: React.FC<QuestionPanelHeaderProps> = ({
+	label,
+	progress,
+	isCollapsed,
+	onToggle,
+}) => (
+	<button
+		type="button"
+		aria-expanded={!isCollapsed}
+		className="flex w-full appearance-none items-center gap-1.5 px-3 py-2.5 text-left font-sans text-xs text-content-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+		onClick={onToggle}
+	>
+		<MessageCircleQuestionIcon
+			aria-hidden="true"
+			className="size-3.5 shrink-0"
+		/>
+		<span className="min-w-0 flex-1 truncate">{label}</span>
+		{progress && <span className="shrink-0">{progress}</span>}
+		{isCollapsed ? (
+			<ChevronUpIcon aria-hidden="true" className="size-4 shrink-0" />
+		) : (
+			<ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />
+		)}
+	</button>
+);
 
 type AskedQuestionsProps = {
 	questions: AskUserQuestion[];
@@ -505,6 +548,11 @@ type AskUserQuestionFormProps = {
 	showSubmittedAnswer: boolean;
 	/** The form is read-only without it, and once it shows an answer. */
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
+	onStepChange?: () => void;
+	/** Makes the label a header that collapses the form, which keeps its state. */
+	onToggleCollapsed?: () => void;
+	isCollapsed?: boolean;
+	hasStickyActions?: boolean;
 };
 
 /**
@@ -512,13 +560,17 @@ type AskUserQuestionFormProps = {
  * the message starts with the call's prefix line, and the form strips that
  * line from the answer it shows.
  */
-const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
+export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
 	previousResponseText,
 	asyncToolCallId,
 	draftKey,
 	showSubmittedAnswer,
 	onSubmitAnswer,
+	onStepChange,
+	onToggleCollapsed,
+	isCollapsed = false,
+	hasStickyActions = false,
 }) => {
 	const idPrefix = useId();
 	const questionTextRef = useRef<HTMLDivElement>(null);
@@ -533,6 +585,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				: readFormDraft(draftKey, filteredQuestions)) ?? {
 				drafts: filteredQuestions.map(getDefaultDraft),
 				questionIndex: 0,
+				answeredQuestionCount: 0,
 			},
 	);
 	// Set once the queue or transcript shows the answer. After that, the sent
@@ -572,7 +625,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			: undefined;
 	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
-	const { drafts } = formDraft;
+	const { drafts, answeredQuestionCount } = formDraft;
 	const activeQuestionIndex = Math.min(
 		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
@@ -601,6 +654,8 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 					question,
 					questionIndex,
 				}));
+	const panelQuestionIndex =
+		visibleQuestions.length === 1 ? activeQuestionIndex : undefined;
 
 	const resetSubmitState = () => {
 		submitAnswerMutation.reset();
@@ -657,19 +712,27 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	};
 
 	// Focus moves to the new question, since Back or Next can end up out of
-	// view or disabled. flushSync renders that step first.
+	// view or disabled. flushSync renders that step first, and onStepChange
+	// runs last so that the focus cannot undo the scroll position it sets.
 	const changeQuestion = (nextFormDraft: FormDraft) => {
 		flushSync(() => {
 			updateFormDraft(nextFormDraft);
 		});
 		resetSubmitState();
 		questionTextRef.current?.focus();
+		onStepChange?.();
 	};
 
 	const advance = (nextDrafts: QuestionDraft[]) => {
 		changeQuestion({
 			drafts: nextDrafts,
 			questionIndex: activeQuestionIndex + 1,
+			// Next confirms every question before the one it opens, so Back
+			// does not lower the answered count.
+			answeredQuestionCount: Math.max(
+				answeredQuestionCount,
+				activeQuestionIndex + 1,
+			),
 		});
 	};
 
@@ -751,6 +814,31 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		otherTextRef.current?.focus();
 	};
 
+	const panelHeader = onToggleCollapsed && (
+		<QuestionPanelHeader
+			label={
+				panelQuestionIndex === undefined
+					? "Questions"
+					: getQuestionLabel(
+							filteredQuestions[panelQuestionIndex],
+							panelQuestionIndex,
+							filteredQuestions.length,
+						)
+			}
+			progress={
+				isCollapsed && isWizard
+					? `${answeredQuestionCount}/${filteredQuestions.length} questions answered`
+					: undefined
+			}
+			isCollapsed={isCollapsed}
+			onToggle={onToggleCollapsed}
+		/>
+	);
+
+	if (panelHeader && isCollapsed) {
+		return panelHeader;
+	}
+
 	const content = (
 		<>
 			{hasSubmittedResponse ? (
@@ -765,6 +853,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 							questionCount={filteredQuestions.length}
 							idPrefix={idPrefix}
 							draft={drafts[questionIndex]}
+							showsLabel={!panelHeader || panelQuestionIndex === undefined}
 							isEnabled={isInteractive && !isSubmitting}
 							questionTextRef={questionTextRef}
 							optionRefs={optionRefs}
@@ -808,7 +897,17 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			)}
 
 			{isInteractive && (
-				<div className="mt-3 flex items-center gap-2">
+				<div
+					className={cn(
+						"flex items-center gap-2",
+						// The negative margin covers the padding of the wrapper
+						// below the header, so the row's background reaches the
+						// panel's border.
+						hasStickyActions
+							? "sticky bottom-0 -mb-3 bg-surface-primary pt-3 pb-3"
+							: "mt-3",
+					)}
+				>
 					{isWizard && (
 						<Button
 							type="button"
@@ -864,7 +963,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		</>
 	);
 
-	return isInteractive ? (
+	const body = isInteractive ? (
 		// oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Takes keys from the radios and the focused question text; the radios announce them with aria-keyshortcuts.
 		<form onSubmit={handleFormSubmit} onKeyDown={handleFormKeyDown}>
 			{content}
@@ -872,12 +971,21 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	) : (
 		content
 	);
+
+	return panelHeader ? (
+		<>
+			{panelHeader}
+			<div className="px-3 pb-3">{body}</div>
+		</>
+	) : (
+		body
+	);
 };
 
 /**
  * Shows an ask_user_question call in the transcript, with the async
- * question's announcement. A closed question shows a notice in place of
- * the form.
+ * question's announcement. A docked or closed question shows a notice in
+ * place of the form.
  */
 export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
@@ -890,6 +998,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	toolCallId,
 	startedAt,
 	asyncToolCallId,
+	isDocked = false,
 	onSubmitAnswer,
 }) => {
 	const isAsync = asyncToolCallId !== undefined;
@@ -961,7 +1070,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		);
 	}
 
-	const notice = isClosed ? "This question is closed." : undefined;
+	let notice: string | undefined;
+	if (isDocked) {
+		notice = "Answer in the question panel above the chat input.";
+	} else if (isClosed) {
+		notice = "This question is closed.";
+	}
 
 	return (
 		<div className="w-full">
