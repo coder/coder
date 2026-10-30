@@ -22,6 +22,7 @@ import {
 	upsertChatMessages,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatStreamKeepaliveIntervalSeconds } from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	createReconnectingWebSocket,
@@ -84,6 +85,14 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	(state.streamState !== null ||
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
+
+// A message starts at most ChatStreamKeepaliveIntervalSeconds after the
+// previous one, so the timer leaves at least 60 s for it to download, for
+// example 14 MB at about 1.9 Mbit/s. A message that needs longer is requested
+// again on every reconnect, because the reconnect resumes from the same
+// after_id. The server's WSWatcher probe can close a slow stream sooner.
+export const CHAT_SOCKET_SILENCE_TIMEOUT_MS =
+	(ChatStreamKeepaliveIntervalSeconds + 60) * 1000;
 
 type UseChatStoreOptions = {
 	chatID: string;
@@ -699,6 +708,7 @@ export const useChatStore = (
 			});
 		};
 		const disposeSocket = createReconnectingWebSocket({
+			silenceTimeoutMs: CHAT_SOCKET_SILENCE_TIMEOUT_MS,
 			connect() {
 				// Use the latest known message ID so the server only
 				// sends events the client hasn't seen yet.

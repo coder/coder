@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -61,6 +62,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -10559,6 +10561,139 @@ func TestStreamChat(t *testing.T) {
 				}
 			}
 		}
+	})
+
+	t.Run("Keepalive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mClock := quartz.NewMock(t)
+		keepaliveTrap := mClock.Trap().NewTicker("chatStream", "keepalive")
+		defer keepaliveTrap.Close()
+		// The handler calls Reset after each event batch, and the trap holds
+		// each call until nextFrame has read that batch. Each clock advance
+		// below therefore runs after the reset it depends on.
+		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
+		defer resetTrap.Close()
+		// WSWatcher creates its ticker from a goroutine. Starting it before the
+		// first advance keeps its ticks at multiples of httpapi.HeartbeatInterval.
+		watcherTrap := mClock.Trap().NewTicker("WSWatcher")
+		defer watcherTrap.Close()
+
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled, func(o *coderdtest.Options) {
+			o.Clock = mClock
+		})
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "stream chat keepalive",
+			Status:            database.ChatStatusWaiting,
+		})
+
+		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID), nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		// The websocket library answers the server's pings only while a Read
+		// is in progress.
+		frames := make(chan []byte, 64)
+		go func() {
+			defer close(frames)
+			for {
+				_, data, err := conn.Read(ctx)
+				if err != nil {
+					return
+				}
+				select {
+				case frames <- data:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		tickerStarted := false
+		nextFrame := func() []codersdk.ChatStreamEvent {
+			t.Helper()
+			data := testutil.TryReceive(ctx, t, frames)
+			require.NotNil(t, data, "chat stream closed")
+			var batch []codersdk.ChatStreamEvent
+			require.NoError(t, json.Unmarshal(data, &batch))
+			if len(batch) == 0 {
+				require.JSONEq(t, "[]", string(data), "the web client treats a null batch as a parse error")
+			}
+			if tickerStarted && len(batch) > 0 {
+				resetTrap.MustWait(ctx).MustRelease(ctx)
+			}
+			return batch
+		}
+		sendMessage := func(text string) {
+			t.Helper()
+			_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+				BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+		}
+		readFramesThrough := func(text string) [][]codersdk.ChatStreamEvent {
+			t.Helper()
+			var before [][]codersdk.ChatStreamEvent
+			for {
+				batch := nextFrame()
+				encoded, err := json.Marshal(batch)
+				require.NoError(t, err)
+				if bytes.Contains(encoded, []byte(text)) {
+					return before
+				}
+				before = append(before, batch)
+			}
+		}
+
+		// While the trap holds NewTicker, the handler has written only the
+		// snapshot. A chat without messages has a one-batch snapshot, and no
+		// reset follows it.
+		newTicker := keepaliveTrap.MustWait(ctx)
+		snapshot := nextFrame()
+		require.NotEmpty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeStatus))
+		newTicker.MustRelease(ctx)
+		tickerStarted = true
+		watcherTrap.MustWait(ctx).MustRelease(ctx)
+
+		keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
+		// Mock.Advance cannot pass a pending tick, so every advance below must
+		// end on or before WSWatcher's next tick as well as the keepalive's.
+		require.Equal(t, httpapi.HeartbeatInterval, keepaliveInterval, "the advances assume both tickers fire together")
+		mClock.Advance(keepaliveInterval).MustWait(ctx)
+		for batch := nextFrame(); len(batch) > 0; batch = nextFrame() {
+			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
+		}
+
+		// The two advances add up to one interval, when the next keepalive
+		// would be due without the event's Reset. The Reset moves it to one
+		// interval after the event, so no keepalive may arrive before the
+		// second message.
+		mClock.Advance(keepaliveInterval * 2 / 3).MustWait(ctx)
+		const first = "stream chat keepalive first"
+		sendMessage(first)
+		_ = readFramesThrough(first)
+		mClock.Advance(keepaliveInterval / 3).MustWait(ctx)
+		const second = "stream chat keepalive second"
+		sendMessage(second)
+		for _, batch := range readFramesThrough(second) {
+			require.NotEmpty(t, batch, "keepalive written a third of an interval after an event")
+		}
+
+		// Event batches written after the matched frame may have Reset calls
+		// waiting in the trap, so read them before waiting on the advance to
+		// the next keepalive.
+		advance := mClock.Advance(keepaliveInterval)
+		batch := nextFrame()
+		for len(batch) > 0 {
+			batch = nextFrame()
+		}
+		advance.MustWait(ctx)
 	})
 
 	t.Run("AfterID", func(t *testing.T) {

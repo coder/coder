@@ -3872,6 +3872,14 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatStreamKeepaliveIntervalSeconds is how long the chat stream goes
+ * without writing before the server writes an empty batch. The web client
+ * derives its WebSocket silence timeout from it.
+ */
+export const ChatStreamKeepaliveIntervalSeconds = 15;
+
+// From codersdk/chats.go
+/**
  * ChatStreamMessagePart is a streamed message part update.
  */
 export interface ChatStreamMessagePart {
