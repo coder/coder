@@ -26,7 +26,7 @@ describe("sliceAtGraphemeBoundary", () => {
 	const samples = [
 		"plain ascii text",
 		"family 👨‍👩‍👧‍👦 flags 🇺🇸🇬🇧🇫🇷 skin 👍🏽 done",
-		"combining e\u0301 a\u0308 and hangul 한글 and 🙂",
+		"combining e\u0301 a\u0308 and hangul \u1100\u1161\u11a8\u1102\u1161 and 🙂",
 		"newline\nand\ttab\r\nend",
 		"🇺🇸🇬🇧🇫🇷",
 		"\u0301\u0301x",
