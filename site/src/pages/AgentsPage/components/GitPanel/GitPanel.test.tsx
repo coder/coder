@@ -48,7 +48,6 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 				chatId="test-chat"
 				onRefresh={() => true}
 				repositories={new Map()}
-				isExpanded={false}
 				isGitStatusLoading={false}
 				everDirty={new Set()}
 				chatInputRef={{ current: null }}
@@ -65,7 +64,6 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 					chatId="test-chat"
 					onRefresh={() => true}
 					repositories={new Map()}
-					isExpanded={false}
 					isGitStatusLoading={false}
 					everDirty={new Set()}
 					chatInputRef={{ current: null }}
