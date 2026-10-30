@@ -213,7 +213,10 @@ describe("AgentChatPage", () => {
 			content: [{ type: "text" as const, text: "queued text" }],
 		};
 
-		it.each([["Remove from queue", "deleteChatQueuedMessage"]] as const)(
+		it.each([
+			["Remove from queue", "deleteChatQueuedMessage"],
+			["Send now", "promoteChatQueuedMessage"],
+		] as const)(
 			"%s on the row being edited discards the typed text and gives the draft back",
 			async (action, request) => {
 				const page = renderQueuedChat({ queuedMessages: [row] });

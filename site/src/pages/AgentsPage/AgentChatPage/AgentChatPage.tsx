@@ -608,7 +608,7 @@ const AgentChatPage: React.FC = () => {
 	const fetchQueueConvergence = (chatId: string) =>
 		queryClient.fetchQuery(chatQueueConvergence(chatId));
 
-	const handlePromoteQueuedMessage = (id: number) =>
+	const requestPromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
 			store,
@@ -688,9 +688,9 @@ const AgentChatPage: React.FC = () => {
 		},
 	});
 
-	// Ending or removing the row the composer edits closes the edit first,
-	// so the draft from before it comes back and the typed text is
-	// discarded.
+	// Ending, removing or sending the row the composer edits closes the edit
+	// first, so the draft from before it comes back and the typed text is
+	// discarded, never sent; the server acts on the row's saved content.
 	const closeQueuedEditOf = (id: number) => {
 		if (composerTarget?.kind === "queued" && composerTarget.id === id) {
 			editing.handleCancelEdit();
@@ -703,6 +703,10 @@ const AgentChatPage: React.FC = () => {
 	const handleDeleteQueuedMessage = (id: number) => {
 		closeQueuedEditOf(id);
 		return requestDeleteQueuedMessage(id);
+	};
+	const handlePromoteQueuedMessage = (id: number) => {
+		closeQueuedEditOf(id);
+		return requestPromoteQueuedMessage(id);
 	};
 
 	const handleCancelEdit = () => {
