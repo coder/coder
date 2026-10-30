@@ -283,7 +283,7 @@ func (s AGPLIDPSync) logInvalidGroupSetting(ctx context.Context, kind string, or
 		slog.F("invalid_group_setting", kind),
 		slog.F("organization_id", orgID),
 		slog.F("user_id", userID),
-		slog.F("group_ids", slice.List(groups, func(g ExpectedGroup) uuid.UUID {
+		slog.F("group_ids", db2sdk.List(groups, func(g ExpectedGroup) uuid.UUID {
 			return *g.GroupID
 		})),
 	)
