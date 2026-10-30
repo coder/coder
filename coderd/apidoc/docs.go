@@ -15869,6 +15869,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
             "get": {
+                "description": "Returns one workspace build, found by the workspace's owner, the workspace name, and the build number.\nUse it when you know the workspace name but not its ID.",
                 "produces": [
                     "application/json"
                 ],
@@ -15880,14 +15881,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Workspace name",
+                        "description": "Name of the workspace, owned by ` + "`" + `user` + "`" + `.",
                         "name": "workspacename",
                         "in": "path",
                         "required": true
@@ -15895,7 +15896,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "number",
-                        "description": "Build number",
+                        "description": "Number of the build within the workspace.",
                         "name": "buildnumber",
                         "in": "path",
                         "required": true
@@ -16973,6 +16974,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}": {
             "get": {
+                "description": "Returns one workspace build, including its transition, status, template version, and resources.",
                 "produces": [
                     "application/json"
                 ],
@@ -17007,6 +17009,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/cancel": {
             "patch": {
+                "description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nFails if the build's job already completed or was already canceled.\nYou can cancel a build if the template allows users to cancel workspace jobs, if you have the Owner role, or if you set ` + "`" + `expect_status` + "`" + ` to ` + "`" + `pending` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17094,6 +17097,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/logs": {
             "get": {
+                "description": "Returns the provisioner logs of a workspace build, oldest first.\nSet ` + "`" + `follow` + "`" + ` to upgrade the connection to a WebSocket that sends each log as a JSON ` + "`" + `ProvisionerJobLog` + "`" + ` message, first the existing logs and then new logs as they arrive, and closes when the build's job finishes.\nWithout ` + "`" + `follow` + "`" + `, the response is a JSON array of logs, or plain text when ` + "`" + `format` + "`" + ` is ` + "`" + `text` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17112,19 +17116,19 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before log id",
+                        "description": "Has no effect. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After log id",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "Streams new logs over a WebSocket until the build's job finishes. The server checks only that the parameter is present, so any value turns streaming on, including ` + "`" + `false` + "`" + `.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -17159,6 +17163,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/parameters": {
             "get": {
+                "description": "Returns the rich parameter names and values that a workspace build used.",
                 "produces": [
                     "application/json"
                 ],
@@ -17196,6 +17201,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/resources": {
             "get": {
+                "description": "Returns the resources, with their agents, of a completed workspace build.\nFails with a ` + "`" + `400` + "`" + ` until the build's job completes.\nUse ` + "`" + `/api/v2/workspacebuilds/{workspacebuild}` + "`" + ` instead, which returns the build's ` + "`" + `resources` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17273,6 +17279,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/state": {
             "get": {
+                "description": "Returns the provisioner state that the build saved, as raw JSON.\nRequires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -17305,6 +17312,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the provisioner state that a build saved, without queuing a new build.\nUse it for state-only migrations.\nRequires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17323,7 +17331,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "New provisioner state for the build, in the ` + "`" + `state` + "`" + ` field.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17346,6 +17354,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/timings": {
             "get": {
+                "description": "Returns how long each stage of a workspace build took.\nThe response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.",
                 "produces": [
                     "application/json"
                 ],
@@ -18126,6 +18135,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/builds": {
             "get": {
+                "description": "Returns the builds of a workspace, newest build first.\nUse ` + "`" + `since` + "`" + ` to return only recent builds, and ` + "`" + `limit` + "`" + ` with ` + "`" + `offset` + "`" + ` or ` + "`" + `after_id` + "`" + ` to page through them.",
                 "produces": [
                     "application/json"
                 ],
@@ -18146,26 +18156,26 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of a build. Returns only the builds with a higher build number than that build.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Since timestamp",
+                        "description": "Returns only builds created after this RFC 3339 timestamp.",
                         "name": "since",
                         "in": "query"
                     }
@@ -18188,6 +18198,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Starts, stops, or deletes a workspace by queuing a build with the given ` + "`" + `transition` + "`" + `: ` + "`" + `start` + "`" + ` starts it, ` + "`" + `stop` + "`" + ` stops it, and ` + "`" + `delete` + "`" + ` deletes it.\nUse it to change a workspace's state, or set ` + "`" + `template_version_id` + "`" + ` to move the workspace to another template version.\nA ` + "`" + `start` + "`" + ` build also clears the workspace's dormant status, and ` + "`" + `orphan` + "`" + ` is allowed only with ` + "`" + `delete` + "`" + `.\nRequires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nSetting ` + "`" + `state` + "`" + ` or ` + "`" + `orphan` + "`" + ` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18209,7 +18220,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Create workspace build request",
+                        "description": "Build to queue. ` + "`" + `transition` + "`" + ` is required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
