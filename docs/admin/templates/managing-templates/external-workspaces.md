@@ -95,6 +95,8 @@ You can create and manage external workspaces using either the **CLI** or the **
    coder external-workspaces agent-instructions hello-world
    ```
 
+   The instructions include the agent token, so retrieving them requires SSH access to the workspace. The workspace owner has this access, and so do users with `use` or `admin` permissions on it through [workspace sharing](../../../user-guides/shared-workspaces.md). Users with the Owner role also have it unless [`--disable-owner-workspace-access`](../../../reference/cli/server/index.md#--disable-owner-workspace-access) is set. Template Admins and Organization Admins don't, unless the workspace is shared with them. A scoped API token needs a scope that grants SSH, such as `coder:workspaces.access`.
+
    Example:
 
    ```sh
@@ -123,7 +125,7 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 1. Import the external workspace template (see prerequisites).
 2. In the Coder UI, go to **Workspaces → New workspace** and select the imported template.
-3. Once the workspace is created, Coder will display **connection details** with the command users need to run on the external machine to start the agent.
+3. Once the workspace is created, Coder will display **connection details** with the command users need to run on the external machine to start the agent. Users without SSH access to the workspace see an error instead of the command.
 4. The workspace will appear in the dashboard, but with the following differences:
    - **Start**, **Stop**, and **Restart** actions are disabled.
    - Users are provided with instructions for launching the agent manually on the external machine.
