@@ -840,6 +840,24 @@ describe("AgentChatInput", () => {
 		},
 	);
 
+	it("names the cancel button of a queued edit on a paused chat for the send that follows", async () => {
+		const user = userEvent.setup();
+		const onCancelEdit = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				editingKind="queued"
+				isChatPaused
+				onCancelEdit={onCancelEdit}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Cancel edit and send unchanged" }),
+		);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();

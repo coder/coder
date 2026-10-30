@@ -1492,7 +1492,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							type="button"
 							variant="subtle"
 							size="icon"
-							aria-label="Cancel editing"
+							aria-label={
+								editingKind === "queued" && isChatPaused
+									? "Cancel edit and send unchanged"
+									: "Cancel editing"
+							}
 							onClick={onCancelEdit}
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
