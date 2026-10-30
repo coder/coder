@@ -952,7 +952,7 @@ const overviewCardFrame =
 		</div>
 	);
 
-/** Starts each story from a new user's storage, and restores it after. */
+/** Clears the overview and full-width keys before and after each story. */
 const resetOverviewCardStorage = () => {
 	const reset = () => {
 		localStorage.removeItem(overviewCardOpenStorageKey);

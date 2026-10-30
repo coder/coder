@@ -26,7 +26,7 @@ import {
 } from "./ChatOverviewCardView";
 import { countRepoChanges, repoBranchLabel } from "./GitPanel/gitViews";
 
-/** The overview toggle state. ChatTopBar renders the toggle only with it. */
+/** The card's stored open state and the handler that flips it. */
 export type ChatOverviewToggleProps = {
 	isOpen: boolean;
 	onToggle: () => void;
@@ -81,7 +81,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	const statusOverrides = useChatSelector(store, selectSubagentStatusOverrides);
 	const { activeChatChildren } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-	const { attachments, earlier } = useChatAttachments({
+	const { attachments, earlierAttachmentsRequest } = useChatAttachments({
 		chatId: chat.id,
 		store,
 		hasMoreMessages,
@@ -118,7 +118,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 			isLoading={
 				(showCost && costQuery.isPending) ||
 				isHydratingMessages ||
-				earlier.isLoading
+				earlierAttachmentsRequest.isLoading
 			}
 			onOpenTarget={onOpenTarget}
 			// The 16rem card with its 1rem inset and 1rem gap fits beside the

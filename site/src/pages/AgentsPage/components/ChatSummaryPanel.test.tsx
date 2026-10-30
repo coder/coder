@@ -149,7 +149,11 @@ describe("ChatSummaryPanel attachments", () => {
 		renderPanel();
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
+		expect(screen.getByText("attachments unavailable")).toBeVisible();
 		expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled();
 		retry.resolve({ attachments: [MockChatAttachment] });
+		await waitFor(() =>
+			expect(screen.queryByRole("button", { name: /Retry/ })).toBeNull(),
+		);
 	});
 });
