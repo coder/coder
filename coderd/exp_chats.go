@@ -4021,11 +4021,12 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 	}
 
+	pacer := newChatStreamPacer(ctx, wsNetConn, conn, api.Clock)
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
 			return nil
 		}
-		return writeChatStreamBatch(wsNetConn, batch, chunkBytes)
+		return writeChatStreamBatch(pacer, batch, chunkBytes)
 	}
 
 	drainChatStreamBatch := func(
@@ -4078,7 +4079,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-keepalive.C:
-			if err := writeChatStreamBatch(wsNetConn, []codersdk.ChatStreamEvent{}, chunkBytes); err != nil {
+			if err := writeChatStreamBatch(pacer, []codersdk.ChatStreamEvent{}, chunkBytes); err != nil {
 				logger.Debug(ctx, "failed to send chat stream keepalive", slog.Error(err))
 				return
 			}
@@ -4120,11 +4121,11 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // only 5 s. A message holds the write lock until the kernel accepts it, so
 // the 5 s cap needs a 512 KiB worst-case chunk message to drain at
 // 0.84 Mbit/s or more. The 15 s total also covers the pong, which waits
-// for every byte queued in the kernel and proxies. With a 10 MiB image and
-// a 64 KiB proxy queue, an unsplit message needed several connections at
-// 2.5 Mbit/s and never arrived at 1 Mbit/s; chunks arrived at both. With a
-// 1 MiB proxy queue or 64 KiB TCP segments at 1 Mbit/s, the probe still
-// closed every connection.
+// for every byte queued in the kernel and proxies, which chatStreamPacer
+// bounds. Without the pacer, with a 10 MiB image and a 64 KiB proxy queue,
+// an unsplit message needed several connections at 2.5 Mbit/s and never
+// arrived at 1 Mbit/s; chunks arrived at both. With a 1 MiB proxy queue or
+// 64 KiB TCP segments at 1 Mbit/s, the probe still closed every connection.
 func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent, chunkBytes int) error {
 	data, err := json.Marshal(batch)
 	if err != nil {
