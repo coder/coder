@@ -9,6 +9,11 @@ import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
 import {
+	ChartTable,
+	ChartTableRow,
+	ChartTableSection,
+} from "./Chart/ChartTable";
+import {
 	calcDuration,
 	calcOffset,
 	formatTime,
@@ -16,14 +21,6 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
-import {
-	YAxis,
-	YAxisHeader,
-	YAxisLabel,
-	YAxisLabels,
-	YAxisSection,
-} from "./Chart/YAxis";
 
 export type Stage = {
 	/**
@@ -93,108 +90,111 @@ export const StagesChart: React.FC<StagesChartProps> = ({
 	return (
 		<Chart>
 			<ChartContent>
-				<YAxis>
-					{sections.map((section) => {
-						const stages = timings
-							.filter((t) => t.stage.section === section)
-							.map((t) => t.stage);
-
-						return (
-							<YAxisSection key={section}>
-								<YAxisHeader>{section}</YAxisHeader>
-								<YAxisLabels>
-									{stages.map((stage) => (
-										<YAxisLabel
-											key={stage.name}
-											id={encodeURIComponent(stage.name)}
-										>
-											<span className="flex items-center justify-end gap-0.5">
-												{stage.label}
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
-													</TooltipTrigger>
-													<TooltipContent
-														side="bottom"
-														className="flex flex-col gap-1.5 max-w-xs border-surface-quaternary"
-													>
-														<p className="m-0 text-content-primary">
-															{stage.tooltip.heading}
-														</p>
-														<p className="m-0">{stage.tooltip.description}</p>
-													</TooltipContent>
-												</Tooltip>
-											</span>
-										</YAxisLabel>
-									))}
-								</YAxisLabels>
-							</YAxisSection>
-						);
-					})}
-				</YAxis>
-
-				<XAxis ticks={ticks} scale={scale}>
-					{sections.map((section) => {
+				<ChartTable caption="Build timeline stages" ticks={ticks}>
+					{sections.map((section, i) => {
 						const stageTimings = timings.filter(
 							(t) => t.stage.section === section,
 						);
 						return (
-							<XAxisSection key={section}>
-								{stageTimings.map((t) => {
-									// If the stage has no timing data, we just want to render an empty row
-									if (t.range === undefined) {
-										return (
-											<XAxisRow
-												key={t.stage.name}
-												yAxisLabelId={encodeURIComponent(t.stage.name)}
+							<ChartTableSection
+								key={section}
+								label={section}
+								ticks={i === 0 ? ticks : undefined}
+							>
+								{stageTimings.map((t) => (
+									<ChartTableRow
+										key={t.stage.name}
+										label={<StageLabel stage={t.stage} />}
+									>
+										{t.range !== undefined && (
+											<StageBar
+												timing={t}
+												range={t.range}
+												totalRange={totalRange}
+												scale={scale}
+												onSelectStage={onSelectStage}
 											/>
-										);
-									}
-
-									const value = calcDuration(t.range);
-									const offset = calcOffset(t.range, totalRange);
-									const validDuration = value > 0 && !Number.isNaN(value);
-
-									return (
-										<XAxisRow
-											key={t.stage.name}
-											yAxisLabelId={encodeURIComponent(t.stage.name)}
-										>
-											{/** We only want to expand stages with more than one resource */}
-											{t.visibleResources > 1 ? (
-												<ClickableBar
-													aria-label={`View ${t.stage.label} details`}
-													scale={scale}
-													value={value}
-													offset={offset}
-													onClick={() => {
-														onSelectStage(t.stage);
-													}}
-												>
-													{t.error && (
-														<CircleAlertIcon className="size-icon-sm text-[#F87171] mr-1" />
-													)}
-													<Blocks count={t.visibleResources} />
-												</ClickableBar>
-											) : (
-												<Bar scale={scale} value={value} offset={offset} />
-											)}
-											{validDuration ? (
-												<span>{formatTime(value)}</span>
-											) : (
-												<span className="text-content-destructive">
-													Invalid
-												</span>
-											)}
-										</XAxisRow>
-									);
-								})}
-							</XAxisSection>
+										)}
+									</ChartTableRow>
+								))}
+							</ChartTableSection>
 						);
 					})}
-				</XAxis>
+				</ChartTable>
 			</ChartContent>
 		</Chart>
+	);
+};
+
+type StageLabelProps = {
+	stage: Stage;
+};
+
+const StageLabel: React.FC<StageLabelProps> = ({ stage }) => {
+	return (
+		<span className="flex items-center justify-end gap-0.5">
+			{stage.label}
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
+				</TooltipTrigger>
+				<TooltipContent
+					side="bottom"
+					className="flex flex-col gap-1.5 max-w-xs border-surface-quaternary"
+				>
+					<p className="m-0 text-content-primary">{stage.tooltip.heading}</p>
+					<p className="m-0">{stage.tooltip.description}</p>
+				</TooltipContent>
+			</Tooltip>
+		</span>
+	);
+};
+
+type StageBarProps = {
+	timing: StageTiming;
+	range: TimeRange;
+	totalRange: TimeRange;
+	scale: number;
+	onSelectStage: (stage: Stage) => void;
+};
+
+const StageBar: React.FC<StageBarProps> = ({
+	timing,
+	range,
+	totalRange,
+	scale,
+	onSelectStage,
+}) => {
+	const value = calcDuration(range);
+	const offset = calcOffset(range, totalRange);
+	const validDuration = value > 0 && !Number.isNaN(value);
+
+	return (
+		<>
+			{timing.visibleResources > 1 ? (
+				<ClickableBar
+					aria-label={`View ${timing.stage.label} details`}
+					scale={scale}
+					value={value}
+					offset={offset}
+					onClick={() => {
+						onSelectStage(timing.stage);
+					}}
+				>
+					{timing.error && (
+						<CircleAlertIcon className="size-icon-sm text-[#F87171] mr-1" />
+					)}
+					<Blocks count={timing.visibleResources} />
+				</ClickableBar>
+			) : (
+				<Bar aria-hidden scale={scale} value={value} offset={offset} />
+			)}
+			{validDuration ? (
+				<span>{formatTime(value)}</span>
+			) : (
+				<span className="text-content-destructive">Invalid</span>
+			)}
+		</>
 	);
 };
 

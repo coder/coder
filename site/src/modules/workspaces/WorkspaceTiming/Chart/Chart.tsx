@@ -7,6 +7,9 @@ import {
 } from "#/components/SearchField/SearchField";
 import type { BarColors } from "./Bar";
 
+/** Width in pixels of the label column. */
+export const yAxisWidth = 200;
+
 export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
 		<div
@@ -15,8 +18,7 @@ export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 			style={{
 				"--header-height": "40px",
 				"--section-padding": "16px",
-				"--x-axis-rows-gap": "20px",
-				"--y-axis-width": "200px",
+				"--y-axis-width": `${yAxisWidth}px`,
 				...props.style,
 			}}
 		/>

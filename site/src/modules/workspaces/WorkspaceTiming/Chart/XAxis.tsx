@@ -1,170 +1,55 @@
 import { cn } from "cn";
-import { useLayoutEffect, useRef } from "react";
 import { formatTime } from "./utils";
 
-const XAxisMinWidth = 130;
-
-type XAxisProps = React.HTMLProps<HTMLDivElement> & {
+type XAxisTicksProps = {
 	ticks: number[];
-	scale: number;
 };
 
-export const XAxis: React.FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
-	const rootRef = useRef<HTMLDivElement>(null);
-
-	// The X axis should occupy all available space. If there is extra space,
-	// increase the column width accordingly. Use a CSS variable to propagate the
-	// value to the child components.
-	useLayoutEffect(() => {
-		const rootEl = rootRef.current;
-		if (!rootEl) {
-			return;
-		}
-		// We always add one extra column to the grid to ensure that the last column
-		// is fully visible.
-		const avgWidth = rootEl.clientWidth / (ticks.length + 1);
-		const width = avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
-		rootEl.style.setProperty("--x-axis-width", `${width}px`);
-	}, [ticks]);
-
-	return (
-		<div
-			{...htmlProps}
-			className={cn(
-				"flex flex-col flex-1 min-h-full relative h-fit",
-				"border-solid border-0 border-l",
-				htmlProps.className,
-			)}
-			ref={rootRef}
-		>
-			<XAxisLabels>
-				{ticks.map((tick) => (
-					<XAxisLabel key={tick}>{formatTime(tick)}</XAxisLabel>
-				))}
-			</XAxisLabels>
-			{htmlProps.children}
-			<XGrid columns={ticks.length} />
-		</div>
-	);
-};
-
-const XAxisLabels: React.FC<React.HTMLProps<HTMLUListElement>> = (props) => {
+/** Visual labels of the timeline ticks. Hidden from assistive technology. */
+export const XAxisTicks: React.FC<XAxisTicksProps> = ({ ticks }) => {
 	return (
 		<ul
-			{...props}
+			aria-hidden
 			className={cn(
-				"sticky top-0 z-2 bg-surface-primary",
 				"flex items-center shrink-0 list-none m-0",
 				"w-fit p-0 min-w-full",
-				"border-solid border-0 border-b",
-				props.className,
 			)}
-			style={{
-				minHeight: "var(--header-height)",
-			}}
-		/>
+		>
+			{ticks.map((tick) => (
+				<li
+					key={tick}
+					className={cn(
+						"flex justify-center shrink-0 text-content-secondary",
+						// Labels are two columns wide and shifted left one column to center
+						// on their gridline. The first is not shifted: there is no 0 tick.
+						"w-[calc(var(--x-axis-width)*2)]",
+						"not-first-of-type:-ml-(--x-axis-width)",
+					)}
+				>
+					{formatTime(tick)}
+				</li>
+			))}
+		</ul>
 	);
 };
 
-const XAxisLabel: React.FC<React.HTMLProps<HTMLLIElement>> = (props) => {
-	return (
-		<li
-			{...props}
-			className={cn(
-				"flex justify-center shrink-0 text-content-secondary",
-				// To centralize the labels between columns, we need to:
-				// 1. Set the label width to twice the column width.
-				// 2. Shift the label to the left by half of the column width.
-				// Note: This adjustment is not applied to the first element,
-				// as the 0 label/value is not displayed in the chart.
-				"w-[calc(var(--x-axis-width)*2)]",
-				"not-first-of-type:-ml-(--x-axis-width)",
-				props.className,
-			)}
-		/>
-	);
-};
-
-export const XAxisSection: React.FC<React.HTMLProps<HTMLDivElement>> = (
-	props,
-) => {
-	return (
-		<section
-			{...props}
-			className={cn(
-				"flex flex-col",
-				// Elevate this section to make it more prominent than the column dashes.
-				"relative z-1",
-				"not-first-of-type:pt-[calc(var(--section-padding)+var(--header-height))]",
-				"not-first-of-type:border-solid",
-				"not-first-of-type:border-0",
-				"not-first-of-type:border-t",
-				props.className,
-			)}
-			style={{
-				...props.style,
-				gap: "var(--x-axis-rows-gap)",
-				padding: "var(--section-padding)",
-			}}
-		/>
-	);
-};
-
-type XAxisRowProps = React.HTMLProps<HTMLDivElement> & {
-	yAxisLabelId: string;
-};
-
-export const XAxisRow: React.FC<XAxisRowProps> = ({
-	yAxisLabelId,
-	...htmlProps
-}) => {
-	const syncYAxisLabelHeightToXAxisRow = (rowEl: HTMLDivElement | null) => {
-		if (!rowEl) {
-			return;
-		}
-		// Selecting a label with special characters (e.g.,
-		// #coder_metadata.container_info[0]) will fail because it is not a valid
-		// selector. To handle this, we need to query by the id attribute and escape
-		// it with quotes.
-		const selector = `[id="${encodeURIComponent(yAxisLabelId)}"]`;
-		const yAxisLabel = document.querySelector<HTMLSpanElement>(selector);
-		if (!yAxisLabel) {
-			console.warn(`Y-axis label with selector ${selector} not found.`);
-			return;
-		}
-		yAxisLabel.style.height = `${rowEl.clientHeight}px`;
-	};
-
-	return (
-		<section
-			{...htmlProps}
-			className={cn("flex items-center w-fit gap-2 h-8", htmlProps.className)}
-			aria-labelledby={yAxisLabelId}
-			ref={syncYAxisLabelHeightToXAxisRow}
-		/>
-	);
-};
-
-type XGridProps = React.HTMLProps<HTMLDivElement> & {
+type XGridProps = {
 	columns: number;
 };
 
-const XGrid: React.FC<XGridProps> = ({ columns, ...htmlProps }) => {
-	const borderDefault =
-		typeof document === "undefined"
-			? "hsl(var(--border-default))"
-			: `hsl(${getComputedStyle(document.documentElement)
-					.getPropertyValue("--border-default")
-					.trim()})`;
+/**
+ * Dashed column lines behind the timeline column. Starts after the label
+ * column and spans the full chart height.
+ */
+export const XGrid: React.FC<XGridProps> = ({ columns }) => {
+	const borderDefault = `hsl(${getComputedStyle(document.documentElement)
+		.getPropertyValue("--border-default")
+		.trim()})`;
 
 	return (
 		<div
-			role="presentation"
-			{...htmlProps}
-			className={cn(
-				"flex w-full h-full absolute top-0 left-0",
-				htmlProps.className,
-			)}
+			aria-hidden
+			className="absolute inset-y-0 left-(--y-axis-width) right-0 flex border-l"
 		>
 			{Array.from({ length: columns }, (_, key) => (
 				<div
