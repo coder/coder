@@ -76,7 +76,6 @@ func newChatTestOptions(
 	// Enable experiment-gated chat endpoints in tests.
 	if len(values.Experiments) == 0 {
 		values.Experiments = serpent.StringArray{
-			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
 			string(codersdk.ExperimentAgentLifecycleHooks),
 			string(codersdk.ExperimentChatInlineMCPServers),
@@ -6203,7 +6202,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CreatedBy:           []uuid.UUID{user.UserID},
 			ModelConfigID:       []uuid.UUID{modelConfig.ID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-			ContentVersion:      []int16{chatprompt.ContentVersionV0},
+			ContentVersion:      []int16{0},
 			Content:             []string{`"plain text from V0"`},
 			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
 			InputTokens:         []int64{0},
@@ -10739,11 +10738,14 @@ func TestStreamChat(t *testing.T) {
 
 // TestChatOpenAIResponsesWebSearch runs provider-executed OpenAI web
 // searches through the chat API and the AI Gateway daemon, then checks the
-// streamed parts and the reloaded messages the chat UI renders.
+// streamed parts and the reloaded messages the chat UI renders, and what
+// the next turn sends the model about the search.
 func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 	t.Parallel()
 
 	const answer = "Tokyo has about 14 million residents."
+	const followUpPrompt = "And Osaka?"
+	const followUpAnswer = "Osaka has about 2.7 million residents."
 	found := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
 	// Live OpenAI streams add pages the answer cited to the search's
 	// sources only in response.completed; they are not found pages.
@@ -10751,11 +10753,16 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		store      *bool
 		webSearch  chattest.OpenAIWebSearchCall
 		wantArgs   string
 		wantResult string
 		wantError  bool
 		wantFound  []string
+		// wantReplay is the web_search_call input item the next turn
+		// sends. gpt-4o produces no reasoning, so stored searches cannot
+		// go back as item references and replay inline too.
+		wantReplay string
 	}{
 		{
 			name: "QueriesAndSources",
@@ -10766,6 +10773,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
 			wantResult: `{}`,
 			wantFound:  found,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","queries":["tokyo population","tokyo census 2025"],"query":"tokyo population"}}`,
 		},
 		{
 			name: "Failed",
@@ -10776,6 +10784,54 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
 			wantResult: `{"error":"web search failed"}`,
 			wantError:  true,
+			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
+		},
+		{
+			name:  "UnstoredQueriesAndSources",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				Queries: []string{"tokyo population", "tokyo census 2025"},
+				Query:   "tokyo population",
+			},
+			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
+			wantResult: `{}`,
+			wantFound:  found,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","queries":["tokyo population","tokyo census 2025"],"query":"tokyo population"}}`,
+		},
+		{
+			name:  "UnstoredOpenPage",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				ActionType: "open_page",
+				URL:        "https://www.metro.tokyo.lg.jp/",
+			},
+			wantArgs:   `{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}`,
+			wantResult: `{}`,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}}`,
+		},
+		{
+			name:  "UnstoredFindInPage",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				ActionType: "find_in_page",
+				URL:        "https://www.metro.tokyo.lg.jp/",
+				Pattern:    "population",
+			},
+			wantArgs:   `{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}`,
+			wantResult: `{}`,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}}`,
+		},
+		{
+			name:  "UnstoredFailed",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				Queries: []string{"tokyo population"},
+				Status:  "failed",
+			},
+			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
+			wantResult: `{"error":"web search failed"}`,
+			wantError:  true,
+			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
 		},
 	}
 
@@ -10790,9 +10846,17 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			// stream so the streamed parts cannot be missed.
 			streamReady := make(chan struct{})
 			var requestIncludes atomic.Pointer[[]string]
+			followUpBody := make(chan []byte, 1)
 			baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse(`{"title": "Tokyo population"}`)
+				}
+				if bytes.Contains(req.RawBody, []byte(followUpPrompt)) {
+					select {
+					case followUpBody <- req.RawBody:
+					default:
+					}
+					return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(followUpAnswer)...)
 				}
 				var body struct {
 					Include []string `json:"include"`
@@ -10831,7 +10895,10 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				ModelConfig: &codersdk.ChatModelCallConfig{
 					OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: ptr.Ref(true)},
 					ProviderOptions: &codersdk.ChatModelProviderOptions{
-						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{WebSearchEnabled: ptr.Ref(true)},
+						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+							WebSearchEnabled: ptr.Ref(true),
+							Store:            tt.store,
+						},
 					},
 				},
 			})
@@ -10940,6 +11007,62 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			}
 			requireWebSearchParts(t, reloadedCall, reloadedResult, reloadedFound)
 			require.Equal(t, answer, reloadedText)
+
+			// The next turn builds its prompt from the saved history.
+			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: followUpPrompt,
+				}},
+			})
+			require.NoError(t, err)
+			// The fake server rejects an invalid request before the
+			// handler sees it, so the chat's error is the only signal.
+			var rawFollowUp []byte
+			for rawFollowUp == nil {
+				select {
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for the follow-up request")
+				case rawFollowUp = <-followUpBody:
+				case event, ok := <-events:
+					require.True(t, ok, "stream closed before the follow-up request")
+					if event.Type == codersdk.ChatStreamEventTypeError {
+						require.FailNowf(t, "follow-up turn failed", "%+v", event.Error)
+					}
+				}
+			}
+			settled = coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+			require.Equal(t, database.ChatStatusWaiting, settled.Status)
+
+			var followUp struct {
+				Store *bool             `json:"store"`
+				Input []json.RawMessage `json:"input"`
+			}
+			require.NoError(t, json.Unmarshal(rawFollowUp, &followUp))
+			require.NotNil(t, followUp.Store)
+			require.Equal(t, tt.store == nil || *tt.store, *followUp.Store)
+			var inputKinds []string
+			var replayed json.RawMessage
+			for _, raw := range followUp.Input {
+				var item struct {
+					Type string `json:"type"`
+					Role string `json:"role"`
+				}
+				require.NoError(t, json.Unmarshal(raw, &item))
+				switch {
+				case item.Role == "system" || item.Role == "developer":
+					continue
+				case item.Type == "web_search_call":
+					replayed = raw
+				}
+				if item.Role != "" {
+					inputKinds = append(inputKinds, item.Role)
+				} else {
+					inputKinds = append(inputKinds, item.Type)
+				}
+			}
+			require.Equal(t, []string{"user", "web_search_call", "assistant", "user"}, inputKinds)
+			require.JSONEq(t, tt.wantReplay, string(replayed))
 		})
 	}
 }
@@ -16008,7 +16131,7 @@ func TestChatModelOverrides(t *testing.T) {
 		_, err := adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, "not-a-context", codersdk.UpdateChatModelOverrideRequest{})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, "general, explore, title_generation, compaction, advisor")
+		require.Contains(t, sdkErr.Detail, "general, explore, title_generation, compaction, advisor, computer_use")
 	})
 
 	t.Run("LegacyRoutesRemoved", func(t *testing.T) {
@@ -16020,6 +16143,88 @@ func TestChatModelOverrides(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
+}
+
+//nolint:tparallel,paralleltest // Subtests share coderdtest instances.
+func TestChatModelOverridesComputerUse(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	getRow := func() (database.ChatOrganizationModelOverride, error) {
+		return db.GetChatOrganizationModelOverride(dbauthz.AsSystemRestricted(ctx), database.GetChatOrganizationModelOverrideParams{
+			OrganizationID: firstUser.OrganizationID,
+			Context:        string(codersdk.ChatModelOverrideContextComputerUse),
+		})
+	}
+	update := func(req codersdk.UpdateChatModelOverrideRequest) (codersdk.ChatModelOverrideResponse, error) {
+		return adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextComputerUse, req)
+	}
+
+	for _, providerType := range []string{"anthropic", "openai"} {
+		t.Run("Accepts"+providerType, func(t *testing.T) {
+			model := createAdditionalChatModelWithReasoningEffort(t, adminClient, providerType, "computer-use-"+uuid.NewString(), "medium", "high")
+			updated, err := update(codersdk.UpdateChatModelOverrideRequest{
+				ModelConfigID:   model.ID.String(),
+				ReasoningEffort: ptr.Ref("high"),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.ChatModelOverrideContextComputerUse, updated.Context)
+			require.Equal(t, model.ID.String(), updated.ModelConfigID)
+			stored, err := getRow()
+			require.NoError(t, err)
+			require.Equal(t, model.ID, stored.ModelConfigID)
+			require.Equal(t, "high", stored.ReasoningEffort.String)
+		})
+	}
+
+	t.Run("RejectsUnsupportedProviderType", func(t *testing.T) {
+		valid := createAdditionalChatModel(t, adminClient, "anthropic", "computer-use-valid-"+uuid.NewString())
+		_, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: valid.ID.String()})
+		require.NoError(t, err)
+		before, err := getRow()
+		require.NoError(t, err)
+		model := createAdditionalChatModel(t, adminClient, coderdtest.TestChatProviderOpenAICompat, "computer-use-compat-"+uuid.NewString())
+		_, err = update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Computer use requires a model from an Anthropic or OpenAI AI provider.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, `of type "openai-compat"`)
+		after, err := getRow()
+		require.NoError(t, err)
+		require.Equal(t, before.ModelConfigID, after.ModelConfigID)
+	})
+
+	t.Run("RejectsMalformedID", func(t *testing.T) {
+		_, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: "not-a-uuid"})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+	})
+
+	t.Run("Clears", func(t *testing.T) {
+		cleared, err := update(codersdk.UpdateChatModelOverrideRequest{})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatModelOverrideContextComputerUse, cleared.Context)
+		require.Empty(t, cleared.ModelConfigID)
+		_, err = getRow()
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}
+
+func TestChatModelOverridesComputerUseRequiresVirtualDesktopExperiment(t *testing.T) {
+	t.Parallel()
+
+	values := coderdtest.DeploymentValues(t)
+	values.Experiments = serpent.StringArray{string(codersdk.ExperimentAgentLifecycleHooks)}
+	adminClient := newChatClientWithDeploymentValues(t, values)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextComputerUse, codersdk.UpdateChatModelOverrideRequest{})
+	requireSDKError(t, err, http.StatusNotFound)
+	// Other contexts stay available without the experiment.
+	_, err = adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextGeneral, codersdk.UpdateChatModelOverrideRequest{})
+	require.NoError(t, err)
 }
 
 //nolint:tparallel,paralleltest // Subtests share coderdtest instances.
@@ -16541,139 +16746,6 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		upsertRootModel(member.ID, firstUser.OrganizationID, overrideModel.ID)
 		chat = createChat(memberClient, "missing user key falls back", nil)
 		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
-	})
-}
-
-func TestChatComputerUseProvider(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ReturnsAnthropicWhenUnset", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		resp, err := adminClient.GetChatComputerUseProvider(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
-	})
-
-	t.Run("AdminCanSetAnthropic", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-			Provider: "anthropic",
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatComputerUseProvider(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
-	})
-
-	t.Run("AdminCanSetOpenAI", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-			Provider: "openai",
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatComputerUseProvider(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, resp.Provider)
-	})
-
-	t.Run("AdminCanSwitchProviders", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-			Provider: "openai",
-		})
-		require.NoError(t, err)
-
-		err = adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-			Provider: "anthropic",
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatComputerUseProvider(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
-	})
-
-	t.Run("InvalidProviderRejected", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		for _, provider := range []string{"", "invalid"} {
-			err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-				Provider: codersdk.ChatComputerUseProvider(provider),
-			})
-			requireSDKError(t, err, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("NonAdminCanRead", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-			Provider: "openai",
-		})
-		require.NoError(t, err)
-
-		resp, err := memberClient.GetChatComputerUseProvider(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, resp.Provider)
-	})
-
-	t.Run("NonAdminWriteFails", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		err := memberClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-			Provider: "openai",
-		})
-		requireSDKError(t, err, http.StatusForbidden)
-	})
-
-	t.Run("UnauthenticatedReadFails", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
-		_, err := anonClient.GetChatComputerUseProvider(ctx)
-		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 }
 
@@ -17250,18 +17322,6 @@ func TestChatAdvisorConfig(t *testing.T) {
 	})
 }
 
-func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	values := coderdtest.DeploymentValues(t)
-	values.Experiments = serpent.StringArray{string(codersdk.ExperimentAgentLifecycleHooks)}
-	adminClient := newChatClientWithDeploymentValues(t, values)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-	resp, err := adminClient.GetChatAdvisorConfig(ctx)
-	require.NoError(t, err)
-	require.False(t, resp.Enabled)
-}
-
 func TestChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -17409,9 +17469,6 @@ func TestChatOperationalSettingsAuditDeniedWrites(t *testing.T) {
 		},
 		"WorkspaceTTL": func() error {
 			return memberClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: time.Hour.Milliseconds()})
-		},
-		"ComputerUseProvider": func() error {
-			return memberClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{Provider: codersdk.ChatComputerUseProviderOpenAI})
 		},
 		"DebugLogging": func() error {
 			return memberClient.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: true})

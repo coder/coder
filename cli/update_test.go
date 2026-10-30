@@ -285,6 +285,77 @@ func TestUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "new_param", Value: "foobar"})
 	})
+
+	// Verifies that --use-parameter-defaults never replaces a previous
+	// value whose option was removed, since switching a value like a
+	// region can destroy resources.
+	t.Run("UseParameterDefaultsRemovedOption", func(t *testing.T) {
+		t.Parallel()
+
+		setup := func(t *testing.T) (*codersdk.Client, codersdk.Workspace, codersdk.TemplateVersion) {
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+			region := func(options ...string) []*proto.RichParameter {
+				p := &proto.RichParameter{Name: "region", Type: "string", Mutable: true, DefaultValue: "us-east"}
+				for _, o := range options {
+					p.Options = append(p.Options, &proto.RichParameterOption{Name: o, Value: o})
+				}
+				return []*proto.RichParameter{p}
+			}
+
+			version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(region("us-east", "us-west")))
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+			ws := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{{Name: "region", Value: "us-west"}}
+			})
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// The new version removes us-west. The first option is not the
+			// default, so a prompt (which picks the first option in tests)
+			// can be told apart from falling back to the default.
+			version2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(region("eu-west", "us-east")), template.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+			err := client.UpdateActiveTemplateVersion(testutil.Context(t, testutil.WaitLong), template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
+			require.NoError(t, err)
+			return member, ws, version2
+		}
+
+		t.Run("NonInteractive", func(t *testing.T) {
+			t.Parallel()
+			member, ws, version2 := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			inv, root := clitest.New(t, "update", ws.Name, "--use-parameter-defaults", "-y")
+			clitest.SetupConfig(t, member, root)
+			err := inv.WithContext(ctx).Run()
+			require.ErrorContains(t, err, `previous value "us-west" is no longer a valid option`)
+
+			ws, err = member.Workspace(ctx, ws.ID)
+			require.NoError(t, err)
+			require.NotEqual(t, version2.ID, ws.LatestBuild.TemplateVersionID)
+		})
+
+		t.Run("Interactive", func(t *testing.T) {
+			t.Parallel()
+			member, ws, version2 := setup(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			inv, root := clitest.New(t, "update", ws.Name, "--use-parameter-defaults", "-y", "--force-tty")
+			clitest.SetupConfig(t, member, root)
+			err := inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			ws, err = member.Workspace(ctx, ws.ID)
+			require.NoError(t, err)
+			require.Equal(t, version2.ID, ws.LatestBuild.TemplateVersionID)
+			buildParams, err := member.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+			require.NoError(t, err)
+			require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "eu-west"})
+		})
+	})
 }
 
 func TestUpdateWithRichParameters(t *testing.T) {

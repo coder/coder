@@ -334,14 +334,15 @@ The **Deployment settings** section is visible only to deployment admins.
 
 The configurable contexts:
 
-| Context              | Layer        | Applies to                                                                             |
-|----------------------|--------------|----------------------------------------------------------------------------------------|
-| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
-| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
-| **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                                   |
-| **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
-| **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
-| **Root**             | User only    | The user's own root chats.                                                             |
+| Context              | Layer        | Applies to                                                                                                                                                 |
+|----------------------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general`).                                                                                               |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                                                                                                   |
+| **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                                                                                                       |
+| **Compaction**       | Admin only   | Conversation summarization near the context limit.                                                                                                         |
+| **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md).                                                                                                             |
+| **Computer use**     | Admin only   | [Computer use](./platform-controls/virtual-desktop.md) subagents (`spawn_agent` with `type=computer_use`). Requires the `chat-virtual-desktop` experiment. |
+| **Root**             | User only    | The user's own root chats.                                                                                                                                 |
 
 Resolution order, evaluated per chat or subagent from the chat's organization:
 
@@ -352,7 +353,7 @@ Resolution order, evaluated per chat or subagent from the chat's organization:
 
 If a referenced model is later disabled or deleted, that layer is skipped and resolution falls through to the next, with two exceptions: an unusable explicit `spawn_agent` `model_config_id` fails the tool call, and an unusable title generation override skips titles, status labels, and summaries instead of falling back.
 Agents discover selectable models (and their reasoning effort ranges) with the `list_subagent_models` tool, which only returns enabled models usable with the chat owner's credentials.
-Computer-use subagents always run on the administrator-configured computer-use model and reject explicit model selection.
+Computer use subagents reject explicit model selection and skip the chat's selected model: they run on the **Computer use** admin override, or on the organization default model when no override is set or the override model is unavailable.
 
 > [!NOTE]
 > Both override layers may change between releases.

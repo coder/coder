@@ -207,58 +207,36 @@ func (p *Server) buildTurnEnvironment(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	requestedEffort := chatRequestedEffort(chat)
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "standard_turn",
 		chat:            chat,
 		requestedEffort: requestedEffort,
 		buildOptions:    modelOpts,
+		// The OpenAI computer tool exists only on the Responses API.
+		requireOpenAIResponses: isComputerUse,
 	})
 	if err != nil {
 		return turnEnvironment{}, err
 	}
-	// The chat config keeps driving compaction, sanitization, and debug
-	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
-	// Computer-use turns swap in a specialized model, so the substitution
-	// must happen before anything model-sensitive runs: file-part
-	// classification, history sanitization, and provider option preparation
-	// must all agree with the client actually used for the turn.
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	if isComputerUse {
-		var cuModelProvider, cuModelName string
-		computerUseProvider, cuModelProvider, cuModelName, err = p.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			return turnEnvironment{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		cuResolved, cuErr := p.resolveModelCall(ctx, modelCallSpec{
-			purpose: "computer_use",
-			chat:    chat,
-			fixedModel: &fixedModelCall{
-				providerType: cuModelProvider,
-				modelName:    cuModelName,
-				callConfig:   resolved.callConfig,
-			},
-			requestedEffort: requestedEffort,
-			buildOptions:    modelOpts,
-		})
-		if cuErr != nil {
+		var ok bool
+		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"resolve computer use model for provider %q model %q: %w",
-				computerUseProvider,
-				cuModelName,
-				cuErr,
+				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
+				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
 		}
-		resolved = cuResolved
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
@@ -304,16 +282,20 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
-		var advisorErr error
+		advisorUses, advisorErr := currentTurnAdvisorUses(ctx, logger, input.Messages)
+		if advisorErr != nil {
+			return turnEnvironment{}, xerrors.Errorf("count advisor uses: %w", advisorErr)
+		}
 		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
+			advisorUses,
 			modelOpts,
 			logger,
 		)
@@ -543,7 +525,7 @@ func (p *Server) buildTurnEnvironment(
 		if err != nil {
 			return err
 		}
-		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OwnerID, chat.OrganizationID)
 		return err
 	})
 	g2.Go(func() error {
@@ -707,38 +689,6 @@ func (p *Server) buildTurnEnvironment(
 		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
 	}
 
-	prompt = buildSystemPrompt(
-		prompt,
-		subagentInstruction,
-		instruction,
-		initialResolvedSkills,
-		memoryIndex,
-		projectInstructions,
-		resolvedUserPrompt,
-		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
-		},
-	)
-	if advisorRuntime != nil {
-		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
-	}
-	prompt = renderPlanPathPrompt(prompt, planPathBlock)
-	compactionPromptMessages := prompt
-	pendingUserRows := promptRows[pendingRowsStart:]
-	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
-		pendingUserRows = nil
-	}
-	// Full slice expression: appending the tail must not share the
-	// head's backing array with the summarizer input.
-	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
-	if pendingUserRows == nil {
-		compactionPromptMessages = prompt
-	}
-	setAdvisorPromptSnapshot(prompt)
-
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -782,6 +732,43 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 
+	acpSubagentsAvailable := !isExploreSubagent && slices.ContainsFunc(tools, func(tool fantasy.AgentTool) bool {
+		_, ok := tool.(acpSpawnTool)
+		return ok
+	})
+	prompt = buildSystemPrompt(
+		prompt,
+		subagentInstruction,
+		instruction,
+		initialResolvedSkills,
+		memoryIndex,
+		projectInstructions,
+		resolvedUserPrompt,
+		systemPromptBehaviorContext{
+			planMode:              currentPlanMode,
+			chatMode:              chat.Mode,
+			planModeInstructions:  planModeInstructions,
+			isRootChat:            isRootChat,
+			acpSubagentsAvailable: acpSubagentsAvailable,
+		},
+	)
+	if advisorRuntime != nil {
+		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
+	}
+	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
+	setAdvisorPromptSnapshot(prompt)
+
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		GetSkills: func() []chattool.SkillMeta {
@@ -791,7 +778,7 @@ func (p *Server) buildTurnEnvironment(
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			switch skill.Source {
 			case skillspkg.SourceOrganization:
-				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name, skillLoaderModel)
+				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OwnerID, chat.OrganizationID, skill.Name, skillLoaderModel)
 			case skillspkg.SourceProject:
 				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name, skillLoaderModel)
 			default:
@@ -938,22 +925,9 @@ func (p *Server) buildTurnEnvironment(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	// The owner is the subject: only the owner posts turns and descendant
-	// chats inherit it. Preparation runs for every step, so the first step
-	// with MCP candidates decides and later steps of the same turn reuse
-	// that decision; otherwise a rule change mid-turn would reject
-	// find_tools calls the model already issued. Without candidates
-	// find_tools is never offered, so skip the read.
-	toolSearchEnabled := false
-	if len(deferredCandidates) > 0 {
-		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
-			return p.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
-		})
-	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: toolSearchEnabled,
-		candidates:        deferredCandidates,
-		dynamicToolNames:  dynamicToolNames,
+		candidates:       deferredCandidates,
+		dynamicToolNames: dynamicToolNames,
 	}) {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
@@ -2056,7 +2030,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "message_agent", "interrupt_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -2168,10 +2142,11 @@ func stopAfterBehaviorTools(
 }
 
 type systemPromptBehaviorContext struct {
-	planMode             database.NullChatPlanMode
-	chatMode             database.NullChatMode
-	planModeInstructions string
-	isRootChat           bool
+	acpSubagentsAvailable bool
+	planMode              database.NullChatPlanMode
+	chatMode              database.NullChatMode
+	planModeInstructions  string
+	isRootChat            bool
 }
 
 // workspaceSkillsForResolution returns the workspace skills the model may
@@ -2212,7 +2187,7 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// project instructions, user prompt, then mode overlay prompts. Project
+// ACP guidance, project instructions, user prompt, then mode overlays. Project
 // instructions precede the user prompt so personal instructions keep the
 // last word.
 func buildSystemPrompt(
@@ -2236,6 +2211,9 @@ func buildSystemPrompt(
 	}
 	if memoryIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
+	}
+	if behaviorContext.acpSubagentsAvailable {
+		prompt = chatprompt.InsertSystem(prompt, acpSubagentPromptBlock)
 	}
 	if projectInstructions != "" {
 		prompt = chatprompt.InsertSystem(prompt, projectInstructions)
@@ -2406,17 +2384,26 @@ func (p *Server) chatOwnerSubject(ctx context.Context, ownerID uuid.UUID) (rbac.
 func (p *Server) fetchOrganizationSkillMetadata(
 	ctx context.Context,
 	owner rbac.Subject,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 ) ([]skillspkg.Skill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
-	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(dbauthz.As(ctx, owner), organizationID)
+	ownerCtx := dbauthz.As(ctx, owner)
+	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(ownerCtx, organizationID)
 	if err != nil {
 		return nil, xerrors.Errorf("list organization skill metadata: %w", err)
+	}
+	prefs, err := p.db.GetOrganizationSkillMemberPreferences(ownerCtx, database.GetOrganizationSkillMemberPreferencesParams{
+		OrganizationID: organizationID,
+		UserID:         ownerID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get organization skill member preferences: %w", err)
 	}
 
 	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) || prefs.Excludes(row.ID) {
 			continue
 		}
 		organizationSkills = append(organizationSkills, skillspkg.Skill{
@@ -2431,13 +2418,15 @@ func (p *Server) fetchOrganizationSkillMetadata(
 func (p *Server) loadOrganizationSkillBody(
 	ctx context.Context,
 	owner rbac.Subject,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 	name string,
 	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	ownerCtx := dbauthz.As(ctx, owner)
 	row, err := p.db.GetOrganizationSkillByOrganizationIDAndName(
-		dbauthz.As(ctx, owner),
+		ownerCtx,
 		database.GetOrganizationSkillByOrganizationIDAndNameParams{
 			OrganizationID: organizationID,
 			Name:           name,
@@ -2456,6 +2445,18 @@ func (p *Server) loadOrganizationSkillBody(
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load organization skill body: %w", err)
 	}
 	if loader.hides(row.Enabled, row.ModelInvocable) {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+	// Re-check at load time so an opt-out made mid-chat applies to the
+	// next load.
+	prefs, err := p.db.GetOrganizationSkillMemberPreferences(ownerCtx, database.GetOrganizationSkillMemberPreferencesParams{
+		OrganizationID: organizationID,
+		UserID:         ownerID,
+	})
+	if err != nil {
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("get organization skill member preferences: %w", err)
+	}
+	if prefs.Excludes(row.ID) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
