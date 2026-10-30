@@ -10371,6 +10371,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerdaemons": {
             "get": {
+                "description": "Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.\nUse the ` + "`" + `ids` + "`" + `, ` + "`" + `status` + "`" + `, and ` + "`" + `tags` + "`" + ` query parameters to narrow the list.\nRequires permission to read provisioner jobs in the organization, which the Owner, Organization Admin, and Organization Template Admin roles have, and returns ` + "`" + `404` + "`" + ` without it.",
                 "produces": [
                     "application/json"
                 ],
@@ -10383,14 +10384,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `, and ` + "`" + `0` + "`" + ` returns all results.",
                         "name": "limit",
                         "in": "query"
                     },

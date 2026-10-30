@@ -17,12 +17,15 @@ import (
 )
 
 // @Summary Get provisioner daemons
+// @Description Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.
+// @Description Use the `ids`, `status`, and `tags` query parameters to narrow the list.
+// @Description Requires permission to read provisioner jobs in the organization, which the Owner, Organization Admin, and Organization Template Admin roles have, and returns `404` without it.
 // @ID get-provisioner-daemons
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Provisioning
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param limit query int false "Page limit"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default is `50`, and `0` returns all results."
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
 // @Param tags query string false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
