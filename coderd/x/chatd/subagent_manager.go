@@ -26,332 +26,186 @@ import (
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
-// subagentManager owns child chat lifecycle for one running parent turn.
-type subagentManager struct {
-	server               *Server
-	currentChat          func() database.Chat
-	currentChatSnapshot  database.Chat
-	currentModelConfigID uuid.UUID
+type subagentAwaitOutcome struct {
+	chat      database.Chat
+	report    string
+	recording recordingResult
+	// When timedOut is true, report and recording are unset.
+	timedOut bool
 }
 
-type subagentManagerError struct {
-	err  error
-	chat *database.Chat
-}
-
-func (e *subagentManagerError) Error() string { return e.err.Error() }
-func (e *subagentManagerError) Unwrap() error { return e.err }
-
-// Tool outputs keep fields in sorted JSON key order so the payload text
-// the model sees stays stable.
-type subagentAwaitResult struct {
-	ChatID             string  `json:"chat_id"`
-	LastError          string  `json:"last_error,omitempty"`
-	LastErrorDetail    string  `json:"last_error_detail,omitempty"`
-	LastErrorKind      string  `json:"last_error_kind,omitempty"`
-	LastErrorRetryable *bool   `json:"last_error_retryable,omitempty"`
-	RecordingFileID    string  `json:"recording_file_id,omitempty"`
-	Report             *string `json:"report,omitempty"`
-	Status             string  `json:"status"`
-	ThumbnailFileID    string  `json:"thumbnail_file_id,omitempty"`
-	TimedOut           bool    `json:"timed_out,omitempty"`
-	Title              string  `json:"title"`
-	Type               string  `json:"type"`
-}
-
-type subagentListEntry struct {
-	ChatID    string `json:"chat_id"`
-	CreatedAt string `json:"created_at"`
-	Status    string `json:"status"`
-	Title     string `json:"title"`
-	Type      string `json:"type"`
-	UpdatedAt string `json:"updated_at"`
-}
-
-type subagentListResult struct {
-	Agents   []subagentListEntry `json:"agents"`
-	HasMore  bool                `json:"has_more"`
-	Offset   int                 `json:"offset"`
-	Returned int                 `json:"returned"`
-	Total    int                 `json:"total"`
-}
-
-func newSubagentManager(server *Server, currentChat func() database.Chat, currentModelConfigID uuid.UUID) *subagentManager {
-	manager := &subagentManager{server: server, currentChat: currentChat, currentModelConfigID: currentModelConfigID}
-	if currentChat != nil {
-		manager.currentChatSnapshot = currentChat()
-	}
-	return manager
-}
-
-func (m *subagentManager) Spawn(ctx context.Context, args spawnAgentArgs) (database.Chat, error) {
-	if m.currentChat == nil {
-		return database.Chat{}, xerrors.New("subagent callbacks are not configured")
-	}
-	parent, err := m.server.loadSubagentSpawnParentChat(ctx, m.currentChat)
+func (p *Server) awaitSubagent(
+	ctx context.Context,
+	parent database.Chat,
+	targetChatID uuid.UUID,
+	timeout time.Duration,
+) (subagentAwaitOutcome, error) {
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parent.ID, targetChatID)
 	if err != nil {
-		return database.Chat{}, err
-	}
-	definition, err := resolveSubagentDefinition(ctx, m.server, parent, args.Type)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if definition.id == subagentTypeComputerUse && (strings.TrimSpace(args.ModelConfigID) != "" || strings.TrimSpace(args.ReasoningEffort) != "") {
-		return database.Chat{}, xerrors.New("model_config_id and reasoning_effort are not supported for type \"" + subagentTypeComputerUse + "\"")
-	}
-	explicitModelConfigID, explicitReasoningEffort, err := m.server.resolveExplicitSpawnOverrides(ctx, parent.OwnerID, parent.OrganizationID, args)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	turnParent := m.currentChatSnapshot
-	if turnParent.ID == uuid.Nil {
-		turnParent = parent
-	}
-	options, err := definition.buildOptions(ctx, m.server, parent, turnParent, m.currentModelConfigID, explicitModelConfigID, args.Prompt)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if explicitReasoningEffort != nil {
-		options.reasoningEffortOverride = explicitReasoningEffort
-	}
-	return m.server.createChildSubagentChatWithOptions(ctx, parent, args.Prompt, args.Title, options)
-}
-
-func (m *subagentManager) ListModels(ctx context.Context) ([]map[string]any, error) {
-	if m.currentChat == nil {
-		return nil, xerrors.New("subagent callbacks are not configured")
-	}
-	parent, err := m.server.loadSubagentSpawnParentChat(ctx, m.currentChat)
-	if err != nil {
-		return nil, err
-	}
-	models, err := m.server.listSpawnableModelConfigs(ctx, parent.OwnerID, parent.OrganizationID)
-	if err != nil {
-		m.server.logger.Warn(ctx, "failed to list spawnable model configs", slog.F("chat_id", parent.ID), slog.Error(err))
-		return nil, xerrors.New("internal error listing model configs")
-	}
-	return models, nil
-}
-
-func (m *subagentManager) Await(ctx context.Context, args waitAgentArgs) (subagentAwaitResult, error) {
-	if m.currentChat == nil {
-		return subagentAwaitResult{}, xerrors.New("subagent callbacks are not configured")
-	}
-	targetChatID, err := parseSubagentToolChatID(args.ChatID)
-	if err != nil {
-		return subagentAwaitResult{}, err
-	}
-	parent := m.currentChat()
-	targetChatInfo := m.targetChatInfo(ctx, targetChatID, "recording")
-	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parent.ID, targetChatID)
-	if err != nil {
-		return subagentAwaitResult{}, subagentToolError(xerrors.Errorf("failed to verify subagent relationship: %v", err), targetChatInfo)
+		return subagentAwaitOutcome{}, xerrors.Errorf("failed to verify subagent relationship: %v", err)
 	}
 	if !isDescendant {
-		return subagentAwaitResult{}, subagentToolError(ErrSubagentNotDescendant, targetChatInfo)
+		return subagentAwaitOutcome{}, ErrSubagentNotDescendant
 	}
 
 	// Recording a computer_use child is best-effort and never blocks the wait.
 	var recordingID string
 	var agentConn workspacesdk.AgentConn
-	if targetChatInfo != nil && targetChatInfo.Mode.Valid && targetChatInfo.Mode.ChatMode == database.ChatModeComputerUse && targetChatInfo.AgentID.Valid && m.server.agentConnFn != nil {
-		conn, closeFn, connErr := m.server.agentConnFn(ctx, targetChatInfo.AgentID.UUID)
+	if target := p.subagentTargetChatInfo(ctx, targetChatID, "recording"); target != nil && target.Mode.Valid && target.Mode.ChatMode == database.ChatModeComputerUse && target.AgentID.Valid && p.agentConnFn != nil {
+		conn, closeFn, connErr := p.agentConnFn(ctx, target.AgentID.UUID)
 		if connErr == nil {
 			agentConn = conn
 			defer closeFn()
 			recordingID = targetChatID.String()
 			if startErr := conn.StartDesktopRecording(ctx, workspacesdk.StartDesktopRecordingRequest{RecordingID: recordingID}); startErr != nil {
-				m.server.logger.Warn(ctx, "failed to start desktop recording", slog.Error(startErr))
+				p.logger.Warn(ctx, "failed to start desktop recording", slog.Error(startErr))
 				recordingID = ""
 			}
 		} else {
-			m.server.logger.Warn(ctx, "failed to get agent conn for recording", slog.Error(connErr))
+			p.logger.Warn(ctx, "failed to get agent conn for recording", slog.Error(connErr))
 		}
 	}
 
-	timeout := defaultSubagentWaitTimeout
-	if args.TimeoutSeconds != nil {
-		timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-	}
 	// On timeout or error, leave the recording running on the agent so
-	// the next wait_agent call continues it. Only success stops and
-	// stores it.
-	targetChat, report, awaitErr := m.server.awaitSubagentCompletion(ctx, parent.ID, targetChatID, timeout)
-	if xerrors.Is(awaitErr, ErrSubagentWaitTimeout) {
+	// the next wait continues it. Only success stops and stores it.
+	targetChat, report, err := p.awaitSubagentCompletion(ctx, parent.ID, targetChatID, timeout)
+	if xerrors.Is(err, ErrSubagentWaitTimeout) {
 		// The agent may have completed between the last poll and the
 		// timer firing, so re-check with a fresh read before reporting
 		// a timeout.
-		checkedChat, checkedReport, done, checkErr := m.server.checkSubagentCompletion(ctx, targetChatID)
+		checkedChat, checkedReport, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
 		if checkErr != nil {
-			return subagentAwaitResult{}, subagentToolError(checkErr, targetChatInfo)
+			return subagentAwaitOutcome{}, checkErr
 		}
 		if !done {
-			return subagentAwaitResult{ChatID: targetChatID.String(), Status: string(checkedChat.Status), TimedOut: true, Title: checkedChat.Title, Type: subagentTypeFromChat(checkedChat)}, nil
+			return subagentAwaitOutcome{chat: checkedChat, timedOut: true}, nil
 		}
-		targetChat, report, awaitErr = handleSubagentDone(checkedChat, checkedReport)
+		targetChat, report, err = handleSubagentDone(checkedChat, checkedReport)
 	}
-	if awaitErr != nil {
-		if statusErr, ok := errors.AsType[*subagentStatusError](awaitErr); ok {
-			return subagentAwaitStatusErrorResult(statusErr), nil
-		}
-		return subagentAwaitResult{}, subagentToolError(awaitErr, targetChatInfo)
+	if err != nil {
+		return subagentAwaitOutcome{}, err
 	}
-	return m.server.waitAgentSuccessResult(ctx, recordingID, agentConn, parent, targetChat, report), nil
+	outcome := subagentAwaitOutcome{chat: targetChat, report: report}
+	if recordingID != "" && agentConn != nil {
+		// Use a fresh context for cleanup so a canceled parent context
+		// does not prevent recording storage.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), subagentRecordingStopTimeout)
+		defer stopCancel()
+		outcome.recording = p.stopAndStoreRecording(stopCtx, agentConn,
+			recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
+	}
+	return outcome, nil
 }
 
-func (m *subagentManager) Send(ctx context.Context, args messageAgentArgs) (database.Chat, bool, error) {
-	if m.currentChat == nil {
-		return database.Chat{}, false, xerrors.New("subagent callbacks are not configured")
-	}
-	targetChatID, err := parseSubagentToolChatID(args.ChatID)
-	if err != nil {
-		return database.Chat{}, false, err
-	}
-	targetChatInfo := m.targetChatInfo(ctx, targetChatID, "message")
-	message := strings.TrimSpace(args.Message)
+func (p *Server) sendSubagentMessage(
+	ctx context.Context,
+	parentChatID uuid.UUID,
+	targetChatID uuid.UUID,
+	message string,
+	busyBehavior SendMessageBusyBehavior,
+) (database.Chat, error) {
+	message = strings.TrimSpace(message)
 	if message == "" {
-		return database.Chat{}, false, subagentToolError(xerrors.New("message is required"), targetChatInfo)
+		return database.Chat{}, xerrors.New("message is required")
 	}
-	parent := m.currentChat()
-	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parent.ID, targetChatID)
+
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
-		return database.Chat{}, false, subagentToolError(err, targetChatInfo)
+		return database.Chat{}, err
 	}
 	if !isDescendant {
-		return database.Chat{}, false, subagentToolError(ErrSubagentNotDescendant, targetChatInfo)
+		return database.Chat{}, ErrSubagentNotDescendant
 	}
-	targetChat, err := m.server.db.GetChatByID(ctx, targetChatID)
+
+	// Look up the target chat to get the owner for CreatedBy.
+	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
-		return database.Chat{}, false, subagentToolError(xerrors.Errorf("get target chat: %w", err), targetChatInfo)
+		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
-	busyBehavior := SendMessageBusyBehaviorQueue
-	if args.Interrupt {
-		busyBehavior = SendMessageBusyBehaviorInterrupt
-	}
-	sendResult, err := m.server.SendMessage(ctx, SendMessageOptions{
+
+	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
-		return database.Chat{}, false, subagentToolError(err, targetChatInfo)
+		return database.Chat{}, err
 	}
-	interrupted := args.Interrupt && targetChatInfo != nil && targetChatInfo.Status == database.ChatStatusRunning
-	return sendResult.Chat, interrupted, nil
+
+	return sendResult.Chat, nil
 }
 
-func (m *subagentManager) Interrupt(ctx context.Context, args interruptAgentArgs) (database.Chat, bool, error) {
-	if m.currentChat == nil {
-		return database.Chat{}, false, xerrors.New("subagent callbacks are not configured")
-	}
-	targetChatID, err := parseSubagentToolChatID(args.ChatID)
+func (p *Server) interruptSubagent(
+	ctx context.Context,
+	parentChatID uuid.UUID,
+	targetChatID uuid.UUID,
+) (database.Chat, bool, error) {
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
 		return database.Chat{}, false, err
 	}
-	targetChatInfo := m.targetChatInfo(ctx, targetChatID, "interrupt")
-	parent := m.currentChat()
-	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parent.ID, targetChatID)
-	if err != nil {
-		return database.Chat{}, false, subagentToolError(err, targetChatInfo)
-	}
 	if !isDescendant {
-		return database.Chat{}, false, subagentToolError(ErrSubagentNotDescendant, targetChatInfo)
+		return database.Chat{}, false, ErrSubagentNotDescendant
 	}
-	targetChat, err := m.server.db.GetChatByID(ctx, targetChatID)
+
+	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
-		return database.Chat{}, false, subagentToolError(xerrors.Errorf("get target chat: %w", err), targetChatInfo)
+		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
+
 	// Idle and paused chats have no turn to interrupt.
 	if targetChat.Status == database.ChatStatusWaiting || targetChat.Status == database.ChatStatusPaused {
 		return targetChat, false, nil
 	}
-	updatedChat, err := m.server.InterruptChat(ctx, targetChat)
+
+	updatedChat, err := p.InterruptChat(ctx, targetChat)
 	if err != nil {
-		// Idle and archived chats fail the chatstate.Interrupt
-		// precondition; surface that instead of reporting success.
-		return database.Chat{}, false, subagentToolError(xerrors.Errorf("interrupt subagent chat: %w", err), targetChatInfo)
+		// Idle / archived chats no longer satisfy the
+		// chatstate.Interrupt precondition. Surface the error
+		// so the caller can decide whether the parent expected
+		// the subagent to already be waiting.
+		return database.Chat{}, false, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
-	// Active runs land in interrupting and requires-action chats in
-	// running; workers finalize either transition.
+	// chatstate.Interrupt lands active runs in `interrupting`
+	// and requires-action chats in `running`. Workers finalize
+	// the transition; accept either non-active status as long as
+	// the transition committed.
 	return updatedChat, true, nil
 }
 
-func (m *subagentManager) List(ctx context.Context, args listAgentsArgs) (subagentListResult, error) {
-	if m.currentChat == nil {
-		return subagentListResult{}, xerrors.New("subagent callbacks are not configured")
-	}
-	parent := m.currentChat()
-	if parent.ParentChatID.Valid {
-		return subagentListResult{}, xerrors.New("list_agents is only available on root chats")
-	}
-	rows, err := m.server.db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
-		ParentIds: []uuid.UUID{parent.ID},
+func (p *Server) listSubagents(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error) {
+	rows, err := p.db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+		ParentIds: []uuid.UUID{parentChatID},
 		// Exclude archived children. An invalid NullBool would include
 		// archived rows.
 		Archived: sql.NullBool{Bool: false, Valid: true},
 	})
 	if err != nil {
-		return subagentListResult{}, xerrors.Errorf("list child agents: %w", err)
+		return nil, xerrors.Errorf("list child agents: %w", err)
 	}
-	slices.SortStableFunc(rows, func(a, b database.GetChildChatsByParentIDsRow) int {
-		if c := b.Chat.UpdatedAt.Compare(a.Chat.UpdatedAt); c != 0 {
+	children := make([]database.Chat, 0, len(rows))
+	for _, row := range rows {
+		children = append(children, row.Chat)
+	}
+	slices.SortStableFunc(children, func(a, b database.Chat) int {
+		if c := b.UpdatedAt.Compare(a.UpdatedAt); c != 0 {
 			return c
 		}
-		return strings.Compare(b.Chat.ID.String(), a.Chat.ID.String())
+		return strings.Compare(b.ID.String(), a.ID.String())
 	})
-	limit := defaultListAgentsLimit
-	if args.Limit != nil {
-		limit = min(max(*args.Limit, 1), maxListAgentsLimit)
-	}
-	offset := 0
-	if args.Offset != nil && *args.Offset > 0 {
-		offset = *args.Offset
-	}
-	total := len(rows)
-	start := min(offset, total)
-	end := min(start+limit, total)
-	agents := make([]subagentListEntry, 0, end-start)
-	for _, row := range rows[start:end] {
-		chat := row.Chat
-		agents = append(agents, subagentListEntry{ChatID: chat.ID.String(), CreatedAt: chat.CreatedAt.Format(time.RFC3339), Status: string(chat.Status), Title: chat.Title, Type: subagentTypeFromChat(chat), UpdatedAt: chat.UpdatedAt.Format(time.RFC3339)})
-	}
-	return subagentListResult{Agents: agents, HasMore: end < total, Offset: offset, Returned: len(agents), Total: total}, nil
+	return children, nil
 }
 
-func (m *subagentManager) targetChatInfo(ctx context.Context, chatID uuid.UUID, operation string) *database.Chat {
-	chat, err := m.server.db.GetChatByID(ctx, chatID)
+func (p *Server) subagentTargetChatInfo(ctx context.Context, chatID uuid.UUID, operation string) *database.Chat {
+	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err == nil {
 		return &chat
 	}
 	if !xerrors.Is(err, sql.ErrNoRows) {
-		m.server.logger.Warn(ctx, "unexpected error looking up chat for "+operation, slog.F("chat_id", chatID), slog.Error(err))
+		p.logger.Warn(ctx, "unexpected error looking up chat for "+operation, slog.F("chat_id", chatID), slog.Error(err))
 	}
 	return nil
-}
-
-func subagentToolError(err error, chat *database.Chat) error {
-	return &subagentManagerError{err: err, chat: chat}
-}
-
-func subagentAwaitStatusErrorResult(statusErr *subagentStatusError) subagentAwaitResult {
-	chat := statusErr.chat
-	decoded, lastError := subagentLastError(chat.LastError)
-	if lastError == "" {
-		lastError = statusErr.reason
-	}
-	result := subagentAwaitResult{ChatID: chat.ID.String(), LastError: lastError, Report: &statusErr.report, Status: string(chat.Status), Title: chat.Title, Type: subagentTypeFromChat(chat)}
-	if decoded != nil {
-		kind := decoded.Kind
-		if kind == "" {
-			kind = codersdk.ChatErrorKindGeneric
-		}
-		retryable := decoded.Retryable
-		result.LastErrorKind = string(kind)
-		result.LastErrorRetryable = &retryable
-		result.LastErrorDetail = decoded.Detail
-	}
-	return result
 }
 
 func (p *Server) loadSubagentSpawnParentChat(
@@ -388,14 +242,6 @@ func (p *Server) loadSubagentSpawnParentChat(
 // returns to the model.
 func errSpawnUnderArchivedParent(err error) error {
 	return xerrors.Errorf("cannot create a child agent because the parent chat is archived: %w", err)
-}
-
-func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
-	chatID, err := uuid.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return uuid.Nil, xerrors.New("chat_id must be a valid UUID")
-	}
-	return chatID, nil
 }
 
 // childSubagentChatOptions carries per-child overrides for subagent chat
@@ -785,36 +631,6 @@ func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) 
 		return &payload, payload.Detail
 	default:
 		return &payload, payload.Message + " (" + payload.Detail + ")"
-	}
-}
-
-// waitAgentSuccessResult stops and stores the recording (if active) and
-// builds the normal completion payload for a wait_agent call.
-func (p *Server) waitAgentSuccessResult(
-	ctx context.Context,
-	recordingID string,
-	agentConn workspacesdk.AgentConn,
-	parent database.Chat,
-	targetChat database.Chat,
-	report string,
-) subagentAwaitResult {
-	var recResult recordingResult
-	if recordingID != "" && agentConn != nil {
-		// Use a fresh context for cleanup so a canceled
-		// parent context does not prevent recording storage.
-		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), subagentRecordingStopTimeout)
-		defer stopCancel()
-		recResult = p.stopAndStoreRecording(stopCtx, agentConn,
-			recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
-	}
-	return subagentAwaitResult{
-		ChatID:          targetChat.ID.String(),
-		RecordingFileID: recResult.recordingFileID,
-		Report:          &report,
-		Status:          string(targetChat.Status),
-		ThumbnailFileID: recResult.thumbnailFileID,
-		Title:           targetChat.Title,
-		Type:            subagentTypeFromChat(targetChat),
 	}
 }
 

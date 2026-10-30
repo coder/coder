@@ -4296,14 +4296,11 @@ func TestSubagentManagerAwait(t *testing.T) {
 		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
-		resultCh := make(chan subagentAwaitResult, 1)
+		resultCh := make(chan subagentAwaitOutcome, 1)
 		errorCh := make(chan error, 1)
-		oneSecond := 1
 		go func() {
-			result, err := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID).Await(ctx, waitAgentArgs{
-				ChatID: child.ID.String(), TimeoutSeconds: &oneSecond,
-			})
-			resultCh <- result
+			outcome, err := server.awaitSubagent(ctx, parent, child.ID, time.Second)
+			resultCh <- outcome
 			errorCh <- err
 		}()
 
@@ -4313,7 +4310,7 @@ func TestSubagentManagerAwait(t *testing.T) {
 		clock.Advance(time.Second).MustWait(ctx)
 
 		require.NoError(t, testutil.RequireReceive(ctx, t, errorCh))
-		result := testutil.RequireReceive(ctx, t, resultCh)
+		result := waitAgentResult(testutil.RequireReceive(ctx, t, resultCh))
 		require.True(t, result.TimedOut)
 		require.Equal(t, child.ID.String(), result.ChatID)
 		require.Equal(t, string(database.ChatStatusRunning), result.Status)
@@ -4331,14 +4328,9 @@ func TestSubagentManagerAwait(t *testing.T) {
 		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
-		resultCh := make(chan subagentAwaitResult, 1)
 		errorCh := make(chan error, 1)
-		oneSecond := 1
 		go func() {
-			result, err := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID).Await(ctx, waitAgentArgs{
-				ChatID: child.ID.String(), TimeoutSeconds: &oneSecond,
-			})
-			resultCh <- result
+			_, err := server.awaitSubagent(ctx, parent, child.ID, time.Second)
 			errorCh <- err
 		}()
 
@@ -4352,8 +4344,9 @@ func TestSubagentManagerAwait(t *testing.T) {
 		insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
 		clock.Advance(time.Second).MustWait(ctx)
 
-		require.NoError(t, testutil.RequireReceive(ctx, t, errorCh))
-		result := testutil.RequireReceive(ctx, t, resultCh)
+		var statusErr *subagentStatusError
+		require.ErrorAs(t, testutil.RequireReceive(ctx, t, errorCh), &statusErr)
+		result := subagentAwaitStatusErrorResult(statusErr)
 		require.False(t, result.TimedOut)
 		require.Equal(t, string(database.ChatStatusError), result.Status)
 		require.Equal(t, "reasoning model max not supported", result.LastError)
@@ -4404,8 +4397,10 @@ func TestSubagentManagerAwait(t *testing.T) {
 			require.Equal(t, tc.wantLastError, payload["last_error"])
 			require.NotContains(t, payload, "timed_out")
 
-			result, err := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID).Await(ctx, waitAgentArgs{ChatID: child.ID.String()})
-			require.NoError(t, err)
+			_, err := server.awaitSubagent(ctx, parent, child.ID, defaultSubagentWaitTimeout)
+			var statusErr *subagentStatusError
+			require.ErrorAs(t, err, &statusErr)
+			result := subagentAwaitStatusErrorResult(statusErr)
 			require.Equal(t, child.ID.String(), result.ChatID)
 			require.Equal(t, string(database.ChatStatusError), result.Status)
 			require.Equal(t, tc.wantLastError, result.LastError)
@@ -4430,21 +4425,21 @@ func TestSubagentManagerSendAndInterrupt(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 	require.NoError(t, WaitUntilIdleForTest(ctx, server))
-	manager := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID)
 
-	_, _, err := manager.Send(ctx, messageAgentArgs{ChatID: child.ID.String(), Message: "  "})
+	_, err := server.sendSubagentMessage(ctx, parent.ID, child.ID, "  ", SendMessageBusyBehaviorQueue)
 	require.ErrorContains(t, err, "message is required")
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
-	chat, interrupted, err := manager.Interrupt(ctx, interruptAgentArgs{ChatID: child.ID.String()})
+	chat, interrupted, err := server.interruptSubagent(ctx, parent.ID, child.ID)
 	require.NoError(t, err)
 	require.False(t, interrupted)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-	_, interrupted, err = manager.Send(ctx, messageAgentArgs{ChatID: child.ID.String(), Message: "redo it", Interrupt: true})
-	require.NoError(t, err)
-	require.True(t, interrupted)
+	result := requireToolResponseMap(t, runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "message_agent", messageAgentArgs{
+		ChatID: child.ID.String(), Message: "redo it", Interrupt: true,
+	}), false)
+	require.Equal(t, true, result["interrupted"])
 	// The unowned run is interrupted at once, so the message is promoted
 	// into history instead of waiting in the queue.
 	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
@@ -4461,9 +4456,15 @@ func TestSubagentManagerList(t *testing.T) {
 	parent, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "manager-list", ModelConfigID: model.ID, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}})
 	require.NoError(t, err)
 
-	manager := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID)
-	empty, err := manager.List(ctx, listAgentsArgs{})
-	require.NoError(t, err)
+	list := func(chat database.Chat, args listAgentsArgs) subagentListResult {
+		t.Helper()
+		resp := runSubagentTool(ctx, t, server, chat, chat.LastModelConfigID, "list_agents", args)
+		require.False(t, resp.IsError, resp.Content)
+		var result subagentListResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result
+	}
+	empty := list(parent, listAgentsArgs{})
 	require.Zero(t, empty.Total)
 	require.NotNil(t, empty.Agents)
 	require.Empty(t, empty.Agents)
@@ -4480,8 +4481,7 @@ func TestSubagentManagerList(t *testing.T) {
 	// Touching the oldest child last makes it the most recently updated.
 	setChatStatus(ctx, t, db, children[0].ID, database.ChatStatusWaiting, "")
 
-	result, err := manager.List(ctx, listAgentsArgs{})
-	require.NoError(t, err)
+	result := list(parent, listAgentsArgs{})
 	require.Equal(t, 3, result.Total)
 	require.Equal(t, 3, result.Returned)
 	require.False(t, result.HasMore)
@@ -4496,25 +4496,22 @@ func TestSubagentManagerList(t *testing.T) {
 	require.Equal(t, subagentTypeExplore, typesByID[children[1].ID.String()])
 
 	limit, offset := 2, 2
-	first, err := manager.List(ctx, listAgentsArgs{Limit: &limit})
-	require.NoError(t, err)
+	first := list(parent, listAgentsArgs{Limit: &limit})
 	require.Len(t, first.Agents, 2)
 	require.True(t, first.HasMore)
-	second, err := manager.List(ctx, listAgentsArgs{Limit: &limit, Offset: &offset})
-	require.NoError(t, err)
+	second := list(parent, listAgentsArgs{Limit: &limit, Offset: &offset})
 	require.Len(t, second.Agents, 1)
 	require.False(t, second.HasMore)
 	require.Equal(t, 3, second.Total)
 	require.Equal(t, 1, second.Returned)
 	require.NotContains(t, []string{first.Agents[0].ChatID, first.Agents[1].ChatID}, second.Agents[0].ChatID)
 	zero := 0
-	clamped, err := manager.List(ctx, listAgentsArgs{Limit: &zero})
-	require.NoError(t, err)
+	clamped := list(parent, listAgentsArgs{Limit: &zero})
 	require.Len(t, clamped.Agents, 1)
 
-	childManager := newSubagentManager(server, func() database.Chat { return children[0] }, children[0].LastModelConfigID)
-	_, err = childManager.List(ctx, listAgentsArgs{})
-	require.ErrorContains(t, err, "only available on root chats")
+	resp := runSubagentTool(ctx, t, server, children[0], children[0].LastModelConfigID, "list_agents", listAgentsArgs{})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "only available on root chats")
 }
 
 // The model reads these payloads, so their exact text is the contract.
@@ -4535,7 +4532,8 @@ func TestSubagentToolOutputsJSON(t *testing.T) {
 		},
 	}
 	const id = `"chat_id":"11111111-1111-1111-1111-111111111111"`
-	report := "done"
+	waiting, running := chat, chat
+	waiting.Status, running.Status = database.ChatStatusWaiting, database.ChatStatusRunning
 	for _, tc := range []struct {
 		name   string
 		output any
@@ -4553,12 +4551,12 @@ func TestSubagentToolOutputsJSON(t *testing.T) {
 		{"EmptyList", subagentListResult{Agents: []subagentListEntry{}}, `{"agents":[],"has_more":false,"offset":0,"returned":0,"total":0}`},
 		{
 			"WaitSuccess",
-			subagentAwaitResult{ChatID: chat.ID.String(), RecordingFileID: "r", Report: &report, Status: "waiting", ThumbnailFileID: "th", Title: "child", Type: "explore"},
+			waitAgentResult(subagentAwaitOutcome{chat: waiting, report: "done", recording: recordingResult{recordingFileID: "r", thumbnailFileID: "th"}}),
 			`{` + id + `,"recording_file_id":"r","report":"done","status":"waiting","thumbnail_file_id":"th","title":"child","type":"explore"}`,
 		},
 		{
 			"WaitTimeout",
-			subagentAwaitResult{ChatID: chat.ID.String(), Status: "running", TimedOut: true, Title: "child", Type: "explore"},
+			waitAgentResult(subagentAwaitOutcome{chat: running, timedOut: true}),
 			`{` + id + `,"status":"running","timed_out":true,"title":"child","type":"explore"}`,
 		},
 		{

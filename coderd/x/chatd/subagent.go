@@ -418,8 +418,11 @@ func (p *Server) subagentTools(
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
 ) ([]fantasy.AgentTool, error) {
-	manager := newSubagentManager(p, currentChat, currentModelConfigID)
-	spawnAgentDescription, err := buildSpawnAgentDescription(ctx, p, manager.currentChatSnapshot)
+	currentChatSnapshot := database.Chat{}
+	if currentChat != nil {
+		currentChatSnapshot = currentChat()
+	}
+	spawnAgentDescription, err := buildSpawnAgentDescription(ctx, p, currentChatSnapshot)
 	if err != nil {
 		return nil, xerrors.Errorf("build spawn agent description: %w", err)
 	}
@@ -428,16 +431,22 @@ func (p *Server) subagentTools(
 			spawnAgentToolName,
 			spawnAgentDescription,
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				chat, err := manager.Spawn(ctx, args)
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+				chat, err := p.spawnAgent(ctx, currentChat, currentChatSnapshot, currentModelConfigID, args)
 				// A failed hook dispatch must fail closed instead of
 				// degrading into a tool error the model can ignore.
 				if errors.As(err, new(*dispatch.Error)) {
 					return fantasy.ToolResponse{}, err
 				}
-				// chathooks.UserPromptDeniedError.Error() carries the
-				// user-facing denial message, so the model can adjust its
-				// prompt.
-				return subagentManagerToolResponse(spawnAgentResult(chat), err)
+				if err != nil {
+					// chathooks.UserPromptDeniedError.Error() carries the
+					// user-facing denial message, so the model can adjust its
+					// prompt.
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				return toolJSONResponse(spawnAgentResult(chat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -450,8 +459,19 @@ func (p *Server) subagentTools(
 				"(the values accepted by "+spawnAgentToolName+"'s "+
 				"reasoning_effort for that model).",
 			func(ctx context.Context, _ listSubagentModelsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				models, err := manager.ListModels(ctx)
-				return subagentManagerToolResponse(map[string]any{"models": models}, err)
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+				parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				models, err := p.listSpawnableModelConfigs(ctx, parent.OwnerID, parent.OrganizationID)
+				if err != nil {
+					p.logger.Warn(ctx, "failed to list spawnable model configs", slog.F("chat_id", parent.ID), slog.Error(err))
+					return fantasy.NewTextErrorResponse("internal error listing model configs"), nil
+				}
+				return toolJSONResponse(map[string]any{"models": models}), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -465,8 +485,26 @@ func (p *Server) subagentTools(
 				"editing one of its queued messages; the child continues when the "+
 				"edit ends, so keep waiting unless the owner says otherwise.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				result, err := manager.Await(ctx, args)
-				return subagentManagerToolResponse(result, err)
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+				targetChatID, err := parseSubagentToolChatID(args.ChatID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				timeout := defaultSubagentWaitTimeout
+				if args.TimeoutSeconds != nil {
+					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
+				}
+				targetChatInfo := p.subagentTargetChatInfo(ctx, targetChatID, "wait")
+				outcome, err := p.awaitSubagent(ctx, currentChat(), targetChatID, timeout)
+				if statusErr, ok := errors.AsType[*subagentStatusError](err); ok {
+					return toolJSONResponse(subagentAwaitStatusErrorResult(statusErr)), nil
+				}
+				if err != nil {
+					return subagentErrorResponse(err, targetChatInfo), nil
+				}
+				return toolJSONResponse(waitAgentResult(outcome)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -484,8 +522,24 @@ func (p *Server) subagentTools(
 				"to your handoff message; a message_agent result or an "+
 				"interrupting status is not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				chat, interrupted, err := manager.Send(ctx, args)
-				return subagentManagerToolResponse(subagentActionResult(chat, interrupted), err)
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+				targetChatID, err := parseSubagentToolChatID(args.ChatID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				targetChatInfo := p.subagentTargetChatInfo(ctx, targetChatID, "message")
+				busyBehavior := SendMessageBusyBehaviorQueue
+				if args.Interrupt {
+					busyBehavior = SendMessageBusyBehaviorInterrupt
+				}
+				chat, err := p.sendSubagentMessage(ctx, currentChat().ID, targetChatID, args.Message, busyBehavior)
+				if err != nil {
+					return subagentErrorResponse(err, targetChatInfo), nil
+				}
+				interrupted := args.Interrupt && targetChatInfo != nil && targetChatInfo.Status == database.ChatStatusRunning
+				return toolJSONResponse(subagentActionResult(chat, interrupted)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -496,8 +550,19 @@ func (p *Server) subagentTools(
 				"paused if its owner is editing its next queued message. "+
 				"Resume with message_agent or leave it idle.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				chat, interrupted, err := manager.Interrupt(ctx, args)
-				return subagentManagerToolResponse(subagentActionResult(chat, interrupted), err)
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+				targetChatID, err := parseSubagentToolChatID(args.ChatID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				targetChatInfo := p.subagentTargetChatInfo(ctx, targetChatID, "interrupt")
+				chat, interrupted, err := p.interruptSubagent(ctx, currentChat().ID, targetChatID)
+				if err != nil {
+					return subagentErrorResponse(err, targetChatInfo), nil
+				}
+				return toolJSONResponse(subagentActionResult(chat, interrupted)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -513,11 +578,107 @@ func (p *Server) subagentTools(
 				"error = stopped on error, paused = waiting for its owner "+
 				"to finish editing a queued message.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				result, err := manager.List(ctx, args)
-				return subagentManagerToolResponse(result, err)
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+				limit := defaultListAgentsLimit
+				if args.Limit != nil {
+					limit = min(max(*args.Limit, 1), maxListAgentsLimit)
+				}
+				offset := 0
+				if args.Offset != nil && *args.Offset > 0 {
+					offset = *args.Offset
+				}
+				parent := currentChat()
+				if parent.ParentChatID.Valid {
+					return fantasy.NewTextErrorResponse("list_agents is only available on root chats"), nil
+				}
+				children, err := p.listSubagents(ctx, parent.ID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				return toolJSONResponse(listAgentsResult(children, offset, limit)), nil
 			},
 		),
 	}, nil
+}
+
+// turnParent preserves the parent turn's MCP tool snapshot for Explore children.
+func (p *Server) spawnAgent(
+	ctx context.Context,
+	currentChat func() database.Chat,
+	turnParent database.Chat,
+	currentModelConfigID uuid.UUID,
+	args spawnAgentArgs,
+) (database.Chat, error) {
+	parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	definition, err := resolveSubagentDefinition(ctx, p, parent, args.Type)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if definition.id == subagentTypeComputerUse && (strings.TrimSpace(args.ModelConfigID) != "" || strings.TrimSpace(args.ReasoningEffort) != "") {
+		return database.Chat{}, xerrors.New("model_config_id and reasoning_effort are not supported for type \"" + subagentTypeComputerUse + "\"")
+	}
+	explicitModelConfigID, explicitReasoningEffort, err := p.resolveExplicitSpawnOverrides(ctx, parent.OwnerID, parent.OrganizationID, args)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if turnParent.ID == uuid.Nil {
+		turnParent = parent
+	}
+	options, err := definition.buildOptions(ctx, p, parent, turnParent, currentModelConfigID, explicitModelConfigID, args.Prompt)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if explicitReasoningEffort != nil {
+		options.reasoningEffortOverride = explicitReasoningEffort
+	}
+	return p.createChildSubagentChatWithOptions(ctx, parent, args.Prompt, args.Title, options)
+}
+
+func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
+	chatID, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return uuid.Nil, xerrors.New("chat_id must be a valid UUID")
+	}
+	return chatID, nil
+}
+
+// Tool outputs keep fields in sorted JSON key order so the payload text
+// the model sees stays stable.
+type subagentAwaitResult struct {
+	ChatID             string  `json:"chat_id"`
+	LastError          string  `json:"last_error,omitempty"`
+	LastErrorDetail    string  `json:"last_error_detail,omitempty"`
+	LastErrorKind      string  `json:"last_error_kind,omitempty"`
+	LastErrorRetryable *bool   `json:"last_error_retryable,omitempty"`
+	RecordingFileID    string  `json:"recording_file_id,omitempty"`
+	Report             *string `json:"report,omitempty"`
+	Status             string  `json:"status"`
+	ThumbnailFileID    string  `json:"thumbnail_file_id,omitempty"`
+	TimedOut           bool    `json:"timed_out,omitempty"`
+	Title              string  `json:"title"`
+	Type               string  `json:"type"`
+}
+
+type subagentListEntry struct {
+	ChatID    string `json:"chat_id"`
+	CreatedAt string `json:"created_at"`
+	Status    string `json:"status"`
+	Title     string `json:"title"`
+	Type      string `json:"type"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+type subagentListResult struct {
+	Agents   []subagentListEntry `json:"agents"`
+	HasMore  bool                `json:"has_more"`
+	Offset   int                 `json:"offset"`
+	Returned int                 `json:"returned"`
+	Total    int                 `json:"total"`
 }
 
 func spawnAgentResult(chat database.Chat) any {
@@ -545,14 +706,48 @@ func subagentActionResult(chat database.Chat, interrupted bool) any {
 	}
 }
 
-func subagentManagerToolResponse(result any, err error) (fantasy.ToolResponse, error) {
-	if err == nil {
-		return toolJSONResponse(result), nil
+func waitAgentResult(outcome subagentAwaitOutcome) subagentAwaitResult {
+	chat := outcome.chat
+	result := subagentAwaitResult{ChatID: chat.ID.String(), Status: string(chat.Status), Title: chat.Title, Type: subagentTypeFromChat(chat)}
+	if outcome.timedOut {
+		result.TimedOut = true
+		return result
 	}
-	if managerErr, ok := errors.AsType[*subagentManagerError](err); ok {
-		return subagentErrorResponse(managerErr.err, managerErr.chat), nil
+	result.RecordingFileID = outcome.recording.recordingFileID
+	result.Report = &outcome.report
+	result.ThumbnailFileID = outcome.recording.thumbnailFileID
+	return result
+}
+
+func subagentAwaitStatusErrorResult(statusErr *subagentStatusError) subagentAwaitResult {
+	chat := statusErr.chat
+	decoded, lastError := subagentLastError(chat.LastError)
+	if lastError == "" {
+		lastError = statusErr.reason
 	}
-	return fantasy.NewTextErrorResponse(err.Error()), nil
+	result := subagentAwaitResult{ChatID: chat.ID.String(), LastError: lastError, Report: &statusErr.report, Status: string(chat.Status), Title: chat.Title, Type: subagentTypeFromChat(chat)}
+	if decoded != nil {
+		kind := decoded.Kind
+		if kind == "" {
+			kind = codersdk.ChatErrorKindGeneric
+		}
+		retryable := decoded.Retryable
+		result.LastErrorKind = string(kind)
+		result.LastErrorRetryable = &retryable
+		result.LastErrorDetail = decoded.Detail
+	}
+	return result
+}
+
+func listAgentsResult(children []database.Chat, offset, limit int) subagentListResult {
+	total := len(children)
+	start := min(offset, total)
+	end := min(start+limit, total)
+	agents := make([]subagentListEntry, 0, end-start)
+	for _, chat := range children[start:end] {
+		agents = append(agents, subagentListEntry{ChatID: chat.ID.String(), CreatedAt: chat.CreatedAt.Format(time.RFC3339), Status: string(chat.Status), Title: chat.Title, Type: subagentTypeFromChat(chat), UpdatedAt: chat.UpdatedAt.Format(time.RFC3339)})
+	}
+	return subagentListResult{Agents: agents, HasMore: end < total, Offset: offset, Returned: len(agents), Total: total}
 }
 
 func toolJSONResponse(result any) fantasy.ToolResponse {
