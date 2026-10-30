@@ -602,7 +602,7 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = (id: number) =>
+	const requestDeleteQueuedMessage = (id: number) =>
 		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
 
 	const fetchQueueConvergence = (chatId: string) =>
@@ -688,11 +688,21 @@ const AgentChatPage: React.FC = () => {
 		},
 	});
 
-	const handleEndQueuedMessageEdit = (id: number) => {
+	// Ending or removing the row the composer edits closes the edit first,
+	// so the draft from before it comes back and the typed text is
+	// discarded.
+	const closeQueuedEditOf = (id: number) => {
 		if (composerTarget?.kind === "queued" && composerTarget.id === id) {
 			editing.handleCancelEdit();
 		}
+	};
+	const handleEndQueuedMessageEdit = (id: number) => {
+		closeQueuedEditOf(id);
 		return requestEndQueuedMessageEdit(id);
+	};
+	const handleDeleteQueuedMessage = (id: number) => {
+		closeQueuedEditOf(id);
+		return requestDeleteQueuedMessage(id);
 	};
 
 	const handleCancelEdit = () => {
