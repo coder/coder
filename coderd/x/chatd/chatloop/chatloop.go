@@ -169,13 +169,8 @@ type ExecuteLocalToolsOptions struct {
 	// case a default budget applies.
 	ContextLimit int64
 
-	// ToolNameAliases maps a non-advertised tool name to the canonical
-	// tool it dispatches to. Used for backward compatibility when a tool
-	// is renamed but old chat histories still reference the old name.
-	ToolNameAliases map[string]string
-
 	// UnbilledToolNames lists called tool names excluded from the batch
-	// window. Include deprecated aliases.
+	// window.
 	UnbilledToolNames map[string]bool
 	// BillingRecorder observes each local call's start and completion
 	// for interrupt billing. Serial calls may start after concurrent
@@ -1243,13 +1238,6 @@ func newToolBatch(opts ExecuteLocalToolsOptions, provider, model string) *toolBa
 	}
 }
 
-func (b *toolBatch) resolve(name string) string {
-	if alias, ok := b.opts.ToolNameAliases[name]; ok {
-		return alias
-	}
-	return name
-}
-
 func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallContent, batchStart time.Time) []toolExecutionResult {
 	observed := b.opts.ObservedToolCalls
 	if observed == nil {
@@ -1443,32 +1431,26 @@ func (b *toolBatch) runOne(
 		recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, result)
 	}()
 
-	// Resolve backward-compatible tool aliases (for example a renamed
-	// tool whose old name still appears in chat history) to the canonical
-	// tool before the active-tool and dispatch lookups.
-	resolvedName := b.resolve(tc.ToolName)
-
-	_, isProviderRunner := b.providerRunners[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[resolvedName] {
+	_, isProviderRunner := b.providerRunners[tc.ToolName]
+	if !isProviderRunner && !isToolActive(tc.ToolName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[tc.ToolName] {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
+			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}
 		return result, nil
 	}
 
-	tool, exists := b.tools[resolvedName]
+	tool, exists := b.tools[tc.ToolName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not found: " + resolvedName),
+			Error: xerrors.New("Tool not found: " + tc.ToolName),
 		}
 		return result, nil
 	}
 
 	b.opts.Logger.Debug(ctx, "tool execution",
 		slog.F("tool_name", tc.ToolName),
-		slog.F("resolved_tool_name", resolvedName),
 		slog.F("tool_call_id", tc.ToolCallID),
-		slog.F("builtin", b.opts.BuiltinToolNames[resolvedName]),
+		slog.F("builtin", b.opts.BuiltinToolNames[tc.ToolName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
 	if startRun != nil {
@@ -1476,7 +1458,7 @@ func (b *toolBatch) runOne(
 	}
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
-		Name:  resolvedName,
+		Name:  tc.ToolName,
 		Input: tc.Input,
 	})
 	if err != nil {
@@ -1548,7 +1530,7 @@ func (b *toolBatch) runOne(
 		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
-		if callback := b.resultMetadata[resolvedName]; callback != nil {
+		if callback := b.resultMetadata[tc.ToolName]; callback != nil {
 			metadata := callback(resp)
 			if len(metadata) > 0 {
 				result.ProviderMetadata = metadata
@@ -1594,12 +1576,12 @@ type serialToolCaller interface{ SerialToolCalls() bool }
 // find_tools can charge same-step direct calls against its budget.
 type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
 
-// notifyStepToolCallObservers passes the step's resolved tool-call
-// names to each distinct called tool that observes them.
+// notifyStepToolCallObservers passes the step's tool-call names to
+// each distinct called tool that observes them.
 func (b *toolBatch) notifyStepToolCallObservers(calls []fantasy.ToolCallContent) {
 	names := make([]string, 0, len(calls))
 	for _, tc := range calls {
-		names = append(names, b.resolve(tc.ToolName))
+		names = append(names, tc.ToolName)
 	}
 	notified := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -1644,7 +1626,7 @@ func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.Tool
 	names := make([]string, 0, len(observed))
 	errored := make([]bool, 0, len(observed))
 	for _, tc := range observed {
-		names = append(names, b.resolve(tc.ToolName))
+		names = append(names, tc.ToolName)
 		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
 			errored = append(errored, isErr)
 			continue
@@ -1654,7 +1636,7 @@ func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.Tool
 	}
 	notified := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
-		name := b.resolve(tc.ToolName)
+		name := tc.ToolName
 		if _, dup := notified[name]; dup {
 			continue
 		}
@@ -1666,7 +1648,7 @@ func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.Tool
 }
 
 func (b *toolBatch) isSerialToolCall(name string) bool {
-	serial, ok := b.tools[b.resolve(name)].(serialToolCaller)
+	serial, ok := b.tools[name].(serialToolCaller)
 	return ok && serial.SerialToolCalls()
 }
 
