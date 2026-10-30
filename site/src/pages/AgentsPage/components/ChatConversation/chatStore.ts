@@ -895,6 +895,9 @@ export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
 export const selectHasMoreMessages = (state: ChatStoreState) =>
 	state.hasMoreMessages;
+/** The oldest message the server sent, which is a valid before_id. */
+export const selectOldestStoredMessageID = (state: ChatStoreState) =>
+	state.orderedMessageIDs[0];
 
 const latestMessage = (view: ChatView): TypesGen.ChatMessage | undefined => {
 	const latestMessageID =
