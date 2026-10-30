@@ -140,10 +140,7 @@ const SpendUserRow: React.FC<SpendUserRowProps> = ({
 }) => (
 	<TableRow>
 		{/* The row header gives the count badges and warning their user. */}
-		<TableHead
-			scope="row"
-			className="border-0 border-t border-border border-solid"
-		>
+		<TableHead scope="row">
 			<AvatarData
 				truncate
 				title={user.name || user.username}

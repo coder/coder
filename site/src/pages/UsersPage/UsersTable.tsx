@@ -96,13 +96,13 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 
 	return users.map((user) => (
 		<TableRow key={user.id} data-testid={`user-${user.id}`}>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					title={user.username}
 					subtitle={user.is_service_account ? "Service Account" : user.email}
 					src={user.avatar_url}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<UserRoleCell roles={user.roles} />
 
