@@ -37,11 +37,30 @@ jobs:
   check-perms:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
+      # tag-release.yaml dispatches this workflow with the release App token,
+      # so the actor is the App's bot. Mint a read-only token to learn the
+      # App's slug and recognize it.
+      - name: Generate release App token
+        id: release_app_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-metadata: read
+
       - name: Allow only maintainers/admins
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_APP_SLUG: ${{ steps.release_app_token.outputs.app-slug }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const releaseAppSlug = process.env.RELEASE_APP_SLUG;
+            if (releaseAppSlug && context.actor === `${releaseAppSlug}[bot]`) {
+              core.info(`Actor ${context.actor} is the release App; tag-release.yaml checked the human actor.`);
+              return;
+            }
+
             const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
               repo: context.repo.repo,

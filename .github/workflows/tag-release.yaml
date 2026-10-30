@@ -1,0 +1,160 @@
+# Runs the release wizard (scripts/releaser) unattended on the release/X.Y
+# branch selected in "Use workflow from". It accepts the default answer to
+# every prompt, tags the release, pushes the tag, triggers release.yaml, and
+# opens the release docs PR.
+#
+# Release candidates are tagged on main, which this workflow does not run on.
+# Use ./scripts/release.sh locally for those.
+#
+# Safety checks that default to "no" (open PRs, downgrades, breaking changes
+# in a patch release, and so on) fail the run. To release anyway with open
+# PRs against the release branch or breaking changes in a patch release,
+# re-run with allow_open_prs or allow_breaking_changes enabled. For any other
+# check, run ./scripts/release.sh locally.
+name: Tag release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the tag, push, and workflow trigger instead of running them.
+        type: boolean
+        required: true
+        default: true
+      allow_open_prs:
+        description: Continue when open PRs target the release branch.
+        type: boolean
+        required: true
+        default: false
+      allow_breaking_changes:
+        description: Continue when a patch release contains breaking changes.
+        type: boolean
+        required: true
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # Only allow maintainers/admins to release.
+  check-perms:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Allow only maintainers/admins
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+            const role = data.role_name || data.user?.role_name || data.permission;
+            const perms = data.user?.permissions || {};
+            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
+
+            const allowed =
+              role === 'admin' ||
+              role === 'maintain' ||
+              perms.admin === true ||
+              perms.maintain === true;
+
+            if (!allowed) core.setFailed('Denied: requires maintain or admin');
+
+  tag-release:
+    name: Tag and trigger release
+    needs: [check-perms]
+    runs-on: ubuntu-latest
+    # The release App token performs every write, so the job token stays
+    # read-only.
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Require a release branch
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REF" =~ ^refs/heads/release/[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Select a release/X.Y branch in \"Use workflow from\", got: $REF"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The releaser needs every tag to pick the next version and the full
+          # history to generate release notes.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+
+      # The release App bypasses the tag create protection ruleset, which
+      # GITHUB_TOKEN cannot. It needs contents: write to push the tag and the
+      # docs branch, actions: write to dispatch release.yaml, and
+      # pull-requests: write to open the docs PR.
+      - name: Generate release App token
+        id: release_app_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Run releaser
+        env:
+          GH_TOKEN: ${{ steps.release_app_token.outputs.token }}
+          APP_SLUG: ${{ steps.release_app_token.outputs.app-slug }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ALLOW_OPEN_PRS: ${{ inputs.allow_open_prs }}
+          ALLOW_BREAKING_CHANGES: ${{ inputs.allow_breaking_changes }}
+          # A bot pushes the tag, so record the human who started this run in
+          # the tag message.
+          REQUESTED_BY: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          bot_login="${APP_SLUG}[bot]"
+          bot_id="$(gh api "/users/${bot_login}" --jq .id)"
+          git config user.name "$bot_login"
+          git config user.email "${bot_id}+${bot_login}@users.noreply.github.com"
+
+          args=(
+            --non-interactive
+            --requested-by "$REQUESTED_BY"
+            --requested-by-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          )
+          if [[ "$DRY_RUN" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          if [[ "$ALLOW_OPEN_PRS" == "true" ]]; then
+            args+=(--allow-open-prs)
+          fi
+          if [[ "$ALLOW_BREAKING_CHANGES" == "true" ]]; then
+            args+=(--allow-breaking-changes)
+          fi
+          go run ./scripts/releaser "${args[@]}"
+
+      - name: Upload release notes
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: build/RELEASE-*.md
+          if-no-files-found: ignore
+          retention-days: 7
