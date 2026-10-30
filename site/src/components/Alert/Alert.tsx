@@ -53,7 +53,7 @@ const alertVariants = cva(
 	},
 );
 
-const severityConfig = {
+const severityIcons = {
 	info: { icon: InfoIcon, className: "text-highlight-sky", label: "Info" },
 	success: {
 		icon: CircleCheckIcon,
@@ -104,7 +104,7 @@ export const Alert: React.FC<AlertProps> = ({
 		icon: Icon,
 		className: iconClassName,
 		label,
-	} = severityConfig[severity];
+	} = severityIcons[severity];
 
 	return (
 		<div
