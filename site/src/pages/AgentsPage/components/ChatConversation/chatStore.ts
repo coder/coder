@@ -126,8 +126,8 @@ type QueueEdit = (
  * shown state. Each part ends at the first stream event of its kind above
  * syncedVersion, even if the event changes nothing in the stored state:
  *
- * - message: a user message or a queue update, because the server queues a
- *   send, and keeps a promoted row in the queue, if it finds the chat busy.
+ * - message: a user message or a queue update, because the server can queue a
+ *   send, and keeps a promoted row in the queue while the chat is busy.
  * - editedMessage: a user message, because an edit never queues.
  * - queue: a queue update. For a delete, only one without the row, because a
  *   row's ID never returns to the queue.
