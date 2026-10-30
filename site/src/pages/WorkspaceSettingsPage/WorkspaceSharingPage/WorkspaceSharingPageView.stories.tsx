@@ -119,6 +119,26 @@ export const WithUsersAndGroups: Story = {
 	},
 };
 
+export const NarrowViewport: Story = {
+	args: {
+		workspaceACL: {
+			...aclWithUsersAndGroups,
+			users: [
+				...aclWithUsersAndGroups.users,
+				{
+					...mockWorkspaceUser,
+					id: "long-username-user",
+					username: "a-very-long-username-that-must-wrap",
+				},
+			],
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 export const ReadOnly: Story = {
 	args: {
 		workspaceACL: aclWithUsersAndGroups,
