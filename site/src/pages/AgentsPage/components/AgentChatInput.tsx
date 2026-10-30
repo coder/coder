@@ -1243,7 +1243,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape") {
+		// React bubbles keydown from portaled popovers (MCP servers, model
+		// selector) through the composer; Escape there only closes the popover.
+		if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) {
 			if (isEditingMessage) {
 				e.preventDefault();
 				onCancelEdit?.();

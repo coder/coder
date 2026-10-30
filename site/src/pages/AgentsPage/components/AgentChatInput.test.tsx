@@ -771,6 +771,37 @@ describe("AgentChatInput", () => {
 		expect(onCancelEdit).toHaveBeenCalledTimes(1);
 	});
 
+	it.each([
+		["cancel an edit", "onCancelEdit", { editingKind: "history" }],
+		["interrupt a streaming turn", "onInterrupt", { isStreaming: true }],
+	] as const)(
+		"lets Escape that closes a composer popover not %s",
+		async (_, callbackName, props) => {
+			const user = userEvent.setup();
+			const callback = vi.fn();
+			renderInput(
+				<AgentChatInput
+					{...inputProps}
+					{...props}
+					{...{ [callbackName]: callback }}
+					mcpServers={mockMCPServers}
+					selectedMCPServerIds={mockSelectedMCPServerIds}
+					onMCPSelectionChange={vi.fn()}
+				/>,
+			);
+
+			await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+			await screen.findByRole("dialog");
+			await user.keyboard("{Escape}");
+			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+			expect(callback).not.toHaveBeenCalled();
+
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.keyboard("{Escape}");
+			expect(callback).toHaveBeenCalledTimes(1);
+		},
+	);
+
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
