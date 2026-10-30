@@ -1693,6 +1693,7 @@ func TestProvision_LockFileFallback(t *testing.T) {
 		require.Empty(t, resp.Error)
 		require.Contains(t, log, retryLog)
 		require.Contains(t, log, "example.com/coder/fake v1.1.0")
+		require.Contains(t, log, "Push a new template version")
 	})
 
 	t.Run("TemplateLockFile", func(t *testing.T) {
