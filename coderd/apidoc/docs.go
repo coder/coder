@@ -26,6 +26,7 @@ const docTemplate = `{
     "paths": {
         "/.well-known/oauth-authorization-server": {
             "get": {
+                "description": "Returns the metadata that OAuth2 clients use to discover Coder's OAuth2 endpoints, supported grants, and scopes (RFC 8414).\nDoesn't require a session token, and includes ` + "`" + `registration_endpoint` + "`" + ` only when dynamic client registration is enabled.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -46,6 +47,7 @@ const docTemplate = `{
         },
         "/.well-known/oauth-protected-resource": {
             "get": {
+                "description": "Returns the metadata that tells an OAuth2 client which authorization server protects this deployment and which scopes it supports (RFC 9728).\nDoesn't require a session token, and answers only for the deployment root and the Coder MCP endpoint's path.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7589,6 +7591,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps": {
             "get": {
+                "description": "Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set ` + "`" + `user_id` + "`" + `.\nAny member can list applications, but listing another user's authorizations requires the Owner role.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7600,7 +7603,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by applications authorized for a user",
+                        "description": "ID of a user. Returns only the applications that user has authorized, instead of all applications. Must be a UUID, so the ` + "`" + `me` + "`" + ` shortcut does not work.",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -7623,6 +7626,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Registers an OAuth2 application that can use Coder as its authorization server.\nRequires permission to create OAuth2 applications, which the Owner role has.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7662,6 +7666,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps/{app}": {
             "get": {
+                "description": "Returns one OAuth2 application, including its redirect URIs and scope allowlist.\nAny member can read an application.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7673,7 +7678,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7694,6 +7699,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send ` + "`" + `scope` + "`" + `.\nRequires permission to update OAuth2 applications, which the Owner role has.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7708,13 +7714,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update an OAuth2 application.",
+                        "description": "New settings for the OAuth2 application. Omit both ` + "`" + `redirect_uris` + "`" + ` and ` + "`" + `callback_url` + "`" + ` to keep the stored redirect URIs, and omit ` + "`" + `scope` + "`" + ` to keep the scope allowlist. Omitting ` + "`" + `icon` + "`" + ` clears it.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7738,6 +7744,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an OAuth2 application along with its secrets and authorization codes, so the application can no longer authenticate.\nRequires permission to delete OAuth2 applications, which the Owner role has.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -7746,7 +7753,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7766,6 +7773,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps/{app}/secrets": {
             "get": {
+                "description": "Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.\nRequires permission to read OAuth2 application secrets, which the Owner role has.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7777,7 +7785,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7801,6 +7809,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.\nRequires permission to create OAuth2 application secrets, which the Owner role has, and returns ` + "`" + `400` + "`" + ` for a public client, which has no secret.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7812,7 +7821,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7844,6 +7853,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps/{app}/secrets/{secretID}": {
             "delete": {
+                "description": "Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.\nRequires permission to delete OAuth2 application secrets, which the Owner role has.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -7852,14 +7862,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret ID",
+                        "description": "ID of the OAuth2 application secret.",
                         "name": "secretID",
                         "in": "path",
                         "required": true
@@ -7879,6 +7889,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/settings": {
             "get": {
+                "description": "Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.\nRequires permission to read the deployment configuration, which the Owner and Auditor roles have.\nWorks while the OAuth2 provider is disabled.",
                 "produces": [
                     "application/json"
                 ],
@@ -7902,6 +7913,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the OAuth2 provider settings for the deployment, such as whether ` + "`" + `POST /oauth2/register` + "`" + ` accepts new clients, and returns the resulting values.\nRequires permission to update the deployment configuration, which the Owner role has.\nWorks while the OAuth2 provider is disabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7915,7 +7927,7 @@ const docTemplate = `{
                 "operationId": "update-oauth2-provider-settings",
                 "parameters": [
                     {
-                        "description": "OAuth2 provider settings request",
+                        "description": "OAuth2 provider settings to change. Omitted fields keep their current value.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18857,6 +18869,7 @@ const docTemplate = `{
         },
         "/oauth2/authorize": {
             "get": {
+                "description": "Shows the consent page where a signed-in user approves an OAuth2 client's request for access to their Coder account (RFC 6749 section 4.1.1).\nThe OAuth2 client sends the user's browser here, and a browser without a session goes to the login page first.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -18865,7 +18878,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID of the requesting OAuth2 client, which is the ID of its application.",
                         "name": "client_id",
                         "in": "query",
                         "required": true
@@ -18881,7 +18894,7 @@ const docTemplate = `{
                             "code"
                         ],
                         "type": "string",
-                        "description": "Response type",
+                        "description": "Response type. Only ` + "`" + `code` + "`" + ` is supported.",
                         "name": "response_type",
                         "in": "query",
                         "required": true
@@ -18942,6 +18955,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Records the user's approval and redirects the browser to the client's registered callback with a single-use authorization code that expires after 10 minutes (RFC 6749 section 4.1.2).\nThe consent page submits the same query parameters as the ` + "`" + `GET` + "`" + ` request, and the route needs the user's session.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -18953,7 +18967,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID of the requesting OAuth2 client, which is the ID of its application.",
                         "name": "client_id",
                         "in": "query",
                         "required": true
@@ -18969,7 +18983,7 @@ const docTemplate = `{
                             "code"
                         ],
                         "type": "string",
-                        "description": "Response type",
+                        "description": "Response type. Only ` + "`" + `code` + "`" + ` is supported.",
                         "name": "response_type",
                         "in": "query",
                         "required": true
@@ -19035,6 +19049,7 @@ const docTemplate = `{
         },
         "/oauth2/clients/{client_id}": {
             "get": {
+                "description": "Returns the registered configuration of a dynamically registered OAuth2 client, without its secret (RFC 7592).\nAuthenticates with the registration access token from ` + "`" + `POST /oauth2/register` + "`" + `, sent as a bearer token, and doesn't require a session token.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -19049,7 +19064,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID that ` + "`" + `POST /oauth2/register` + "`" + ` returned.",
                         "name": "client_id",
                         "in": "path",
                         "required": true
@@ -19065,6 +19080,7 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "description": "Replaces the registered metadata of a dynamically registered OAuth2 client (RFC 7592).\nAuthenticates with the registration access token from ` + "`" + `POST /oauth2/register` + "`" + `, sent as a bearer token, and doesn't require a session token.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -19079,13 +19095,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID that ` + "`" + `POST /oauth2/register` + "`" + ` returned.",
                         "name": "client_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Client update request",
+                        "description": "New client metadata. It replaces the registered metadata, using the same fields as the registration request.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19110,6 +19126,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "description": "Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes (RFC 7592).\nAuthenticates with the registration access token from ` + "`" + `POST /oauth2/register` + "`" + `, sent as a bearer token, and doesn't require a session token.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -19118,7 +19135,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID that ` + "`" + `POST /oauth2/register` + "`" + ` returned.",
                         "name": "client_id",
                         "in": "path",
                         "required": true
@@ -19133,6 +19150,7 @@ const docTemplate = `{
         },
         "/oauth2/register": {
             "post": {
+                "description": "Registers a new OAuth2 client and returns its ` + "`" + `client_id` + "`" + `, its ` + "`" + `client_secret` + "`" + ` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).\nDoesn't require a session token, but returns ` + "`" + `403` + "`" + ` unless an Owner has enabled dynamic client registration in the OAuth2 provider settings.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -19146,7 +19164,7 @@ const docTemplate = `{
                 "operationId": "oauth2-dynamic-client-registration",
                 "parameters": [
                     {
-                        "description": "Client registration request",
+                        "description": "Client metadata to register, as defined by RFC 7591. Requires ` + "`" + `redirect_uris` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19173,6 +19191,7 @@ const docTemplate = `{
         },
         "/oauth2/revoke": {
             "post": {
+                "description": "Revokes an access token or a refresh token that was issued to the calling OAuth2 client (RFC 7009).\nDoesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, and a ` + "`" + `200` + "`" + ` response doesn't confirm that the token existed or belonged to the client.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
@@ -19245,6 +19264,7 @@ const docTemplate = `{
         },
         "/oauth2/tokens": {
             "post": {
+                "description": "Exchanges an authorization code or a refresh token for an access token and a new refresh token (RFC 6749 sections 4.1.3 and 6).\nDoesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, or with ` + "`" + `code_verifier` + "`" + ` when it is a public client.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -19293,7 +19313,7 @@ const docTemplate = `{
                             "implicit"
                         ],
                         "type": "string",
-                        "description": "Grant type",
+                        "description": "Grant type. Use ` + "`" + `authorization_code` + "`" + ` with ` + "`" + `code` + "`" + `, or ` + "`" + `refresh_token` + "`" + ` with ` + "`" + `refresh_token` + "`" + `. Other values return ` + "`" + `unsupported_grant_type` + "`" + `.",
                         "name": "grant_type",
                         "in": "formData",
                         "required": true
@@ -19321,6 +19341,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "description": "Revokes the signed-in user's authorization codes and tokens for one OAuth2 application, so the application loses that user's access.\nAuthenticates with the user's session token instead of client credentials, so to revoke one token as the OAuth2 client, use ` + "`" + `POST /oauth2/revoke` + "`" + `.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -19329,7 +19350,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID of the OAuth2 application, which is the application ID.",
                         "name": "client_id",
                         "in": "query",
                         "required": true

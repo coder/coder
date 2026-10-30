@@ -17,6 +17,10 @@ curl -X GET http://coder-server:8080/.well-known/oauth-authorization-server \
 
 `GET /.well-known/oauth-authorization-server`
 
+Returns the metadata that OAuth2 clients use to discover Coder's OAuth2 endpoints, supported grants, and scopes (RFC 8414).
+Doesn't require a session token, and includes `registration_endpoint` only when dynamic client registration is enabled.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Example responses
 
 > 200 Response
@@ -63,6 +67,10 @@ curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
 ```
 
 `GET /.well-known/oauth-protected-resource`
+
+Returns the metadata that tells an OAuth2 client which authorization server protects this deployment and which scopes it supports (RFC 9728).
+Doesn't require a session token, and answers only for the deployment root and the Coder MCP endpoint's path.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Example responses
 
@@ -1508,11 +1516,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 `GET /api/v2/oauth2-provider/apps`
 
+Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.
+Any member can list applications, but listing another user's authorizations requires the Owner role.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name      | In    | Type   | Required | Description                                  |
-|-----------|-------|--------|----------|----------------------------------------------|
-| `user_id` | query | string | false    | Filter by applications authorized for a user |
+| Name      | In    | Type   | Required | Description                                                                                                                                            |
+|-----------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user_id` | query | string | false    | ID of a user. Returns only the applications that user has authorized, instead of all applications. Must be a UUID, so the `me` shortcut does not work. |
 
 ### Example responses
 
@@ -1590,6 +1602,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 `POST /api/v2/oauth2-provider/apps`
 
+Registers an OAuth2 application that can use Coder as its authorization server.
+Requires permission to create OAuth2 applications, which the Owner role has.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```json
@@ -1656,11 +1672,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `GET /api/v2/oauth2-provider/apps/{app}`
 
+Returns one OAuth2 application, including its redirect URIs and scope allowlist.
+Any member can read an application.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Example responses
 
@@ -1709,6 +1729,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `PUT /api/v2/oauth2-provider/apps/{app}`
 
+Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send `scope`.
+Requires permission to update OAuth2 applications, which the Owner role has.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```json
@@ -1725,10 +1749,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description                   |
-|--------|------|----------------------------------------------------------------------------------------|----------|-------------------------------|
-| `app`  | path | string                                                                                 | true     | App ID                        |
-| `body` | body | [codersdk.PutOAuth2ProviderAppRequest](schemas.md#codersdkputoauth2providerapprequest) | true     | Update an OAuth2 application. |
+| Name   | In   | Type                                                                                   | Required | Description                                                                                                                                                                                      |
+|--------|------|----------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `app`  | path | string                                                                                 | true     | OAuth2 application ID.                                                                                                                                                                           |
+| `body` | body | [codersdk.PutOAuth2ProviderAppRequest](schemas.md#codersdkputoauth2providerapprequest) | true     | New settings for the OAuth2 application. Omit both `redirect_uris` and `callback_url` to keep the stored redirect URIs, and omit `scope` to keep the scope allowlist. Omitting `icon` clears it. |
 
 ### Example responses
 
@@ -1775,11 +1799,15 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `DELETE /api/v2/oauth2-provider/apps/{app}`
 
+Deletes an OAuth2 application along with its secrets and authorization codes, so the application can no longer authenticate.
+Requires permission to delete OAuth2 applications, which the Owner role has.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Responses
 
@@ -1802,11 +1830,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
 
 `GET /api/v2/oauth2-provider/apps/{app}/secrets`
 
+Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.
+Requires permission to read OAuth2 application secrets, which the Owner role has.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Example responses
 
@@ -1854,11 +1886,15 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 
 `POST /api/v2/oauth2-provider/apps/{app}/secrets`
 
+Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.
+Requires permission to create OAuth2 application secrets, which the Owner role has, and returns `400` for a public client, which has no secret.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name  | In   | Type   | Required | Description |
-|-------|------|--------|----------|-------------|
-| `app` | path | string | true     | App ID      |
+| Name  | In   | Type   | Required | Description            |
+|-------|------|--------|----------|------------------------|
+| `app` | path | string | true     | OAuth2 application ID. |
 
 ### Example responses
 
@@ -1904,12 +1940,16 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 `DELETE /api/v2/oauth2-provider/apps/{app}/secrets/{secretID}`
 
+Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.
+Requires permission to delete OAuth2 application secrets, which the Owner role has.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name       | In   | Type   | Required | Description |
-|------------|------|--------|----------|-------------|
-| `app`      | path | string | true     | App ID      |
-| `secretID` | path | string | true     | Secret ID   |
+| Name       | In   | Type   | Required | Description                          |
+|------------|------|--------|----------|--------------------------------------|
+| `app`      | path | string | true     | OAuth2 application ID.               |
+| `secretID` | path | string | true     | ID of the OAuth2 application secret. |
 
 ### Responses
 
@@ -1931,6 +1971,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/settings \
 ```
 
 `GET /api/v2/oauth2-provider/settings`
+
+Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.
+Requires permission to read the deployment configuration, which the Owner and Auditor roles have.
+Works while the OAuth2 provider is disabled.
 
 ### Example responses
 
@@ -1964,6 +2008,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 
 `PUT /api/v2/oauth2-provider/settings`
 
+Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
+Requires permission to update the deployment configuration, which the Owner role has.
+Works while the OAuth2 provider is disabled.
+
 > Body parameter
 
 ```json
@@ -1974,9 +2022,9 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description                      |
-|--------|------|------------------------------------------------------------------------------|----------|----------------------------------|
-| `body` | body | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) | true     | OAuth2 provider settings request |
+| Name   | In   | Type                                                                         | Required | Description                                                                  |
+|--------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------|
+| `body` | body | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) | true     | OAuth2 provider settings to change. Omitted fields keep their current value. |
 
 ### Example responses
 
@@ -4938,13 +4986,17 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_
 
 `GET /oauth2/authorize`
 
+Shows the consent page where a signed-in user approves an OAuth2 client's request for access to their Coder account (RFC 6749 section 4.1.1).
+The OAuth2 client sends the user's browser here, and a browser without a session goes to the login page first.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
 | Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
 |-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `client_id`             | query | string | true     | Client ID of the requesting OAuth2 client, which is the ID of its application.                                                                                                                                                                                     |
 | `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
-| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `response_type`         | query | string | true     | Response type. Only `code` is supported.                                                                                                                                                                                                                           |
 | `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
 | `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 | `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
@@ -4982,13 +5034,17 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response
 
 `POST /oauth2/authorize`
 
+Records the user's approval and redirects the browser to the client's registered callback with a single-use authorization code that expires after 10 minutes (RFC 6749 section 4.1.2).
+The consent page submits the same query parameters as the `GET` request, and the route needs the user's session.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
 | Name                    | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
 |-------------------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`             | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `client_id`             | query | string | true     | Client ID of the requesting OAuth2 client, which is the ID of its application.                                                                                                                                                                                     |
 | `state`                 | query | string | false    | A random unguessable string, echoed back on the callback                                                                                                                                                                                                           |
-| `response_type`         | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `response_type`         | query | string | true     | Response type. Only `code` is supported.                                                                                                                                                                                                                           |
 | `redirect_uri`          | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
 | `scope`                 | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 | `code_challenge`        | query | string | true     | PKCE code challenge, 43 to 128 characters from [A-Za-z0-9-._~] (RFC 7636)                                                                                                                                                                                          |
@@ -5036,11 +5092,15 @@ curl -X GET http://coder-server:8080/oauth2/clients/{client_id} \
 
 `GET /oauth2/clients/{client_id}`
 
+Returns the registered configuration of a dynamically registered OAuth2 client, without its secret (RFC 7592).
+Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name        | In   | Type   | Required | Description |
-|-------------|------|--------|----------|-------------|
-| `client_id` | path | string | true     | Client ID   |
+| Name        | In   | Type   | Required | Description                                      |
+|-------------|------|--------|----------|--------------------------------------------------|
+| `client_id` | path | string | true     | Client ID that `POST /oauth2/register` returned. |
 
 ### Example responses
 
@@ -5098,6 +5158,10 @@ curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
 
 `PUT /oauth2/clients/{client_id}`
 
+Replaces the registered metadata of a dynamically registered OAuth2 client (RFC 7592).
+Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```json
@@ -5131,10 +5195,10 @@ curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                           | Required | Description           |
-|-------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------|
-| `client_id` | path | string                                                                                         | true     | Client ID             |
-| `body`      | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client update request |
+| Name        | In   | Type                                                                                           | Required | Description                                                                                                  |
+|-------------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `client_id` | path | string                                                                                         | true     | Client ID that `POST /oauth2/register` returned.                                                             |
+| `body`      | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | New client metadata. It replaces the registered metadata, using the same fields as the registration request. |
 
 ### Example responses
 
@@ -5192,11 +5256,15 @@ curl -X DELETE http://coder-server:8080/oauth2/clients/{client_id}
 
 `DELETE /oauth2/clients/{client_id}`
 
+Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes (RFC 7592).
+Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name        | In   | Type   | Required | Description |
-|-------------|------|--------|----------|-------------|
-| `client_id` | path | string | true     | Client ID   |
+| Name        | In   | Type   | Required | Description                                      |
+|-------------|------|--------|----------|--------------------------------------------------|
+| `client_id` | path | string | true     | Client ID that `POST /oauth2/register` returned. |
 
 ### Responses
 
@@ -5216,6 +5284,10 @@ curl -X POST http://coder-server:8080/oauth2/register \
 ```
 
 `POST /oauth2/register`
+
+Registers a new OAuth2 client and returns its `client_id`, its `client_secret` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).
+Doesn't require a session token, but returns `403` unless an Owner has enabled dynamic client registration in the OAuth2 provider settings.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 > Body parameter
 
@@ -5250,9 +5322,9 @@ curl -X POST http://coder-server:8080/oauth2/register \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                           | Required | Description                 |
-|--------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------|
-| `body` | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client registration request |
+| Name   | In   | Type                                                                                           | Required | Description                                                                    |
+|--------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------|
+| `body` | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client metadata to register, as defined by RFC 7591. Requires `redirect_uris`. |
 
 ### Example responses
 
@@ -5312,6 +5384,10 @@ curl -X POST http://coder-server:8080/oauth2/revoke \
 
 `POST /oauth2/revoke`
 
+Revokes an access token or a refresh token that was issued to the calling OAuth2 client (RFC 7009).
+Doesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, and a `200` response doesn't confirm that the token existed or belonged to the client.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```yaml
@@ -5366,6 +5442,10 @@ curl -X POST http://coder-server:8080/oauth2/tokens \
 
 `POST /oauth2/tokens`
 
+Exchanges an authorization code or a refresh token for an access token and a new refresh token (RFC 6749 sections 4.1.3 and 6).
+Doesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, or with `code_verifier` when it is a public client.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 > Body parameter
 
 ```yaml
@@ -5388,7 +5468,7 @@ grant_type: authorization_code
 | `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code                                                                                             |
 | `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.                                                            |
 | `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token                                                                                                       |
-| `» grant_type`    | body | string | true     | Grant type                                                                                                                                                |
+| `» grant_type`    | body | string | true     | Grant type. Use `authorization_code` with `code`, or `refresh_token` with `refresh_token`. Other values return `unsupported_grant_type`.                  |
 
 #### Enumerated Values
 
@@ -5431,11 +5511,15 @@ curl -X DELETE http://coder-server:8080/oauth2/tokens?client_id=string \
 
 `DELETE /oauth2/tokens`
 
+Revokes the signed-in user's authorization codes and tokens for one OAuth2 application, so the application loses that user's access.
+Authenticates with the user's session token instead of client credentials, so to revoke one token as the OAuth2 client, use `POST /oauth2/revoke`.
+Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
+
 ### Parameters
 
-| Name        | In    | Type   | Required | Description |
-|-------------|-------|--------|----------|-------------|
-| `client_id` | query | string | true     | Client ID   |
+| Name        | In    | Type   | Required | Description                                                       |
+|-------------|-------|--------|----------|-------------------------------------------------------------------|
+| `client_id` | query | string | true     | Client ID of the OAuth2 application, which is the application ID. |
 
 ### Responses
 
