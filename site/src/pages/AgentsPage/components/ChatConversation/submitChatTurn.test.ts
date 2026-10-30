@@ -45,6 +45,7 @@ const buildParams = (
 		isSubmissionPending: false,
 		hasModelOptions: true,
 		isEditReasoningEffortDirtyRef: { current: false },
+		isEditModelDirtyRef: { current: false },
 		personalSkills: [],
 		organizationSkills: [],
 		projectSkills: [],
@@ -310,9 +311,7 @@ describe("submitChatTurn", () => {
 	it("saves a queued row with its chips and the marker cleared and makes no chat send", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
-		store.setQueuedMessages([
-			{ ...MockChatQueuedMessage, id: 7, model_config_id: "stale-model" },
-		]);
+		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 7 }]);
 		const saveQueuedMessage = vi.fn().mockResolvedValue(undefined);
 		const editMessage = vi.fn();
 		const sendMessage = vi.fn();
@@ -357,7 +356,7 @@ describe("submitChatTurn", () => {
 					content: "func main() {}",
 				},
 			],
-			model_config_id: pickerModel.id,
+			model_config_id: undefined,
 			reasoning_effort: undefined,
 			editing: false,
 		});

@@ -137,6 +137,7 @@ const AgentChatPage: React.FC = () => {
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
 	const isEditReasoningEffortDirtyRef = useRef(false);
+	const isEditModelDirtyRef = useRef(false);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		parseStoredDraft(
@@ -685,6 +686,7 @@ const AgentChatPage: React.FC = () => {
 		targetContent: composerTargetContent,
 		onLoadedTargetChange: () => {
 			isEditReasoningEffortDirtyRef.current = false;
+			isEditModelDirtyRef.current = false;
 		},
 	});
 
@@ -771,6 +773,7 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
+		isEditModelDirtyRef,
 		// chatd skips disabled skills and, while members can opt out, skills
 		// they turned off, so neither shadows a built-in command. A list with
 		// no data stays unknown, even after an error.
@@ -910,7 +913,12 @@ const AgentChatPage: React.FC = () => {
 					initialMessages={chatMessagesList ?? []}
 					editing={{ ...editing, handleBeginHistoryEdit, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
+					setSelectedModel={(model) => {
+						setSelectedModel(model);
+						if (editing.editingTarget !== null) {
+							isEditModelDirtyRef.current = true;
+						}
+					}}
 					modelOptions={modelOptions}
 					modelCatalog={modelCatalog}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}

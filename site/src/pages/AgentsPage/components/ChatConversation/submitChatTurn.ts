@@ -43,6 +43,7 @@ export type SubmitChatTurnParams = {
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
+	isEditModelDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
 	organizationSkills: readonly { name: string }[] | undefined;
 	projectSkills: readonly { name: string }[] | undefined;
@@ -90,9 +91,10 @@ export type SubmitChatTurnParams = {
 };
 
 /**
- * The model and reasoning effort an edit sends. Each is omitted when the
- * backend keeps the original: the model unless resolveEditModelConfigID
- * picks one, the effort unless the user changed it for this edit.
+ * The model and reasoning effort a history edit sends. Each is omitted
+ * when the backend keeps the original: the model unless
+ * resolveEditModelConfigID picks one, the effort unless the user changed
+ * it for this edit.
  */
 const buildEditModelOverrides = ({
 	pickerModelConfigID,
@@ -307,6 +309,7 @@ export async function submitChatTurn(
 		modelOptions,
 		effectiveReasoningEffort,
 		isEditReasoningEffortDirtyRef,
+		isEditModelDirtyRef,
 		mcpServerIds,
 		editMessage,
 		saveQueuedMessage,
@@ -361,18 +364,17 @@ export async function submitChatTurn(
 
 	if (editingTarget?.kind === "queued") {
 		const queuedMessageID = editingTarget.id;
-		const originalRow = store
-			.getSnapshot()
-			.queuedMessages.find((row) => row.id === queuedMessageID);
+		// A queued row keeps its model and effort unless the user changes
+		// them during this edit; the picker otherwise shows the chat's model,
+		// not the row's.
 		const request: TypesGen.EditChatQueuedMessageRequest = {
 			content,
-			...buildEditModelOverrides({
-				pickerModelConfigID: effectiveSelectedModel || undefined,
-				originalModelConfigID: originalRow?.model_config_id,
-				modelOptions,
-				reasoningEffort: effectiveReasoningEffort,
-				isReasoningEffortDirty: isEditReasoningEffortDirtyRef.current,
-			}),
+			model_config_id: isEditModelDirtyRef.current
+				? effectiveSelectedModel || undefined
+				: undefined,
+			reasoning_effort: isEditReasoningEffortDirtyRef.current
+				? effectiveReasoningEffort
+				: undefined,
 			editing: false,
 		};
 		await saveQueuedMessage(queuedMessageID, request);
