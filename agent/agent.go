@@ -92,6 +92,11 @@ type Options struct {
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
+	// GitCredentialHelper, if set, is registered as a Git credential.helper
+	// for every command the agent runs, through GIT_CONFIG_COUNT
+	// environment variables. It complements GIT_ASKPASS for programs that
+	// disable askpass in the Git processes they spawn.
+	GitCredentialHelper string
 	// EnvInfo overrides the session command environment source. Only
 	// tests set this. Nil defaults to usershell.SystemEnvInfo.
 	EnvInfo usershell.EnvInfoer
@@ -214,6 +219,7 @@ func New(options Options) Agent {
 		hardCancel:             hardCancel,
 		coordDisconnected:      make(chan struct{}),
 		environmentVariables:   options.EnvironmentVariables,
+		gitCredentialHelper:    options.GitCredentialHelper,
 		client:                 options.Client,
 		filesystem:             options.Filesystem,
 		logDir:                 options.LogDir,
@@ -296,6 +302,7 @@ type agent struct {
 	// end fields protected by closeMutex
 
 	environmentVariables map[string]string
+	gitCredentialHelper  string
 
 	manifest atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	// secrets are held separately from the manifest so that code paths that
@@ -1607,6 +1614,13 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// and GIT_ASKPASS.
 	for k, v := range a.environmentVariables {
 		envs[k] = v
+	}
+
+	// Register the credential helper after every other source so it is
+	// appended to, rather than replacing, GIT_CONFIG_* entries that the
+	// template, user secrets, or the inherited environment already set.
+	if a.gitCredentialHelper != "" {
+		appendGitConfigEnv(envs, "credential.helper", a.gitCredentialHelper)
 	}
 
 	// Prepend the agent script bin directory to the PATH

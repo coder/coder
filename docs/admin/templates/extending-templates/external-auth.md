@@ -57,8 +57,11 @@ To check the auth token being used **from inside a running workspace**, run:
 coder external-auth access-token <external-auth-id>
 ```
 
-Note: Some IDE's override the `GIT_ASKPASS` environment variable and need to be
-configured.
+Some programs disable or replace `GIT_ASKPASS`. For programs that disable it
+but keep Git credential helpers, such as Claude Code when it clones plugin
+marketplaces, the agent also registers a
+[Git credential helper](../../external-auth.md#git-credential-helper). IDEs
+that replace `GIT_ASKPASS` with their own may still need to be configured.
 
 #### VSCode
 
