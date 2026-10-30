@@ -143,7 +143,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 
 Returns the deployment's configuration `values` with secrets removed, and its `options`.
 Each entry in `options` describes one setting, including its description, flag, and environment variable.
-Requires permission to read the deployment configuration, which the Owner and Auditor roles have.
+Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 
 ### Example responses
 

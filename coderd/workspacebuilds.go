@@ -110,7 +110,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get workspace builds by workspace ID
 // @Description Returns the builds of a workspace, newest build first.
-// @Description Use `since` to return only recent builds, and `limit` with `offset` or `after_id` to page through them.
+// @Description Use `since` to return only recent builds, and `limit` with `offset` to page through them.
 // @ID get-workspace-builds-by-workspace-id
 // @Security CoderSessionToken
 // @Produce json
@@ -329,7 +329,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 //
 // @Summary Create workspace build
-// @Description Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.
+// @Description Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.
 // @Description Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 // @Description A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
 // @Description Requires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
@@ -852,7 +852,7 @@ func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Req
 // @Summary Cancel workspace build
 // @Description Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
 // @Description Fails if the build's job already completed or was already canceled.
-// @Description You can cancel a build if the template allows users to cancel workspace jobs, if you have the Owner role, or if you set `expect_status` to `pending`.
+// @Description You can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.
 // @ID cancel-workspace-build
 // @Security CoderSessionToken
 // @Produce json

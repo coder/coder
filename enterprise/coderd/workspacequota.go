@@ -182,7 +182,7 @@ func (c *committer) CommitQuota(
 
 // @Summary Get workspace quota by user deprecated
 // @Description Returns a user's workspace quota in the default organization.
-// @Description Deprecated: use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
+// @Description Deprecated. Use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
 // @ID get-workspace-quota-by-user-deprecated
 // @Security CoderSessionToken
 // @Produce json

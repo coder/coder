@@ -150,7 +150,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 //
 // @Summary Serve provisioner daemon
 // @Description Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.
-// @Description Authenticate with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
+// @Description Authenticates with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
 // @Description Send `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.
 // @Description A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
 // @Description A pre-shared key works only for the default organization.

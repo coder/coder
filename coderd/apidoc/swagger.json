@@ -2073,7 +2073,7 @@
 		},
 		"/api/v2/ai-gateway/clients": {
 			"get": {
-				"description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
+				"description": "Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with `Unknown` for interceptions that have no client.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/clients` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway clients",
@@ -2121,7 +2121,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `/api/v2/ai-gateway/serve`.\nThe response contains the secret in `key`, which you can't retrieve again, so store it when you create it.\nRequires permission to create AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
+				"description": "Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.\nThe response contains the secret in `key`, which you can't retrieve again, so store it when you create it.\nRequires permission to create AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -2183,7 +2183,7 @@
 		},
 		"/api/v2/ai-gateway/models": {
 			"get": {
-				"description": "Alias: also available at /api/v2/aibridge/models for backward compatibility.",
+				"description": "Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/models` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway models",
@@ -2265,7 +2265,7 @@
 		},
 		"/api/v2/ai-gateway/sessions": {
 			"get": {
-				"description": "Alias: also available at /api/v2/aibridge/sessions for backward compatibility.",
+				"description": "Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.\nReturns only the sessions you can read.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/sessions` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway sessions",
@@ -2313,7 +2313,7 @@
 		},
 		"/api/v2/ai-gateway/sessions/{session_id}": {
 			"get": {
-				"description": "Alias: also available at `/api/v2/aibridge/sessions/{session_id}` for backward compatibility.",
+				"description": "Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.\nReturns `404` if the session doesn't exist or you can't read it.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/sessions/{session_id}` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "Get AI Gateway session threads",
@@ -2534,7 +2534,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.\nRequires permission to update the deployment configuration, which only the Owner role has.\nThe application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.",
+				"description": "Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.\nRequires permission to update deployment configuration, which only the Owner role has.\nThe application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -2594,7 +2594,7 @@
 		},
 		"/api/v2/applications/host": {
 			"get": {
-				"description": "Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty `host` when the deployment doesn't set one.\nDeprecated. Use `/api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.",
+				"description": "Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty `host` when the deployment doesn't set one.\nDeprecated. Use `GET /api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.",
 				"produces": ["application/json"],
 				"tags": ["Applications"],
 				"summary": "Get applications host",
@@ -2939,7 +2939,7 @@
 		},
 		"/api/v2/chats/config/advisor": {
 			"get": {
-				"description": "Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.\nA `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Any authenticated user can read this setting.",
+				"description": "Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.\nFor `max_uses_per_run`, `0` means no cap other than the per-turn step limit.\nFor `max_output_tokens`, `0` means the default of 16,384 tokens.\nAny authenticated user can read this setting.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat advisor config",
@@ -2959,7 +2959,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.\nBoth values must be `0` or greater, where `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Requires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.\nBoth values must be `0` or greater.\nFor `max_uses_per_run`, `0` means no cap other than the per-turn step limit.\nFor `max_output_tokens`, `0` means the default of 16,384 tokens.\nRequires permission to update deployment configuration, which the Owner role has.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat advisor config",
@@ -3201,7 +3201,7 @@
 		},
 		"/api/v2/chats/config/plan-mode-instructions": {
 			"get": {
-				"description": "Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.\nRequires permission to update deployment configuration, which the Owner role has.",
+				"description": "Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.\nRequires permission to update deployment configuration, which the Owner role has, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat plan mode instructions",
@@ -3221,7 +3221,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.\nRequires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.",
+				"description": "Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.\nRequires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits their size.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat plan mode instructions",
@@ -3305,7 +3305,7 @@
 		},
 		"/api/v2/chats/config/system-prompt": {
 			"get": {
-				"description": "Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.\nRequires permission to update deployment configuration, which the Owner role has.",
+				"description": "Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.\nRequires permission to update deployment configuration, which the Owner role has, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat system prompt",
@@ -3325,7 +3325,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.\nRequires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits the prompt size.",
+				"description": "Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.\nRequires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits the prompt size.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat system prompt",
@@ -3521,7 +3521,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets your custom chat prompt, replacing the stored one, and returns the stored value.\nThe prompt applies only to your chats. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits its size.",
+				"description": "Sets your custom chat prompt, replacing the stored one, and returns the stored value.\nThe prompt applies only to your chats. The `--chat-max-prompt-bytes` option limits its size.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -4100,7 +4100,7 @@
 		},
 		"/api/v2/chats/{chat}/cost": {
 			"get": {
-				"description": "Cost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
+				"description": "Returns the AI Gateway spend of a chat in millionths of a dollar, with the number of requests and how many of them had no price.\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat cost",
@@ -4385,7 +4385,7 @@
 		},
 		"/api/v2/chats/{chat}/queue/{queuedMessage}": {
 			"delete": {
-				"description": "Removes a message from a chat's queue before the chat worker runs it.\nUse it to cancel a message you sent while the chat was busy.",
+				"description": "Removes a message from a chat's queue before the chat worker runs it.",
 				"tags": ["Chats"],
 				"summary": "Delete chat queued message",
 				"operationId": "delete-chat-queued-message",
@@ -4799,7 +4799,7 @@
 		},
 		"/api/v2/connectionlog": {
 			"get": {
-				"description": "Returns connection log entries, newest first, filtered by the `q` search query.\nReturns only the entries you can read.\nRequires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.\nThe `count` in the response is capped, and `count_cap` reports the cap, which is `2000`.\nRequires a Premium license.",
+				"description": "Returns connection log entries, newest first, filtered by the `q` search query.\nReturns only the entries you can read.\nRequires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.\nThe `count` in the response is capped at the value of `count_cap`.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get connection logs",
@@ -4999,7 +4999,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.\nRequires permission to update the deployment configuration, which the Owner role has.",
+				"description": "Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.\nRequires permission to update deployment configuration, which the Owner role has.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
@@ -5245,7 +5245,7 @@
 		},
 		"/api/v2/deployment/config": {
 			"get": {
-				"description": "Returns the deployment's configuration `values` with secrets removed, and its `options`.\nEach entry in `options` describes one setting, including its description, flag, and environment variable.\nRequires permission to read the deployment configuration, which the Owner and Auditor roles have.",
+				"description": "Returns the deployment's configuration `values` with secrets removed, and its `options`.\nEach entry in `options` describes one setting, including its description, flag, and environment variable.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.",
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get deployment config",
@@ -5595,7 +5595,7 @@
 		},
 		"/api/v2/files": {
 			"post": {
-				"description": "Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.",
+				"description": "Uploads a tar or zip archive of up to 100 MiB, such as a template source archive, and returns its ID.\nCoder stores a zip archive as tar, and returns `200` with the existing ID when you already uploaded the same contents.\nSwagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.",
 				"consumes": ["application/x-tar"],
 				"produces": ["application/json"],
 				"tags": ["Files"],
@@ -5973,7 +5973,7 @@
 					},
 					{
 						"type": "string",
-						"description": "Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`.",
+						"description": "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email.",
 						"name": "q",
 						"in": "query"
 					},
@@ -7006,7 +7006,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes an OAuth2 application along with its secrets and authorization codes, so the application can no longer authenticate.\nRequires permission to delete OAuth2 applications, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.\nRequires permission to delete OAuth2 applications, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application.",
 				"operationId": "delete-oauth2-application",
@@ -7105,7 +7105,7 @@
 		},
 		"/api/v2/oauth2-provider/apps/{app}/secrets/{secretID}": {
 			"delete": {
-				"description": "Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.\nRequires permission to delete OAuth2 application secrets, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.\nIt also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.\nRequires permission to delete OAuth2 application secrets, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application secret.",
 				"operationId": "delete-oauth2-application-secret",
@@ -7139,7 +7139,7 @@
 		},
 		"/api/v2/oauth2-provider/settings": {
 			"get": {
-				"description": "Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.\nRequires permission to read the deployment configuration, which the Owner and Auditor roles have.\nWorks while the OAuth2 provider is disabled.",
+				"description": "Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.\nWorks while the OAuth2 provider is disabled.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 provider settings.",
@@ -7159,7 +7159,7 @@
 				]
 			},
 			"put": {
-				"description": "Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.\nRequires permission to update the deployment configuration, which the Owner role has.\nWorks while the OAuth2 provider is disabled.",
+				"description": "Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.\nRequires permission to update deployment configuration, which the Owner role has.\nWorks while the OAuth2 provider is disabled.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -7419,7 +7419,7 @@
 		},
 		"/api/v2/organizations/{organization}/chats/config/system-prompt": {
 			"get": {
-				"description": "Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.\nRequires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have.",
+				"description": "Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.\nRequires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get organization chat system prompt",
@@ -7449,7 +7449,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.\nRequires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.",
+				"description": "Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.\nRequires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `--chat-max-prompt-bytes` option limits their size.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update organization chat system prompt",
@@ -7925,7 +7925,7 @@
 		},
 		"/api/v2/organizations/{organization}/groups": {
 			"get": {
-				"description": "Returns the groups in an organization that you can read, each with the members you can read.\nTo page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups` instead.\nRequires a Premium license.",
+				"description": "Returns the groups in an organization that you can read, each with the members you can read.\nTo page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups`, which returns each group's member count instead of its members and requires permission to read every group in the organization.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get groups by organization",
@@ -8100,7 +8100,7 @@
 					},
 					{
 						"type": "string",
-						"description": "Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`.",
+						"description": "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email.",
 						"name": "q",
 						"in": "query"
 					},
@@ -8578,7 +8578,7 @@
 		},
 		"/api/v2/organizations/{organization}/members": {
 			"get": {
-				"description": "Returns the members of an organization with their user data, without paging.\nReturns only the members you can read.\nUse `/api/v2/organizations/{organization}/paginated-members` instead.",
+				"description": "Returns the members of an organization with their user data, without paging.\nReturns only the members you can read.\nDeprecated. Use `GET /api/v2/organizations/{organization}/paginated-members` instead.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "List organization members",
@@ -9173,7 +9173,7 @@
 		},
 		"/api/v2/organizations/{organization}/paginated-groups": {
 			"get": {
-				"description": "Unlike \"Get groups by organization\" (`GET /api/v2/organizations/{organization}/groups`),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.\n\nThe `q` parameter uses the shared filter syntax. Bare terms (including multi-word)\nperform a free-text search over group name and display name. `search:` is the only\naccepted key and unknown keys return 400. Because group display names may contain\ncolons, a value with a colon must be quoted, e.g. `search:\"team: frontend\"`; an\nunquoted colon fails with `Query element \"team:\" cannot start or end with ':'`.\n\nThis endpoint returns group summaries without the member roster: each group\ncarries only `total_member_count` and no `members` field. Callers that need the\nroster use the group members endpoint (`GET /api/v2/groups/{group}/members`).",
+				"description": "Returns the groups in an organization, ordered by name and paged with `limit`, with each group's `total_member_count` instead of its members.\nTo list a group's members, use `GET /api/v2/groups/{group}/members`.\nQuote a `q` value that contains a colon, as in `search:\"team: frontend\"`.\nRequires permission to read every group in the organization, and returns an error instead of a partial list without it.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get groups by organization (paginated)",
@@ -9188,7 +9188,7 @@
 					},
 					{
 						"type": "string",
-						"description": "Search query (see description for syntax and colon-quoting)",
+						"description": "Search term that matches group names and display names, either bare or as `search:\u003cterm\u003e`. Other keys return `400`.",
 						"name": "q",
 						"in": "query"
 					},
@@ -9367,7 +9367,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerdaemons/serve": {
 			"get": {
-				"description": "Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.\nAuthenticate with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.\nSend `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.\nA provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.\nA pre-shared key works only for the default organization.\nWith a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.\nStarting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nThe WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.\nRequires a Premium license.",
+				"description": "Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.\nAuthenticates with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.\nSend `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.\nA provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.\nA pre-shared key works only for the default organization.\nWith a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.\nStarting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nThe WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.\nRequires a Premium license.",
 				"tags": ["Enterprise"],
 				"summary": "Serve provisioner daemon",
 				"operationId": "serve-provisioner-daemon",
@@ -9802,7 +9802,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/groups/config": {
 			"patch": {
-				"description": "Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.\nUse it to change how groups are read from the identity provider without resending the mapping.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -9958,7 +9958,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/roles/config": {
 			"patch": {
-				"description": "Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.\nUse it to change which claim carries roles without resending the mapping.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10456,7 +10456,7 @@
 		},
 		"/api/v2/provisionerkeys/{provisionerkey}": {
 			"get": {
-				"description": "Returns the details of the provisioner key that you authenticate with, without its secret.\nAuthenticate with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.",
+				"description": "Returns the details of the provisioner key that you authenticate with, without its secret.\nAuthenticates with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Fetch provisioner key details",
@@ -12204,7 +12204,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/variables": {
 			"get": {
-				"description": "Returns the Terraform variables that a template version declares.\nFor sensitive variables, `value` and `default_value` are `*redacted*`, and the call returns `403` until the import job has completed.",
+				"description": "Returns the Terraform variables that a template version declares.\nFor sensitive variables, `value` and `default_value` are `*redacted*`.\nReturns `403` until the template version's import job has completed.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template variables by template version",
@@ -12264,7 +12264,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query, for example `status:active role:owner`. A bare term matches the email, username, or name. Use `key:value` terms to filter on `username`, `email`, `name`, `status`, `role`, `service_account`, `login_type`, `github_com_user_id`, `last_seen_before`, `last_seen_after`, `created_before`, or `created_after`.",
+						"description": "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email.",
 						"name": "q",
 						"in": "query"
 					},
@@ -12359,7 +12359,7 @@
 		},
 		"/api/v2/users/first": {
 			"get": {
-				"description": "Returns `200` when the deployment already has its initial user and `404` when it doesn't.\nCall it before `POST /api/v2/users/first` to check whether the deployment still needs its initial user.\nDoesn't require a session token.",
+				"description": "Returns `200` when the deployment already has its initial user and `404` when it doesn't.\nDoesn't require a session token.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Check initial user created",
@@ -12709,7 +12709,7 @@
 		},
 		"/api/v2/users/{user}/ai-provider-keys": {
 			"get": {
-				"description": "Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.\nIt never returns key values. Reading another user's configuration requires permission to read that user's personal data, which the Owner and User Admin roles have.",
+				"description": "Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.\nIt never returns key values. Reading another user's configuration requires permission to read personal user data, which the Owner and User Admin roles have.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "List user AI provider key configurations",
@@ -12743,7 +12743,7 @@
 		},
 		"/api/v2/users/{user}/ai-provider-keys/{aiProvider}": {
 			"put": {
-				"description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns `403` when the deployment turns off user-supplied keys with `--ai-gateway-allow-byok`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.",
+				"description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data, which the Owner and User Admin roles have.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -12790,7 +12790,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes a user's stored API key for an AI provider.\nDeleting another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.",
+				"description": "Deletes a user's stored API key for an AI provider.\nDeleting another user's key requires permission to update personal user data, which the Owner and User Admin roles have.",
 				"tags": ["Chats"],
 				"summary": "Delete user AI provider key",
 				"operationId": "delete-user-ai-provider-key",
@@ -13781,7 +13781,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.\nReturns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.\nYou can update your own schedule, and updating another user's schedule requires permission to update that user's personal data, which the Owner and User Admin roles have.\nRequires a Premium license.",
+				"description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.\nReturns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.\nYou can update your own schedule, and updating another user's schedule requires permission to update personal user data, which the Owner and User Admin roles have.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -14475,7 +14475,7 @@
 		},
 		"/api/v2/workspace-quota/{user}": {
 			"get": {
-				"description": "Returns a user's workspace quota in the default organization.\nDeprecated: use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.",
+				"description": "Returns a user's workspace quota in the default organization.\nDeprecated. Use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace quota by user deprecated",
@@ -14633,7 +14633,7 @@
 		},
 		"/api/v2/workspaceagents/me/app-status": {
 			"patch": {
-				"description": "Sets the state and message of one of the calling agent's workspace apps.\nLegacy workspace agents call this route, and other agents use `UpdateAppStatus` on the Agent API instead.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Sets the state and message of one of the calling agent's workspace apps.\nLegacy workspace agents call this route, and other agents use `UpdateAppStatus` on the Agent API instead.\nAuthenticates with the workspace agent token instead of a session token.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -14668,7 +14668,7 @@
 		},
 		"/api/v2/workspaceagents/me/external-auth": {
 			"get": {
-				"description": "Returns an access token for an external authentication provider on behalf of the workspace owner, or a login URL when the owner hasn't linked the provider yet.\nThe workspace agent calls this for Git credentials and `coder external-auth access-token`, with either `match` or `id` but not both.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Returns an access token for an external authentication provider on behalf of the workspace owner, or a login URL when the owner hasn't linked the provider yet.\nThe workspace agent calls this for Git credentials and `coder external-auth access-token`, with either `match` or `id` but not both.\nAuthenticates with the workspace agent token instead of a session token.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent external auth",
@@ -14712,7 +14712,7 @@
 		},
 		"/api/v2/workspaceagents/me/gitauth": {
 			"get": {
-				"description": "Returns the same response as `/api/v2/workspaceagents/me/external-auth`, and remains only so legacy workspace agents keep working.\nUse `/api/v2/workspaceagents/me/external-auth` instead.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Returns the same response as `GET /api/v2/workspaceagents/me/external-auth`, and exists so that legacy workspace agents keep working.\nUse that route instead.\nAuthenticates with the workspace agent token instead of a session token.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Removed: Get workspace agent git auth",
@@ -14756,7 +14756,7 @@
 		},
 		"/api/v2/workspaceagents/me/gitsshkey": {
 			"get": {
-				"description": "Returns the workspace owner's Git SSH key pair, including the private key, so the workspace agent can authenticate Git over SSH.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Returns the workspace owner's Git SSH key pair, including the private key, so the workspace agent can authenticate Git over SSH.\nAuthenticates with the workspace agent token instead of a session token.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent Git SSH key",
@@ -14778,7 +14778,7 @@
 		},
 		"/api/v2/workspaceagents/me/log-source": {
 			"post": {
-				"description": "Registers a log source, identified by `id`, that the workspace agent attaches to the logs it uploads.\nPosting an `id` that the agent already registered doesn't create another source.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Registers a log source, identified by `id`, that the workspace agent attaches to the logs it uploads.\nPosting an `id` that the agent already registered doesn't create another source.\nAuthenticates with the workspace agent token instead of a session token.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -14812,7 +14812,7 @@
 		},
 		"/api/v2/workspaceagents/me/logs": {
 			"patch": {
-				"description": "Appends log lines from the workspace agent to the agent's logs, under the log source `log_source_id`.\nEach agent can store up to 1 MiB of log output, and the route returns `413` once the agent exceeds that limit.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Appends log lines from the workspace agent to the agent's logs, under the log source `log_source_id`.\nEach agent can store up to 1 MiB of log output, and the route returns `413` once the agent exceeds that limit.\nAuthenticates with the workspace agent token instead of a session token.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -14852,7 +14852,7 @@
 		},
 		"/api/v2/workspaceagents/me/reinit": {
 			"get": {
-				"description": "Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the `workspace_id`, the `reason`, and the `owner_id` of the new owner.\nWith `wait` set to `true`, the route sends an event right away when the claim build already succeeded, and returns `409` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.\nAuthenticate with the workspace agent token instead of a session token.",
+				"description": "Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the `workspace_id`, the `reason`, and the `owner_id` of the new owner.\nWith `wait` set to `true`, the route sends an event right away when the claim build already succeeded, and returns `409` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.\nAuthenticates with the workspace agent token instead of a session token.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent reinitialization",
@@ -15272,7 +15272,7 @@
 		},
 		"/api/v2/workspaceagents/{workspaceagent}/startup-logs": {
 			"get": {
-				"description": "Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only for backward compatibility.\nUse `/api/v2/workspaceagents/{workspaceagent}/logs` instead.\nA workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.",
+				"description": "Returns the same response as `GET /api/v2/workspaceagents/{workspaceagent}/logs`, and exists so that older clients keep working.\nUse that route instead.\nA workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Removed: Get logs by workspace agent",
@@ -15427,7 +15427,7 @@
 		},
 		"/api/v2/workspacebuilds/{workspacebuild}/cancel": {
 			"patch": {
-				"description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nFails if the build's job already completed or was already canceled.\nYou can cancel a build if the template allows users to cancel workspace jobs, if you have the Owner role, or if you set `expect_status` to `pending`.",
+				"description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nFails if the build's job already completed or was already canceled.\nYou can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.",
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Cancel workspace build",
@@ -15597,7 +15597,7 @@
 		},
 		"/api/v2/workspacebuilds/{workspacebuild}/resources": {
 			"get": {
-				"description": "Returns the resources, with their agents, of a completed workspace build.\nFails with a `400` until the build's job completes.\nUse `/api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.",
+				"description": "Returns the resources, with their agents, of a completed workspace build.\nFails with a `400` until the build's job completes.\nUse `GET /api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.",
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Removed: Get workspace resources for workspace build",
@@ -16439,7 +16439,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/builds": {
 			"get": {
-				"description": "Returns the builds of a workspace, newest build first.\nUse `since` to return only recent builds, and `limit` with `offset` or `after_id` to page through them.",
+				"description": "Returns the builds of a workspace, newest build first.\nUse `since` to return only recent builds, and `limit` with `offset` to page through them.",
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get workspace builds by workspace ID",
@@ -16498,7 +16498,7 @@
 				]
 			},
 			"post": {
-				"description": "Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.\nUse it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.\nA `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.\nRequires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nSetting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.\nUse it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.\nA `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.\nRequires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nSetting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
@@ -16624,7 +16624,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials": {
 			"get": {
-				"description": "Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.\nTreat the response as a secret, because the token lets the holder act as the workspace agent.\nRequires permission to connect to the workspace over SSH, which the workspace owner has.\nRequires a Premium license.",
+				"description": "Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.\nTreat the response as a secret, because the token lets the holder act as the workspace agent.\nRequires permission to SSH to the workspace, which the workspace owner has.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace external agent credentials",
@@ -16889,7 +16889,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/ttl": {
 			"put": {
-				"description": "Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.\nThe value must be between one minute and 30 days, and `null` or `0` turns autostop off for the workspace.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.\nThe value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.\nThe template's autostop requirement still applies.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace TTL by ID",
@@ -16904,7 +16904,7 @@
 						"required": true
 					},
 					{
-						"description": "Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace.",
+						"description": "Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace. The template's autostop requirement still applies.",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -16964,7 +16964,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/watch": {
 			"get": {
-				"description": "Streams server-sent events about a workspace, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data.\nThe server sends a `ping` first, then the current workspace, and then the workspace again each time it or its template changes.\nUse `/api/v2/workspaces/{workspace}/watch-ws` instead.",
+				"description": "Streams server-sent events about a workspace, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data.\nThe server sends a `ping` first, then the current workspace, and then the workspace again each time it or its template changes.\nDeprecated. Use `GET /api/v2/workspaces/{workspace}/watch-ws` instead.",
 				"produces": ["text/event-stream"],
 				"tags": ["Workspaces"],
 				"summary": "Watch workspace by ID",
@@ -17259,7 +17259,7 @@
 				}
 			},
 			"delete": {
-				"description": "Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes (RFC 7592).\nAuthenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it (RFC 7592).\nAuthenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 client registration (RFC 7592)",
 				"operationId": "delete-oauth2-client-configuration",
@@ -17483,7 +17483,7 @@
 		},
 		"/scim/v2/ServiceProviderConfig": {
 			"get": {
-				"description": "Returns the service provider configuration for SCIM, which lists the features Coder supports.\nThe identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.\nRequires a Premium license, and returns `404` when no SCIM API key is configured.",
+				"description": "Returns the service provider configuration for SCIM, which lists the features Coder supports.\nThe identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.\nReturns `404` when no SCIM API key is configured.\nRequires a Premium license.",
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Service Provider Config",
@@ -17497,7 +17497,7 @@
 		},
 		"/scim/v2/Users": {
 			"get": {
-				"description": "Returns an empty user list with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.\nThe identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.\nRequires a Premium license, and returns `404` when no SCIM API key is configured.",
+				"description": "Returns an empty user list with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.\nThe identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.\nReturns `404` when no SCIM API key is configured.\nRequires a Premium license.",
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Get users",
@@ -17514,7 +17514,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a user with the OIDC login type from a SCIM user that has `active` and a primary entry in `emails`, or returns the existing user with the same email or username.\nThe identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.\nRequires a Premium license, and returns `404` when no SCIM API key is configured.",
+				"description": "Creates a user with the OIDC login type from a SCIM user that has `active` and a primary entry in `emails`, or returns the existing user with the same email or username.\nThe identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.\nReturns `404` when no SCIM API key is configured.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Create new user",
@@ -17547,7 +17547,7 @@
 		},
 		"/scim/v2/Users/{id}": {
 			"get": {
-				"description": "Returns `404` with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.\nThe identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.\nRequires a Premium license, and returns `404` when no SCIM API key is configured.",
+				"description": "Returns `404` with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.\nThe identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.\nReturns `404` when no SCIM API key is configured.\nRequires a Premium license.",
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Get user by ID",
@@ -17574,7 +17574,7 @@
 				]
 			},
 			"put": {
-				"description": "Suspends or reactivates a user according to `active`, which is required, and returns `400` when `userName` differs from the user's current username.\nThe identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.\nRequires a Premium license, and returns `404` when no SCIM API key is configured.",
+				"description": "Suspends or reactivates a user according to `active`, which is required, and returns `400` when `userName` differs from the user's current username.\nThe identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.\nReturns `404` when no SCIM API key is configured.\nRequires a Premium license.",
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Replace user account",
@@ -17613,7 +17613,7 @@
 				]
 			},
 			"patch": {
-				"description": "Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.\nThe identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.\nRequires a Premium license, and returns `404` when no SCIM API key is configured.",
+				"description": "Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.\nThe identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.\nReturns `404` when no SCIM API key is configured.\nRequires a Premium license.",
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Update user account",

@@ -139,7 +139,6 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 
 // @Summary Update group IdP Sync config
 // @Description Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.
-// @Description Use it to change how groups are read from the identity provider without resending the mapping.
 // @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-group-idp-sync-config
 // @Security CoderSessionToken
@@ -390,7 +389,6 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 
 // @Summary Update role IdP Sync config
 // @Description Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
-// @Description Use it to change which claim carries roles without resending the mapping.
 // @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-role-idp-sync-config
 // @Security CoderSessionToken

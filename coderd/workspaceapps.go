@@ -26,7 +26,7 @@ import (
 
 // @Summary Get applications host
 // @Description Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty `host` when the deployment doesn't set one.
-// @Description Deprecated. Use `/api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.
+// @Description Deprecated. Use `GET /api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.
 // @ID get-applications-host
 // @Security CoderSessionToken
 // @Produce json

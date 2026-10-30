@@ -49,7 +49,7 @@ curl -X GET http://coder-server:8080/api/v2/applications/host \
 `GET /api/v2/applications/host`
 
 Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty `host` when the deployment doesn't set one.
-Deprecated. Use `/api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.
+Deprecated. Use `GET /api/v2/regions` and read the `wildcard_hostname` of the primary workspace proxy instead.
 
 ### Example responses
 

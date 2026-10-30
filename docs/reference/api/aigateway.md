@@ -18,7 +18,10 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/clients \
 
 `GET /api/v2/ai-gateway/clients`
 
-Alias: also available at /api/v2/aibridge/clients for backward compatibility.
+Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with `Unknown` for interceptions that have no client.
+Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+Requires a Premium license.
+Also available at `GET /api/v2/aibridge/clients` for backward compatibility.
 
 ### Example responses
 
@@ -53,7 +56,10 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/models \
 
 `GET /api/v2/ai-gateway/models`
 
-Alias: also available at /api/v2/aibridge/models for backward compatibility.
+Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.
+Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+Requires a Premium license.
+Also available at `GET /api/v2/aibridge/models` for backward compatibility.
 
 ### Parameters
 
@@ -154,7 +160,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions \
 
 `GET /api/v2/ai-gateway/sessions`
 
-Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
+Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.
+Returns only the sessions you can read.
+Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+Requires a Premium license.
+Also available at `GET /api/v2/aibridge/sessions` for backward compatibility.
 
 ### Parameters
 
@@ -233,7 +243,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions/{session_id} \
 
 `GET /api/v2/ai-gateway/sessions/{session_id}`
 
-Alias: also available at `/api/v2/aibridge/sessions/{session_id}` for backward compatibility.
+Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.
+Returns `404` if the session doesn't exist or you can't read it.
+Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+Requires a Premium license.
+Also available at `GET /api/v2/aibridge/sessions/{session_id}` for backward compatibility.
 
 ### Parameters
 

@@ -19,6 +19,10 @@ curl -X POST http://coder-server:8080/api/v2/files \
 
 `POST /api/v2/files`
 
+Uploads a tar or zip archive of up to 100 MiB, such as a template source archive, and returns its ID.
+Coder stores a zip archive as tar, and returns `200` with the existing ID when you already uploaded the same contents.
+Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
+
 > Body parameter
 
 ```yaml

@@ -207,7 +207,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 
 // @Summary Update health settings
 // @Description Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.
-// @Description Requires permission to update the deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-health-settings
 // @Security CoderSessionToken
 // @Accept json

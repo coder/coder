@@ -1419,7 +1419,8 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update workspace TTL by ID
 // @Description Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
-// @Description The value must be between one minute and 30 days, and `null` or `0` turns autostop off for the workspace.
+// @Description The value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.
+// @Description The template's autostop requirement still applies.
 // @Description Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
 // @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID update-workspace-ttl-by-id
@@ -1427,7 +1428,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceTTLRequest true "Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace."
+// @Param request body codersdk.UpdateWorkspaceTTLRequest true "Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace. The template's autostop requirement still applies."
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/ttl [put]
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
@@ -2198,7 +2199,7 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Summary Watch workspace by ID
 // @Description Streams server-sent events about a workspace, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data.
 // @Description The server sends a `ping` first, then the current workspace, and then the workspace again each time it or its template changes.
-// @Description Use `/api/v2/workspaces/{workspace}/watch-ws` instead.
+// @Description Deprecated. Use `GET /api/v2/workspaces/{workspace}/watch-ws` instead.
 // @ID watch-workspace-by-id
 // @Security CoderSessionToken
 // @Produce text/event-stream

@@ -144,7 +144,7 @@ const AgentAPIVersionREST = "1.0"
 // @Summary Patch workspace agent logs
 // @Description Appends log lines from the workspace agent to the agent's logs, under the log source `log_source_id`.
 // @Description Each agent can store up to 1 MiB of log output, and the route returns `413` once the agent exceeds that limit.
-// @Description Authenticate with the workspace agent token instead of a session token.
+// @Description Authenticates with the workspace agent token instead of a session token.
 // @ID patch-workspace-agent-logs
 // @Security CoderSessionToken
 // @Accept json
@@ -305,7 +305,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 // @Summary Patch workspace agent app status
 // @Description Sets the state and message of one of the calling agent's workspace apps.
 // @Description Legacy workspace agents call this route, and other agents use `UpdateAppStatus` on the Agent API instead.
-// @Description Authenticate with the workspace agent token instead of a session token.
+// @Description Authenticates with the workspace agent token instead of a session token.
 // @ID patch-workspace-agent-app-status
 // @Security CoderSessionToken
 // @Accept json
@@ -1603,7 +1603,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 // @Summary Post workspace agent log source
 // @Description Registers a log source, identified by `id`, that the workspace agent attaches to the logs it uploads.
 // @Description Posting an `id` that the agent already registered doesn't create another source.
-// @Description Authenticate with the workspace agent token instead of a session token.
+// @Description Authenticates with the workspace agent token instead of a session token.
 // @ID post-workspace-agent-log-source
 // @Security CoderSessionToken
 // @Accept json
@@ -1656,7 +1656,7 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 // @Summary Get workspace agent reinitialization
 // @Description Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the `workspace_id`, the `reason`, and the `owner_id` of the new owner.
 // @Description With `wait` set to `true`, the route sends an event right away when the claim build already succeeded, and returns `409` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.
-// @Description Authenticate with the workspace agent token instead of a session token.
+// @Description Authenticates with the workspace agent token instead of a session token.
 // @ID get-workspace-agent-reinitialization
 // @Security CoderSessionToken
 // @Produce json
@@ -2142,7 +2142,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 // @Summary Get workspace agent external auth
 // @Description Returns an access token for an external authentication provider on behalf of the workspace owner, or a login URL when the owner hasn't linked the provider yet.
 // @Description The workspace agent calls this for Git credentials and `coder external-auth access-token`, with either `match` or `id` but not both.
-// @Description Authenticate with the workspace agent token instead of a session token.
+// @Description Authenticates with the workspace agent token instead of a session token.
 // @ID get-workspace-agent-external-auth
 // @Security CoderSessionToken
 // @Produce json

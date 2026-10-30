@@ -478,7 +478,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
-// @Param q query string false "Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
@@ -497,7 +497,7 @@ func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group ID."
-// @Param q query string false "Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
@@ -567,7 +567,7 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get groups by organization
 // @Description Returns the groups in an organization that you can read, each with the members you can read.
-// @Description To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups` instead.
+// @Description To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups`, which returns each group's member count instead of its members and requires permission to read every group in the organization.
 // @Description Requires a Premium license.
 // @ID get-groups-by-organization
 // @Security CoderSessionToken
@@ -592,26 +592,16 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
-// @Param q query string false "Search query (see description for syntax and colon-quoting)"
+// @Param q query string false "Search term that matches group names and display names, either bare or as `search:<term>`. Other keys return `400`."
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Success 200 {object} codersdk.PaginatedGroupsResponse
-// @Description Unlike "Get groups by organization" (`GET /api/v2/organizations/{organization}/groups`),
-// @Description which authorizes each group individually via its ACL, this endpoint requires
-// @Description organization-wide group read permission and does no per-group filtering. It is
-// @Description therefore not a drop-in replacement: callers without org-wide group read receive
-// @Description an error rather than a filtered subset.
-// @Description
-// @Description The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
-// @Description perform a free-text search over group name and display name. `search:` is the only
-// @Description accepted key and unknown keys return 400. Because group display names may contain
-// @Description colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
-// @Description unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
-// @Description
-// @Description This endpoint returns group summaries without the member roster: each group
-// @Description carries only `total_member_count` and no `members` field. Callers that need the
-// @Description roster use the group members endpoint (`GET /api/v2/groups/{group}/members`).
+// @Description Returns the groups in an organization, ordered by name and paged with `limit`, with each group's `total_member_count` instead of its members.
+// @Description To list a group's members, use `GET /api/v2/groups/{group}/members`.
+// @Description Quote a `q` value that contains a colon, as in `search:"team: frontend"`.
+// @Description Requires permission to read every group in the organization, and returns an error instead of a partial list without it.
+// @Description Requires a Premium license.
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -153,7 +153,11 @@ func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Han
 // aiBridgeListSessions returns AI Bridge sessions (aggregated interceptions).
 //
 // @Summary List AI Gateway sessions
-// @Description Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
+// @Description Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.
+// @Description Returns only the sessions you can read.
+// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires a Premium license.
+// @Description Also available at `GET /api/v2/aibridge/sessions` for backward compatibility.
 // @ID list-ai-gateway-sessions
 // @Security CoderSessionToken
 // @Produce json
@@ -280,7 +284,11 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // threads including agentic actions and thinking blocks.
 //
 // @Summary Get AI Gateway session threads
-// @Description Alias: also available at `/api/v2/aibridge/sessions/{session_id}` for backward compatibility.
+// @Description Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.
+// @Description Returns `404` if the session doesn't exist or you can't read it.
+// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires a Premium license.
+// @Description Also available at `GET /api/v2/aibridge/sessions/{session_id}` for backward compatibility.
 // @ID get-ai-gateway-session-threads
 // @Security CoderSessionToken
 // @Produce json
@@ -513,7 +521,10 @@ var likePatternEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 // aiBridgeListModels returns all AI Bridge models a user can see.
 //
 // @Summary List AI Gateway models
-// @Description Alias: also available at /api/v2/aibridge/models for backward compatibility.
+// @Description Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.
+// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires a Premium license.
+// @Description Also available at `GET /api/v2/aibridge/models` for backward compatibility.
 // @ID list-ai-gateway-models
 // @Security CoderSessionToken
 // @Produce json
@@ -581,7 +592,10 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 // aiBridgeListClients returns all AI Bridge clients a user can see.
 //
 // @Summary List AI Gateway clients
-// @Description Alias: also available at /api/v2/aibridge/clients for backward compatibility.
+// @Description Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with `Unknown` for interceptions that have no client.
+// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires a Premium license.
+// @Description Also available at `GET /api/v2/aibridge/clients` for backward compatibility.
 // @ID list-ai-gateway-clients
 // @Security CoderSessionToken
 // @Produce json

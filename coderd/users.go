@@ -137,7 +137,6 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Check initial user created
 // @Description Returns `200` when the deployment already has its initial user and `404` when it doesn't.
-// @Description Call it before `POST /api/v2/users/first` to check whether the deployment still needs its initial user.
 // @Description Doesn't require a session token.
 // @ID check-initial-user-created
 // @Security CoderSessionToken
@@ -319,7 +318,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param q query string false "Search query, for example `status:active role:owner`. A bare term matches the email, username, or name. Use `key:value` terms to filter on `username`, `email`, `name`, `status`, `role`, `service_account`, `login_type`, `github_com_user_id`, `last_seen_before`, `last_seen_after`, `created_before`, or `created_after`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."

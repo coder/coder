@@ -105,8 +105,9 @@ func scimUnauthorized(rw http.ResponseWriter) {
 //
 // @Summary SCIM 2.0: Service Provider Config
 // @Description Returns the service provider configuration for SCIM, which lists the features Coder supports.
-// @Description The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-// @Description Requires a Premium license, and returns `404` when no SCIM API key is configured.
+// @Description The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+// @Description Returns `404` when no SCIM API key is configured.
+// @Description Requires a Premium license.
 // @ID scim-get-service-provider-config
 // @Produce application/scim+json
 // @Tags Enterprise
@@ -172,9 +173,10 @@ func (s *LegacyServer) scimServiceProviderConfig(rw http.ResponseWriter, _ *http
 // implement fetching users twice.
 //
 // @Summary SCIM 2.0: Get users
-// @Description Returns an empty user list with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
-// @Description The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-// @Description Requires a Premium license, and returns `404` when no SCIM API key is configured.
+// @Description Returns an empty user list with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
+// @Description The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+// @Description Returns `404` when no SCIM API key is configured.
+// @Description Requires a Premium license.
 // @ID scim-get-users
 // @Security Authorization
 // @Produce application/scim+json
@@ -202,9 +204,10 @@ func (s *LegacyServer) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 // don't need to implement fetching users twice.
 //
 // @Summary SCIM 2.0: Get user by ID
-// @Description Returns `404` with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
-// @Description The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-// @Description Requires a Premium license, and returns `404` when no SCIM API key is configured.
+// @Description Returns `404` with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
+// @Description The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+// @Description Returns `404` when no SCIM API key is configured.
+// @Description Requires a Premium license.
 // @ID scim-get-user-by-id
 // @Security Authorization
 // @Produce application/scim+json
@@ -258,8 +261,9 @@ var SCIMAuditAdditionalFields = map[string]string{
 //
 // @Summary SCIM 2.0: Create new user
 // @Description Creates a user with the OIDC login type from a SCIM user that has `active` and a primary entry in `emails`, or returns the existing user with the same email or username.
-// @Description The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-// @Description Requires a Premium license, and returns `404` when no SCIM API key is configured.
+// @Description The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+// @Description Returns `404` when no SCIM API key is configured.
+// @Description Requires a Premium license.
 // @ID scim-create-new-user
 // @Security Authorization
 // @Produce json
@@ -409,8 +413,9 @@ func (s *LegacyServer) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary SCIM 2.0: Update user account
 // @Description Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.
-// @Description The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-// @Description Requires a Premium license, and returns `404` when no SCIM API key is configured.
+// @Description The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+// @Description Returns `404` when no SCIM API key is configured.
+// @Description Requires a Premium license.
 // @ID scim-update-user-status
 // @Security Authorization
 // @Produce application/scim+json
@@ -496,8 +501,9 @@ func (s *LegacyServer) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary SCIM 2.0: Replace user account
 // @Description Suspends or reactivates a user according to `active`, which is required, and returns `400` when `userName` differs from the user's current username.
-// @Description The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-// @Description Requires a Premium license, and returns `404` when no SCIM API key is configured.
+// @Description The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+// @Description Returns `404` when no SCIM API key is configured.
+// @Description Requires a Premium license.
 // @ID scim-replace-user-status
 // @Security Authorization
 // @Produce application/scim+json

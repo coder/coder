@@ -37,8 +37,8 @@ func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Removed: Get logs by workspace agent
-// @Description Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only for backward compatibility.
-// @Description Use `/api/v2/workspaceagents/{workspaceagent}/logs` instead.
+// @Description Returns the same response as `GET /api/v2/workspaceagents/{workspaceagent}/logs`, and exists so that older clients keep working.
+// @Description Use that route instead.
 // @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID removed-get-logs-by-workspace-agent
 // @Security CoderSessionToken
@@ -56,9 +56,9 @@ func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Removed: Get workspace agent git auth
-// @Description Returns the same response as `/api/v2/workspaceagents/me/external-auth`, and remains only so legacy workspace agents keep working.
-// @Description Use `/api/v2/workspaceagents/me/external-auth` instead.
-// @Description Authenticate with the workspace agent token instead of a session token.
+// @Description Returns the same response as `GET /api/v2/workspaceagents/me/external-auth`, and exists so that legacy workspace agents keep working.
+// @Description Use that route instead.
+// @Description Authenticates with the workspace agent token instead of a session token.
 // @ID removed-get-workspace-agent-git-auth
 // @Security CoderSessionToken
 // @Produce json
@@ -75,7 +75,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 // @Summary Removed: Get workspace resources for workspace build
 // @Description Returns the resources, with their agents, of a completed workspace build.
 // @Description Fails with a `400` until the build's job completes.
-// @Description Use `/api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
+// @Description Use `GET /api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
 // @ID removed-get-workspace-resources-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json

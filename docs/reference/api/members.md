@@ -20,7 +20,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Returns the members of an organization with their user data, without paging.
 Returns only the members you can read.
-Use `/api/v2/organizations/{organization}/paginated-members` instead.
+Deprecated. Use `GET /api/v2/organizations/{organization}/paginated-members` instead.
 
 ### Parameters
 

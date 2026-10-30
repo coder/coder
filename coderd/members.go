@@ -216,7 +216,7 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 // @Summary List organization members
 // @Description Returns the members of an organization with their user data, without paging.
 // @Description Returns only the members you can read.
-// @Description Use `/api/v2/organizations/{organization}/paginated-members` instead.
+// @Description Deprecated. Use `GET /api/v2/organizations/{organization}/paginated-members` instead.
 // @ID list-organization-members
 // @Security CoderSessionToken
 // @Produce json

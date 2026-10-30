@@ -21,7 +21,7 @@ import (
 const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, numbers, and non-consecutive hyphens, cannot start or end with a hyphen."
 
 // @Summary Create AI Gateway key
-// @Description Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `/api/v2/ai-gateway/serve`.
+// @Description Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.
 // @Description The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
 // @Description Requires permission to create AI Gateway keys, which only the Owner role has.
 // @Description Requires a Premium license.

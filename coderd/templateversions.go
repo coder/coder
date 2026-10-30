@@ -468,7 +468,8 @@ func (api *API) templateVersionExternalAuthForUser(ctx context.Context, template
 
 // @Summary Get template variables by template version
 // @Description Returns the Terraform variables that a template version declares.
-// @Description For sensitive variables, `value` and `default_value` are `*redacted*`, and the call returns `403` until the import job has completed.
+// @Description For sensitive variables, `value` and `default_value` are `*redacted*`.
+// @Description Returns `403` until the template version's import job has completed.
 // @ID get-template-variables-by-template-version
 // @Security CoderSessionToken
 // @Produce json

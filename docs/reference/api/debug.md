@@ -485,7 +485,7 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 `PUT /api/v2/debug/health/settings`
 
 Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.
-Requires permission to update the deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration, which the Owner role has.
 
 > Body parameter
 

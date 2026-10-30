@@ -225,7 +225,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
 
 Sets the state and message of one of the calling agent's workspace apps.
 Legacy workspace agents call this route, and other agents use `UpdateAppStatus` on the Agent API instead.
-Authenticate with the workspace agent token instead of a session token.
+Authenticates with the workspace agent token instead of a session token.
 
 > Body parameter
 
@@ -286,7 +286,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 Returns an access token for an external authentication provider on behalf of the workspace owner, or a login URL when the owner hasn't linked the provider yet.
 The workspace agent calls this for Git credentials and `coder external-auth access-token`, with either `match` or `id` but not both.
-Authenticate with the workspace agent token instead of a session token.
+Authenticates with the workspace agent token instead of a session token.
 
 ### Parameters
 
@@ -333,9 +333,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 
 `GET /api/v2/workspaceagents/me/gitauth`
 
-Returns the same response as `/api/v2/workspaceagents/me/external-auth`, and remains only so legacy workspace agents keep working.
-Use `/api/v2/workspaceagents/me/external-auth` instead.
-Authenticate with the workspace agent token instead of a session token.
+Returns the same response as `GET /api/v2/workspaceagents/me/external-auth`, and exists so that legacy workspace agents keep working.
+Use that route instead.
+Authenticates with the workspace agent token instead of a session token.
 
 ### Parameters
 
@@ -383,7 +383,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 `GET /api/v2/workspaceagents/me/gitsshkey`
 
 Returns the workspace owner's Git SSH key pair, including the private key, so the workspace agent can authenticate Git over SSH.
-Authenticate with the workspace agent token instead of a session token.
+Authenticates with the workspace agent token instead of a session token.
 
 ### Example responses
 
@@ -420,7 +420,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 Registers a log source, identified by `id`, that the workspace agent attaches to the logs it uploads.
 Posting an `id` that the agent already registered doesn't create another source.
-Authenticate with the workspace agent token instead of a session token.
+Authenticates with the workspace agent token instead of a session token.
 
 > Body parameter
 
@@ -476,7 +476,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 Appends log lines from the workspace agent to the agent's logs, under the log source `log_source_id`.
 Each agent can store up to 1 MiB of log output, and the route returns `413` once the agent exceeds that limit.
-Authenticate with the workspace agent token instead of a session token.
+Authenticates with the workspace agent token instead of a session token.
 
 > Body parameter
 
@@ -540,7 +540,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the `workspace_id`, the `reason`, and the `owner_id` of the new owner.
 With `wait` set to `true`, the route sends an event right away when the claim build already succeeded, and returns `409` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.
-Authenticate with the workspace agent token instead of a session token.
+Authenticates with the workspace agent token instead of a session token.
 
 ### Parameters
 
@@ -1347,8 +1347,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 `GET /api/v2/workspaceagents/{workspaceagent}/startup-logs`
 
-Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only for backward compatibility.
-Use `/api/v2/workspaceagents/{workspaceagent}/logs` instead.
+Returns the same response as `GET /api/v2/workspaceagents/{workspaceagent}/logs`, and exists so that older clients keep working.
+Use that route instead.
 A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 
 ### Parameters

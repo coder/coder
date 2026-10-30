@@ -269,7 +269,7 @@ curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
 
 `POST /api/v2/ai-gateway/keys`
 
-Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `/api/v2/ai-gateway/serve`.
+Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.
 The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
 Requires permission to create AI Gateway keys, which only the Owner role has.
 Requires a Premium license.
@@ -439,7 +439,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 `PUT /api/v2/appearance`
 
 Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.
-Requires permission to update the deployment configuration, which only the Owner role has.
+Requires permission to update deployment configuration, which only the Owner role has.
 The application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.
 
 > Body parameter
@@ -518,7 +518,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 Returns connection log entries, newest first, filtered by the `q` search query.
 Returns only the entries you can read.
 Requires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.
-The `count` in the response is capped, and `count_cap` reports the cap, which is `2000`.
+The `count` in the response is capped at the value of `count_cap`.
 Requires a Premium license.
 
 ### Parameters
@@ -1245,13 +1245,13 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                      |
-|------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `group`    | path  | string       | true     | Group ID.                                                                                                                                                                                                                                                                                                                        |
-| `q`        | query | string       | false    | Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. |
-| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                      |
-| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                      |
-| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                              |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                              |
+|------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group`    | path  | string       | true     | Group ID.                                                                                                                                                                                                                                                                                                |
+| `q`        | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
+| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                              |
+| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                              |
+| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                      |
 
 ### Example responses
 
@@ -1910,7 +1910,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 `DELETE /api/v2/oauth2-provider/apps/{app}`
 
-Deletes an OAuth2 application along with its secrets and authorization codes, so the application can no longer authenticate.
+Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.
 Requires permission to delete OAuth2 applications, which the Owner role has.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
@@ -2052,6 +2052,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 `DELETE /api/v2/oauth2-provider/apps/{app}/secrets/{secretID}`
 
 Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.
+It also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.
 Requires permission to delete OAuth2 application secrets, which the Owner role has.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
@@ -2084,7 +2085,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/settings \
 `GET /api/v2/oauth2-provider/settings`
 
 Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.
-Requires permission to read the deployment configuration, which the Owner and Auditor roles have.
+Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 Works while the OAuth2 provider is disabled.
 
 ### Example responses
@@ -2120,7 +2121,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 `PUT /api/v2/oauth2-provider/settings`
 
 Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
-Requires permission to update the deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration, which the Owner role has.
 Works while the OAuth2 provider is disabled.
 
 > Body parameter
@@ -2207,7 +2208,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 `GET /api/v2/organizations/{organization}/groups`
 
 Returns the groups in an organization that you can read, each with the members you can read.
-To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups` instead.
+To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups`, which returns each group's member count instead of its members and requires permission to read every group in the organization.
 Requires a Premium license.
 
 ### Parameters
@@ -2517,14 +2518,14 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                      |
-|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                                                |
-| `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.                                                                                                                                                                                                                                                                    |
-| `q`            | query | string       | false    | Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. |
-| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                      |
-| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                      |
-| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                              |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                              |
+|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
+| `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.                                                                                                                                                                                                                                            |
+| `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                              |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                              |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                      |
 
 ### Example responses
 
@@ -2675,31 +2676,21 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 `GET /api/v2/organizations/{organization}/paginated-groups`
 
-Unlike "Get groups by organization" (`GET /api/v2/organizations/{organization}/groups`),
-which authorizes each group individually via its ACL, this endpoint requires
-organization-wide group read permission and does no per-group filtering. It is
-therefore not a drop-in replacement: callers without org-wide group read receive
-an error rather than a filtered subset.
-
-The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
-perform a free-text search over group name and display name. `search:` is the only
-accepted key and unknown keys return 400. Because group display names may contain
-colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
-unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
-
-This endpoint returns group summaries without the member roster: each group
-carries only `total_member_count` and no `members` field. Callers that need the
-roster use the group members endpoint (`GET /api/v2/groups/{group}/members`).
+Returns the groups in an organization, ordered by name and paged with `limit`, with each group's `total_member_count` instead of its members.
+To list a group's members, use `GET /api/v2/groups/{group}/members`.
+Quote a `q` value that contains a colon, as in `search:"team: frontend"`.
+Requires permission to read every group in the organization, and returns an error instead of a partial list without it.
+Requires a Premium license.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                                                 |
-|----------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                           |
-| `q`            | query | string       | false    | Search query (see description for syntax and colon-quoting)                                                 |
-| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                 |
-| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                         |
-| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`. |
+| Name           | In    | Type         | Required | Description                                                                                                         |
+|----------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                                   |
+| `q`            | query | string       | false    | Search term that matches group names and display names, either bare or as `search:<term>`. Other keys return `400`. |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                         |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                 |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.         |
 
 ### Example responses
 
@@ -2746,7 +2737,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 `GET /api/v2/organizations/{organization}/provisionerdaemons/serve`
 
 Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.
-Authenticate with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
+Authenticates with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
 Send `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.
 A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
 A pre-shared key works only for the default organization.
@@ -3276,7 +3267,6 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`
 
 Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.
-Use it to change how groups are read from the identity provider without resending the mapping.
 Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 
 > Body parameter
@@ -3534,7 +3524,6 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`
 
 Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
-Use it to change which claim carries roles without resending the mapping.
 Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 
 > Body parameter
@@ -3758,7 +3747,7 @@ curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
 `GET /api/v2/provisionerkeys/{provisionerkey}`
 
 Returns the details of the provisioner key that you authenticate with, without its secret.
-Authenticate with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
+Authenticates with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
 
 ### Parameters
 
@@ -4781,7 +4770,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
 Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
-You can update your own schedule, and updating another user's schedule requires permission to update that user's personal data, which the Owner and User Admin roles have.
+You can update your own schedule, and updating another user's schedule requires permission to update personal user data, which the Owner and User Admin roles have.
 Requires a Premium license.
 
 > Body parameter
@@ -4852,7 +4841,7 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
 `GET /api/v2/workspace-quota/{user}`
 
 Returns a user's workspace quota in the default organization.
-Deprecated: use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
+Deprecated. Use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
 
 ### Parameters
 
@@ -5265,7 +5254,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
 
 Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.
 Treat the response as a secret, because the token lets the holder act as the workspace agent.
-Requires permission to connect to the workspace over SSH, which the workspace owner has.
+Requires permission to SSH to the workspace, which the workspace owner has.
 Requires a Premium license.
 
 ### Parameters
@@ -5576,7 +5565,7 @@ curl -X DELETE http://coder-server:8080/oauth2/clients/{client_id}
 
 `DELETE /oauth2/clients/{client_id}`
 
-Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes (RFC 7592).
+Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it (RFC 7592).
 Authenticates with the registration access token from `POST /oauth2/register`, sent as a bearer token, and doesn't require a session token.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
@@ -5862,8 +5851,9 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 `GET /scim/v2/ServiceProviderConfig`
 
 Returns the service provider configuration for SCIM, which lists the features Coder supports.
-The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-Requires a Premium license, and returns `404` when no SCIM API key is configured.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 ### Responses
 
@@ -5883,9 +5873,10 @@ curl -X GET http://coder-server:8080/scim/v2/Users \
 
 `GET /scim/v2/Users`
 
-Returns an empty user list with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
-The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-Requires a Premium license, and returns `404` when no SCIM API key is configured.
+Returns an empty user list with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 ### Responses
 
@@ -5910,8 +5901,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 `POST /scim/v2/Users`
 
 Creates a user with the OIDC login type from a SCIM user that has `active` and a primary entry in `emails`, or returns the existing user with the same email or username.
-The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-Requires a Premium license, and returns `404` when no SCIM API key is configured.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 > Body parameter
 
@@ -6003,9 +5995,10 @@ curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
 
 `GET /scim/v2/Users/{id}`
 
-Returns `404` with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
-The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-Requires a Premium license, and returns `404` when no SCIM API key is configured.
+Returns `404` with the legacy SCIM handler, which `--scim-use-legacy` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 ### Parameters
 
@@ -6036,8 +6029,9 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 `PUT /scim/v2/Users/{id}`
 
 Suspends or reactivates a user according to `active`, which is required, and returns `400` when `userName` differs from the user's current username.
-The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-Requires a Premium license, and returns `404` when no SCIM API key is configured.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 > Body parameter
 
@@ -6132,8 +6126,9 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 `PATCH /scim/v2/Users/{id}`
 
 Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.
-The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
-Requires a Premium license, and returns `404` when no SCIM API key is configured.
+The identity provider's SCIM client authenticates with the SCIM API key from `--scim-auth-header` in the `Authorization` header, not a session token.
+Returns `404` when no SCIM API key is configured.
+Requires a Premium license.
 
 > Body parameter
 

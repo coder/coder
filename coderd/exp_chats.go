@@ -404,7 +404,8 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
 	// site/src/components/PaginationWidget/utils.ts.
-	// If the page size changes, this limit should too.
+	// If the page size changes, this limit should too, along with the
+	// `workspace_ids` @Param text on chatsByWorkspace, which states it.
 	const maxWorkspaceIDs = 25
 	if len(raw) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2083,7 +2084,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatCost
 // @Router /api/v2/chats/{chat}/cost [get]
-// @Description
+// @Description Returns the AI Gateway spend of a chat in millionths of a dollar, with the number of requests and how many of them had no price.
 // @Description Cost covers the whole chat tree: the root chat plus every
 // @Description subagent chat beneath it. Requesting cost for a subagent chat
 // @Description returns that same total.
@@ -3589,7 +3590,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Delete chat queued message
 // @Description Removes a message from a chat's queue before the chat worker runs it.
-// @Description Use it to cancel a message you sent while the chat was busy.
 // @ID delete-chat-queued-message
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5357,7 +5357,7 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 
 // @Summary Get chat system prompt
 // @Description Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
 // @ID get-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5394,7 +5394,7 @@ const chatInstructionSettingsLockTimeout = 5 * time.Second
 
 // @Summary Update chat system prompt
 // @Description Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.
-// @Description Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits the prompt size.
+// @Description Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits the prompt size.
 // @ID update-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5516,7 +5516,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get organization chat system prompt
 // @Description Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.
-// @Description Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have.
+// @Description Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have, and returns `404` without it.
 // @ID get-organization-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5548,7 +5548,7 @@ func (api *API) getOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 
 // @Summary Update organization chat system prompt
 // @Description Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.
-// @Description Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
+// @Description Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `--chat-max-prompt-bytes` option limits their size.
 // @ID update-organization-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5634,7 +5634,7 @@ func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 
 // @Summary Get chat plan mode instructions
 // @Description Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
 // @ID get-chat-plan-mode-instructions
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5666,7 +5666,7 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Update chat plan mode instructions
 // @Description Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.
-// @Description Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
+// @Description Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits their size.
 // @ID update-chat-plan-mode-instructions
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6520,7 +6520,9 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 
 // @Summary Get chat advisor config
 // @Description Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.
-// @Description A `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Any authenticated user can read this setting.
+// @Description For `max_uses_per_run`, `0` means no cap other than the per-turn step limit.
+// @Description For `max_output_tokens`, `0` means the default of 16,384 tokens.
+// @Description Any authenticated user can read this setting.
 // @ID get-chat-advisor-config
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6555,7 +6557,10 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update chat advisor config
 // @Description Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.
-// @Description Both values must be `0` or greater, where `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Requires permission to update deployment configuration, which the Owner role has.
+// @Description Both values must be `0` or greater.
+// @Description For `max_uses_per_run`, `0` means no cap other than the per-turn step limit.
+// @Description For `max_output_tokens`, `0` means the default of 16,384 tokens.
+// @Description Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-chat-advisor-config
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6891,7 +6896,7 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 
 // @Summary Update user chat custom prompt
 // @Description Sets your custom chat prompt, replacing the stored one, and returns the stored value.
-// @Description The prompt applies only to your chats. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits its size.
+// @Description The prompt applies only to your chats. The `--chat-max-prompt-bytes` option limits its size.
 // @ID update-user-chat-custom-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8216,7 +8221,7 @@ func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderS
 
 // @Summary List user AI provider key configurations
 // @Description Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.
-// @Description It never returns key values. Reading another user's configuration requires permission to read that user's personal data, which the Owner and User Admin roles have.
+// @Description It never returns key values. Reading another user's configuration requires permission to read personal user data, which the Owner and User Admin roles have.
 // @ID list-user-ai-provider-key-configurations
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8288,7 +8293,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 
 // @Summary Update user AI provider key
 // @Description Sets a user's own API key for an AI provider, replacing any key already stored.
-// @Description The call returns `403` when the deployment turns off user-supplied keys with `--ai-gateway-allow-byok`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
+// @Description The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
 // @ID update-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8377,7 +8382,7 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 
 // @Summary Delete user AI provider key
 // @Description Deletes a user's stored API key for an AI provider.
-// @Description Deleting another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
+// @Description Deleting another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
 // @ID delete-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats

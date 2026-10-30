@@ -3767,7 +3767,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/v
 `GET /api/v2/templateversions/{templateversion}/variables`
 
 Returns the Terraform variables that a template version declares.
-For sensitive variables, `value` and `default_value` are `*redacted*`, and the call returns `403` until the import job has completed.
+For sensitive variables, `value` and `default_value` are `*redacted*`.
+Returns `403` until the template version's import job has completed.
 
 ### Parameters
 

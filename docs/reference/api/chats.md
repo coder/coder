@@ -833,7 +833,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/advisor \
 `GET /api/v2/chats/config/advisor`
 
 Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.
-A `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Any authenticated user can read this setting.
+For `max_uses_per_run`, `0` means no cap other than the per-turn step limit.
+For `max_output_tokens`, `0` means the default of 16,384 tokens.
+Any authenticated user can read this setting.
 
 ### Example responses
 
@@ -870,7 +872,10 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/advisor \
 `PUT /api/v2/chats/config/advisor`
 
 Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.
-Both values must be `0` or greater, where `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Requires permission to update deployment configuration, which the Owner role has.
+Both values must be `0` or greater.
+For `max_uses_per_run`, `0` means no cap other than the per-turn step limit.
+For `max_output_tokens`, `0` means the default of 16,384 tokens.
+Requires permission to update deployment configuration, which the Owner role has.
 
 > Body parameter
 
@@ -1204,7 +1209,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 `GET /api/v2/chats/config/plan-mode-instructions`
 
 Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
 
 ### Example responses
 
@@ -1238,7 +1243,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 `PUT /api/v2/chats/config/plan-mode-instructions`
 
 Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.
-Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
+Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits their size.
 
 > Body parameter
 
@@ -1276,7 +1281,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/system-prompt \
 `GET /api/v2/chats/config/system-prompt`
 
 Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
 
 ### Example responses
 
@@ -1312,7 +1317,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/system-prompt \
 `PUT /api/v2/chats/config/system-prompt`
 
 Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.
-Requires permission to update deployment configuration, which the Owner role has. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits the prompt size.
+Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits the prompt size.
 
 > Body parameter
 
@@ -1460,7 +1465,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/user-prompt \
 `PUT /api/v2/chats/config/user-prompt`
 
 Sets your custom chat prompt, replacing the stored one, and returns the stored value.
-The prompt applies only to your chats. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits its size.
+The prompt applies only to your chats. The `--chat-max-prompt-bytes` option limits its size.
 
 > Body parameter
 
@@ -2653,6 +2658,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/cost \
 
 `GET /api/v2/chats/{chat}/cost`
 
+Returns the AI Gateway spend of a chat in millionths of a dollar, with the number of requests and how many of them had no price.
 Cost covers the whole chat tree: the root chat plus every
 subagent chat beneath it. Requesting cost for a subagent chat
 returns that same total.
@@ -3910,7 +3916,6 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
 Removes a message from a chat's queue before the chat worker runs it.
-Use it to cancel a message you sent while the chat was busy.
 
 ### Parameters
 
@@ -4987,7 +4992,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 `GET /api/v2/organizations/{organization}/chats/config/system-prompt`
 
 Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.
-Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have.
+Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have, and returns `404` without it.
 
 ### Parameters
 
@@ -5027,7 +5032,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 `PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
 
 Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.
-Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `CODER_CHAT_MAX_PROMPT_BYTES` option limits their size.
+Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `--chat-max-prompt-bytes` option limits their size.
 
 > Body parameter
 
@@ -5678,7 +5683,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
 `GET /api/v2/users/{user}/ai-provider-keys`
 
 Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.
-It never returns key values. Reading another user's configuration requires permission to read that user's personal data, which the Owner and User Admin roles have.
+It never returns key values. Reading another user's configuration requires permission to read personal user data, which the Owner and User Admin roles have.
 
 ### Parameters
 
@@ -5757,7 +5762,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 `PUT /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
 Sets a user's own API key for an AI provider, replacing any key already stored.
-The call returns `403` when the deployment turns off user-supplied keys with `--ai-gateway-allow-byok`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
+The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
 
 > Body parameter
 
@@ -5817,7 +5822,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 `DELETE /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
 Deletes a user's stored API key for an AI provider.
-Deleting another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
+Deleting another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
 
 ### Parameters
 

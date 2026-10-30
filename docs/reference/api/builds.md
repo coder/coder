@@ -553,7 +553,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
 Fails if the build's job already completed or was already canceled.
-You can cancel a build if the template allows users to cancel workspace jobs, if you have the Owner role, or if you set `expect_status` to `pending`.
+You can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.
 
 ### Parameters
 
@@ -739,7 +739,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 
 Returns the resources, with their agents, of a completed workspace build.
 Fails with a `400` until the build's job completes.
-Use `/api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
+Use `GET /api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
 
 ### Parameters
 
@@ -1531,7 +1531,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 `GET /api/v2/workspaces/{workspace}/builds`
 
 Returns the builds of a workspace, newest build first.
-Use `since` to return only recent builds, and `limit` with `offset` or `after_id` to page through them.
+Use `since` to return only recent builds, and `limit` with `offset` to page through them.
 
 ### Parameters
 
@@ -2006,7 +2006,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 `POST /api/v2/workspaces/{workspace}/builds`
 
-Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.
+Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.
 Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
 Requires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.

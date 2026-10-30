@@ -241,7 +241,7 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Fetch provisioner key details
 // @Description Returns the details of the provisioner key that you authenticate with, without its secret.
-// @Description Authenticate with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
+// @Description Authenticates with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
 // @ID fetch-provisioner-key-details
 // @Security CoderProvisionerKey
 // @Produce json

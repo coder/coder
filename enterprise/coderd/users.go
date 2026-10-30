@@ -76,7 +76,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 // @Summary Update user quiet hours schedule
 // @Description Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
 // @Description Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
-// @Description You can update your own schedule, and updating another user's schedule requires permission to update that user's personal data, which the Owner and User Admin roles have.
+// @Description You can update your own schedule, and updating another user's schedule requires permission to update personal user data, which the Owner and User Admin roles have.
 // @Description Requires a Premium license.
 // @ID update-user-quiet-hours-schedule
 // @Security CoderSessionToken

@@ -12,7 +12,7 @@ import (
 // @Summary Get deployment config
 // @Description Returns the deployment's configuration `values` with secrets removed, and its `options`.
 // @Description Each entry in `options` describes one setting, including its description, flag, and environment variable.
-// @Description Requires permission to read the deployment configuration, which the Owner and Auditor roles have.
+// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
 // @ID get-deployment-config
 // @Security CoderSessionToken
 // @Produce json

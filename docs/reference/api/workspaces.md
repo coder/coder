@@ -2650,7 +2650,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 `PUT /api/v2/workspaces/{workspace}/ttl`
 
 Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
-The value must be between one minute and 30 days, and `null` or `0` turns autostop off for the workspace.
+The value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.
+The template's autostop requirement still applies.
 Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
 Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 
@@ -2664,10 +2665,10 @@ Requires permission to update the workspace, which the Owner and Organization Ad
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                                                                                                 |
-|-------------|------|------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                                                                                                |
-| `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace. |
+| Name        | In   | Type                                                                               | Required | Description                                                                                                                                                    |
+|-------------|------|------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                                                                                                                                                   |
+| `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace. The template's autostop requirement still applies. |
 
 ### Responses
 
@@ -2733,7 +2734,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 
 Streams server-sent events about a workspace, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data.
 The server sends a `ping` first, then the current workspace, and then the workspace again each time it or its template changes.
-Use `/api/v2/workspaces/{workspace}/watch-ws` instead.
+Deprecated. Use `GET /api/v2/workspaces/{workspace}/watch-ws` instead.
 
 ### Parameters
 
