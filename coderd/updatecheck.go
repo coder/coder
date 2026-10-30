@@ -14,6 +14,8 @@ import (
 )
 
 // @Summary Update check
+// @Description Returns the latest Coder release and whether the deployment runs it, in `current`, `version`, and `url`.
+// @Description Doesn't require a session token, and the route reports the running version as current when update checking is turned off or hasn't succeeded yet.
 // @ID update-check
 // @Produce json
 // @Tags General
