@@ -785,7 +785,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/check-experiment-registry lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -892,6 +892,11 @@ lint/check-experiment-keys:
 	echo "--- check documented experiment keys"
 	go run ./scripts/checkexperimentkeys
 .PHONY: lint/check-experiment-keys
+
+lint/check-experiment-registry:
+	echo "--- check experiments/registry.yaml against codersdk.ExperimentsKnown"
+	go run ./scripts/checkexperimentregistry
+.PHONY: lint/check-experiment-registry
 
 lint/architecture:
 	./scripts/check_architecture.sh

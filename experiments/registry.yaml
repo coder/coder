@@ -1,0 +1,482 @@
+# Inventory of the experiments in this repository: features that ship
+# behind an experiment flag, live under an `x/` directory or an `exp_` file,
+# serve routes under /api/experimental, or carry a docs stage label.
+#
+# Fields:
+#   key     Flag value when flag-gated, otherwise a short kebab-case name.
+#   stage   early-access | beta | ga.
+#   since   Date the experiment entered its current stage.
+#   flag    codersdk.Experiment value, when the feature has one.
+#   paths   Files that belong to the experiment. The most specific entry
+#           owns a file, so a sub-feature can sit inside a larger feature.
+#           Flag checks in shared files are not listed.
+#   routes  Experimental HTTP routes the experiment serves.
+#   docs    Pages under docs/ that describe it.
+#   notes   Drift between the stage and the code, docs, or gates.
+#
+# Stage comes from the docs label in docs/manifest when there is one. A
+# feature behind a hidden flag (not in codersdk.ExperimentsSafe) with no
+# label is early-access. A documented feature with no label and no gate
+# is ga.
+#
+# make lint/check-experiment-registry fails when the flags here differ from
+# codersdk.ExperimentsKnown, and CODEOWNERS requires an owner's approval for
+# changes to this file.
+
+experiments:
+  # Coder Agents
+
+  - key: agents
+    stage: ga
+    since: 2026-08-11
+    paths:
+      - agent/x/agentmcp/**
+      - cli/exp_chat.go
+      - cli/exp_chat_*.go
+      - coderd/chat_routes.go
+      - coderd/exp_chats*.go
+      - coderd/x/chatd/**
+      - coderd/x/chatfiles/**
+      - coderd/x/gitsync/**
+      - coderd/x/googleopenai/**
+      - codersdk/chats.go
+      - enterprise/coderd/exp_chats_test.go
+      - enterprise/coderd/x/chatd/**
+      - examples/templates/x/docker-chat-sandbox/**
+      - site/src/api/queries/chats.ts
+      - site/src/pages/AISettingsPage/CoderAgentsPage/**
+      - site/src/pages/AISettingsPage/InstructionsPage/**
+      - site/src/pages/AISettingsPage/LifecyclePage/**
+      - site/src/pages/AgentsPage/**
+    routes:
+      - /api/experimental/chats/{chat}/debug/runs
+      - /api/experimental/chats/{chat}/debug/runs/{debugRun}
+      - /api/experimental/mcp/servers/{mcpServer}/oauth2/callback
+      - /api/v2/workspaceagents/me/experimental/chat-context/refresh
+    docs:
+      - ai-coder/agents/index.md
+    notes: >-
+      Flag removed and marked beta in #24432, documented GA in #27939. Most
+      chat routes moved to /api/v2 in #28496, but the code is still under x/
+      and the debug and MCP OAuth callback routes are still experimental.
+      The docs for debug runs name /api/v2 paths that do not exist.
+
+  - key: agent-skills
+    stage: ga
+    since: 2026-08-11
+    paths:
+      - coderd/organizationskills*.go
+      - coderd/userskills*.go
+      - coderd/x/skills/**
+      - codersdk/skills.go
+      - site/src/api/queries/organizationSkills.ts
+      - site/src/api/queries/userSkills.ts
+      - site/src/pages/AISettingsPage/SkillsPage/**
+      - site/src/pages/AgentsPage/AgentSettingsPage/AgentSettingsSkillsPage/**
+      - site/src/pages/AgentsPage/components/ChatMessageInput/Skills*.tsx
+      - site/src/pages/AgentsPage/components/SkillEditor*.tsx
+      - site/src/pages/AgentsPage/components/SkillEnabledSwitch.tsx
+      - site/src/pages/AgentsPage/components/SkillsTable*.tsx
+      - site/src/pages/AgentsPage/utils/skillAliases*.ts
+      - site/src/pages/AgentsPage/utils/skills*.ts
+    routes:
+      - /api/experimental/organizations/{organization}/skills
+      - /api/experimental/organizations/{organization}/skills/{skillName}
+      - /api/experimental/organizations/{organization}/skills/{skillName}/acl
+      - /api/experimental/organizations/{organization}/skills/{skillName}/acl/available
+      - /api/experimental/users/{user}/skills
+      - /api/experimental/users/{user}/skills/{skillName}
+    docs:
+      - ai-coder/agents/extending-agents.md
+    notes: >-
+      Documented without a label and has no flag, but the API is under
+      /api/experimental and the code is under x/. Project skills belong to
+      chat-projects.
+
+  - key: chat-advisor
+    stage: early-access
+    since: 2026-06-30
+    flag: chat-advisor
+    paths:
+      - coderd/x/chatd/advisor_internal_test.go
+      - coderd/x/chatd/chatadvisor/**
+      - site/src/pages/AgentsPage/components/AdvisorSettings.tsx
+      - site/src/pages/AgentsPage/components/ChatElements/tools/AdvisorTool*.tsx
+    routes:
+      - /api/experimental/chats/config/advisor
+    docs:
+      - ai-coder/agents/platform-controls/advisor.md
+    notes: >-
+      The advisor model override route under /api/v2 is not gated by the
+      flag.
+
+  - key: chat-virtual-desktop
+    stage: early-access
+    since: 2026-06-30
+    flag: chat-virtual-desktop
+    paths:
+      - agent/x/agentdesktop/**
+      - coderd/x/chatd/chatopenai/computeruse/**
+      - coderd/x/chatd/chattool/computeruse*.go
+      - coderd/x/chatd/computer_use.go
+      - site/src/pages/AgentsPage/components/ChatElements/tools/InlineDesktopPreview*.tsx
+    routes:
+      - /api/experimental/chats/{chat}/stream/desktop
+    docs:
+      - ai-coder/agents/platform-controls/virtual-desktop.md
+    notes: >-
+      The flag gates the computer_use model override and the subagent
+      catalog only. The desktop stream route and the agent's /api/v0/desktop
+      API are always on. #31300 removed the deployment-wide computer use
+      provider routes.
+
+  - key: agent-lifecycle-hooks
+    stage: early-access
+    since: 2026-07-29
+    flag: agent-lifecycle-hooks
+    paths:
+      - coderd/exp_chats_hooks_test.go
+      - coderd/x/agenthooks/**
+      - coderd/x/chatd/chathooks/**
+      - coderd/x/chatd/compaction_hooks_test.go
+      - coderd/x/chatd/create_hooks_test.go
+      - coderd/x/chatd/hook_server.go
+      - coderd/x/chatd/hooks_internal_test.go
+      - coderd/x/chatd/hooks_test.go
+      - codersdk/x/agenthooks/**
+    docs:
+      - admin/setup/chat-lifecycle-hooks.md
+
+  - key: chat-projects
+    stage: early-access
+    since: 2026-10-01
+    paths:
+      - coderd/chat_project*.go
+      - coderd/x/chatd/memory*.go
+      - coderd/x/chatd/project_instructions*.go
+      - site/src/api/queries/chatProjects.ts
+      - site/src/pages/AgentsPage/components/ChatElements/CompactProjectSelector*.tsx
+      - site/src/pages/AgentsPage/components/ChatProjectIcon*.tsx
+      - site/src/pages/AgentsPage/components/ChatsSidebar/chats/ProjectActionsMenuItems.tsx
+      - site/src/pages/AgentsPage/components/ChatsSidebar/chats/ProjectFolders*.tsx
+      - site/src/pages/AgentsPage/components/ChatsSidebar/chats/projectGrouping*.ts
+      - site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/ChatProjectDialog*.tsx
+      - site/src/pages/AgentsPage/components/ProjectPage/**
+      - site/src/pages/AgentsPage/utils/projectsSectionStorage.ts
+    routes:
+      - /api/experimental/chats/projects
+      - /api/experimental/organizations/{organization}/chats/projects
+      - /api/experimental/organizations/{organization}/chats/projects/{project}
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/instructions
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/memories
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory}
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/skills
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/skills/{skillName}
+    docs:
+      - ai-coder/agents/projects.md
+    notes: >-
+      The chat-projects flag was removed in #31354, but the docs label the
+      page early access and the API is still under /api/experimental.
+      Sharing belongs to chat-project-sharing.
+
+  - key: chat-project-sharing
+    stage: early-access
+    since: 2026-10-27
+    flag: chat-project-sharing
+    paths:
+      - coderd/chat_project_acl*.go
+    routes:
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/acl
+    notes: >-
+      Split from chat-projects in #31354. In codersdk.ExperimentsSafe, so
+      --experiments='*' enables it. No docs page: projects.md says a project
+      is private to its owner, and chat-sharing.md mentions project sharing
+      only where --disable-chat-sharing turns it off.
+
+  - key: chat-acp-subagents
+    stage: early-access
+    since: 2026-10-21
+    flag: chat-acp-subagents
+    paths:
+      - agent/agent_acp_test.go
+      - agent/agentcontext/acp_internal_test.go
+      - agent/x/agentacp/**
+      - coderd/x/chatd/acp*.go
+      - codersdk/workspacesdk/acp*.go
+      - site/src/pages/AgentsPage/components/ChatElements/tools/ACP*.tsx
+      - site/src/pages/AgentsPage/components/ChatElements/tools/acp*.ts
+      - site/src/testHelpers/acp.ts
+    docs:
+      - ai-coder/agents/acp-subagents.md
+    notes: >-
+      The flag gates the ACP tools and harness context in chatd only. The
+      agent's /api/v0/acp API is always on.
+
+  - key: chat-inline-mcp-servers
+    stage: early-access
+    since: 2026-09-25
+    flag: chat-inline-mcp-servers
+    paths:
+      - coderd/inline_mcp_servers*.go
+      - coderd/x/chatd/inline_mcp_servers*.go
+    docs:
+      - ai-coder/agents/platform-controls/mcp-servers.md
+    notes: >-
+      Adds the inline_mcp_servers field to POST /api/v2/chats. The docs
+      section calls it experimental, but the page has no label.
+
+  - key: mcp-tool-search
+    stage: early-access
+    since: 2026-08-18
+    flag: mcp-tool-search
+    paths:
+      - coderd/x/chatd/chattool/findtools*.go
+      - coderd/x/chatd/mcp_tool_search*.go
+      - site/src/pages/AgentsPage/components/ChatElements/tools/FindToolsTool*.tsx
+    docs:
+      - ai-coder/agents/architecture.md
+    notes: >-
+      Evaluated per user through experiment rules. The docs page has no
+      label but says the experiment must be enabled.
+
+  - key: chat-stage-metrics
+    stage: early-access
+    since: 2026-09-30
+    flag: chat-stage-metrics
+    paths:
+      - coderd/x/chatd/chatloop/stage*.go
+      - coderd/x/chatd/stage_metrics_internal_test.go
+    docs:
+      - admin/integrations/prometheus.md
+    notes: >-
+      In codersdk.ExperimentsSafe, so --experiments='*' enables it. The
+      flag only controls Prometheus exposure. The docs do not mention it.
+
+  - key: enable-ai-workspace-debug
+    stage: early-access
+    since: 2026-09-25
+    flag: enable-ai-workspace-debug
+    paths:
+      - coderd/workspacebuilddebug_test.go
+      - site/src/modules/workspaces/workspaceBuildDebugLink.ts
+      - site/src/pages/AgentsPage/utils/workspaceBuildDebug*.ts
+      - site/src/pages/WorkspacePage/WorkspaceBuildFailedAlert*.tsx
+    notes: >-
+      Gates POST /api/v2/workspacebuilds/{workspacebuild}/debug-events, which
+      is hidden from the API docs. No docs page.
+
+  # AI Gateway and AI Governance
+
+  - key: ai-gateway-reverse-proxy
+    stage: early-access
+    since: 2026-09-17
+    flag: ai-gateway-reverse-proxy
+    paths:
+      - aibridge/x/proxy/**
+    notes: >-
+      Not related to the AI Gateway Proxy premium feature in the docs.
+
+  - key: ai-gateway-seat-exclusion
+    stage: early-access
+    since: 2026-07-27
+    flag: ai-gateway-seat-exclusion
+    notes: >-
+      A single check in coderd/aibridgedserver. Enabling it stops AI Gateway
+      usage from counting toward AI Governance seats.
+
+  - key: ai-model-prices
+    stage: ga
+    since: 2026-08-13
+    paths:
+      - codersdk/aimodelprices.go
+      - enterprise/cli/exp_aimodelprices*.go
+      - enterprise/coderd/aimodelprices*.go
+    routes:
+      - /api/experimental/ai/model-prices
+    docs:
+      - ai-coder/ai-gateway/cost-controls.md
+    notes: >-
+      Gated by the AI Bridge license feature and documented without a label,
+      but the CLI is under coder exp and the API under /api/experimental.
+
+  - key: ai-spend-by-user
+    stage: ga
+    since: 2026-09-17
+    routes:
+      - /api/experimental/organizations/{organization}/ai/spend/users
+    docs:
+      - ai-coder/ai-gateway/cost-controls.md
+    notes: >-
+      The handler lives in enterprise/coderd/aibridge.go, which it shares
+      with GA code. Gated by the AI Bridge license feature and hidden from
+      the API docs.
+
+  # MCP server
+
+  - key: mcp-server-http
+    stage: beta
+    since: 2026-09-24
+    flag: mcp-server-http
+    paths:
+      - coderd/mcp_http.go
+      - coderd/mcp_transport*.go
+    routes:
+      - /api/experimental/mcp/http
+    docs:
+      - ai-coder/mcp-server.md
+    notes: >-
+      The docs label the page beta, but the flag is hidden and the endpoint
+      requires it.
+
+  - key: mcp-server-cli
+    stage: beta
+    since: 2025-07-07
+    paths:
+      - cli/exp_mcp*.go
+    docs:
+      - ai-coder/mcp-server.md
+    notes: >-
+      coder exp mcp server. The exp command group is hidden, but the docs
+      teach it.
+
+  # Workspaces and templates
+
+  - key: workspace-usage
+    stage: early-access
+    since: 2024-06-14
+    flag: workspace-usage
+    notes: >-
+      Gates POST /api/v2/workspaces/{workspace}/usage and the usage mode of
+      workspace stats in shared files.
+
+  - key: workspace-build-updates
+    stage: early-access
+    since: 2026-03-13
+    flag: workspace-build-updates
+    routes:
+      - /api/experimental/watch-all-workspacebuilds
+    notes: >-
+      Publishes build updates from shared files. The only consumer is the
+      workspace-updates scale test.
+
+  - key: startup-coordination
+    stage: early-access
+    since: 2026-01-14
+    paths:
+      - agent/agentscripts/script_order.go
+      - agent/unit/**
+      - cli/sync.go
+      - cli/sync_*.go
+      - coderd/provisionerdserver/scriptorderusage.go
+      - provisioner/terraform/scriptorder/**
+      - provisioner/terraform/scriptorderconvert.go
+    docs:
+      - admin/templates/startup-coordination/index.md
+    notes: >-
+      coder exp sync. No flag: early access exists only in the docs label.
+
+  - key: external-workspaces
+    stage: early-access
+    since: 2025-08-28
+    paths:
+      - enterprise/cli/externalworkspaces*.go
+    docs:
+      - admin/templates/managing-templates/external-workspaces.md
+    notes: >-
+      Gated by the workspace_external_agent license feature, not a flag.
+
+  # Deployment and licensing
+
+  - key: experiment-rules
+    stage: early-access
+    since: 2026-09-29
+    paths:
+      - cli/exp_experimentrules*.go
+      - coderd/experimentrules_test.go
+      - coderd/experiments.go
+      - coderd/experiments/**
+      - codersdk/experimentrules.go
+    routes:
+      - /api/experimental/experiments/rules
+      - /api/experimental/experiments/rules/{experiment}
+    docs:
+      - reference/feature-stages.md
+    notes: >-
+      Runtime rules for the experiments in codersdk.ExperimentsUserScoped.
+      The docs call the API and command experimental.
+
+  - key: no_nats_pubsub
+    stage: early-access
+    since: 2026-09-18
+    flag: no_nats_pubsub
+    notes: >-
+      Opt-out: enabling it replaces the default embedded NATS pubsub with
+      PostgreSQL pubsub. The NATS code moved out of x/ in #30381.
+
+  - key: workspace-capable-licensing
+    stage: early-access
+    since: 2026-07-27
+    flag: workspace-capable-licensing
+    paths:
+      - enterprise/coderd/license/usercount*.go
+    notes: >-
+      Counts only users with the workspace-create permission toward the
+      license seat limit. No docs.
+
+  - key: notifications
+    stage: ga
+    since: 2024-10-01
+    flag: notifications
+    docs:
+      - admin/monitoring/notifications/index.md
+    notes: >-
+      The gate was removed in #14869 and nothing reads the flag. It is still
+      in codersdk.ExperimentsKnown.
+
+  - key: example
+    stage: early-access
+    since: 2024-01-11
+    flag: example
+    notes: >-
+      Not a feature. Tests use it as a user-scoped experiment.
+
+  # Docs only: the code for these is outside this repository or
+  # customer-built.
+
+  - key: agent-relay
+    stage: early-access
+    since: 2026-09-02
+    docs:
+      - ai-coder/agent-relay/index.md
+      - ai-coder/agent-relay/claude-code.md
+      - ai-coder/agent-relay/cursor.md
+    notes: >-
+      Ships as a separate image and Helm chart.
+
+  - key: agent-isolation
+    stage: early-access
+    since: 2026-09-23
+    docs:
+      - ai-coder/agents/platform-controls/agent-isolation.md
+    notes: >-
+      Describes a customer-built sandbox for agent tools.
+
+# Files with an experimental marker that are tools rather than features.
+tools:
+  - paths:
+      - cli/exp_scaletest*.go
+      - enterprise/cli/exp_scaletest_agentfake.go
+    notes: Scale testing.
+  - paths:
+      - cli/exp_errors*.go
+      - cli/exp_prompts.go
+      - cli/exp_rpty*.go
+    notes: CLI development and debugging commands.
+  - paths:
+      - cli/exp_update_user_email*.go
+    routes:
+      - /api/experimental/users/email
+    notes: Owner-only command to change a user's email.
+  - paths:
+      - examples/templates/x/README.md
+    notes: Explains the experimental templates directory.
