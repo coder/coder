@@ -23,12 +23,15 @@ import (
 // postOrgRoles will allow creating a custom organization role
 //
 // @Summary Insert a custom organization role
+// @Description Creates a custom role in an organization with the given organization permissions.
+// @Description The name can't match a built-in role, and the request can't include site, user, or organization member permissions.
+// @Description Requires permission to create custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
 // @ID insert-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CustomRoleRequest true "Insert role request"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.CustomRoleRequest true "Custom role to create. Include only organization permissions."
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /api/v2/organizations/{organization}/members/roles [post]
@@ -90,12 +93,15 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // putOrgRoles will allow updating a custom organization role
 //
 // @Summary Update a custom organization role
+// @Description Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.
+// @Description Permissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.
+// @Description Requires permission to update custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
 // @ID update-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CustomRoleRequest true "Update role request"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.CustomRoleRequest true "Custom role definition. The `name` selects the role to update, and the other fields replace its current values."
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /api/v2/organizations/{organization}/members/roles [put]
@@ -181,11 +187,13 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // deleteOrgRole will remove a custom role from an organization
 //
 // @Summary Delete a custom organization role
+// @Description Deletes a custom role from an organization.
+// @Description Requires permission to delete custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
 // @ID delete-a-custom-organization-role
 // @Security CoderSessionToken
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param roleName path string true "Role name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param roleName path string true "Name of the custom organization role to delete."
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /api/v2/organizations/{organization}/members/roles/{roleName} [delete]
