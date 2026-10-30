@@ -42,7 +42,7 @@ When the agent executes a tool call (reading a file, running a command, writing 
 
 The underlying tunnel is identical.
 IDE connections use SSH, web terminals use a WebSocket protocol, and the agent uses the workspace daemon's HTTP API, but all three traverse the same Tailnet connection and rely on the same security boundary.
-No additional ports or network paths are introduced.
+You don't need to expose additional inbound ports or configure new network paths.
 
 ### No inbound ports
 
@@ -129,6 +129,10 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 | `process_list`   | Lists all tracked processes in the workspace.                                                                                                                                                                                                                                      |
 | `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.                                                                                                                                                                                                                          |
 | `attach_file`    | Attach a workspace file to the current chat so the user can download it directly from the conversation. Use this when the user should receive an artifact such as a screenshot, log, patch, or document. Pass an absolute file path. The file must already exist in the workspace. |
+
+`open_preview` is also a workspace tool, but only root chats outside plan mode can use it.
+It opens an existing HTTP app or asks the workspace daemon to serve selected files.
+For publication boundaries and requirements, refer to [Embedded previews](./index.md#embedded-previews).
 
 #### Windows workspace shell requirement
 
