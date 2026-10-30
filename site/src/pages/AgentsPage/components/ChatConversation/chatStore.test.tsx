@@ -4018,15 +4018,12 @@ describe("useChatStore", () => {
 		}
 		act(() => {
 			socket.emitOpen();
-			socket.emitData({
-				type: "status",
-				chat_id: chatID,
-				status: { status: "running" },
-			});
 		});
-		for (let i = 0; i < 2; i++) {
+		// Keepalives one interval apart, for longer than the silence timeout.
+		const keepaliveMs = ChatStreamKeepaliveIntervalSeconds * 1000;
+		for (let t = 0; t <= CHAT_SOCKET_SILENCE_TIMEOUT_MS; t += keepaliveMs) {
 			await act(async () => {
-				vi.advanceTimersByTime(ChatStreamKeepaliveIntervalSeconds * 1000);
+				vi.advanceTimersByTime(keepaliveMs);
 				socket.emitDataBatch([]);
 			});
 		}
