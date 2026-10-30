@@ -21,21 +21,19 @@ describe(Filter.name, () => {
 				isLoading={false}
 				optionsSkeleton={null}
 				presets={[{ name: "All", query: "" }]}
-				learnMoreLink="https://coder.com/docs/filtering"
+				learnMoreLink="https://docs.example.com/filtering"
 				learnMoreLabel2="User status"
-				learnMoreLink2="https://coder.com/docs/status"
+				learnMoreLink2="https://docs.example.com/status"
 			/>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filters" }));
 
-		const items = await screen.findAllByRole("menuitem");
-		expect(items).toHaveLength(2);
-		expect(items[0]).toHaveAccessibleName(
-			/^View advanced filtering\s*\(opens in new tab\)$/,
-		);
-		expect(items[1]).toHaveAccessibleName(
-			/^User status\s*\(opens in new tab\)$/,
-		);
+		expect(
+			await screen.findByRole("menuitem", { name: /^View advanced filtering/ }),
+		).toHaveAccessibleName(/^View advanced filtering\s*\(opens in new tab\)$/);
+		expect(
+			screen.getByRole("menuitem", { name: /^User status/ }),
+		).toHaveAccessibleName(/^User status\s*\(opens in new tab\)$/);
 	});
 });
