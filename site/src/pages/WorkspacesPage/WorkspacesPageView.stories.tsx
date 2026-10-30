@@ -762,6 +762,7 @@ export const WithCheckedWorkspaces: Story = {
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
 		count: 5,
 	},
+	render: SelectedIneligibleWorkspaces.render,
 };
 
 // An invalid filter query returns an API validation error. The page suppresses
