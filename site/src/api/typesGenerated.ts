@@ -3121,6 +3121,14 @@ export interface ChatMessagesResponse {
 	 * and when no prompt is at or before that message.
 	 */
 	readonly turn_start_id?: number;
+	/**
+	 * SnapshotVersion is the chat's snapshot_version, read before the rest
+	 * of this page. The page can hold changes made after it, and a stream
+	 * opened with it sends them again. Pass it as the stream's
+	 * snapshot_version parameter. It is set only on pages requested without
+	 * before_id or after_id.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3844,6 +3852,18 @@ export interface ChatStreamEvent {
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	/**
+	 * HistoryReset is set on history_reset events of streams opened with a
+	 * snapshot_version.
+	 */
+	readonly history_reset?: ChatStreamHistoryReset;
+	/**
+	 * SnapshotVersion is set on the message, queue_update and history_reset
+	 * events of streams opened with a snapshot_version. It is the snapshot
+	 * version of the commit that made the change. A client reconnects with
+	 * the highest one it has received.
+	 */
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3869,6 +3889,19 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"retry",
 	"status",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatStreamHistoryReset describes which messages a history_reset removes.
+ */
+export interface ChatStreamHistoryReset {
+	/**
+	 * FromMessageID is the lowest message ID the edit removed. The client
+	 * drops its messages with this ID or higher. Only messages written by
+	 * the edit or a later commit follow.
+	 */
+	readonly from_message_id: number;
+}
 
 // From codersdk/chats.go
 /**
@@ -9976,10 +10009,19 @@ export interface StreamChatOptions {
 	/**
 	 * AfterID limits the initial snapshot to messages created
 	 * after the given ID. This is useful for relay connections
-	 * that only need live message_part events and can skip the
-	 * full message history.
+	 * that only need live message_part events. Without SnapshotVersion, a
+	 * connection to a chat with a deleted message resends the whole
+	 * history, unless AfterID is the ID of a message of the chat that is
+	 * not deleted.
 	 */
 	readonly AfterID: number | null;
+	/**
+	 * SnapshotVersion is the snapshot version of the caller's state: the
+	 * one from ChatMessagesResponse, or the highest one from the stream's
+	 * events. When it is set, the stream sends the changes made at or after
+	 * it, and the server ignores AfterID.
+	 */
+	readonly SnapshotVersion: number;
 }
 
 // From codersdk/client.go

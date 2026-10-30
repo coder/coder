@@ -18508,7 +18508,10 @@ func TestGetChatsSearch(t *testing.T) {
 
 	// Soft-deleted rows stay excluded even though search_tsv remains
 	// populated.
-	err = store.SoftDeleteChatMessageByID(ctx, deletedMsg.ID)
+	err = store.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  deletedMsgChat.ID,
+		AfterID: deletedMsg.ID - 1,
+	})
 	require.NoError(t, err)
 
 	// Inserted after backfill: search_tsv IS NULL, must match nothing.
