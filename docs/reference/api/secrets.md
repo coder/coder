@@ -87,6 +87,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 Creates a secret for a user and returns its metadata without its value.
 An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
 Each user can store up to 50 secrets and 200 KiB in total, and the secrets that set an `env_name` can total up to 24 KiB.
+The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values you send when the deployment encrypts secrets.
 
 > Body parameter
 
@@ -152,7 +153,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.
 Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
 The file can hold up to 50 secrets.
-The per-user limits of 50 secrets, 200 KiB in total, and 24 KiB for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
+The per-user limits of 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
+The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values in the file when the deployment encrypts secrets.
 The import is atomic, so if any entry is invalid or would exceed a limit, none are created.
 A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 

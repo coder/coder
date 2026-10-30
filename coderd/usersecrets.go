@@ -139,6 +139,7 @@ func (api *API) userSecretsCapabilities(rw http.ResponseWriter, r *http.Request)
 // @Description Creates a secret for a user and returns its metadata without its value.
 // @Description An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
 // @Description Each user can store up to 50 secrets and 200 KiB in total, and the secrets that set an `env_name` can total up to 24 KiB.
+// @Description The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values you send when the deployment encrypts secrets.
 // @ID create-a-new-user-secret
 // @Security CoderSessionToken
 // @Accept json
@@ -222,7 +223,8 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Description Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.
 // @Description Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
 // @Description The file can hold up to 50 secrets.
-// @Description The per-user limits of 50 secrets, 200 KiB in total, and 24 KiB for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
+// @Description The per-user limits of 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an `env_name` include the secrets the user already has, and exceeding one returns `400`.
+// @Description The 200 KiB and 24 KiB totals count stored bytes, which are larger than the values in the file when the deployment encrypts secrets.
 // @Description The import is atomic, so if any entry is invalid or would exceed a limit, none are created.
 // @Description A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 // @ID import-user-secrets-from-a-file

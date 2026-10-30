@@ -305,7 +305,7 @@ func (api *API) installLicense(
 //
 // @Summary Update license entitlements
 // @Description Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
-// @Description Use it to apply a license change immediately instead of waiting for the next automatic refresh.
+// @Description Use it to apply changes that don't trigger a refresh on their own, such as a license expiring or the number of active users changing, instead of waiting for the next automatic refresh.
 // @Description Returns `400` with a `Retry-After` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.
 // @Description Requires permission to create licenses.
 // @ID update-license-entitlements

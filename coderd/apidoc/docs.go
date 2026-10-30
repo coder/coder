@@ -4304,7 +4304,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.\nSend only the fields you want to change.\nOnly the chat owner can change ` + "`" + `workspace_id` + "`" + ` or ` + "`" + `read` + "`" + `, and archiving needs the chat to be idle or in an error state and returns ` + "`" + `409` + "`" + ` otherwise.",
+                "description": "Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.\nSend only the fields you want to change.\nOnly the chat owner can change ` + "`" + `workspace_id` + "`" + ` or ` + "`" + `read` + "`" + `.\nOnly a root chat can be archived or unarchived, and a sub-agent chat returns ` + "`" + `400` + "`" + `.\nThe change also applies to the root chat's sub-agent chats, so archiving returns ` + "`" + `409` + "`" + ` unless every chat in the family is idle or in an error state.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5224,7 +5224,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/tool-results": {
             "post": {
-                "description": "Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.\nUse it when the chat is in the ` + "`" + `requires_action` + "`" + ` status after calling a tool you declared in ` + "`" + `unsafe_dynamic_tools` + "`" + `.\nOnly the chat owner can submit results, and the call returns ` + "`" + `403` + "`" + ` for anyone else or when the deployment turns off caller-supplied tools.",
+                "description": "Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.\nUse it when the chat is in the ` + "`" + `requires_action` + "`" + ` status after calling a tool you declared in ` + "`" + `unsafe_dynamic_tools` + "`" + `.\nOnly the chat owner can submit results.\nReturns ` + "`" + `404` + "`" + ` if you can't update the chat, and ` + "`" + `403` + "`" + ` if you can but don't own it or the deployment turns off caller-supplied tools.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7111,7 +7111,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/refresh-entitlements": {
             "post": {
-                "description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply a license change immediately instead of waiting for the next automatic refresh.\nReturns ` + "`" + `400` + "`" + ` with a ` + "`" + `Retry-After` + "`" + ` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.\nRequires permission to create licenses.",
+                "description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply changes that don't trigger a refresh on their own, such as a license expiring or the number of active users changing, instead of waiting for the next automatic refresh.\nReturns ` + "`" + `400` + "`" + ` with a ` + "`" + `Retry-After` + "`" + ` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.\nRequires permission to create licenses.",
                 "produces": [
                     "application/json"
                 ],
@@ -15552,7 +15552,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a secret for a user and returns its metadata without its value.\nAn enabled secret is injected into the user's workspaces as the environment variable ` + "`" + `env_name` + "`" + `, the file ` + "`" + `file_path` + "`" + `, or both, so it needs at least one of them.\nEach user can store up to 50 secrets and 200 KiB in total, and the secrets that set an ` + "`" + `env_name` + "`" + ` can total up to 24 KiB.",
+                "description": "Creates a secret for a user and returns its metadata without its value.\nAn enabled secret is injected into the user's workspaces as the environment variable ` + "`" + `env_name` + "`" + `, the file ` + "`" + `file_path` + "`" + `, or both, so it needs at least one of them.\nEach user can store up to 50 secrets and 200 KiB in total, and the secrets that set an ` + "`" + `env_name` + "`" + ` can total up to 24 KiB.\nThe 200 KiB and 24 KiB totals count stored bytes, which are larger than the values you send when the deployment encrypts secrets.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15611,7 +15611,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/batch": {
             "post": {
-                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets.\nThe per-user limits of 50 secrets, 200 KiB in total, and 24 KiB for secrets that set an ` + "`" + `env_name` + "`" + ` include the secrets the user already has, and exceeding one returns ` + "`" + `400` + "`" + `.\nThe import is atomic, so if any entry is invalid or would exceed a limit, none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
+                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets.\nThe per-user limits of 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an ` + "`" + `env_name` + "`" + ` include the secrets the user already has, and exceeding one returns ` + "`" + `400` + "`" + `.\nThe 200 KiB and 24 KiB totals count stored bytes, which are larger than the values in the file when the deployment encrypts secrets.\nThe import is atomic, so if any entry is invalid or would exceed a limit, none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],

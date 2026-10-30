@@ -2217,7 +2217,9 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 
 Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.
 Send only the fields you want to change.
-Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state and returns `409` otherwise.
+Only the chat owner can change `workspace_id` or `read`.
+Only a root chat can be archived or unarchived, and a sub-agent chat returns `400`.
+The change also applies to the root chat's sub-agent chats, so archiving returns `409` unless every chat in the family is idle or in an error state.
 
 > Body parameter
 
@@ -4894,7 +4896,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 
 Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.
 Use it when the chat is in the `requires_action` status after calling a tool you declared in `unsafe_dynamic_tools`.
-Only the chat owner can submit results, and the call returns `403` for anyone else or when the deployment turns off caller-supplied tools.
+Only the chat owner can submit results.
+Returns `404` if you can't update the chat, and `403` if you can but don't own it or the deployment turns off caller-supplied tools.
 
 > Body parameter
 

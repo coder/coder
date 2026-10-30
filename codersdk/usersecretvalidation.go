@@ -98,7 +98,7 @@ const MaxUserSecretsTotalValueBytes = 200 * 1024 // 200 KiB
 // See MaxUserSecretsPerUserCount for the rationale behind the other
 // two caps (count, total bytes).
 //
-// The create secret @Param text in coderd/usersecrets.go states this limit.
+// The @Description and @Param text in coderd/usersecrets.go states this limit.
 const MaxUserSecretValueBytes = 24 * 1024 // 24 KiB
 
 // MaxUserSecretEnvNameLength caps the length of an env_name when one
