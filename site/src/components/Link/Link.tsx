@@ -46,7 +46,6 @@ export const Link: React.FC<LinkProps> = ({
 	);
 };
 
-/** Screen-reader-only suffix for links that open in a new tab. */
 export const NewTabLabel: React.FC = () => (
 	<span className="sr-only"> (opens in new tab)</span>
 );
