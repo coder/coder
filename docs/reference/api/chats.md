@@ -2661,6 +2661,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 
 `POST /api/v2/chats/{chat}/interrupt`
 
+Interrupts the active turn of a chat.
+If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -3095,6 +3098,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3194,7 +3198,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 ```json
 {
-  "busy_behavior": "queue",
+  "busy_behavior": "steer",
   "content": [
     {
       "content": "string",
@@ -3419,6 +3423,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -4389,6 +4394,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
     },
     "queued_messages": [
       {
+        "busy_behavior": "steer",
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "content": [
           {
@@ -4571,7 +4577,8 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» queued_messages`                | array                                                                            | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                    |
+| `»» busy_behavior`                 | [codersdk.ChatBusyBehavior](schemas.md#codersdkchatbusybehavior)                 | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                                                                                                                                                                   |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4591,13 +4598,14 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                                                                                |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
-| `skill_source` | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
-| `type`         | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`         | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
-| `status`       | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                        |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
+| `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
+| `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
+| `busy_behavior` | `queue`, `steer`                                                                                                                                                                                                                                                                                                        |
+| `status`        | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
