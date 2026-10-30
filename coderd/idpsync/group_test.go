@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -449,6 +450,197 @@ func TestSyncDisabled(t *testing.T) {
 }
 
 // TestApplyGroupDifference is mainly testing the database functions
+// TestSyncGroupsOutsideOrganization checks that a sync for one organization
+// only adds the user to that organization's groups, whatever its settings
+// map to, and that it logs a warning for each kind of invalid group setting
+// it rejects. Organization A is the one whose settings are under test, and its
+// mapping sends the IdP group "x" to the IDs in each case. Organization B
+// holds the outside group.
+func TestSyncGroupsOutsideOrganization(t *testing.T) {
+	t.Parallel()
+
+	ids := coderdtest.NewDeterministicUUIDGenerator()
+	insideA1 := ids.ID("inside-a1")
+	insideA2 := ids.ID("inside-a2")
+	outsideB := ids.ID("outside-b")
+	deleted := ids.ID("deleted")
+	never := ids.ID("never")
+	// namedX is a group in organization A whose name matches the IdP group,
+	// so it is synced by name when "x" has no mapping.
+	namedX := ids.ID("named-x")
+
+	testCases := []struct {
+		Name string
+		// Mapping is what organization A maps the IdP group "x" to. When
+		// empty, "x" has no mapping entry at all.
+		Mapping []uuid.UUID
+		// OtherSyncOn enables group sync in organization B. Its settings
+		// map nothing, so it never expects the user in outsideB.
+		OtherSyncOn bool
+		// NotMemberOfOther leaves the user out of organization B.
+		NotMemberOfOther bool
+		// InOutsideGroup starts the user as a member of outsideB.
+		InOutsideGroup bool
+
+		ExpectA []uuid.UUID
+		ExpectB []uuid.UUID
+		Outside []uuid.UUID
+		Missing []uuid.UUID
+	}{
+		{
+			Name:    "Valid",
+			Mapping: []uuid.UUID{insideA1, insideA2},
+			ExpectA: []uuid.UUID{insideA1, insideA2},
+		},
+		{
+			Name:    "OutsideNotAdded/OtherSyncOff",
+			Mapping: []uuid.UUID{outsideB},
+			Outside: []uuid.UUID{outsideB},
+		},
+		{
+			Name:        "OutsideNotAdded/OtherSyncOn",
+			Mapping:     []uuid.UUID{outsideB},
+			OtherSyncOn: true,
+			Outside:     []uuid.UUID{outsideB},
+		},
+		{
+			Name:             "OutsideNotAdded/NotMemberOfOther",
+			Mapping:          []uuid.UUID{outsideB},
+			NotMemberOfOther: true,
+			Outside:          []uuid.UUID{outsideB},
+		},
+		{
+			Name:    "InsideAndOutside",
+			Mapping: []uuid.UUID{insideA1, outsideB},
+			ExpectA: []uuid.UUID{insideA1},
+			Outside: []uuid.UUID{outsideB},
+		},
+		{
+			Name:    "Missing/NeverExisted",
+			Mapping: []uuid.UUID{never},
+			Missing: []uuid.UUID{never},
+		},
+		{
+			Name:    "Missing/Deleted",
+			Mapping: []uuid.UUID{deleted},
+			Missing: []uuid.UUID{deleted},
+		},
+		{
+			Name:    "OnlyMissing",
+			Mapping: []uuid.UUID{deleted, never},
+			Missing: []uuid.UUID{deleted, never},
+		},
+		{
+			// With no IDs to look up, nothing is partitioned out, and the
+			// user is added only to the group matched by name. If the
+			// inside groups were taken from an unfiltered lookup, the user
+			// would be added to every group in the organization.
+			Name:    "NoMappedUUIDs",
+			ExpectA: []uuid.UUID{namedX},
+		},
+		{
+			Name:    "AllThree",
+			Mapping: []uuid.UUID{insideA1, outsideB, never},
+			ExpectA: []uuid.UUID{insideA1},
+			Outside: []uuid.UUID{outsideB},
+			Missing: []uuid.UUID{never},
+		},
+		{
+			// Organization B's own sync removes the membership, and
+			// organization A no longer adds it back.
+			Name:           "ExistingOutsideMembership/OtherSyncOn",
+			Mapping:        []uuid.UUID{outsideB},
+			OtherSyncOn:    true,
+			InOutsideGroup: true,
+			Outside:        []uuid.UUID{outsideB},
+		},
+		{
+			// Nothing removes the membership. Cleaning up memberships
+			// created before this check is out of scope.
+			Name:           "ExistingOutsideMembership/OtherSyncOff",
+			Mapping:        []uuid.UUID{outsideB},
+			InOutsideGroup: true,
+			ExpectB:        []uuid.UUID{outsideB},
+			Outside:        []uuid.UUID{outsideB},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			sink := testutil.NewFakeSink(t)
+			s := idpsync.NewAGPLSync(sink.Logger(), runtimeconfig.NewManager(), idpsync.DeploymentSyncSettings{})
+			user := dbgen.User(t, db, database.User{})
+
+			var mappingA map[string][]uuid.UUID
+			if len(tc.Mapping) > 0 {
+				mappingA = map[string][]uuid.UUID{"x": tc.Mapping}
+			}
+			orgA, orgB := uuid.New(), uuid.New()
+			SetupOrganization(t, s, db, user, orgA, orgSetupDefinition{
+				GroupSettings: &codersdk.GroupSyncSettings{
+					Field:   "groups",
+					Mapping: mappingA,
+				},
+				Groups: map[uuid.UUID]bool{insideA1: false, insideA2: false},
+			})
+			dbgen.Group(t, db, database.Group{ID: namedX, Name: "x", OrganizationID: orgA})
+			var settingsB *codersdk.GroupSyncSettings
+			if tc.OtherSyncOn {
+				settingsB = &codersdk.GroupSyncSettings{Field: "groups"}
+			}
+			SetupOrganization(t, s, db, user, orgB, orgSetupDefinition{
+				GroupSettings: settingsB,
+				NotMember:     tc.NotMemberOfOther,
+				Groups:        map[uuid.UUID]bool{outsideB: tc.InOutsideGroup},
+			})
+			dbgen.Group(t, db, database.Group{ID: deleted, OrganizationID: orgA})
+			require.NoError(t, db.DeleteGroupByID(ctx, deleted))
+
+			err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
+				SyncEntitled: true,
+				MergedClaims: jwt.MapClaims{"groups": []string{"x"}},
+			})
+			require.NoError(t, err)
+
+			(&orgGroupAssert{ExpectedGroups: tc.ExpectA}).Assert(t, orgA, db, user)
+			(&orgGroupAssert{ExpectedGroups: tc.ExpectB}).Assert(t, orgB, db, user)
+			requireInvalidGroupSettingWarning(t, sink, "outside", orgA, user.ID, tc.Outside)
+			requireInvalidGroupSettingWarning(t, sink, "missing", orgA, user.ID, tc.Missing)
+		})
+	}
+}
+
+// requireInvalidGroupSettingWarning asserts that exactly one warning of the
+// given kind names groupIDs, or that none was logged when groupIDs is empty.
+func requireInvalidGroupSettingWarning(t *testing.T, sink *testutil.FakeSink, kind string, orgID, userID uuid.UUID, groupIDs []uuid.UUID) {
+	t.Helper()
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && sinkField(e, "invalid_group_setting") == kind
+	})
+	if len(groupIDs) == 0 {
+		require.Empty(t, entries, "%s warnings", kind)
+		return
+	}
+	require.Len(t, entries, 1, "%s warnings", kind)
+	require.Equal(t, orgID, sinkField(entries[0], "organization_id"), "organization_id")
+	require.Equal(t, userID, sinkField(entries[0], "user_id"), "user_id")
+	require.ElementsMatch(t, groupIDs, sinkField(entries[0], "group_ids"), "group_ids")
+}
+
+func sinkField(e slog.SinkEntry, name string) any {
+	for _, f := range e.Fields {
+		if f.Name == name {
+			return f.Value
+		}
+	}
+	return nil
+}
+
 func TestApplyGroupDifference(t *testing.T) {
 	t.Parallel()
 
