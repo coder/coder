@@ -565,7 +565,8 @@ type ChatMessagePart struct {
 	// positional argument. Program names are normalized to their base
 	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
 	// is "execute" and the command parses successfully; nil otherwise.
-	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	ParsedCommands [][]string `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	// Result is the tool output, which can be any JSON value.
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
 	ReasoningDelta string          `json:"reasoning_delta,omitempty" variants:"tool-result?"`
@@ -577,17 +578,18 @@ type ChatMessagePart struct {
 	Title          string          `json:"title,omitempty" variants:"source?"`
 	MediaType      string          `json:"media_type" variants:"file"`
 	Name           string          `json:"name,omitempty" variants:"file?"`
-	Data           []byte          `json:"data,omitempty" variants:"file?"`
-	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName       string          `json:"file_name" variants:"file-reference"`
-	StartLine      int             `json:"start_line" variants:"file-reference"`
-	EndLine        int             `json:"end_line" variants:"file-reference"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data      []byte        `json:"data,omitempty" swaggertype:"string" format:"byte" variants:"file?"`
+	FileID    uuid.NullUUID `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName  string        `json:"file_name" variants:"file-reference"`
+	StartLine int           `json:"start_line" variants:"file-reference"`
+	EndLine   int           `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
-	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-" swaggerignore:"true"`
 	// ProviderIdentity records the provider that produced a reasoning
 	// part, because a model config's provider can change after the
 	// message was written. Internal only: stripped before API responses.
@@ -874,9 +876,10 @@ type SubmitToolResultsRequest struct {
 
 // ToolResult is the client's response to a dynamic tool call.
 type ToolResult struct {
-	ToolCallID string          `json:"tool_call_id"`
-	Output     json.RawMessage `json:"output"`
-	IsError    bool            `json:"is_error"`
+	ToolCallID string `json:"tool_call_id"`
+	// Output is the tool output, which can be any JSON value.
+	Output  json.RawMessage `json:"output"`
+	IsError bool            `json:"is_error"`
 }
 
 // MaxChatTitleRunes is the longest title accepted at creation or rename,
