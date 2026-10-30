@@ -1906,6 +1906,20 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
+						{contextUsage !== undefined && (
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported && !speech.error && "-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
+						)}
 						{speech.isSupported && !isReadOnlyView && (
 							<>
 								<Button
@@ -1940,20 +1954,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									</span>
 								)}
 							</>
-						)}
-						{contextUsage !== undefined && (
-							<div
-								className={cn(
-									"flex",
-									speech.isSupported && !speech.error && "-ml-2",
-								)}
-							>
-								<ContextUsageIndicator
-									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
-								/>
-							</div>
 						)}
 						{showSendButton && (
 							<Tooltip>
