@@ -712,13 +712,15 @@ const AgentChatPage: React.FC = () => {
 		attachments,
 		workspaceUploads,
 		editingTarget,
+		composerParts,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
 			attachments,
 			workspaceUploads,
-			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
+			composerParts:
+				composerParts ?? editing.chatInputRef.current?.getContentParts() ?? [],
 			editingTarget,
 		});
 	}

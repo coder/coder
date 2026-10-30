@@ -17,6 +17,7 @@ import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MockPngBase64 } from "#/testHelpers/files";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -779,6 +780,61 @@ export const UserMessageBubbleAlignment: Story = {
 		const userRow = messageText.closest('[data-role="user"]');
 
 		await userEvent.hover(userRow?.parentElement as HTMLElement);
+	},
+};
+
+/** An async question answer shows an Answer label in place of its call line. */
+export const UserMessageAsyncQuestionAnswer: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
+		}),
+		{
+			...baseMessage,
+			id: 2,
+			role: "user",
+			content: [
+				{ type: "text", text: "Answer to ask_user_question call ask-tool-2:" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "on the rollout plan." },
+			],
+		},
+	),
+};
+
+/** An answer that is only a skill chip has no text to copy. */
+export const UserMessageAsyncQuestionChipAnswer: Story = {
+	args: {
+		...buildStoryArgs({
+			...baseMessage,
+			id: 1,
+			role: "user",
+			content: [
+				{
+					type: "text",
+					text: "Answer to ask_user_question call ask-tool-async:",
+				},
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			],
+		}),
+		onEditUserMessage: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const userRow = canvas.getByText("Answer").closest('[data-role="user"]');
+		if (!userRow?.parentElement) {
+			throw new Error("Missing the answer's message row.");
+		}
+
+		await userEvent.hover(userRow.parentElement);
 	},
 };
 
