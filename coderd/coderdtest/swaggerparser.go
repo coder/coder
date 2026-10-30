@@ -1,11 +1,13 @@
 package coderdtest
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,15 +20,20 @@ import (
 )
 
 type SwaggerComment struct {
-	summary  string
-	id       string
-	security string
-	tags     string
-	accept   string
-	produce  string
+	summary     string
+	description string
+	id          string
+	security    string
+	tags        string
+	accept      string
+	produce     string
 
 	method string
 	router string
+
+	// skip is true when @x-apidocgen hides the route from the published
+	// API reference.
+	skip bool
 
 	successes []response
 	failures  []response
@@ -135,6 +142,20 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 			c.parameters = append(c.parameters, p)
 		case "@Summary":
 			c.summary = annotationArgs
+		case "@Description":
+			if c.description != "" {
+				c.description += "\n"
+			}
+			c.description += strings.TrimSpace(annotationArgs)
+		case "@x-apidocgen":
+			var ext struct {
+				Skip bool `json:"skip"`
+			}
+			// An unparsable value leaves skip false, so the route is
+			// treated as published and still needs a @Description.
+			if json.Unmarshal([]byte(annotationArgs), &ext) == nil {
+				c.skip = ext.Skip
+			}
 		case "@ID":
 			c.id = annotationArgs
 		case "@Tags":
@@ -154,7 +175,8 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 type SwaggerOption func(*swaggerOptions)
 
 type swaggerOptions struct {
-	routePrefix string
+	routePrefix           string
+	descriptionExemptions []string
 }
 
 // WithSwaggerRoutePrefix prepends the given prefix to every route walked from
@@ -164,6 +186,17 @@ type swaggerOptions struct {
 func WithSwaggerRoutePrefix(prefix string) SwaggerOption {
 	return func(o *swaggerOptions) {
 		o.routePrefix = prefix
+	}
+}
+
+// WithSwaggerDescriptionExemptions adds routes, formatted as
+// "<method> <route>" (for example "get /api/v2/users"), that may omit
+// @Description because they predate the requirement. Use it for routes whose
+// swagger comments live outside the AGPL packages, which
+// routesWithoutDescription already covers.
+func WithSwaggerDescriptionExemptions(routes []string) SwaggerOption {
+	return func(o *swaggerOptions) {
+		o.descriptionExemptions = append(o.descriptionExemptions, routes...)
 	}
 }
 
@@ -187,6 +220,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 
 	assertUniqueRoutes(t, swaggerComments)
 	assertSingleAnnotations(t, swaggerComments)
+	assertDescriptionsDefined(t, swaggerComments, slices.Concat(routesWithoutDescription, cfg.descriptionExemptions))
 
 	err := chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		method = strings.ToLower(method)
@@ -251,6 +285,43 @@ func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
 		if !alreadyDefined {
 			m[key] = struct{}{}
 		}
+	}
+}
+
+// descriptionExemptionLists names where the @Description exemptions live, for
+// failure messages.
+const descriptionExemptionLists = "routesWithoutDescription in coderd/coderdtest/swaggerdescriptions.go, or enterpriseRoutesWithoutDescription in enterprise/coderd/coderdenttest/swagger_test.go"
+
+// assertDescriptionsDefined requires a @Description on every route that the
+// API reference publishes. Routes in exemptions predate the requirement. The
+// exemptions may only shrink: a listed route that gains a @Description, is
+// hidden with @x-apidocgen, or no longer exists fails until it is removed
+// from the list.
+func assertDescriptionsDefined(t *testing.T, comments []SwaggerComment, exemptions []string) {
+	t.Helper()
+
+	exempt := make(map[string]bool, len(exemptions))
+	for _, route := range exemptions {
+		assert.False(t, exempt[route], "%s is listed more than once in %s", route, descriptionExemptionLists)
+		exempt[route] = true
+	}
+
+	commented := make(map[string]bool, len(comments))
+	for _, c := range comments {
+		key := c.method + " " + c.router
+		commented[key] = true
+		switch {
+		case c.skip:
+			assert.False(t, exempt[key], "%s is hidden with @x-apidocgen, so remove it from %s", key, descriptionExemptionLists)
+		case exempt[key]:
+			assert.Empty(t, c.description, "%s now has a @Description, so remove it from %s", key, descriptionExemptionLists)
+		default:
+			assert.NotEmpty(t, c.description, "%s needs a @Description that says what the route does and when to use it, or @x-apidocgen {\"skip\": true} if the route is not published", key)
+		}
+	}
+
+	for route := range exempt {
+		assert.True(t, commented[route], "%s has no swagger comment, so remove it from %s", route, descriptionExemptionLists)
 	}
 }
 
