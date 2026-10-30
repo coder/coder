@@ -51,10 +51,10 @@ func TestTransitionCreate_NToR0(t *testing.T) {
 	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
 }
 
-// TestCreateChat_RejectsEmptyInitialMessages verifies that CreateChat
-// rejects an empty InitialMessages slice with ErrTransitionNotAllowed
-// and does not publish anything.
-func TestCreateChat_RejectsEmptyInitialMessages(t *testing.T) {
+// TestCreateChat_RejectsRunningWithoutMessages verifies that CreateChat
+// rejects a running chat with an empty InitialMessages slice with
+// ErrTransitionNotAllowed and does not publish anything.
+func TestCreateChat_RejectsRunningWithoutMessages(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
