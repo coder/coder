@@ -41,6 +41,11 @@ export const Link: React.FC<LinkProps> = ({
 		<Comp className={cn(linkVariants({ size }), className)} {...props}>
 			<Slot.Slottable>{children}</Slot.Slottable>
 			{showExternalIcon && <SquareArrowOutUpRightIcon />}
+			{showExternalIcon && props.target === "_blank" && <NewTabLabel />}
 		</Comp>
 	);
 };
+
+export const NewTabLabel: React.FC = () => (
+	<span className="sr-only"> (opens in new tab)</span>
+);
