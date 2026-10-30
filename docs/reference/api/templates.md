@@ -24,9 +24,9 @@ To include deprecated templates, specify `deprecated:true` in the search query.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -180,6 +180,12 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 `POST /api/v2/organizations/{organization}/templates`
 
+Creates a template in an organization from an existing template version.
+The template version must not be archived or already belong to a template, and its import job can still be running.
+Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+The organization's Everyone group gets the `use` role on the new template unless you set `disable_everyone_group_access` to `true`.
+Settings that need a Premium license, such as `autostop_requirement`, `failure_ttl_ms`, and `require_active_version`, are ignored without one, and `max_port_share_level` returns a validation error.
+
 > Body parameter
 
 ```json
@@ -221,10 +227,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ### Parameters
 
-| Name           | In   | Type                                                                       | Required | Description     |
-|----------------|------|----------------------------------------------------------------------------|----------|-----------------|
-| `organization` | path | string                                                                     | true     | Organization ID |
-| `body`         | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Request body    |
+| Name           | In   | Type                                                                       | Required | Description                                                                                         |
+|----------------|------|----------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                                     | true     | Organization ID, name, or `default` for the default organization.                                   |
+| `body`         | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Template to create, including the `template_version_id` of the version to use as its first version. |
 
 ### Example responses
 
@@ -313,11 +319,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/examples`
 
+Returns the starter templates that ship with Coder.
+Use `GET /api/v2/templates/examples` instead.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -375,12 +384,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}`
 
+Returns the template with the given name in an organization.
+The name match is case-insensitive.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `templatename` | path | string       | true     | Template name   |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `templatename` | path | string       | true     | Template name. The match is case-insensitive.                     |
 
 ### Example responses
 
@@ -469,13 +481,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}`
 
+Returns the version with the given name of a template that you look up by organization and template name.
+While the version's import job is pending, the response includes `matched_provisioners`.
+
 ### Parameters
 
-| Name                  | In   | Type         | Required | Description           |
-|-----------------------|------|--------------|----------|-----------------------|
-| `organization`        | path | string(uuid) | true     | Organization ID       |
-| `templatename`        | path | string       | true     | Template name         |
-| `templateversionname` | path | string       | true     | Template version name |
+| Name                  | In   | Type         | Required | Description                                                       |
+|-----------------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization`        | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `templatename`        | path | string       | true     | Template name. The match is case-insensitive.                     |
+| `templateversionname` | path | string       | true     | Template version name. Names are unique within a template.        |
 
 ### Example responses
 
@@ -677,6 +692,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 `POST /api/v2/organizations/{organization}/templateversions`
 
+Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.
+Set either `file_id`, which you get from `POST /api/v2/files`, or `example_id`, but not both.
+Set `template_id` to add the version to an existing template, or omit it to create a version for a new template.
+Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -703,10 +723,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ### Parameters
 
-| Name           | In   | Type                                                                                     | Required | Description                     |
-|----------------|------|------------------------------------------------------------------------------------------|----------|---------------------------------|
-| `organization` | path | string(uuid)                                                                             | true     | Organization ID                 |
-| `body`         | body | [codersdk.CreateTemplateVersionRequest](schemas.md#codersdkcreatetemplateversionrequest) | true     | Create template version request |
+| Name           | In   | Type                                                                                     | Required | Description                                                                     |
+|----------------|------|------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                             | true     | Organization ID, name, or `default` for the default organization.               |
+| `body`         | body | [codersdk.CreateTemplateVersionRequest](schemas.md#codersdkcreatetemplateversionrequest) | true     | Template version to create. Set `file_id` or `example_id` to choose its source. |
 
 ### Example responses
 
@@ -958,6 +978,9 @@ curl -X GET http://coder-server:8080/api/v2/templates/examples \
 
 `GET /api/v2/templates/examples`
 
+Returns the starter templates that ship with Coder.
+Pass an example's `id` as `example_id` to `POST /api/v2/organizations/{organization}/templateversions` to create a template version from it.
+
 ### Example responses
 
 > 200 Response
@@ -1013,6 +1036,9 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
 ```
 
 `GET /api/v2/templates/{template}`
+
+Returns a template's settings, such as its active version, workspace lifecycle policies, and deprecation status.
+Returns `404` if the template is deleted or you can't read it.
 
 ### Parameters
 
@@ -1107,6 +1133,10 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
 
 `DELETE /api/v2/templates/{template}`
 
+Deletes a template.
+The call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
+Requires permission to delete the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 ### Parameters
 
 | Name       | In   | Type         | Required | Description |
@@ -1152,6 +1182,12 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 
 `PATCH /api/v2/templates/{template}`
 
+Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.
+Send only the fields you want to change, because omitted fields keep their current values.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Without a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.
+Without a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.
+
 > Body parameter
 
 ```json
@@ -1196,10 +1232,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 
 ### Parameters
 
-| Name       | In   | Type                                                                 | Required | Description                     |
-|------------|------|----------------------------------------------------------------------|----------|---------------------------------|
-| `template` | path | string(uuid)                                                         | true     | Template ID                     |
-| `body`     | body | [codersdk.UpdateTemplateMeta](schemas.md#codersdkupdatetemplatemeta) | true     | Patch template settings request |
+| Name       | In   | Type                                                                 | Required | Description                                                            |
+|------------|------|----------------------------------------------------------------------|----------|------------------------------------------------------------------------|
+| `template` | path | string(uuid)                                                         | true     | Template ID                                                            |
+| `body`     | body | [codersdk.UpdateTemplateMeta](schemas.md#codersdkupdatetemplatemeta) | true     | Template settings to change. Omitted fields keep their current values. |
 
 ### Example responses
 
@@ -1288,6 +1324,10 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 
 `GET /api/v2/templates/{template}/daus`
 
+Returns the number of active users per day for a template over the last 60 days.
+Set the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.
+Requires permission to view the template's insights, which the Owner, Auditor, Template Admin, Organization Admin, Organization Auditor, and Organization Template Admin roles have.
+
 ### Parameters
 
 | Name       | In   | Type         | Required | Description |
@@ -1331,15 +1371,18 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
 
 `GET /api/v2/templates/{template}/versions`
 
+Returns the versions of a template, oldest first.
+Archived versions are excluded unless you set `include_archived` to `true`.
+
 ### Parameters
 
-| Name               | In    | Type         | Required | Description                           |
-|--------------------|-------|--------------|----------|---------------------------------------|
-| `template`         | path  | string(uuid) | true     | Template ID                           |
-| `after_id`         | query | string(uuid) | false    | After ID                              |
-| `include_archived` | query | boolean      | false    | Include archived versions in the list |
-| `limit`            | query | integer      | false    | Page limit                            |
-| `offset`           | query | integer      | false    | Page offset                           |
+| Name               | In    | Type         | Required | Description                                                                                                 |
+|--------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `template`         | path  | string(uuid) | true     | Template ID                                                                                                 |
+| `after_id`         | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`. |
+| `include_archived` | query | boolean      | false    | Includes archived versions in the list. The default, `false`, excludes them.                                |
+| `limit`            | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                 |
+| `offset`           | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                         |
 
 ### Example responses
 
@@ -1510,6 +1553,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
 
 `PATCH /api/v2/templates/{template}/versions`
 
+Sets the active version of a template, which is the version new workspaces use by default.
+The version must belong to the template, must have built successfully, and can't be archived.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1520,10 +1567,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
 
 ### Parameters
 
-| Name       | In   | Type                                                                                   | Required | Description               |
-|------------|------|----------------------------------------------------------------------------------------|----------|---------------------------|
-| `template` | path | string(uuid)                                                                           | true     | Template ID               |
-| `body`     | body | [codersdk.UpdateActiveTemplateVersion](schemas.md#codersdkupdateactivetemplateversion) | true     | Modified template version |
+| Name       | In   | Type                                                                                   | Required | Description                                          |
+|------------|------|----------------------------------------------------------------------------------------|----------|------------------------------------------------------|
+| `template` | path | string(uuid)                                                                           | true     | Template ID                                          |
+| `body`     | body | [codersdk.UpdateActiveTemplateVersion](schemas.md#codersdkupdateactivetemplateversion) | true     | Template version to make active, identified by `id`. |
 
 ### Example responses
 
@@ -1564,6 +1611,11 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
 
 `POST /api/v2/templates/{template}/versions/archive`
 
+Archives the unused versions of a template and returns the IDs it archived.
+By default, only versions whose import job failed are archived, and setting `all` to `true` archives every unused version.
+A version is unused when no workspace's latest build uses it and it isn't the template's active version.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1574,10 +1626,10 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
 
 ### Parameters
 
-| Name       | In   | Type                                                                                         | Required | Description     |
-|------------|------|----------------------------------------------------------------------------------------------|----------|-----------------|
-| `template` | path | string(uuid)                                                                                 | true     | Template ID     |
-| `body`     | body | [codersdk.ArchiveTemplateVersionsRequest](schemas.md#codersdkarchivetemplateversionsrequest) | true     | Archive request |
+| Name       | In   | Type                                                                                         | Required | Description                                                                                       |
+|------------|------|----------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------|
+| `template` | path | string(uuid)                                                                                 | true     | Template ID                                                                                       |
+| `body`     | body | [codersdk.ArchiveTemplateVersionsRequest](schemas.md#codersdkarchivetemplateversionsrequest) | true     | Archive options. Set `all` to `true` to archive every unused version instead of only failed ones. |
 
 ### Example responses
 
@@ -1617,12 +1669,15 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
 
 `GET /api/v2/templates/{template}/versions/{templateversionname}`
 
+Returns the version of a template with the given name.
+While the version's import job is pending, the response includes `matched_provisioners`.
+
 ### Parameters
 
-| Name                  | In   | Type         | Required | Description           |
-|-----------------------|------|--------------|----------|-----------------------|
-| `template`            | path | string(uuid) | true     | Template ID           |
-| `templateversionname` | path | string       | true     | Template version name |
+| Name                  | In   | Type         | Required | Description                                                |
+|-----------------------|------|--------------|----------|------------------------------------------------------------|
+| `template`            | path | string(uuid) | true     | Template ID                                                |
+| `templateversionname` | path | string       | true     | Template version name. Names are unique within a template. |
 
 ### Example responses
 
@@ -1792,6 +1847,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
 
 `GET /api/v2/templateversions/{templateversion}`
 
+Returns a template version, including the status of its import job.
+While the import job is pending, the response includes `matched_provisioners`, which shows how many provisioners can run the job.
+
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
@@ -1894,6 +1952,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 `PATCH /api/v2/templateversions/{templateversion}`
 
+Updates the `name` or `message` of a template version.
+Renaming a version to a name that another version of the same template uses returns an error.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1905,10 +1967,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ### Parameters
 
-| Name              | In   | Type                                                                                   | Required | Description                    |
-|-------------------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
-| `templateversion` | path | string(uuid)                                                                           | true     | Template version ID            |
-| `body`            | body | [codersdk.PatchTemplateVersionRequest](schemas.md#codersdkpatchtemplateversionrequest) | true     | Patch template version request |
+| Name              | In   | Type                                                                                   | Required | Description                                                                            |
+|-------------------|------|----------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------|
+| `templateversion` | path | string(uuid)                                                                           | true     | Template version ID                                                                    |
+| `body`            | body | [codersdk.PatchTemplateVersionRequest](schemas.md#codersdkpatchtemplateversionrequest) | true     | Template version fields to change. Omit `name` or `message` to keep its current value. |
 
 ### Example responses
 
@@ -2005,6 +2067,10 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 `POST /api/v2/templateversions/{templateversion}/archive`
 
+Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.
+The call fails if a workspace's latest build uses the version or if it is the template's active version.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
@@ -2048,6 +2114,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 ```
 
 `PATCH /api/v2/templateversions/{templateversion}/cancel`
+
+Cancels the import job of a template version that hasn't finished.
+The call returns an error if the job has already completed or been canceled.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 
 ### Parameters
 
@@ -2094,6 +2164,11 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 `POST /api/v2/templateversions/{templateversion}/dry-run`
 
+Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.
+The response is the dry-run job, so poll it with `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` or stream its logs, then read the planned resources after it completes.
+The template version's import job must have finished, or the call returns `425`.
+Requires permission to create workspaces in the template version's organization, which the Owner, Organization Admin, and Organization Workspace Access roles have.
+
 > Body parameter
 
 ```json
@@ -2116,10 +2191,10 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ### Parameters
 
-| Name              | In   | Type                                                                                                 | Required | Description         |
-|-------------------|------|------------------------------------------------------------------------------------------------------|----------|---------------------|
-| `templateversion` | path | string(uuid)                                                                                         | true     | Template version ID |
-| `body`            | body | [codersdk.CreateTemplateVersionDryRunRequest](schemas.md#codersdkcreatetemplateversiondryrunrequest) | true     | Dry-run request     |
+| Name              | In   | Type                                                                                                 | Required | Description                                                            |
+|-------------------|------|------------------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------|
+| `templateversion` | path | string(uuid)                                                                                         | true     | Template version ID                                                    |
+| `body`            | body | [codersdk.CreateTemplateVersionDryRunRequest](schemas.md#codersdkcreatetemplateversiondryrunrequest) | true     | Workspace name and parameter values to plan the template version with. |
 
 ### Example responses
 
@@ -2190,12 +2265,16 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}`
 
+Returns a dry-run job, including its status and any error.
+Use it to poll until the job succeeds, fails, or is canceled.
+Returns `403` if the job isn't a dry run of this template version.
+
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-| `jobID`           | path | string(uuid) | true     | Job ID              |
+| Name              | In   | Type         | Required | Description                                                   |
+|-------------------|------|--------------|----------|---------------------------------------------------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID                                           |
+| `jobID`           | path | string(uuid) | true     | ID of the dry-run job, returned when you created the dry run. |
 
 ### Example responses
 
@@ -2266,12 +2345,16 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 `PATCH /api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel`
 
+Cancels a dry-run job that hasn't completed.
+The call returns `400` if the job has already completed or been canceled.
+Requires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
+
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `jobID`           | path | string(uuid) | true     | Job ID              |
-| `templateversion` | path | string(uuid) | true     | Template version ID |
+| Name              | In   | Type         | Required | Description                                                   |
+|-------------------|------|--------------|----------|---------------------------------------------------------------|
+| `jobID`           | path | string(uuid) | true     | ID of the dry-run job, returned when you created the dry run. |
+| `templateversion` | path | string(uuid) | true     | Template version ID                                           |
 
 ### Example responses
 
@@ -2311,15 +2394,19 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs`
 
+Returns the provisioner logs of a dry-run job.
+Include the `follow` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.
+Without `follow`, the call returns the logs recorded so far, and you can pass the `id` of the last log you received as `after` to skip logs you already have.
+
 ### Parameters
 
 | Name              | In    | Type         | Required | Description                                                                                                                                 |
 |-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
-| `jobID`           | path  | string(uuid) | true     | Job ID                                                                                                                                      |
-| `before`          | query | integer      | false    | Before Unix timestamp                                                                                                                       |
-| `after`           | query | integer      | false    | After Unix timestamp                                                                                                                        |
-| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `jobID`           | path  | string(uuid) | true     | ID of the dry-run job, returned when you created the dry run.                                                                               |
+| `before`          | query | integer      | false    | Not used. The server ignores this parameter.                                                                                                |
+| `after`           | query | integer      | false    | Return only logs with an ID greater than this value. Use the `id` of the last log you received to get newer logs.                           |
+| `follow`          | query | boolean      | false    | When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is `false`.                   |
 | `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
 
 #### Enumerated Values
@@ -2387,12 +2474,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners`
 
+Returns how many provisioners match a dry-run job's tags and how many of them are available to run it.
+Use it to find out why a dry run is still pending.
+
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-| `jobID`           | path | string(uuid) | true     | Job ID              |
+| Name              | In   | Type         | Required | Description                                                   |
+|-------------------|------|--------------|----------|---------------------------------------------------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID                                           |
+| `jobID`           | path | string(uuid) | true     | ID of the dry-run job, returned when you created the dry run. |
 
 ### Example responses
 
@@ -2427,12 +2517,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources`
 
+Returns the resources that a dry run planned, including their workspace agents.
+The call returns `400` until the job has completed.
+
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-| `jobID`           | path | string(uuid) | true     | Job ID              |
+| Name              | In   | Type         | Required | Description                                                   |
+|-------------------|------|--------------|----------|---------------------------------------------------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID                                           |
+| `jobID`           | path | string(uuid) | true     | ID of the dry-run job, returned when you created the dry run. |
 
 ### Example responses
 
@@ -2759,6 +2852,12 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 `GET /api/v2/templateversions/{templateversion}/dynamic-parameters`
 
+Opens a WebSocket that re-evaluates a template version's parameters as the user fills in the workspace creation form.
+After the upgrade, the server sends a JSON message with `id` set to `-1`, `parameters`, and `diagnostics`, computed from no inputs.
+Send a JSON message with an `id`, the current `inputs`, and optionally an `owner_id`, and the server replies with a message that has the same `id` and the re-evaluated `parameters` and `diagnostics`.
+An omitted `owner_id` keeps the previous owner, which starts as you or as the user in the `user_id` query parameter.
+The server closes the connection after 30 minutes.
+
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
@@ -2787,6 +2886,10 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 `POST /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate`
 
+Evaluates the parameters of a template version once for the given `inputs` and returns the resulting parameters and any diagnostics.
+Use it to render the workspace creation form, or open `GET /api/v2/templateversions/{templateversion}/dynamic-parameters` for a live session.
+The call returns `425` until the template version's import job has finished.
+
 > Body parameter
 
 ```json
@@ -2802,10 +2905,10 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ### Parameters
 
-| Name              | In   | Type                                                                             | Required | Description              |
-|-------------------|------|----------------------------------------------------------------------------------|----------|--------------------------|
-| `templateversion` | path | string(uuid)                                                                     | true     | Template version ID      |
-| `body`            | body | [codersdk.DynamicParametersRequest](schemas.md#codersdkdynamicparametersrequest) | true     | Initial parameter values |
+| Name              | In   | Type                                                                             | Required | Description                                                          |
+|-------------------|------|----------------------------------------------------------------------------------|----------|----------------------------------------------------------------------|
+| `templateversion` | path | string(uuid)                                                                     | true     | Template version ID                                                  |
+| `body`            | body | [codersdk.DynamicParametersRequest](schemas.md#codersdkdynamicparametersrequest) | true     | Parameter values to evaluate the template version with, as `inputs`. |
 
 ### Example responses
 
@@ -2906,6 +3009,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 
 `GET /api/v2/templateversions/{templateversion}/external-auth`
 
+Returns the external authentication providers a template version uses and whether the user is authenticated with each.
+Setting `user_id` to another user requires permission to create workspaces for that user.
+
 ### Parameters
 
 | Name              | In    | Type         | Required | Description                                                               |
@@ -2967,14 +3073,18 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
 
 `GET /api/v2/templateversions/{templateversion}/logs`
 
+Returns the provisioner logs from a template version's import job, such as `terraform plan` output.
+Include the `follow` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.
+Without `follow`, the call returns the logs recorded so far, and you can pass the `id` of the last log you received as `after` to skip logs you already have.
+
 ### Parameters
 
 | Name              | In    | Type         | Required | Description                                                                                                                                 |
 |-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
-| `before`          | query | integer      | false    | Before log id                                                                                                                               |
-| `after`           | query | integer      | false    | After log id                                                                                                                                |
-| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `before`          | query | integer      | false    | Not used. The server ignores this parameter.                                                                                                |
+| `after`           | query | integer      | false    | Return only logs with an ID greater than this value. Use the `id` of the last log you received to get newer logs.                           |
+| `follow`          | query | boolean      | false    | When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is `false`.                   |
 | `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
 
 #### Enumerated Values
@@ -3041,6 +3151,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 `GET /api/v2/templateversions/{templateversion}/parameters`
 
+Always returns an empty array, because this route no longer returns parameter schemas.
+It exists so that older clients keep working.
+Use `GET /api/v2/templateversions/{templateversion}/rich-parameters` instead.
+
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
@@ -3067,6 +3181,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 ```
 
 `GET /api/v2/templateversions/{templateversion}/presets`
+
+Returns the presets that a template version defines, with the parameter values of each preset.
+Presets that configure prebuilds also include the desired number of prebuilt instances.
 
 ### Parameters
 
@@ -3134,6 +3251,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 ```
 
 `GET /api/v2/templateversions/{templateversion}/resources`
+
+Returns the resources that a template version defines, including their workspace agents.
+The resources belong to the template version and not to any workspace, and the call returns `400` until the import job has completed.
 
 ### Parameters
 
@@ -3467,6 +3587,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 `GET /api/v2/templateversions/{templateversion}/rich-parameters`
 
+Returns the parameters that a template version defines, such as their types, defaults, and options.
+The call returns `425` until the template version's import job has completed.
+
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
@@ -3565,6 +3688,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/s
 
 `GET /api/v2/templateversions/{templateversion}/schema`
 
+Always returns an empty array, because this route no longer returns parameter schemas.
+It exists so that older clients keep working.
+Use `GET /api/v2/templateversions/{templateversion}/rich-parameters` instead.
+
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
@@ -3591,6 +3718,9 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 ```
 
 `POST /api/v2/templateversions/{templateversion}/unarchive`
+
+Restores an archived template version so that it appears in version lists and can be used again.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 
 ### Parameters
 
@@ -3635,6 +3765,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/v
 ```
 
 `GET /api/v2/templateversions/{templateversion}/variables`
+
+Returns the Terraform variables that a template version declares.
+For sensitive variables, `value` and `default_value` are `*redacted*`, and the call returns `403` until the import job has completed.
 
 ### Parameters
 

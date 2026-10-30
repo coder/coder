@@ -19,13 +19,16 @@ import (
 )
 
 // @Summary Evaluate dynamic parameters for template version
+// @Description Evaluates the parameters of a template version once for the given `inputs` and returns the resulting parameters and any diagnostics.
+// @Description Use it to render the workspace creation form, or open `GET /api/v2/templateversions/{templateversion}/dynamic-parameters` for a live session.
+// @Description The call returns `425` until the template version's import job has finished.
 // @ID evaluate-dynamic-parameters-for-template-version
 // @Security CoderSessionToken
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Accept json
 // @Produce json
-// @Param request body codersdk.DynamicParametersRequest true "Initial parameter values"
+// @Param request body codersdk.DynamicParametersRequest true "Parameter values to evaluate the template version with, as `inputs`."
 // @Success 200 {object} codersdk.DynamicParametersResponse
 // @Router /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate [post]
 func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
@@ -39,6 +42,11 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 }
 
 // @Summary Open dynamic parameters WebSocket by template version
+// @Description Opens a WebSocket that re-evaluates a template version's parameters as the user fills in the workspace creation form.
+// @Description After the upgrade, the server sends a JSON message with `id` set to `-1`, `parameters`, and `diagnostics`, computed from no inputs.
+// @Description Send a JSON message with an `id`, the current `inputs`, and optionally an `owner_id`, and the server replies with a message that has the same `id` and the re-evaluated `parameters` and `diagnostics`.
+// @Description An omitted `owner_id` keeps the previous owner, which starts as you or as the user in the `user_id` query parameter.
+// @Description The server closes the connection after 30 minutes.
 // @ID open-dynamic-parameters-websocket-by-template-version
 // @Security CoderSessionToken
 // @Tags Templates

@@ -11153,7 +11153,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11177,6 +11177,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a template in an organization from an existing template version.\nThe template version must not be archived or already belong to a template, and its import job can still be running.\nRequires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nThe organization's Everyone group gets the ` + "`" + `use` + "`" + ` role on the new template unless you set ` + "`" + `disable_everyone_group_access` + "`" + ` to ` + "`" + `true` + "`" + `.\nSettings that need a Premium license, such as ` + "`" + `autostop_requirement` + "`" + `, ` + "`" + `failure_ttl_ms` + "`" + `, and ` + "`" + `require_active_version` + "`" + `, are ignored without one, and ` + "`" + `max_port_share_level` + "`" + ` returns a validation error.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11190,7 +11191,7 @@ const docTemplate = `{
                 "operationId": "create-template-by-organization",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Template to create, including the ` + "`" + `template_version_id` + "`" + ` of the version to use as its first version.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11200,7 +11201,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11223,6 +11224,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/examples": {
             "get": {
+                "description": "Returns the starter templates that ship with Coder.\nUse ` + "`" + `GET /api/v2/templates/examples` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -11236,7 +11238,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11262,6 +11264,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}": {
             "get": {
+                "description": "Returns the template with the given name in an organization.\nThe name match is case-insensitive.",
                 "produces": [
                     "application/json"
                 ],
@@ -11274,14 +11277,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Template name",
+                        "description": "Template name. The match is case-insensitive.",
                         "name": "templatename",
                         "in": "path",
                         "required": true
@@ -11304,6 +11307,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
             "get": {
+                "description": "Returns the version with the given name of a template that you look up by organization and template name.\nWhile the version's import job is pending, the response includes ` + "`" + `matched_provisioners` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -11316,21 +11320,21 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Template name",
+                        "description": "Template name. The match is case-insensitive.",
                         "name": "templatename",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Template version name",
+                        "description": "Template version name. Names are unique within a template.",
                         "name": "templateversionname",
                         "in": "path",
                         "required": true
@@ -11405,6 +11409,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templateversions": {
             "post": {
+                "description": "Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.\nSet either ` + "`" + `file_id` + "`" + `, which you get from ` + "`" + `POST /api/v2/files` + "`" + `, or ` + "`" + `example_id` + "`" + `, but not both.\nSet ` + "`" + `template_id` + "`" + ` to add the version to an existing template, or omit it to create a version for a new template.\nRequires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11420,13 +11425,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create template version request",
+                        "description": "Template version to create. Set ` + "`" + `file_id` + "`" + ` or ` + "`" + `example_id` + "`" + ` to choose its source.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12066,6 +12071,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/examples": {
             "get": {
+                "description": "Returns the starter templates that ship with Coder.\nPass an example's ` + "`" + `id` + "`" + ` as ` + "`" + `example_id` + "`" + ` to ` + "`" + `POST /api/v2/organizations/{organization}/templateversions` + "`" + ` to create a template version from it.",
                 "produces": [
                     "application/json"
                 ],
@@ -12094,6 +12100,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}": {
             "get": {
+                "description": "Returns a template's settings, such as its active version, workspace lifecycle policies, and deprecation status.\nReturns ` + "`" + `404` + "`" + ` if the template is deleted or you can't read it.",
                 "produces": [
                     "application/json"
                 ],
@@ -12127,6 +12134,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a template.\nThe call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.\nRequires permission to delete the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12160,6 +12168,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.\nSend only the fields you want to change, because omitted fields keep their current values.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nWithout a Premium license, the server ignores ` + "`" + `autostop_requirement` + "`" + `, ` + "`" + `autostart_requirement` + "`" + `, ` + "`" + `allow_user_autostart` + "`" + `, ` + "`" + `allow_user_autostop` + "`" + `, ` + "`" + `failure_ttl_ms` + "`" + `, ` + "`" + `time_til_dormant_ms` + "`" + `, ` + "`" + `time_til_dormant_autodelete_ms` + "`" + `, ` + "`" + `update_workspace_last_used_at` + "`" + `, ` + "`" + `update_workspace_dormant_at` + "`" + `, ` + "`" + `require_active_version` + "`" + `, and a non-empty ` + "`" + `deprecation_message` + "`" + `.\nWithout a Premium license, setting ` + "`" + `max_port_share_level` + "`" + ` to anything other than ` + "`" + `public` + "`" + ` returns a validation error.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12181,7 +12190,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Patch template settings request",
+                        "description": "Template settings to change. Omitted fields keep their current values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12325,6 +12334,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/daus": {
             "get": {
+                "description": "Returns the number of active users per day for a template over the last 60 days.\nSet the ` + "`" + `tz_offset` + "`" + ` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is ` + "`" + `0` + "`" + `.\nRequires permission to view the template's insights, which the Owner, Auditor, Template Admin, Organization Admin, Organization Auditor, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12395,6 +12405,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/versions": {
             "get": {
+                "description": "Returns the versions of a template, oldest first.\nArchived versions are excluded unless you set ` + "`" + `include_archived` + "`" + ` to ` + "`" + `true` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -12415,25 +12426,25 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Include archived versions in the list",
+                        "description": "Includes archived versions in the list. The default, ` + "`" + `false` + "`" + `, excludes them.",
                         "name": "include_archived",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -12456,6 +12467,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Sets the active version of a template, which is the version new workspaces use by default.\nThe version must belong to the template, must have built successfully, and can't be archived.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12469,7 +12481,7 @@ const docTemplate = `{
                 "operationId": "update-active-template-version-by-template-id",
                 "parameters": [
                     {
-                        "description": "Modified template version",
+                        "description": "Template version to make active, identified by ` + "`" + `id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12503,6 +12515,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/versions/archive": {
             "post": {
+                "description": "Archives the unused versions of a template and returns the IDs it archived.\nBy default, only versions whose import job failed are archived, and setting ` + "`" + `all` + "`" + ` to ` + "`" + `true` + "`" + ` archives every unused version.\nA version is unused when no workspace's latest build uses it and it isn't the template's active version.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12524,7 +12537,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Archive request",
+                        "description": "Archive options. Set ` + "`" + `all` + "`" + ` to ` + "`" + `true` + "`" + ` to archive every unused version instead of only failed ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12550,6 +12563,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/versions/{templateversionname}": {
             "get": {
+                "description": "Returns the version of a template with the given name.\nWhile the version's import job is pending, the response includes ` + "`" + `matched_provisioners` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -12569,7 +12583,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Template version name",
+                        "description": "Template version name. Names are unique within a template.",
                         "name": "templateversionname",
                         "in": "path",
                         "required": true
@@ -12595,6 +12609,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}": {
             "get": {
+                "description": "Returns a template version, including the status of its import job.\nWhile the import job is pending, the response includes ` + "`" + `matched_provisioners` + "`" + `, which shows how many provisioners can run the job.",
                 "produces": [
                     "application/json"
                 ],
@@ -12628,6 +12643,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates the ` + "`" + `name` + "`" + ` or ` + "`" + `message` + "`" + ` of a template version.\nRenaming a version to a name that another version of the same template uses returns an error.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12649,7 +12665,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Patch template version request",
+                        "description": "Template version fields to change. Omit ` + "`" + `name` + "`" + ` or ` + "`" + `message` + "`" + ` to keep its current value.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12675,6 +12691,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/archive": {
             "post": {
+                "description": "Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.\nThe call fails if a workspace's latest build uses the version or if it is the template's active version.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12710,6 +12727,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/cancel": {
             "patch": {
+                "description": "Cancels the import job of a template version that hasn't finished.\nThe call returns an error if the job has already completed or been canceled.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12745,6 +12763,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run": {
             "post": {
+                "description": "Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.\nThe response is the dry-run job, so poll it with ` + "`" + `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` + "`" + ` or stream its logs, then read the planned resources after it completes.\nThe template version's import job must have finished, or the call returns ` + "`" + `425` + "`" + `.\nRequires permission to create workspaces in the template version's organization, which the Owner, Organization Admin, and Organization Workspace Access roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12766,7 +12785,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Dry-run request",
+                        "description": "Workspace name and parameter values to plan the template version with.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12792,6 +12811,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}": {
             "get": {
+                "description": "Returns a dry-run job, including its status and any error.\nUse it to poll until the job succeeds, fails, or is canceled.\nReturns ` + "`" + `403` + "`" + ` if the job isn't a dry run of this template version.",
                 "produces": [
                     "application/json"
                 ],
@@ -12812,7 +12832,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -12835,6 +12855,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
             "patch": {
+                "description": "Cancels a dry-run job that hasn't completed.\nThe call returns ` + "`" + `400` + "`" + ` if the job has already completed or been canceled.\nRequires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12847,7 +12868,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -12878,6 +12899,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs": {
             "get": {
+                "description": "Returns the provisioner logs of a dry-run job.\nInclude the ` + "`" + `follow` + "`" + ` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.\nWithout ` + "`" + `follow` + "`" + `, the call returns the logs recorded so far, and you can pass the ` + "`" + `id` + "`" + ` of the last log you received as ` + "`" + `after` + "`" + ` to skip logs you already have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12898,26 +12920,26 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Before Unix timestamp",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After Unix timestamp",
+                        "description": "Return only logs with an ID greater than this value. Use the ` + "`" + `id` + "`" + ` of the last log you received to get newer logs.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is ` + "`" + `false` + "`" + `.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -12952,6 +12974,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
             "get": {
+                "description": "Returns how many provisioners match a dry-run job's tags and how many of them are available to run it.\nUse it to find out why a dry run is still pending.",
                 "produces": [
                     "application/json"
                 ],
@@ -12972,7 +12995,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -12995,6 +13018,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
+                "description": "Returns the resources that a dry run planned, including their workspace agents.\nThe call returns ` + "`" + `400` + "`" + ` until the job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -13015,7 +13039,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -13041,6 +13065,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dynamic-parameters": {
             "get": {
+                "description": "Opens a WebSocket that re-evaluates a template version's parameters as the user fills in the workspace creation form.\nAfter the upgrade, the server sends a JSON message with ` + "`" + `id` + "`" + ` set to ` + "`" + `-1` + "`" + `, ` + "`" + `parameters` + "`" + `, and ` + "`" + `diagnostics` + "`" + `, computed from no inputs.\nSend a JSON message with an ` + "`" + `id` + "`" + `, the current ` + "`" + `inputs` + "`" + `, and optionally an ` + "`" + `owner_id` + "`" + `, and the server replies with a message that has the same ` + "`" + `id` + "`" + ` and the re-evaluated ` + "`" + `parameters` + "`" + ` and ` + "`" + `diagnostics` + "`" + `.\nAn omitted ` + "`" + `owner_id` + "`" + ` keeps the previous owner, which starts as you or as the user in the ` + "`" + `user_id` + "`" + ` query parameter.\nThe server closes the connection after 30 minutes.",
                 "tags": [
                     "Templates"
                 ],
@@ -13070,6 +13095,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate": {
             "post": {
+                "description": "Evaluates the parameters of a template version once for the given ` + "`" + `inputs` + "`" + ` and returns the resulting parameters and any diagnostics.\nUse it to render the workspace creation form, or open ` + "`" + `GET /api/v2/templateversions/{templateversion}/dynamic-parameters` + "`" + ` for a live session.\nThe call returns ` + "`" + `425` + "`" + ` until the template version's import job has finished.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13091,7 +13117,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Initial parameter values",
+                        "description": "Parameter values to evaluate the template version with, as ` + "`" + `inputs` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13117,6 +13143,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/external-auth": {
             "get": {
+                "description": "Returns the external authentication providers a template version uses and whether the user is authenticated with each.\nSetting ` + "`" + `user_id` + "`" + ` to another user requires permission to create workspaces for that user.",
                 "produces": [
                     "application/json"
                 ],
@@ -13162,6 +13189,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/logs": {
             "get": {
+                "description": "Returns the provisioner logs from a template version's import job, such as ` + "`" + `terraform plan` + "`" + ` output.\nInclude the ` + "`" + `follow` + "`" + ` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.\nWithout ` + "`" + `follow` + "`" + `, the call returns the logs recorded so far, and you can pass the ` + "`" + `id` + "`" + ` of the last log you received as ` + "`" + `after` + "`" + ` to skip logs you already have.",
                 "produces": [
                     "application/json"
                 ],
@@ -13181,19 +13209,19 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before log id",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After log id",
+                        "description": "Return only logs with an ID greater than this value. Use the ` + "`" + `id` + "`" + ` of the last log you received to get newer logs.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is ` + "`" + `false` + "`" + `.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -13228,6 +13256,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/parameters": {
             "get": {
+                "description": "Always returns an empty array, because this route no longer returns parameter schemas.\nIt exists so that older clients keep working.\nUse ` + "`" + `GET /api/v2/templateversions/{templateversion}/rich-parameters` + "`" + ` instead.",
                 "tags": [
                     "Templates"
                 ],
@@ -13257,6 +13286,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/presets": {
             "get": {
+                "description": "Returns the presets that a template version defines, with the parameter values of each preset.\nPresets that configure prebuilds also include the desired number of prebuilt instances.",
                 "produces": [
                     "application/json"
                 ],
@@ -13295,6 +13325,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/resources": {
             "get": {
+                "description": "Returns the resources that a template version defines, including their workspace agents.\nThe resources belong to the template version and not to any workspace, and the call returns ` + "`" + `400` + "`" + ` until the import job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -13333,6 +13364,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/rich-parameters": {
             "get": {
+                "description": "Returns the parameters that a template version defines, such as their types, defaults, and options.\nThe call returns ` + "`" + `425` + "`" + ` until the template version's import job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -13371,6 +13403,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/schema": {
             "get": {
+                "description": "Always returns an empty array, because this route no longer returns parameter schemas.\nIt exists so that older clients keep working.\nUse ` + "`" + `GET /api/v2/templateversions/{templateversion}/rich-parameters` + "`" + ` instead.",
                 "tags": [
                     "Templates"
                 ],
@@ -13400,6 +13433,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/unarchive": {
             "post": {
+                "description": "Restores an archived template version so that it appears in version lists and can be used again.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -13435,6 +13469,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/variables": {
             "get": {
+                "description": "Returns the Terraform variables that a template version declares.\nFor sensitive variables, ` + "`" + `value` + "`" + ` and ` + "`" + `default_value` + "`" + ` are ` + "`" + `*redacted*` + "`" + `, and the call returns ` + "`" + `403` + "`" + ` until the import job has completed.",
                 "produces": [
                     "application/json"
                 ],
