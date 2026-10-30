@@ -24235,20 +24235,34 @@ SET owner_id   = $1::uuid,
 	-- accidental dormancy or deletion by the lifecycle executor.
 	dormant_at = NULL,
 	deleting_at = NULL
-WHERE w.id IN (
-	SELECT p.id
-	FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-		INNER JOIN templates t ON p.template_id = t.id
-	WHERE (b.transition = 'start'::workspace_transition
-		AND b.job_status IN ('succeeded'::provisioner_job_status))
-		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
-		-- Nevertheless, this filter is here as a defensive measure:
-		AND b.template_version_id = t.active_version_id
-		AND p.current_preset_id = $7::uuid
-		AND p.ready
-		AND NOT t.deleted
-	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+WHERE w.id = (
+	-- Lock the candidate row in the workspaces table itself. The
+	-- workspace_prebuilds view is built from CTEs, so a locking clause on the
+	-- view takes no row lock and concurrent claims can pick the same prebuild.
+	SELECT w2.id
+	FROM workspaces w2
+	-- These predicates must be on the locked table: if a concurrent claim
+	-- commits before this row is locked, Postgres re-checks only conditions on
+	-- the locked row, and these make the already-claimed row fail that check.
+	WHERE w2.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+		AND NOT w2.deleted
+		AND w2.id IN (
+			SELECT p.id
+			FROM workspace_prebuilds p
+				INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+				INNER JOIN templates t ON p.template_id = t.id
+			WHERE (b.transition = 'start'::workspace_transition
+				AND b.job_status IN ('succeeded'::provisioner_job_status))
+				-- The prebuilds system should never try to claim a prebuild for an inactive template version.
+				-- Nevertheless, this filter is here as a defensive measure:
+				AND b.template_version_id = t.active_version_id
+				AND p.current_preset_id = $7::uuid
+				AND p.ready
+				AND NOT t.deleted
+		)
+	ORDER BY w2.created_at, w2.id
+	LIMIT 1
+	FOR UPDATE OF w2 SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name
 `

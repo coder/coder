@@ -7875,6 +7875,130 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 	}
 }
 
+func TestClaimPrebuiltWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// setup creates a template whose active version has one preset, and
+	// count ready prebuilds for that preset, oldest first.
+	setup := func(t *testing.T, db database.Store, count int) (database.TemplateVersionPreset, []uuid.UUID) {
+		t.Helper()
+
+		now := dbtime.Now()
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := createTemplate(t, db, org.ID, user.ID)
+		tv := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+
+		ids := make([]uuid.UUID, 0, count)
+		for i := range count {
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        database.PrebuildsSystemUserID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+				CreatedAt:      now.Add(time.Duration(i-count) * time.Minute),
+			})
+			job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				OrganizationID: org.ID,
+				StartedAt:      sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
+				CompletedAt:    sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+			})
+			dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:             ws.ID,
+				TemplateVersionID:       tv.ID,
+				BuildNumber:             1,
+				Transition:              database.WorkspaceTransitionStart,
+				InitiatorID:             database.PrebuildsSystemUserID,
+				JobID:                   job.ID,
+				TemplateVersionPresetID: uuid.NullUUID{UUID: tv.preset.ID, Valid: true},
+			})
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+			require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(context.Background(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			}))
+			ids = append(ids, ws.ID)
+		}
+		return tv.preset, ids
+	}
+
+	claim := func(ctx context.Context, db database.Store, userID, presetID uuid.UUID) (uuid.UUID, error) {
+		row, err := db.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+			NewUserID: userID,
+			NewName:   "claimed-" + uuid.NewString()[:8],
+			Now:       dbtime.Now(),
+			PresetID:  presetID,
+		})
+		return row.ID, err
+	}
+
+	t.Run("ClaimsOldestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		preset, ids := setup(t, db, 2)
+		user := dbgen.User(t, db, database.User{})
+
+		first, err := claim(ctx, db, user.ID, preset.ID)
+		require.NoError(t, err)
+		require.Equal(t, ids[0], first)
+
+		second, err := claim(ctx, db, user.ID, preset.ID)
+		require.NoError(t, err)
+		require.Equal(t, ids[1], second)
+
+		_, err = claim(ctx, db, user.ID, preset.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	// Regression test for a claim locking the workspace_prebuilds view, which
+	// takes no row lock. While one claim's transaction is still open, a
+	// concurrent claim must skip that prebuild and get the other one, without
+	// waiting for the first transaction.
+	t.Run("ConcurrentClaimSkipsLockedPrebuild", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		preset, ids := setup(t, db, 2)
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+
+		claimed := make(chan uuid.UUID, 1)
+		release := make(chan struct{})
+		txDone := make(chan error, 1)
+		go func() {
+			txDone <- db.InTx(func(tx database.Store) error {
+				id, err := claim(ctx, tx, userA.ID, preset.ID)
+				if err != nil {
+					return err
+				}
+				claimed <- id
+				<-release
+				return nil
+			}, nil)
+		}()
+		defer func() {
+			close(release)
+			require.NoError(t, <-txDone)
+		}()
+
+		first := testutil.TryReceive(ctx, t, claimed)
+		require.Contains(t, ids, first)
+
+		// With the first transaction still open, a second claim must not
+		// block on, or return, the first prebuild.
+		claimCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		defer cancel()
+		second, err := claim(claimCtx, db, userB.ID, preset.ID)
+		require.NoError(t, err)
+		require.Contains(t, ids, second)
+		require.NotEqual(t, first, second)
+	})
+}
+
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
 
