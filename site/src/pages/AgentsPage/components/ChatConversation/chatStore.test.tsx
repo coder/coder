@@ -55,7 +55,7 @@ import {
 } from "./chatStore";
 import { deriveLiveStatus } from "./liveStatusModel";
 import { buildStreamTools } from "./streamState";
-import { CHAT_STREAM_SILENCE_TIMEOUT_MS } from "./useChatStore";
+import { CHAT_SOCKET_SILENCE_TIMEOUT_MS } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -4021,7 +4021,7 @@ describe("useChatStore", () => {
 		});
 
 		await act(async () => {
-			vi.advanceTimersByTime(CHAT_STREAM_SILENCE_TIMEOUT_MS);
+			vi.advanceTimersByTime(CHAT_SOCKET_SILENCE_TIMEOUT_MS);
 		});
 
 		expect(socket1.close).toHaveBeenCalled();
