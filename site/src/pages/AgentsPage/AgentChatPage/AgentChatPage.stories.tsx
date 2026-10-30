@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
