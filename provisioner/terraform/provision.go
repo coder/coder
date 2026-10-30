@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -92,6 +93,10 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
+	// Checked before restoring, which replaces the template's lock file.
+	_, err = os.Lstat(sess.Files.TerraformLockFile())
+	templateHasLockFile := !xerrors.Is(err, fs.ErrNotExist)
+
 	// The imported lock file only speeds up init, so failing to restore it
 	// falls back to the lock file from the template source, if any.
 	restored, err := restoreImportedLockFile(sess.Files)
@@ -109,6 +114,9 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	err = e.init(ctx, killCtx, sess)
+	if err != nil && restored && !templateHasLockFile && ctx.Err() == nil {
+		err = s.initWithoutImportedLockFile(ctx, killCtx, e, sess, err)
+	}
 	endStage(err)
 	if err != nil {
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
@@ -175,6 +183,25 @@ func (s *server) Init(
 		ModuleFiles:     moduleFiles,
 		ModuleFilesHash: nil,
 	}
+}
+
+// initWithoutImportedLockFile runs init again after it failed with the lock
+// file captured during template import, for example because this
+// provisioner's mirror no longer offers the provider versions that lock file
+// pins. The template has no lock file of its own, so init selects provider
+// versions the same way it would without the imported lock file.
+func (s *server) initWithoutImportedLockFile(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, initErr error) error {
+	s.logger.Warn(ctx, "terraform init failed with the lock file captured during template import, retrying without it",
+		slog.Error(initErr))
+	sess.ProvisionLog(proto.LogLevel_WARN,
+		"Retrying terraform init without the provider versions selected when this template version was imported. "+
+			"Push a new template version to select provider versions this provisioner can install.")
+
+	err := os.Remove(sess.Files.TerraformLockFile())
+	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
+		return xerrors.Errorf("remove imported lock file after init failed (%v): %w", initErr, err)
+	}
+	return e.init(ctx, killCtx, sess)
 }
 
 func (s *server) Plan(
