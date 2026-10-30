@@ -285,11 +285,12 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 }
 
 // @Summary Watch chat events for a user via WebSockets
+// @Description Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.
 // @ID watch-chat-events-for-a-user-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Success 200 {object} codersdk.ChatWatchEvent
+// @Success 101 {object} codersdk.ChatWatchEvent
 // @Router /api/v2/chats/watch [get]
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2340,12 +2341,13 @@ func (api *API) authorizeChatWorkspaceExecWithStatus(
 }
 
 // @Summary Watch chat workspace git state via WebSockets
+// @Description Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes since the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
 // @ID watch-chat-workspace-git-state-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.WorkspaceAgentGitServerMessage
+// @Success 101 {object} codersdk.WorkspaceAgentGitServerMessage
 // @Router /api/v2/chats/{chat}/stream/git [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -3928,13 +3930,14 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 }
 
 // @Summary Stream chat events via WebSockets
+// @Description Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
 // @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Success 101 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -9690,12 +9693,13 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Stream chat parts via WebSockets
+// @Description Upgrades to a WebSocket. The server sends no events until you send a control message with `history_version` and `generation_attempt`, and then each message is a JSON array holding a batch of one or more events.
 // @ID stream-chat-parts-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Success 101 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream/parts [get]
 // @x-apidocgen {"skip": true}
 func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {

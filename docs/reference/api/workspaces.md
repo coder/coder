@@ -2688,6 +2688,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 `GET /api/v2/workspaces/{workspace}/watch-ws`
 
+Upgrades to a WebSocket and sends one event per message, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data. The server closes the connection if you send a message.
+
 ### Parameters
 
 | Name        | In   | Type         | Required | Description  |
@@ -2696,7 +2698,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 ### Example responses
 
-> 200 Response
+> 101 Response
 
 ```json
 {
@@ -2707,8 +2709,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
+| Status | Meaning                                                                  | Description         | Schema                                                         |
+|--------|--------------------------------------------------------------------------|---------------------|----------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

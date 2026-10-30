@@ -4198,6 +4198,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/watch": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -4207,8 +4208,8 @@ const docTemplate = `{
                 "summary": "Watch chat events for a user via WebSockets",
                 "operationId": "watch-chat-events-for-a-user-via-websockets",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatWatchEvent"
                         }
@@ -5009,6 +5010,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -5034,8 +5036,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -5053,6 +5055,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/git": {
             "get": {
+                "description": "Upgrades to a WebSocket. Each server message is either a ` + "`" + `changes` + "`" + ` message with a delta of repository changes since the previous message or an ` + "`" + `error` + "`" + ` message, and you can send ` + "`" + `{\"type\": \"refresh\"}` + "`" + ` to request an immediate re-scan.",
                 "produces": [
                     "application/json"
                 ],
@@ -5072,8 +5075,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
                         }
@@ -5088,6 +5091,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/parts": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends no events until you send a control message with ` + "`" + `history_version` + "`" + ` and ` + "`" + `generation_attempt` + "`" + `, and then each message is a JSON array holding a batch of one or more events.",
                 "produces": [
                     "application/json"
                 ],
@@ -5107,8 +5111,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -11333,6 +11337,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
+                "description": "Returns the template version that precedes the named version.",
                 "produces": [
                     "application/json"
                 ],
@@ -11373,7 +11378,7 @@ const docTemplate = `{
                         }
                     },
                     "204": {
-                        "description": "No Content"
+                        "description": "The template version has no previous version"
                     }
                 },
                 "security": [
@@ -16876,6 +16881,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a list of ` + "`" + `codersdk.WorkspaceAgentMetadata` + "`" + ` and ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -16895,8 +16901,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -18674,6 +18680,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one event per message, where ` + "`" + `data` + "`" + ` events hold a ` + "`" + `codersdk.Workspace` + "`" + `, ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `, and ` + "`" + `ping` + "`" + ` events have no data. The server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -18693,8 +18700,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }

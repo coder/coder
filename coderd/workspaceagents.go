@@ -1839,11 +1839,12 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Watch for workspace agent metadata updates via WebSockets
+// @Description Upgrades to a WebSocket and sends one event per message, where `data` events hold a list of `codersdk.WorkspaceAgentMetadata` and `error` events hold a `codersdk.Response`. The server closes the connection if you send a message.
 // @ID watch-for-workspace-agent-metadata-updates-via-websockets
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} codersdk.ServerSentEvent
+// @Success 101 {object} codersdk.ServerSentEvent
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Router /api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
