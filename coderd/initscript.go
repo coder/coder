@@ -15,11 +15,14 @@ import (
 )
 
 // @Summary Get agent init script
+// @Description Returns the script that downloads the Coder agent binary from the deployment and starts it, for the given operating system and architecture.
+// @Description The script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the `init_script` of a `coder_agent` from the same script.
+// @Description Doesn't require a session token, and returns `400` for an operating system and architecture pair that Coder doesn't support.
 // @ID get-agent-init-script
 // @Produce text/plain
 // @Tags InitScript
-// @Param os path string true "Operating system"
-// @Param arch path string true "Architecture"
+// @Param os path string true "Operating system of the machine that runs the agent, one of `linux`, `darwin`, or `windows`. The match ignores case."
+// @Param arch path string true "CPU architecture of the machine that runs the agent, one of `amd64` or `arm64`, or `armv7` on `linux`. The match ignores case."
 // @Success 200 "Success"
 // @Router /api/v2/init-script/{os}/{arch} [get]
 func (api *API) initScript(rw http.ResponseWriter, r *http.Request) {
