@@ -3109,7 +3109,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("skips empty keepalive batches without changing state", async () => {
+	it("keeps the stream connected while only empty keepalive batches arrive", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
 
