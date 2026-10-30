@@ -2422,10 +2422,11 @@ func requestJSON[T any](ctx context.Context, c *Client, method, path string, wan
 	if err != nil {
 		return out, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != wantStatus {
+		// ReadBodyAsError closes the body.
 		return out, ReadBodyAsError(res)
 	}
+	defer res.Body.Close()
 	err = ReadBodyAsJSON(res, &out)
 	return out, err
 }
@@ -2435,10 +2436,11 @@ func requestNoContent(ctx context.Context, c *Client, method, path string, body 
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
+		// ReadBodyAsError closes the body.
 		return ReadBodyAsError(res)
 	}
+	defer res.Body.Close()
 	return nil
 }
 
