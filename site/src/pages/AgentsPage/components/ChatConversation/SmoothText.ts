@@ -305,18 +305,17 @@ export function sliceAtGraphemeBoundary(
 		return "";
 	}
 
-	if (graphemeSegmenter) {
-		// containing() finds the cluster that holds index maxCodeUnitLength
-		// without walking earlier ones; it starts at the largest boundary that
-		// fits. No cluster holds that index when the whole text fits.
-		const cluster = graphemeSegmenter
-			.segment(text)
-			.containing(maxCodeUnitLength);
-		return cluster ? text.slice(0, cluster.index) : text;
-	}
-
 	if (maxCodeUnitLength >= text.length) {
 		return text;
+	}
+
+	if (graphemeSegmenter) {
+		// containing() finds the cluster holding index maxCodeUnitLength without
+		// walking earlier ones; it starts at the largest boundary that fits.
+		return text.slice(
+			0,
+			graphemeSegmenter.segment(text).containing(maxCodeUnitLength)?.index,
+		);
 	}
 
 	// Fallback: iterate by codepoint to avoid splitting surrogate
