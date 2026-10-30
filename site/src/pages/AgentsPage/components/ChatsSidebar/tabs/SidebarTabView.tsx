@@ -40,10 +40,9 @@ type SidebarTabProps = {
 	children: React.ReactNode;
 };
 
-/** What a panel inside a `SidebarTab` knows about its tab. */
 type TabPanelState = {
 	isActive: boolean;
-	/** Whether the right panel itself is open. */
+	/** Whether the right panel is open, regardless of the active tab. */
 	isPanelOpen: boolean;
 	isExpanded: boolean;
 };
@@ -58,7 +57,6 @@ export const TabPanelStateContext = createContext<TabPanelState>({
 	isExpanded: false,
 });
 
-/** Returns the state of the tab panel the calling component renders in. */
 export const useTabPanelState = () => {
 	return useContext(TabPanelStateContext);
 };
@@ -74,7 +72,6 @@ const SidebarTabViewContext = createContext<SidebarTabViewContextValue | null>(
 	null,
 );
 
-/** Returns the `SidebarTabView` that a `SidebarTab` is a child of. */
 const useParentTabView = () => {
 	const view = useContext(SidebarTabViewContext);
 

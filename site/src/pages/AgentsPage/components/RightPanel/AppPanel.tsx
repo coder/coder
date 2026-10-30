@@ -8,7 +8,10 @@ type AppPanelProps = {
 	app: WorkspaceAppWithAgent;
 };
 
-/** An embedded workspace app, shown while its tab is active. */
+/**
+ * An embedded workspace app. The frame stays mounted while its tab is
+ * inactive, so the app keeps its state.
+ */
 export const AppPanel: React.FC<AppPanelProps> = ({ workspace, app }) => {
 	const { isActive } = useTabPanelState();
 

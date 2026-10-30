@@ -16,7 +16,10 @@ type UserTabPanelProps = {
 	onTerminalReady: (tabId: string) => void;
 };
 
-/** Renders a terminal, workspace app, or port tab. */
+/**
+ * Renders a terminal, workspace app, or port tab, or nothing until its
+ * workspace and agent are available.
+ */
 export const UserTabPanel: React.FC<UserTabPanelProps> = ({
 	tab,
 	chatId,

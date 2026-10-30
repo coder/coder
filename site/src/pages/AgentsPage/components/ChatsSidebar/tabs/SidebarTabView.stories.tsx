@@ -178,12 +178,11 @@ export const CloseableTabs: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 
-		// Close Terminal 3 then the active Terminal 2. Closing the active tab
-		// selects its neighbor, Terminal 4.
 		await user.click(
 			canvas.getByRole("button", { name: "Close Terminal 3 tab" }),
 		);
 
+		// Closing the active Terminal 2 selects its neighbor, Terminal 4.
 		await user.click(
 			canvas.getByRole("button", { name: "Close Terminal 2 tab" }),
 		);
