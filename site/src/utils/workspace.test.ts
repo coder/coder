@@ -130,6 +130,13 @@ describe("util > workspace", () => {
 				},
 				"Coder",
 			],
+			[
+				{
+					...Mocks.MockWorkspaceBuild,
+					reason: "autodelete",
+				},
+				"Coder",
+			],
 		])(
 			"getDisplayWorkspaceBuildInitiatedBy(%p) returns %p",
 			(build, initiatedBy) => {

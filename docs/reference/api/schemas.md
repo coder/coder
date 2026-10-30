@@ -1474,10 +1474,9 @@ None
 
 #### Enumerated Values
 
-| Property     | Value(s)                              |
-|--------------|---------------------------------------|
-| `login_type` | `github`, `oidc`, `password`, `token` |
-| `scope`      | `all`, `application_connect`          |
+| Property | Value(s)                     |
+|----------|------------------------------|
+| `scope`  | `all`, `application_connect` |
 
 ## codersdk.APIKeyScope
 
@@ -2109,7 +2108,7 @@ None
 
 ```json
 {
-  "action": "create",
+  "action": "read",
   "object": {
     "any_org": true,
     "organization_id": "string",
@@ -2128,12 +2127,6 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 |----------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action` | [codersdk.RBACAction](#codersdkrbacaction)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    |              | Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product. When defining an object, use the most specific language when possible to produce the smallest set. Meaning to set as many fields on 'Object' as you can. Example, if you want to check if you can update all workspaces owned by 'me', try to also add an 'OrganizationID' to the settings. Omitting the 'OrganizationID' could produce the incorrect value, as workspaces have both `user` and `organization` owners. |
-
-#### Enumerated Values
-
-| Property | Value(s)                             |
-|----------|--------------------------------------|
-| `action` | `create`, `delete`, `read`, `update` |
 
 ## codersdk.AuthorizationObject
 
@@ -2165,7 +2158,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "checks": {
     "property1": {
-      "action": "create",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2175,7 +2168,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     },
     "property2": {
-      "action": "create",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2286,9 +2279,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------|
-| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `autodelete`, `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -6661,12 +6654,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
 | `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
 
-#### Enumerated Values
-
-| Property        | Value(s)             |
-|-----------------|----------------------|
-| `busy_behavior` | `interrupt`, `queue` |
-
 ## codersdk.CreateChatMessageResponse
 
 ```json
@@ -7626,7 +7613,7 @@ This is required on creation to enable a user-flow of validating a template work
   "additional_fields": [
     0
   ],
-  "build_reason": "autostart",
+  "build_reason": "initiator",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -7647,14 +7634,6 @@ This is required on creation to enable a user-flow of validating a template work
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
-
-#### Enumerated Values
-
-| Property        | Value(s)                                                                                                 |
-|-----------------|----------------------------------------------------------------------------------------------------------|
-| `action`        | `create`, `delete`, `start`, `stop`, `write`                                                             |
-| `build_reason`  | `autostart`, `autostop`, `initiator`                                                                     |
-| `resource_type` | `auditable_group`, `git_ssh_key`, `template`, `template_version`, `user`, `workspace`, `workspace_build` |
 
 ## codersdk.CreateTokenRequest
 
@@ -11119,9 +11098,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                            |
-|-----------------------------------------------------|
-| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -11266,9 +11245,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                          |
-|---------------------------------------------------|
-| ``, `github`, `none`, `oidc`, `password`, `token` |
+| Value(s)                                                                 |
+|--------------------------------------------------------------------------|
+| ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
 
 ## codersdk.LoginWithPasswordRequest
 
@@ -13120,12 +13099,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_updated_at`    | string                                          | false    |              |                                                                                                  |
 | `username`           | string                                          | false    |              |                                                                                                  |
 
-#### Enumerated Values
-
-| Property | Value(s)              |
-|----------|-----------------------|
-| `status` | `active`, `suspended` |
-
 ## codersdk.OrganizationSkillACL
 
 ```json
@@ -14144,12 +14117,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]` | string                                                               | false    |              |                  |
 | `version`          | string                                                               | false    |              |                  |
 
-#### Enumerated Values
-
-| Property | Value(s)                  |
-|----------|---------------------------|
-| `status` | `busy`, `idle`, `offline` |
-
 ## codersdk.ProvisionerDaemonJob
 
 ```json
@@ -14171,12 +14138,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `template_display_name` | string                                                         | false    |              |             |
 | `template_icon`         | string                                                         | false    |              |             |
 | `template_name`         | string                                                         | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value(s)                                                             |
-|----------|----------------------------------------------------------------------|
-| `status` | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
 
 ## codersdk.ProvisionerDaemonStatus
 
@@ -14265,13 +14226,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `worker_id`         | string                                                             | false    |              |             |
 | `worker_name`       | string                                                             | false    |              |             |
 
-#### Enumerated Values
-
-| Property     | Value(s)                                                             |
-|--------------|----------------------------------------------------------------------|
-| `error_code` | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                  |
-| `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
-
 ## codersdk.ProvisionerJobInput
 
 ```json
@@ -14313,12 +14267,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `log_source` | [codersdk.LogSource](#codersdklogsource) | false    |              |             |
 | `output`     | string                                   | false    |              |             |
 | `stage`      | string                                   | false    |              |             |
-
-#### Enumerated Values
-
-| Property    | Value(s)                                  |
-|-------------|-------------------------------------------|
-| `log_level` | `debug`, `error`, `info`, `trace`, `warn` |
 
 ## codersdk.ProvisionerJobMetadata
 
@@ -14581,12 +14529,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
 | `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
 
-#### Enumerated Values
-
-| Property | Value(s)                            |
-|----------|-------------------------------------|
-| `mode`   | `condition`, `inherit`, `off`, `on` |
-
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -14704,12 +14646,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `theme_preference`   | string                                     | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
 | `updated_at`         | string                                     | false    |              |                                                                                            |
 | `username`           | string                                     | true     |              |                                                                                            |
-
-#### Enumerated Values
-
-| Property | Value(s)              |
-|----------|-----------------------|
-| `status` | `active`, `suspended` |
 
 ## codersdk.Region
 
@@ -15191,12 +15127,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `id`         | string                                                                 | false    |              |             |
 | `name`       | string                                                                 | false    |              |             |
 | `roles`      | array of [codersdk.WorkspaceRole](#codersdkworkspacerole)              | false    |              |             |
-
-#### Enumerated Values
-
-| Property     | Value(s)        |
-|--------------|-----------------|
-| `actor_type` | `group`, `user` |
 
 ## codersdk.SharedWorkspaceActorType
 
@@ -16549,10 +16479,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property | Value(s)              |
-|----------|-----------------------|
-| `role`   | `admin`, `use`        |
-| `status` | `active`, `suspended` |
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.TemplateVersion
 
@@ -16726,11 +16655,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property               | Value(s)                                                                                                            |
-|------------------------|---------------------------------------------------------------------------------------------------------------------|
-| `form_type`            | ``, `checkbox`, `dropdown`, `error`, `input`, `multi-select`, `radio`, `slider`, `switch`, `tag-select`, `textarea` |
-| `type`                 | `bool`, `list(string)`, `number`, `string`                                                                          |
-| `validation_monotonic` | `decreasing`, `increasing`                                                                                          |
+| Property    | Value(s)                                                                                                            |
+|-------------|---------------------------------------------------------------------------------------------------------------------|
+| `form_type` | ``, `checkbox`, `dropdown`, `error`, `input`, `multi-select`, `radio`, `slider`, `switch`, `tag-select`, `textarea` |
+| `type`      | `bool`, `list(string)`, `number`, `string`                                                                          |
 
 ## codersdk.TemplateVersionParameterOption
 
@@ -18129,12 +18057,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
 | `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
 
-#### Enumerated Values
-
-| Property                     | Value(s)                               |
-|------------------------------|----------------------------------------|
-| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
-
 ## codersdk.UpdateWorkspaceTTLRequest
 
 ```json
@@ -18272,13 +18194,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | [codersdk.WorkspaceAgentPortShareProtocol](#codersdkworkspaceagentportshareprotocol) | false    |              |             |
 | `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
 
-#### Enumerated Values
-
-| Property      | Value(s)                                           |
-|---------------|----------------------------------------------------|
-| `protocol`    | `http`, `https`                                    |
-| `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
 ## codersdk.UsagePeriod
 
 ```json
@@ -18360,12 +18275,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
 | `updated_at`         | string                                          | false    |              |                                                                                                  |
 | `username`           | string                                          | true     |              |                                                                                                  |
-
-#### Enumerated Values
-
-| Property | Value(s)              |
-|----------|-----------------------|
-| `status` | `active`, `suspended` |
 
 ## codersdk.UserAIBudgetOverride
 
@@ -19339,12 +19248,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `ttl_ms`                                    | integer                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `updated_at`                                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 
-#### Enumerated Values
-
-| Property            | Value(s)          |
-|---------------------|-------------------|
-| `automatic_updates` | `always`, `never` |
-
 ## codersdk.WorkspaceACL
 
 ```json
@@ -20069,13 +19972,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
 | `workspace_id` | string                                                                               | false    |              |             |
 
-#### Enumerated Values
-
-| Property      | Value(s)                                           |
-|---------------|----------------------------------------------------|
-| `protocol`    | `http`, `https`                                    |
-| `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
 ## codersdk.WorkspaceAgentPortShareLevel
 
 ```json
@@ -20327,12 +20223,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
-
-#### Enumerated Values
-
-| Property        | Value(s)                                           |
-|-----------------|----------------------------------------------------|
-| `sharing_level` | `authenticated`, `organization`, `owner`, `public` |
 
 ## codersdk.WorkspaceAppHealth
 
@@ -20684,14 +20574,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
 | `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
 | `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
-
-#### Enumerated Values
-
-| Property     | Value(s)                                                                                                          |
-|--------------|-------------------------------------------------------------------------------------------------------------------|
-| `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
-| `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
-| `transition` | `delete`, `start`, `stop`                                                                                         |
 
 ## codersdk.WorkspaceBuildDebugEventRequest
 
@@ -21163,12 +21045,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `type`                 | string                                                                            | false    |              |             |
 | `workspace_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                      | false    |              |             |
 
-#### Enumerated Values
-
-| Property               | Value(s)                  |
-|------------------------|---------------------------|
-| `workspace_transition` | `delete`, `start`, `stop` |
-
 ## codersdk.WorkspaceResourceMetadata
 
 ```json
@@ -21278,12 +21154,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
 | `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
 | `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting.      |
-
-#### Enumerated Values
-
-| Property                     | Value(s)                               |
-|------------------------------|----------------------------------------|
-| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.WorkspaceStatus
 
@@ -21728,12 +21598,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `status_code`      | integer                                   | false    |              |                                                                                             |
 | `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.DERPHealthReport
 
 ```json
@@ -21973,12 +21837,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`         | [health.Severity](#healthseverity)                       | false    |              |                                                                                             |
 | `warnings`         | array of [health.Message](#healthmessage)                | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.DERPNodeReport
 
 ```json
@@ -22050,12 +21908,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `stun`                  | [healthsdk.STUNReport](#healthsdkstunreport)     | false    |              |                                                                                             |
 | `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
 | `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.DERPRegionReport
 
@@ -22159,12 +22011,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`     | [health.Severity](#healthseverity)                            | false    |              |                                                                                             |
 | `warnings`     | array of [health.Message](#healthmessage)                     | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.DatabaseReport
 
 ```json
@@ -22199,12 +22045,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `threshold_ms` | integer                                   | false    |              |                                                                                             |
 | `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.HealthSection
 
@@ -22624,12 +22464,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
 | `workspace_proxy`     | [healthsdk.WorkspaceProxyReport](#healthsdkworkspaceproxyreport)         | false    |              |                                                                                     |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.ProvisionerDaemonsReport
 
 ```json
@@ -22698,12 +22532,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `items`     | array of [healthsdk.ProvisionerDaemonsReportItem](#healthsdkprovisionerdaemonsreportitem) | false    |              |             |
 | `severity`  | [health.Severity](#healthseverity)                                                        | false    |              |             |
 | `warnings`  | array of [health.Message](#healthmessage)                                                 | false    |              |             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.ProvisionerDaemonsReportItem
 
@@ -22823,12 +22651,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`  | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
-
 ## healthsdk.WorkspaceProxyReport
 
 ```json
@@ -22887,12 +22709,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |                                                                                             |
 | `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |                                                                                             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value(s)                 |
-|------------|--------------------------|
-| `severity` | `error`, `ok`, `warning` |
 
 ## key.NodePublic
 
@@ -23705,7 +23521,7 @@ None
     "transition": "start"
   },
   "error": {
-    "code": 0,
+    "code": 1,
     "details": "string",
     "message": "string",
     "retryable": true
@@ -23725,7 +23541,7 @@ None
 
 ```json
 {
-  "code": 0,
+  "code": 1,
   "details": "string",
   "message": "string",
   "retryable": true
@@ -23744,16 +23560,16 @@ None
 ## workspacesdk.WatchErrorCode
 
 ```json
-0
+1
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                          |
-|-----------------------------------|
-| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
+| Value(s)                     |
+|------------------------------|
+| `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 
