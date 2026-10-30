@@ -580,9 +580,10 @@ type SendMessageResult struct {
 	FinishedInterruption bool
 }
 
-// SendMessage admits a new user message. Depending on input state and
-// BusyBehavior, the message lands directly in history, in the queue,
-// or replaces the queue head as part of a running-state promotion.
+// SendMessage inserts directly in idle states and queues by lane in busy
+// states. From E1, it queues the message and resumes with the steer lane,
+// or the queue head if no steer messages exist. An interrupt send inserts
+// directly from E1 and A*, and otherwise queues in the steer lane.
 func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionSendMessage)
 	if err != nil {
@@ -628,7 +629,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// lands in I1; queue and steer keep the input state.
 	case StateR0, StateR1, StateI0, StateI1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterrupt(chat, from, input)
+			return tx.sendMessageInterrupt(chat, input)
 		}
 		return tx.queueMessage(chat, input)
 
@@ -740,13 +741,11 @@ func (tx *Tx) queueMessage(chat database.Chat, input SendMessageInput) (SendMess
 	}, nil
 }
 
-// sendMessageInterrupt queues the message in the queue lane and lands the
-// chat in I1. A send that starts an interruption goes to the head of the
-// queue lane, behind the steer lane; sends during an interruption join the
-// tail to keep arrival order. An unowned chat has no runner to finish the
-// interruption, so this transaction finishes it.
-func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehaviorQueue)
+// sendMessageInterrupt stores the message at the end of the steer lane and
+// lands the chat in I1. An unowned chat has no runner to finish the
+// interruption, so this transaction finishes it and delivers the steer lane.
+func (tx *Tx) sendMessageInterrupt(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehaviorSteer)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -761,32 +760,18 @@ func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, inpu
 	}); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("update status: %w", err)
 	}
-	result := SendMessageResult{QueuedMessage: &queued}
-	startsInterruption := from == StateR0 || from == StateR1
-	if startsInterruption {
-		if _, err := tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
-			ID:     result.QueuedMessage.ID,
-			ChatID: tx.chatID,
-		}); err != nil {
-			return SendMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
-		}
-	}
 	if chat.WorkerID.Valid {
-		return result, nil
+		return SendMessageResult{QueuedMessage: &queued}, nil
 	}
 	finished, err := tx.finishUnownedInterruption(chat, "Tool execution interrupted by new user message")
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	result.InsertedMessages = finished.InsertedMessages
-	result.PromotedQueuedAt = finished.PromotedQueuedAt
-	result.FinishedInterruption = true
-	if slices.ContainsFunc(finished.PromotedMessages, func(m database.ChatMessage) bool {
-		return m.QueuedMessageID.Int64 == queued.ID
-	}) {
-		result.QueuedMessage = nil
-	}
-	return result, nil
+	return SendMessageResult{
+		InsertedMessages:     finished.InsertedMessages,
+		PromotedQueuedAt:     finished.PromotedQueuedAt,
+		FinishedInterruption: true,
+	}, nil
 }
 
 // EditMessageInput configures [Tx.EditMessage].
