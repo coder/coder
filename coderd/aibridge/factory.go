@@ -9,9 +9,12 @@ import (
 
 // Attribution carries contextual per-request attribution data for a request.
 type Attribution struct {
-	// WorkspaceID is the workspace bound to the chat, or uuid.Nil when no
-	// workspace is bound.
+	// WorkspaceID is the workspace the request comes from, or uuid.Nil when
+	// unknown.
 	WorkspaceID uuid.UUID
+	// ChatOrganizationID is the organization of the chat, or uuid.Nil when the
+	// request does not come from a chat.
+	ChatOrganizationID uuid.UUID
 }
 
 type attributionCtxKey struct{}

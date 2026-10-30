@@ -229,8 +229,9 @@ func (p *Server) newModel(
 		)
 	}
 
-	// Use the trusted workspace binding already persisted on the chat.
-	attr := aibridge.Attribution{}
+	// Use the trusted workspace binding and organization already persisted on
+	// the chat.
+	attr := aibridge.Attribution{ChatOrganizationID: req.Chat.OrganizationID}
 	if req.Chat.WorkspaceID.Valid {
 		attr.WorkspaceID = req.Chat.WorkspaceID.UUID
 	}
