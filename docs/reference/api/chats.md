@@ -1514,11 +1514,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                  |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the filename as a quoted string. |
+| `body`                | body   | string       | true     | Raw file binary data                                             |
 
 ### Example responses
 
