@@ -3965,16 +3965,19 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var chunked bool
+	// Zero sends every batch as one message.
+	var chunkBytes int
 	if v := r.URL.Query().Get("chunks"); v != "" {
-		var err error
-		chunked, err = strconv.ParseBool(v)
+		chunked, err := strconv.ParseBool(v)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid chunks parameter.",
 				Detail:  err.Error(),
 			})
 			return
+		}
+		if chunked {
+			chunkBytes = codersdk.ChatStreamChunkBytes
 		}
 	}
 
@@ -4022,7 +4025,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		if len(batch) == 0 {
 			return nil
 		}
-		return writeChatStreamBatch(wsNetConn, batch, chunked)
+		return writeChatStreamBatch(wsNetConn, batch, chunkBytes)
 	}
 
 	drainChatStreamBatch := func(
@@ -4075,7 +4078,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-keepalive.C:
-			if err := writeChatStreamBatch(wsNetConn, []codersdk.ChatStreamEvent{}, chunked); err != nil {
+			if err := writeChatStreamBatch(wsNetConn, []codersdk.ChatStreamEvent{}, chunkBytes); err != nil {
 				logger.Debug(ctx, "failed to send chat stream keepalive", slog.Error(err))
 				return
 			}
@@ -4099,40 +4102,43 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeChatStreamBatch writes batch as one message, or, when chunked is
-// set and it encodes to more than codersdk.ChatStreamChunkBytes, as
-// consecutive codersdk.ChatStreamChunk messages. Each w.Write must send one
-// WebSocket message. Browsers deliver a message only after its last byte, so
-// an unsplit large batch on a slow link can outlast the web client's silence
-// timeout and be requested again on every reconnect. Clients opt in because
-// clients released before chunking parse every message as an array.
+// writeChatStreamBatch writes batch as one message, or, when chunkBytes is
+// positive and the batch encodes to more than chunkBytes, as consecutive
+// codersdk.ChatStreamChunk messages that each hold at most chunkBytes of
+// it. Each w.Write must send one WebSocket message. Browsers deliver a
+// message only after its last byte, so an unsplit large batch on a slow
+// link can outlast the web client's silence timeout and be requested again
+// on every reconnect. Clients opt in because clients released before
+// chunking parse every message as an array.
 //
 // json.Marshal writes <, > and & in the batch as \u003c-style text, so a
 // chunk holds only `"`, `\` and the trailing newline among the characters
 // that string encoding expands, and each of those expands to two bytes: a
-// chunk message is at most twice its chunk plus the wrapper. Do not disable HTML escaping on
-// the batch. The WSWatcher probe closes the stream when its Ping
-// takes over 15 s, and the Ping's lock wait plus write may take only 5 s.
-// A message holds the write lock until the kernel accepts it, so the 5 s
-// cap needs a 512 KiB worst-case chunk message to drain at 0.84 Mbit/s or
-// more. The 15 s total also covers the pong, which waits for every byte
-// queued in the kernel and proxies. With a 10 MiB image, an unsplit
-// message failed at 1 and 4 Mbit/s; chunks passed at 4 Mbit/s, and at
-// 1 Mbit/s only while under about 1.9 MB was queued.
-func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent, chunked bool) error {
+// chunk message is at most twice its chunk plus the wrapper. Do not disable
+// HTML escaping on the batch. The WSWatcher probe closes the stream when
+// its Ping takes over 15 s, and the Ping's lock wait plus write may take
+// only 5 s. A message holds the write lock until the kernel accepts it, so
+// the 5 s cap needs a 512 KiB worst-case chunk message to drain at
+// 0.84 Mbit/s or more. The 15 s total also covers the pong, which waits
+// for every byte queued in the kernel and proxies. With a 10 MiB image and
+// a 64 KiB proxy queue, an unsplit message needed several connections at
+// 2.5 Mbit/s and never arrived at 1 Mbit/s; chunks arrived at both. With a
+// 1 MiB proxy queue or 64 KiB TCP segments at 1 Mbit/s, the probe still
+// closed every connection.
+func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent, chunkBytes int) error {
 	data, err := json.Marshal(batch)
 	if err != nil {
 		return xerrors.Errorf("encode chat stream batch: %w", err)
 	}
 	data = append(data, '\n')
-	if !chunked || len(data) <= codersdk.ChatStreamChunkBytes {
+	if chunkBytes <= 0 || len(data) <= chunkBytes {
 		_, err := w.Write(data)
 		return err
 	}
 	// Encode writes each chunk message with one w.Write.
 	enc := json.NewEncoder(w)
 	for len(data) > 0 {
-		n := min(len(data), codersdk.ChatStreamChunkBytes)
+		n := min(len(data), chunkBytes)
 		// The batch encoding is valid UTF-8, so a rune start is at most
 		// three bytes back, and each chunk is a valid string.
 		for n < len(data) && !utf8.RuneStart(data[n]) {
