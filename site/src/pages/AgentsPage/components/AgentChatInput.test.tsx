@@ -21,7 +21,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import {
 	MockChatQueuedMessage,
-	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
@@ -637,6 +636,41 @@ describe("AgentChatInput", () => {
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		["history", "Stop", "onInterrupt"],
+		["queued", "Save Edit", "onSend"],
+	] as const)(
+		"a %s edit while streaming puts %s in the footer slot",
+		async (editingKind, buttonName, calledHandler) => {
+			const user = userEvent.setup();
+			const handlers = { onSend: vi.fn(), onInterrupt: vi.fn() };
+
+			renderInput(
+				<AgentChatInput
+					{...handlers}
+					isDisabled={false}
+					isLoading={false}
+					isStreaming
+					editingKind={editingKind}
+					initialValue="Edited text"
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+					onContentChange={vi.fn()}
+					planModeEnabled={false}
+					onPlanModeToggle={vi.fn()}
+					isModelCatalogLoading={false}
+				/>,
+			);
+
+			await user.click(await screen.findByRole("button", { name: buttonName }));
+			expect(handlers[calledHandler]).toHaveBeenCalledTimes(1);
+		},
+	);
+
 	it("shows a disabled Queue button without a spinner while an interrupt is pending", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
@@ -805,6 +839,24 @@ describe("AgentChatInput", () => {
 			expect(callback).toHaveBeenCalledTimes(1);
 		},
 	);
+
+	it("names the cancel button of a queued edit on a paused chat for the send that follows", async () => {
+		const user = userEvent.setup();
+		const onCancelEdit = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				editingKind="queued"
+				isChatPaused
+				onCancelEdit={onCancelEdit}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Cancel edit and send unchanged" }),
+		);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
+	});
 
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
 		const user = userEvent.setup();
@@ -1160,8 +1212,13 @@ describe("AgentChatInput", () => {
 	it.each([
 		["sends the queue head when nothing is under edit", {}, true],
 		[
-			"does not send a queue head the server marks as under edit",
-			{ queuedMessages: [MockChatQueuedMessageUnderEdit] },
+			"does not send the queue head while the composer edits a message",
+			{ editingKind: "queued" },
+			false,
+		],
+		[
+			"does not send a queue head whose begin request is pending",
+			{ queuedMessageUnderEditID: MockChatQueuedMessage.id },
 			false,
 		],
 	] satisfies Array<
@@ -1195,7 +1252,7 @@ describe("AgentChatInput", () => {
 		// Plain Enter sends only once the shortcut preference has loaded.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: /^(Send|Queue)$/ }),
+				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
 			).toHaveAttribute("aria-keyshortcuts", "Enter");
 		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));

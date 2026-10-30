@@ -43,6 +43,7 @@ export type SubmitChatTurnParams = {
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
+	isEditModelDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
 	organizationSkills: readonly { name: string }[] | undefined;
 	projectSkills: readonly { name: string }[] | undefined;
@@ -63,6 +64,10 @@ export type SubmitChatTurnParams = {
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	}) => Promise<unknown>;
+	saveQueuedMessage: (
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	) => Promise<unknown>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
@@ -84,6 +89,33 @@ export type SubmitChatTurnParams = {
 		planMode?: TypesGen.ChatPlanMode,
 	) => void;
 };
+
+/**
+ * The model and reasoning effort a history edit sends. Each is omitted
+ * when the backend keeps the original: the model unless
+ * resolveEditModelConfigID picks one, the effort unless the user changed
+ * it for this edit.
+ */
+const buildEditModelOverrides = ({
+	pickerModelConfigID,
+	originalModelConfigID,
+	modelOptions,
+	reasoningEffort,
+	isReasoningEffortDirty,
+}: {
+	pickerModelConfigID: string | undefined;
+	originalModelConfigID: string | undefined;
+	modelOptions: readonly ModelSelectorOption[];
+	reasoningEffort: string | undefined;
+	isReasoningEffortDirty: boolean;
+}): { model_config_id?: string; reasoning_effort?: string } => ({
+	model_config_id: resolveEditModelConfigID({
+		pickerModelConfigID,
+		originalModelConfigID,
+		modelOptions,
+	}),
+	reasoning_effort: isReasoningEffortDirty ? reasoningEffort : undefined,
+});
 
 /** @internal Exported for testing. */
 export const resolveEditModelConfigID = ({
@@ -277,8 +309,10 @@ export async function submitChatTurn(
 		modelOptions,
 		effectiveReasoningEffort,
 		isEditReasoningEffortDirtyRef,
+		isEditModelDirtyRef,
 		mcpServerIds,
 		editMessage,
+		saveQueuedMessage,
 		sendMessage,
 		onRequestError,
 		invalidateChat,
@@ -328,23 +362,39 @@ export async function submitChatTurn(
 		return;
 	}
 
+	if (editingTarget?.kind === "queued") {
+		const queuedMessageID = editingTarget.id;
+		// A queued row keeps its model and effort unless the user changes
+		// them during this edit; the picker otherwise shows the chat's model,
+		// not the row's.
+		const request: TypesGen.EditChatQueuedMessageRequest = {
+			content,
+			model_config_id: isEditModelDirtyRef.current
+				? effectiveSelectedModel || undefined
+				: undefined,
+			reasoning_effort: isEditReasoningEffortDirtyRef.current
+				? effectiveReasoningEffort
+				: undefined,
+			editing: false,
+		};
+		await saveQueuedMessage(queuedMessageID, request);
+		return;
+	}
+
 	if (editingTarget?.kind === "history") {
 		const editedMessageID = editingTarget.id;
 		const originalEditedMessage = chatMessages?.find(
 			(existingMessage) => existingMessage.id === editedMessageID,
 		);
-		const editSelectedModelConfigID = resolveEditModelConfigID({
-			pickerModelConfigID: effectiveSelectedModel || undefined,
-			originalModelConfigID: originalEditedMessage?.model_config_id,
-			modelOptions,
-		});
 		const request: TypesGen.EditChatMessageRequest = {
 			content,
-			model_config_id: editSelectedModelConfigID,
-			// Omit so the backend preserves the original effort.
-			reasoning_effort: isEditReasoningEffortDirtyRef.current
-				? effectiveReasoningEffort
-				: undefined,
+			...buildEditModelOverrides({
+				pickerModelConfigID: effectiveSelectedModel || undefined,
+				originalModelConfigID: originalEditedMessage?.model_config_id,
+				modelOptions,
+				reasoningEffort: effectiveReasoningEffort,
+				isReasoningEffortDirty: isEditReasoningEffortDirtyRef.current,
+			}),
 			mcp_server_ids: [...mcpServerIds],
 		};
 		const optimisticMessage = originalEditedMessage
