@@ -135,7 +135,11 @@ func compactionStillOverLimitError(source compactionTriggerSource, otherOverLimi
 type generationDecision struct {
 	kind           generationActionKind
 	localToolCalls []fantasy.ToolCallContent
-	finishReason   generationFinishReason
+	// observedToolCalls is the step's batch for chatloop step observers:
+	// localToolCalls plus the calls answered before execution, in call
+	// order.
+	observedToolCalls []fantasy.ToolCallContent
+	finishReason      generationFinishReason
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced            bool
@@ -208,7 +212,16 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 				})
 			}
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls, toolCallMessageID: messageID}, nil
+		observedCalls, err := observedToolCallsFromHistory(input.messages, localCalls)
+		if err != nil {
+			return generationDecision{}, err
+		}
+		return generationDecision{
+			kind:              generationActionExecuteLocalTools,
+			localToolCalls:    localCalls,
+			observedToolCalls: observedCalls,
+			toolCallMessageID: messageID,
+		}, nil
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction}, nil
@@ -339,6 +352,54 @@ func unresolvedToolCallsFromHistory(
 		})
 	}
 	return localCalls, dynamicCalls, messages[assistantIndex].ID, nil
+}
+
+// observedToolCallsFromHistory returns the last assistant step's batch in call
+// order: localCalls, which are about to run, and the calls already answered.
+// The results of executed calls commit together, so a call answered before its
+// batch runs was rejected without running, for example by a pre_tool_use hook
+// or for malformed input. Pending dynamic calls outside localCalls are left
+// out because the client runs them.
+func observedToolCallsFromHistory(
+	messages []database.ChatMessage,
+	localCalls []fantasy.ToolCallContent,
+) ([]fantasy.ToolCallContent, error) {
+	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
+		return msg.Role == database.ChatMessageRoleAssistant
+	})
+	if assistantIndex == -1 {
+		return localCalls, nil
+	}
+	assistantParts, err := chatprompt.ParseContent(messages[assistantIndex])
+	if err != nil {
+		return nil, xerrors.Errorf("parse assistant message: %w", err)
+	}
+	handled, err := handledToolCallIDs(messages[assistantIndex+1:])
+	if err != nil {
+		return nil, err
+	}
+	pending := make(map[string]fantasy.ToolCallContent, len(localCalls))
+	for _, call := range localCalls {
+		pending[call.ToolCallID] = call
+	}
+	observed := make([]fantasy.ToolCallContent, 0, len(assistantParts))
+	for _, part := range assistantParts {
+		if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ProviderExecuted {
+			continue
+		}
+		if call, ok := pending[part.ToolCallID]; ok {
+			observed = append(observed, call)
+			continue
+		}
+		if handled[part.ToolCallID] {
+			observed = append(observed, fantasy.ToolCallContent{
+				ToolCallID: part.ToolCallID,
+				ToolName:   part.ToolName,
+				Input:      string(part.Args),
+			})
+		}
+	}
+	return observed, nil
 }
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
@@ -1112,7 +1173,7 @@ func (s *taskStarter) executeLocalTools(
 			AllowInactiveTools: prepared.AllowInactiveTools,
 			ProviderTools:      prepared.ProviderTools,
 			ToolCalls:          allowed,
-			ObservedToolCalls:  decision.localToolCalls,
+			ObservedToolCalls:  decision.observedToolCalls,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,

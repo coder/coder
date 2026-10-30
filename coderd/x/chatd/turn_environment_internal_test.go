@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -304,24 +305,48 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	tests := []struct {
 		name            string
 		providerType    database.AIProviderType
+		settings        codersdk.AIProviderSettings
 		model           string
 		useResponsesAPI *bool
 		wantProvider    codersdk.ChatComputerUseProvider
+		wantToolVersion fantasyanthropic.ComputerUseToolVersion
 		wantErr         string
 	}{
 		{
-			name:         "Anthropic",
-			providerType: database.AIProviderTypeAnthropic,
-			model:        "claude-opus-5",
-			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
+			name:            "Anthropic",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "claude-opus-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
 		},
 		{
-			// The chat's model picks the Anthropic tool version; this
-			// model takes computer_20251124, not the toolset.
-			name:         "AnthropicComputer20251124",
+			// The chat's model picks the Anthropic tool version.
+			name:            "AnthropicComputer20251124",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "claude-opus-4-6",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			// Claude Platform on AWS has no toolset.
+			name:         "ClaudePlatformAWS",
 			providerType: database.AIProviderTypeAnthropic,
-			model:        "claude-opus-4-6",
-			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
+			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:      "us-east-2",
+				WorkspaceID: "wrkspc_test",
+			}},
+			model:           "claude-opus-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			// Amazon Bedrock has no toolset.
+			name:            "AnthropicBedrock",
+			providerType:    database.AIProviderTypeAnthropic,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
 		},
 		{
 			// The model is absent from the SDK's known Responses models, so
@@ -356,8 +381,15 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 				UserID:         user.ID,
 				OrganizationID: org.ID,
 			})
+			var settings sql.NullString
+			if !tt.settings.IsZero() {
+				raw, err := json.Marshal(tt.settings)
+				require.NoError(t, err)
+				settings = sql.NullString{String: string(raw), Valid: true}
+			}
 			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-				Type: tt.providerType,
+				Type:     tt.providerType,
+				Settings: settings,
 			}, "test-key")
 			var callConfig codersdk.ChatModelCallConfig
 			if tt.useResponsesAPI != nil {
@@ -431,7 +463,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			require.Equal(t, modelConfig.ID, prepared.ModelConfigID)
 			require.Equal(t, tt.model, prepared.Model.ModelID())
 			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.wantProvider)
-			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, tt.model, geometry.DeclaredWidth, geometry.DeclaredHeight)
+			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, tt.wantToolVersion, geometry.DeclaredWidth, geometry.DeclaredHeight)
 			require.NoError(t, err)
 			require.Len(t, prepared.ProviderTools, 1)
 			require.Equal(t, wantTool, prepared.ProviderTools[0].Definition)

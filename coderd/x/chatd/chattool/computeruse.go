@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -87,20 +88,24 @@ type computerUseTool struct {
 
 // computerUseStep is the per-step state of Anthropic computer calls.
 type computerUseStep struct {
-	// remaining counts the step's computer calls that have not run yet.
-	remaining int
-	// failed is set once a computer call in the step returns an error.
+	// rejected marks, in call order, the step's computer calls that were
+	// rejected before they could run, such as for malformed input. Those
+	// calls never reach Run.
+	rejected []bool
+	// next indexes rejected at the next call to run.
+	next int
+	// failed is set once a computer call in the step fails or is rejected.
 	failed bool
 }
 
 // NewComputerUseTool creates a provider-aware computer use AgentTool that
-// delegates to the agent's desktop endpoints. modelID selects the Anthropic
-// tool version, as in ComputerUseProviderTool. declaredWidth and
-// declaredHeight are the model-facing desktop dimensions advertised to
-// providers and requested for screenshots.
+// delegates to the agent's desktop endpoints. anthropicToolVersion is the
+// Anthropic tool version declared to the model. declaredWidth and declaredHeight
+// are the model-facing desktop dimensions advertised to providers and requested
+// for screenshots.
 func NewComputerUseTool(
 	provider codersdk.ChatComputerUseProvider,
-	modelID string,
+	anthropicToolVersion fantasyanthropic.ComputerUseToolVersion,
 	declaredWidth, declaredHeight int,
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error),
 	storeFile StoreFileFunc,
@@ -109,7 +114,7 @@ func NewComputerUseTool(
 ) fantasy.AgentTool {
 	return &computerUseTool{
 		provider:             DefaultComputerUseProvider(provider),
-		anthropicToolVersion: fantasyanthropic.ComputerUseToolVersionForModel(modelID),
+		anthropicToolVersion: anthropicToolVersion,
 		declaredWidth:        declaredWidth,
 		declaredHeight:       declaredHeight,
 		getWorkspaceConn:     getWorkspaceConn,
@@ -132,17 +137,15 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 
 // ComputerUseProviderTool creates the provider-defined computer-use tool
 // definition using the declared model-facing desktop geometry. For Anthropic,
-// modelID selects the tool version the model accepts.
+// anthropicToolVersion is the tool version declared to the model.
 func ComputerUseProviderTool(
 	provider codersdk.ChatComputerUseProvider,
-	modelID string,
+	anthropicToolVersion fantasyanthropic.ComputerUseToolVersion,
 	declaredWidth, declaredHeight int,
 ) (fantasy.Tool, error) {
 	switch DefaultComputerUseProvider(provider) {
 	case codersdk.ChatComputerUseProviderAnthropic:
-		opts := fantasyanthropic.ComputerUseToolOptions{
-			ToolVersion: fantasyanthropic.ComputerUseToolVersionForModel(modelID),
-		}
+		opts := fantasyanthropic.ComputerUseToolOptions{ToolVersion: anthropicToolVersion}
 		if opts.ToolVersion == fantasyanthropic.ComputerUseToolset20260801 {
 			// The toolset offers zoom unless it is disabled, and the
 			// agent desktop has no zoom action. Toolset coordinates are
@@ -192,20 +195,40 @@ func (t *computerUseTool) ObserveStepToolCalls(names []string) {
 	}
 	t.stepMu.Lock()
 	defer t.stepMu.Unlock()
-	t.step = computerUseStep{remaining: calls}
+	t.step = computerUseStep{rejected: make([]bool, calls)}
+}
+
+// ObserveStepToolResults marks the step's computer calls that were rejected
+// before they could run. The chat loop reports those calls as errored, and
+// reports computer calls that have not run yet as not errored.
+func (t *computerUseTool) ObserveStepToolResults(names []string, errored []bool) {
+	t.stepMu.Lock()
+	defer t.stepMu.Unlock()
+	rejected := t.step.rejected[:0]
+	for i, name := range names {
+		if name == computerUseToolName {
+			rejected = append(rejected, errored[i])
+		}
+	}
+	t.step.rejected = rejected
 }
 
 // beginStepCall claims the next computer call of the step. last reports
-// whether no other computer call follows it in the step; a call outside an
+// whether no other computer call runs after it in the step; a call outside an
 // observed step counts as the last. halted reports whether an earlier call in
-// the step failed.
+// the step failed or was rejected.
 func (t *computerUseTool) beginStepCall() (last, halted bool) {
 	t.stepMu.Lock()
 	defer t.stepMu.Unlock()
-	if t.step.remaining > 0 {
-		t.step.remaining--
+	step := &t.step
+	for step.next < len(step.rejected) && step.rejected[step.next] {
+		step.failed = true
+		step.next++
 	}
-	return t.step.remaining == 0, t.step.failed
+	if step.next < len(step.rejected) {
+		step.next++
+	}
+	return !slices.Contains(step.rejected[step.next:], false), step.failed
 }
 
 // endStepCall records the outcome of a computer call. The last call of a step

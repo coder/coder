@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
@@ -224,6 +225,7 @@ func (p *Server) buildTurnEnvironment(
 	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	var computerUseProvider codersdk.ChatComputerUseProvider
+	var computerUseToolVersion anthropic.ComputerUseToolVersion
 	if isComputerUse {
 		var ok bool
 		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
@@ -232,6 +234,13 @@ func (p *Server) buildTurnEnvironment(
 				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
 				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
+		}
+		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
+			settings, err := db2sdk.AIProviderSettings(resolved.route.Provider.Settings)
+			if err != nil {
+				return turnEnvironment{}, xerrors.Errorf("decode settings of AI provider %q: %w", resolved.route.Provider.Name, err)
+			}
+			computerUseToolVersion = anthropicComputerUseToolVersion(modelConfig.Model, settings)
 		}
 	}
 	model := resolved.model
@@ -897,7 +906,7 @@ func (p *Server) buildTurnEnvironment(
 	if isComputerUse {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
-			modelID:          modelConfig.Model,
+			toolVersion:      computerUseToolVersion,
 			isPlanModeTurn:   isPlanModeTurn,
 			isComputerUse:    isComputerUse,
 			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
