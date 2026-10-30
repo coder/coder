@@ -3278,6 +3278,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/advisor": {
             "get": {
+                "description": "Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.\nA ` + "`" + `0` + "`" + ` means no cap beyond the per-turn step limit for ` + "`" + `max_uses_per_run` + "`" + `, and the 16,384-token default for ` + "`" + `max_output_tokens` + "`" + `. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3301,6 +3302,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.\nBoth values must be ` + "`" + `0` + "`" + ` or greater, where ` + "`" + `0` + "`" + ` means no cap beyond the per-turn step limit for ` + "`" + `max_uses_per_run` + "`" + `, and the 16,384-token default for ` + "`" + `max_output_tokens` + "`" + `. Requires permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3311,7 +3313,7 @@ const docTemplate = `{
                 "operationId": "update-chat-advisor-config",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Advisor limits to store. An omitted field is stored as ` + "`" + `0` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,

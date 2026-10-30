@@ -832,6 +832,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/advisor \
 
 `GET /api/v2/chats/config/advisor`
 
+Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.
+A `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Any authenticated user can read this setting.
+
 ### Example responses
 
 > 200 Response
@@ -866,6 +869,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/advisor \
 
 `PUT /api/v2/chats/config/advisor`
 
+Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.
+Both values must be `0` or greater, where `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Requires permission to update deployment configuration, which the Owner role has.
+
 > Body parameter
 
 ```json
@@ -877,9 +883,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/advisor \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                 | Required | Description  |
-|--------|------|--------------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.UpdateAdvisorConfigRequest](schemas.md#codersdkupdateadvisorconfigrequest) | true     | Request body |
+| Name   | In   | Type                                                                                 | Required | Description                                                 |
+|--------|------|--------------------------------------------------------------------------------------|----------|-------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateAdvisorConfigRequest](schemas.md#codersdkupdateadvisorconfigrequest) | true     | Advisor limits to store. An omitted field is stored as `0`. |
 
 ### Example responses
 

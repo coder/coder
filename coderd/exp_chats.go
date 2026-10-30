@@ -6519,6 +6519,8 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Get chat advisor config
+// @Description Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.
+// @Description A `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Any authenticated user can read this setting.
 // @ID get-chat-advisor-config
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6552,11 +6554,13 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update chat advisor config
+// @Description Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.
+// @Description Both values must be `0` or greater, where `0` means no cap beyond the per-turn step limit for `max_uses_per_run`, and the 16,384-token default for `max_output_tokens`. Requires permission to update deployment configuration, which the Owner role has.
 // @ID update-chat-advisor-config
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param request body codersdk.UpdateAdvisorConfigRequest true "Request body"
+// @Param request body codersdk.UpdateAdvisorConfigRequest true "Advisor limits to store. An omitted field is stored as `0`."
 // @Success 204
 // @Failure 400 {object} codersdk.Response
 // @Failure 403 {object} codersdk.Response
