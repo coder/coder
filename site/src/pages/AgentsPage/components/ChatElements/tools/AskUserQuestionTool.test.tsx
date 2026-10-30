@@ -47,4 +47,29 @@ describe("AskUserQuestionTool", () => {
 		expect(onSubmitAnswer).toHaveBeenNthCalledWith(1, "Single migration");
 		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, "Single migration");
 	});
+
+	it("names a label-only option by its label alone", () => {
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={[
+						{
+							header: "Rollout",
+							question: "How should the change ship?",
+							options: [{ label: "Ship it dark behind a flag." }],
+						},
+					]}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(
+			screen.getByRole("radio", { name: "Ship it dark behind a flag." }),
+		).toBeChecked();
+	});
 });
