@@ -1,0 +1,1247 @@
+[
+  {
+    "source": "about/architecture",
+    "destination": "/"
+  },
+  {
+    "source": "enterprise",
+    "destination": "install/prepare/licensing"
+  },
+  {
+    "source": "guides/using-organizations",
+    "destination": "admin/users/organizations"
+  },
+  {
+    "source": "install.sh",
+    "destination": "install"
+  },
+  {
+    "source": "workspaces/personalization",
+    "destination": "user-guides/workspace-dotfiles"
+  },
+  {
+    "source": "contributing",
+    "destination": "https://github.com/coder/coder/blob/main/CONTRIBUTING.md"
+  },
+  {
+    "source": "contributing/feature-stages",
+    "destination": "reference/feature-stages"
+  },
+  {
+    "source": "about/feature-stages",
+    "destination": "reference/feature-stages"
+  },
+  {
+    "source": "architecture/architecture",
+    "destination": "install/plan/architecture"
+  },
+  {
+    "source": "architecture/validated-arch",
+    "destination": "install/plan/sizing"
+  },
+  {
+    "source": "architecture/1k-users",
+    "destination": "install/plan/sizing/1k-users"
+  },
+  {
+    "source": "architecture/2k-users",
+    "destination": "install/plan/sizing/2k-users"
+  },
+  {
+    "source": "architecture/3k-users",
+    "destination": "install/plan/sizing/3k-users"
+  },
+  {
+    "source": "install/database",
+    "destination": "tutorials/external-database"
+  },
+  {
+    "source": "install/1-click",
+    "destination": "install/server/community"
+  },
+  {
+    "source": "platforms",
+    "destination": "install/server/cloud"
+  },
+  {
+    "source": "templates",
+    "destination": "admin/templates"
+  },
+  {
+    "source": "templates/creating",
+    "destination": "admin/templates/creating-templates"
+  },
+  {
+    "source": "start/coder-tour",
+    "destination": "get-started"
+  },
+  {
+    "source": "tutorials/quickstart",
+    "destination": "get-started"
+  },
+  {
+    "source": "ai-coder/tasks",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/tasks-core-principles",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/tasks-lifecycle",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/tasks-migration",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/github-to-tasks",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/custom-agents",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/agent-compatibility",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/security",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/securing",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/cli",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/api/tasks",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_create",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_delete",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_list",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_logs",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_pause",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_resume",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_send",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "reference/cli/task_status",
+    "destination": "ai-coder/agents"
+  },
+  {
+    "source": "ai-coder/ai-bridge/client-config",
+    "destination": "ai-coder/ai-gateway/clients"
+  },
+  {
+    "source": "templates/tutorial",
+    "destination": "tutorials/template-from-scratch"
+  },
+  {
+    "source": "templates/tour",
+    "destination": "tutorials/template-from-scratch"
+  },
+  {
+    "source": "templates/best-practices",
+    "destination": "admin/templates/managing-templates"
+  },
+  {
+    "source": "templates/dependencies",
+    "destination": "admin/templates/managing-templates/dependencies"
+  },
+  {
+    "source": "templates/change-management",
+    "destination": "admin/templates/managing-templates/change-management"
+  },
+  {
+    "source": "templates/authentication",
+    "destination": "admin/templates/extending-templates/provider-authentication"
+  },
+  {
+    "source": "templates/resource-persistence",
+    "destination": "admin/templates/extending-templates"
+  },
+  {
+    "source": "templates/modules",
+    "destination": "admin/templates/extending-templates/modules"
+  },
+  {
+    "source": "templates/customizing",
+    "destination": "admin/templates/extending-templates"
+  },
+  {
+    "source": "templates/agent-metadata",
+    "destination": "admin/templates/extending-templates/agent-metadata"
+  },
+  {
+    "source": "templates/resource-metadata",
+    "destination": "admin/templates/extending-templates/resource-metadata"
+  },
+  {
+    "source": "templates/resource-ordering",
+    "destination": "admin/templates/extending-templates/resource-ordering"
+  },
+  {
+    "source": "templates/parameters",
+    "destination": "admin/templates/extending-templates/parameters"
+  },
+  {
+    "source": "templates/variables",
+    "destination": "admin/templates/extending-templates/variables"
+  },
+  {
+    "source": "templates/workspace-tags",
+    "destination": "admin/templates/extending-templates/workspace-tags"
+  },
+  {
+    "source": "templates/configuration",
+    "destination": "admin/templates/managing-templates"
+  },
+  {
+    "source": "templates/general-settings",
+    "destination": "admin/templates/managing-templates"
+  },
+  {
+    "source": "templates/permissions",
+    "destination": "admin/templates/template-permissions"
+  },
+  {
+    "source": "templates/schedule",
+    "destination": "admin/templates/managing-templates/schedule"
+  },
+  {
+    "source": "templates/open-in-coder",
+    "destination": "admin/templates/open-in-coder"
+  },
+  {
+    "source": "templates/docker-in-workspaces",
+    "destination": "admin/templates/extending-templates/docker-in-workspaces"
+  },
+  {
+    "source": "templates/dev-containers",
+    "destination": "admin/integrations/devcontainers"
+  },
+  {
+    "source": "templates/troubleshooting",
+    "destination": "admin/templates/troubleshooting"
+  },
+  {
+    "source": "templates/process-logging",
+    "destination": "admin/templates/extending-templates/process-logging"
+  },
+  {
+    "source": "templates/icons",
+    "destination": "admin/templates/extending-templates/icons"
+  },
+  {
+    "source": "workspaces",
+    "destination": "user-guides/workspace-management"
+  },
+  {
+    "source": "ides",
+    "destination": "user-guides/workspace-access"
+  },
+  {
+    "source": "ides/web-ides",
+    "destination": "user-guides/workspace-access#other-web-ides"
+  },
+  {
+    "source": "ides/fleet",
+    "destination": "user-guides/workspace-access/jetbrains"
+  },
+  {
+    "source": "ides/gateway",
+    "destination": "user-guides/workspace-access/jetbrains#jetbrains-gateway"
+  },
+  {
+    "source": "ides/emacs-tramp",
+    "destination": "user-guides/workspace-access/emacs-tramp"
+  },
+  {
+    "source": "ides/remote-desktops",
+    "destination": "user-guides/workspace-access/remote-desktops"
+  },
+  {
+    "source": "ides/vscode-extensions",
+    "destination": "user-guides/workspace-access/vscode#vs-code-extensions"
+  },
+  {
+    "source": "networking",
+    "destination": "admin/networking"
+  },
+  {
+    "source": "networking/port-forwarding",
+    "destination": "admin/networking/port-forwarding"
+  },
+  {
+    "source": "networking/stun",
+    "destination": "admin/networking/stun"
+  },
+  {
+    "source": "networking/troubleshooting",
+    "destination": "admin/networking/troubleshooting"
+  },
+  {
+    "source": "dotfiles",
+    "destination": "user-guides/workspace-dotfiles"
+  },
+  {
+    "source": "secrets",
+    "destination": "admin/security/secrets"
+  },
+  {
+    "source": "admin/auth",
+    "destination": "admin/users"
+  },
+  {
+    "source": "admin/groups",
+    "destination": "admin/users/groups-roles"
+  },
+  {
+    "source": "admin/organizations",
+    "destination": "admin/users/organizations"
+  },
+  {
+    "source": "admin/rbac",
+    "destination": "admin/templates/template-permissions"
+  },
+  {
+    "source": "admin/configure",
+    "destination": "admin/setup"
+  },
+  {
+    "source": "admin/upgrade",
+    "destination": "install/operate/upgrade"
+  },
+  {
+    "source": "admin/automation",
+    "destination": "reference"
+  },
+  {
+    "source": "scaling/scale-testing",
+    "destination": "install/validate/scale-testing"
+  },
+  {
+    "source": "admin/scaling/scale-utility",
+    "destination": "install/validate/scale-testing/utility"
+  },
+  {
+    "source": "admin/workspace-proxies",
+    "destination": "admin/networking/workspace-proxies"
+  },
+  {
+    "source": "admin/architectures",
+    "destination": "install/plan/architecture"
+  },
+  {
+    "source": "admin/scale",
+    "destination": "install/validate/scale-testing/utility"
+  },
+  {
+    "source": "cli/port-forward",
+    "destination": "reference/cli/port-forward"
+  },
+  {
+    "source": "cli/server",
+    "destination": "reference/cli/server"
+  },
+  {
+    "source": "cli/ssh",
+    "destination": "reference/cli/ssh"
+  },
+  {
+    "source": "templates/docker-in-docker",
+    "destination": "admin/templates/extending-templates/docker-in-workspaces"
+  },
+  {
+    "source": "admin/app-logs",
+    "destination": "admin/monitoring/logs"
+  },
+  {
+    "source": "admin/audit-logs",
+    "destination": "admin/security/audit-logs"
+  },
+  {
+    "source": "admin/quotas",
+    "destination": "admin/users/quotas"
+  },
+  {
+    "source": "admin/high-availability",
+    "destination": "admin/networking/high-availability"
+  },
+  {
+    "source": "admin/prometheus",
+    "destination": "admin/integrations/prometheus"
+  },
+  {
+    "source": "admin/appearance",
+    "destination": "admin/setup/appearance"
+  },
+  {
+    "source": "admin/telemetry",
+    "destination": "admin/setup/telemetry"
+  },
+  {
+    "source": "admin/encryption",
+    "destination": "admin/security/database-encryption"
+  },
+  {
+    "source": "admin/healthcheck",
+    "destination": "admin/monitoring/health-check"
+  },
+  {
+    "source": "admin/notifications",
+    "destination": "admin/monitoring/notifications"
+  },
+  {
+    "source": "admin/notifications/slack",
+    "destination": "admin/monitoring/notifications/slack"
+  },
+  {
+    "source": "admin/notifications/teams",
+    "destination": "admin/monitoring/notifications/teams"
+  },
+  {
+    "source": "licensing",
+    "destination": "install/prepare/licensing"
+  },
+  {
+    "source": "security",
+    "destination": "admin/security"
+  },
+  {
+    "source": "security/0001_user_apikeys_invalidation",
+    "destination": "https://github.com/coder/coder/security/advisories"
+  },
+  {
+    "source": "faqs",
+    "destination": "tutorials/faqs"
+  },
+  {
+    "source": "guides",
+    "destination": "tutorials"
+  },
+  {
+    "source": "guides/support-bundle",
+    "destination": "support/support-bundle"
+  },
+  {
+    "source": "tutorials/support-bundle",
+    "destination": "support/support-bundle"
+  },
+  {
+    "source": "guides/configuring-okta",
+    "destination": "tutorials/configuring-okta"
+  },
+  {
+    "source": "guides/gcp-to-aws",
+    "destination": "tutorials/gcp-to-aws"
+  },
+  {
+    "source": "guides/artifactory-integration",
+    "destination": "admin/integrations/jfrog-artifactory"
+  },
+  {
+    "source": "guides/island-integration",
+    "destination": "admin/integrations/island"
+  },
+  {
+    "source": "guides/image-pull-secret",
+    "destination": "tutorials/image-pull-secret"
+  },
+  {
+    "source": "guides/postgres-ssl",
+    "destination": "tutorials/postgres-ssl"
+  },
+  {
+    "source": "guides/azure-federation",
+    "destination": "tutorials/azure-federation"
+  },
+  {
+    "source": "xray-integration",
+    "destination": "/"
+  },
+  {
+    "source": "admin/integrations/jfrog-xray",
+    "destination": "/"
+  },
+  {
+    "source": "guides/cloning-git-repositories",
+    "destination": "tutorials/cloning-git-repositories"
+  },
+  {
+    "source": "install/offline",
+    "destination": "install/prepare/airgap"
+  },
+  {
+    "source": "admin/templates/managing-templates/devcontainers",
+    "destination": "admin/integrations/devcontainers"
+  },
+  {
+    "source": "admin/templates/managing-templates/devcontainers/add-devcontainer",
+    "destination": "admin/integrations/devcontainers/envbuilder/add-envbuilder"
+  },
+  {
+    "source": "admin/templates/managing-templates/devcontainers/devcontainer-security-caching",
+    "destination": "admin/integrations/devcontainers/envbuilder/envbuilder-security-caching"
+  },
+  {
+    "source": "admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues",
+    "destination": "admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues"
+  },
+  {
+    "source": "ai-coder/agent-boundary",
+    "destination": "ai-coder/agent-firewall"
+  },
+  {
+    "source": "ai-coder/boundary/agent-boundary",
+    "destination": "ai-coder/agent-firewall"
+  },
+  {
+    "source": "ai-coder/agents/chat-retention",
+    "destination": "ai-coder/agents/platform-controls/chat-retention"
+  },
+  {
+    "source": "ai-coder/ai-bridge",
+    "destination": "ai-coder/ai-gateway"
+  },
+  {
+    "source": "ai-coder/agent-boundaries",
+    "destination": "ai-coder/agent-firewall"
+  },
+  {
+    "source": "ai-coder/agents/chats-api",
+    "destination": "reference/api/chats"
+  },
+  {
+    "source": "ai-coder/agents/early-access",
+    "destination": "ai-coder/agents/getting-started"
+  },
+  {
+    "source": "install/cloud/ec2",
+    "destination": "install/server/cloud/aws-marketplace",
+    "permanent": false
+  },
+  {
+    "source": "ai-coder/agents/platform-controls/usage-insights",
+    "destination": "ai-coder/agents/platform-controls/spend-management"
+  },
+  {
+    "source": "ai-coder/usage-data-reporting",
+    "destination": "ai-coder/agents/licensing-usage"
+  },
+  {
+    "source": "reference/api/experimental",
+    "destination": "reference/api"
+  },
+  {
+    "source": "user-guides/workspace-access/windsurf",
+    "destination": "user-guides/workspace-access/devin-desktop"
+  },
+  {
+    "source": "user-guides/workspace-access/jetbrains/fleet",
+    "destination": "user-guides/workspace-access/jetbrains"
+  },
+  {
+    "source": "ai-coder/ai-gateway/clients/mux",
+    "destination": "ai-coder/ai-gateway/clients/xum"
+  },
+  {
+    "source": "admin/infrastructure/architecture",
+    "destination": "install/plan/architecture"
+  },
+  {
+    "source": "admin/infrastructure/validated-architectures",
+    "destination": "install/plan/sizing"
+  },
+  {
+    "source": "admin/infrastructure/scale-testing",
+    "destination": "install/validate/scale-testing"
+  },
+  {
+    "source": "admin/infrastructure/scale-utility",
+    "destination": "install/validate/scale-testing/utility"
+  },
+  {
+    "source": "admin/infrastructure",
+    "destination": "install/plan"
+  },
+  {
+    "source": "admin/licensing",
+    "destination": "install/prepare/licensing"
+  },
+  {
+    "source": "admin/provisioners/manage-provisioner-jobs",
+    "destination": "install/operate/provisioners/manage-provisioner-jobs"
+  },
+  {
+    "source": "admin/provisioners",
+    "destination": "install/operate/provisioners"
+  },
+  {
+    "source": "install/airgap",
+    "destination": "install/prepare/airgap"
+  },
+  {
+    "source": "install/registry-mirror-artifactory",
+    "destination": "install/prepare/registry-mirror"
+  },
+  {
+    "source": "install/docker",
+    "destination": "install/server/docker"
+  },
+  {
+    "source": "install/kubernetes/kubernetes-azure-app-gateway",
+    "destination": "install/server/kubernetes/kubernetes-azure-app-gateway"
+  },
+  {
+    "source": "install/kubernetes",
+    "destination": "install/server/kubernetes"
+  },
+  {
+    "source": "install/rancher",
+    "destination": "install/server/rancher"
+  },
+  {
+    "source": "install/rpm",
+    "destination": "install/server/rpm"
+  },
+  {
+    "source": "install/openshift",
+    "destination": "install/server/openshift"
+  },
+  {
+    "source": "install/cloud",
+    "destination": "install/server/cloud"
+  },
+  {
+    "source": "install/other",
+    "destination": "install/server/community"
+  },
+  {
+    "source": "install/upgrade-best-practices",
+    "destination": "install/operate/upgrade/best-practices"
+  },
+  {
+    "source": "install/upgrade",
+    "destination": "install/operate/upgrade"
+  },
+  {
+    "source": "install/uninstall",
+    "destination": "install/operate/uninstall"
+  },
+  {
+    "source": "install/releases/feature-stages",
+    "destination": "reference/feature-stages"
+  },
+  {
+    "source": "install/releases/esr-2.24-2.29-upgrade",
+    "destination": "install/operate/upgrade/esr-2.24-2.29-upgrade"
+  },
+  {
+    "source": "install/releases/esr-2.29-2.34-upgrade",
+    "destination": "install/operate/upgrade/esr-2.29-2.34-upgrade"
+  },
+  {
+    "source": "install/releases",
+    "destination": "reference/releases"
+  },
+  {
+    "source": "about/contributing",
+    "destination": "https://github.com/coder/coder/blob/main/CONTRIBUTING.md"
+  },
+  {
+    "source": "about/contributing/CONTRIBUTING",
+    "destination": "https://github.com/coder/coder/blob/main/CONTRIBUTING.md"
+  },
+  {
+    "source": "about/contributing/CODE_OF_CONDUCT",
+    "destination": "https://github.com/coder/coder/blob/main/CODE_OF_CONDUCT.md"
+  },
+  {
+    "source": "about/contributing/SECURITY",
+    "destination": "https://github.com/coder/coder/blob/main/SECURITY.md"
+  },
+  {
+    "source": "about/contributing/AI_CONTRIBUTING",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/AI_CONTRIBUTING.md"
+  },
+  {
+    "source": "about/contributing/backend",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/backend.md"
+  },
+  {
+    "source": "about/contributing/frontend",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/frontend.md"
+  },
+  {
+    "source": "about/contributing/modules",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/modules.md"
+  },
+  {
+    "source": "about/contributing/templates",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/templates.md"
+  },
+  {
+    "source": "about/contributing/documentation",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/documentation.md"
+  },
+  {
+    "source": "reference/cli/ai-gateway_keys",
+    "destination": "reference/cli/ai-gateway/keys"
+  },
+  {
+    "source": "reference/cli/ai-gateway_keys_create",
+    "destination": "reference/cli/ai-gateway/keys/create"
+  },
+  {
+    "source": "reference/cli/ai-gateway_keys_delete",
+    "destination": "reference/cli/ai-gateway/keys/delete"
+  },
+  {
+    "source": "reference/cli/ai-gateway_keys_list",
+    "destination": "reference/cli/ai-gateway/keys/list"
+  },
+  {
+    "source": "reference/cli/ai-gateway_start",
+    "destination": "reference/cli/ai-gateway/start"
+  },
+  {
+    "source": "reference/cli/external-auth_access-token",
+    "destination": "reference/cli/external-auth/access-token"
+  },
+  {
+    "source": "reference/cli/external-workspaces_agent-instructions",
+    "destination": "reference/cli/external-workspaces/agent-instructions"
+  },
+  {
+    "source": "reference/cli/external-workspaces_create",
+    "destination": "reference/cli/external-workspaces/create"
+  },
+  {
+    "source": "reference/cli/external-workspaces_list",
+    "destination": "reference/cli/external-workspaces/list"
+  },
+  {
+    "source": "reference/cli/features_list",
+    "destination": "reference/cli/features/list"
+  },
+  {
+    "source": "reference/cli/groups_create",
+    "destination": "reference/cli/groups/create"
+  },
+  {
+    "source": "reference/cli/groups_delete",
+    "destination": "reference/cli/groups/delete"
+  },
+  {
+    "source": "reference/cli/groups_edit",
+    "destination": "reference/cli/groups/edit"
+  },
+  {
+    "source": "reference/cli/groups_list",
+    "destination": "reference/cli/groups/list"
+  },
+  {
+    "source": "reference/cli/licenses_add",
+    "destination": "reference/cli/licenses/add"
+  },
+  {
+    "source": "reference/cli/licenses_delete",
+    "destination": "reference/cli/licenses/delete"
+  },
+  {
+    "source": "reference/cli/licenses_list",
+    "destination": "reference/cli/licenses/list"
+  },
+  {
+    "source": "reference/cli/login_token",
+    "destination": "reference/cli/login/token"
+  },
+  {
+    "source": "reference/cli/notifications_custom",
+    "destination": "reference/cli/notifications/custom"
+  },
+  {
+    "source": "reference/cli/notifications_pause",
+    "destination": "reference/cli/notifications/pause"
+  },
+  {
+    "source": "reference/cli/notifications_resume",
+    "destination": "reference/cli/notifications/resume"
+  },
+  {
+    "source": "reference/cli/notifications_test",
+    "destination": "reference/cli/notifications/test"
+  },
+  {
+    "source": "reference/cli/oauth2-provider_dcr",
+    "destination": "reference/cli/oauth2-provider/dcr"
+  },
+  {
+    "source": "reference/cli/oauth2-provider_dcr_disable",
+    "destination": "reference/cli/oauth2-provider/dcr/disable"
+  },
+  {
+    "source": "reference/cli/oauth2-provider_dcr_enable",
+    "destination": "reference/cli/oauth2-provider/dcr/enable"
+  },
+  {
+    "source": "reference/cli/open_app",
+    "destination": "reference/cli/open/app"
+  },
+  {
+    "source": "reference/cli/open_vscode",
+    "destination": "reference/cli/open/vscode"
+  },
+  {
+    "source": "reference/cli/organizations_create",
+    "destination": "reference/cli/organizations/create"
+  },
+  {
+    "source": "reference/cli/organizations_delete",
+    "destination": "reference/cli/organizations/delete"
+  },
+  {
+    "source": "reference/cli/organizations_edit",
+    "destination": "reference/cli/organizations/edit"
+  },
+  {
+    "source": "reference/cli/organizations_list",
+    "destination": "reference/cli/organizations/list"
+  },
+  {
+    "source": "reference/cli/organizations_members",
+    "destination": "reference/cli/organizations/members"
+  },
+  {
+    "source": "reference/cli/organizations_members_add",
+    "destination": "reference/cli/organizations/members/add"
+  },
+  {
+    "source": "reference/cli/organizations_members_edit-roles",
+    "destination": "reference/cli/organizations/members/edit-roles"
+  },
+  {
+    "source": "reference/cli/organizations_members_list",
+    "destination": "reference/cli/organizations/members/list"
+  },
+  {
+    "source": "reference/cli/organizations_members_remove",
+    "destination": "reference/cli/organizations/members/remove"
+  },
+  {
+    "source": "reference/cli/organizations_roles",
+    "destination": "reference/cli/organizations/roles"
+  },
+  {
+    "source": "reference/cli/organizations_roles_create",
+    "destination": "reference/cli/organizations/roles/create"
+  },
+  {
+    "source": "reference/cli/organizations_roles_show",
+    "destination": "reference/cli/organizations/roles/show"
+  },
+  {
+    "source": "reference/cli/organizations_roles_update",
+    "destination": "reference/cli/organizations/roles/update"
+  },
+  {
+    "source": "reference/cli/organizations_settings",
+    "destination": "reference/cli/organizations/settings"
+  },
+  {
+    "source": "reference/cli/organizations_settings_set",
+    "destination": "reference/cli/organizations/settings/set"
+  },
+  {
+    "source": "reference/cli/organizations_settings_set_group-sync",
+    "destination": "reference/cli/organizations/settings/set/group-sync"
+  },
+  {
+    "source": "reference/cli/organizations_settings_set_organization-sync",
+    "destination": "reference/cli/organizations/settings/set/organization-sync"
+  },
+  {
+    "source": "reference/cli/organizations_settings_set_role-sync",
+    "destination": "reference/cli/organizations/settings/set/role-sync"
+  },
+  {
+    "source": "reference/cli/organizations_settings_set_workspace-sharing",
+    "destination": "reference/cli/organizations/settings/set/workspace-sharing"
+  },
+  {
+    "source": "reference/cli/organizations_settings_show",
+    "destination": "reference/cli/organizations/settings/show"
+  },
+  {
+    "source": "reference/cli/organizations_settings_show_group-sync",
+    "destination": "reference/cli/organizations/settings/show/group-sync"
+  },
+  {
+    "source": "reference/cli/organizations_settings_show_organization-sync",
+    "destination": "reference/cli/organizations/settings/show/organization-sync"
+  },
+  {
+    "source": "reference/cli/organizations_settings_show_role-sync",
+    "destination": "reference/cli/organizations/settings/show/role-sync"
+  },
+  {
+    "source": "reference/cli/organizations_settings_show_workspace-sharing",
+    "destination": "reference/cli/organizations/settings/show/workspace-sharing"
+  },
+  {
+    "source": "reference/cli/organizations_show",
+    "destination": "reference/cli/organizations/show"
+  },
+  {
+    "source": "reference/cli/prebuilds_pause",
+    "destination": "reference/cli/prebuilds/pause"
+  },
+  {
+    "source": "reference/cli/prebuilds_resume",
+    "destination": "reference/cli/prebuilds/resume"
+  },
+  {
+    "source": "reference/cli/provisioner_jobs",
+    "destination": "reference/cli/provisioner/jobs"
+  },
+  {
+    "source": "reference/cli/provisioner_jobs_cancel",
+    "destination": "reference/cli/provisioner/jobs/cancel"
+  },
+  {
+    "source": "reference/cli/provisioner_jobs_list",
+    "destination": "reference/cli/provisioner/jobs/list"
+  },
+  {
+    "source": "reference/cli/provisioner_keys",
+    "destination": "reference/cli/provisioner/keys"
+  },
+  {
+    "source": "reference/cli/provisioner_keys_create",
+    "destination": "reference/cli/provisioner/keys/create"
+  },
+  {
+    "source": "reference/cli/provisioner_keys_delete",
+    "destination": "reference/cli/provisioner/keys/delete"
+  },
+  {
+    "source": "reference/cli/provisioner_keys_list",
+    "destination": "reference/cli/provisioner/keys/list"
+  },
+  {
+    "source": "reference/cli/provisioner_list",
+    "destination": "reference/cli/provisioner/list"
+  },
+  {
+    "source": "reference/cli/provisioner_start",
+    "destination": "reference/cli/provisioner/start"
+  },
+  {
+    "source": "reference/cli/schedule_extend",
+    "destination": "reference/cli/schedule/extend"
+  },
+  {
+    "source": "reference/cli/schedule_show",
+    "destination": "reference/cli/schedule/show"
+  },
+  {
+    "source": "reference/cli/schedule_start",
+    "destination": "reference/cli/schedule/start"
+  },
+  {
+    "source": "reference/cli/schedule_stop",
+    "destination": "reference/cli/schedule/stop"
+  },
+  {
+    "source": "reference/cli/secret_create",
+    "destination": "reference/cli/secret/create"
+  },
+  {
+    "source": "reference/cli/secret_delete",
+    "destination": "reference/cli/secret/delete"
+  },
+  {
+    "source": "reference/cli/secret_disable",
+    "destination": "reference/cli/secret/disable"
+  },
+  {
+    "source": "reference/cli/secret_enable",
+    "destination": "reference/cli/secret/enable"
+  },
+  {
+    "source": "reference/cli/secret_import",
+    "destination": "reference/cli/secret/import"
+  },
+  {
+    "source": "reference/cli/secret_list",
+    "destination": "reference/cli/secret/list"
+  },
+  {
+    "source": "reference/cli/secret_update",
+    "destination": "reference/cli/secret/update"
+  },
+  {
+    "source": "reference/cli/server_create-admin-user",
+    "destination": "reference/cli/server/create-admin-user"
+  },
+  {
+    "source": "reference/cli/server_dbcrypt",
+    "destination": "reference/cli/server/dbcrypt"
+  },
+  {
+    "source": "reference/cli/server_dbcrypt_decrypt",
+    "destination": "reference/cli/server/dbcrypt/decrypt"
+  },
+  {
+    "source": "reference/cli/server_dbcrypt_delete",
+    "destination": "reference/cli/server/dbcrypt/delete"
+  },
+  {
+    "source": "reference/cli/server_dbcrypt_rotate",
+    "destination": "reference/cli/server/dbcrypt/rotate"
+  },
+  {
+    "source": "reference/cli/server_fix-oidc-links",
+    "destination": "reference/cli/server/fix-oidc-links"
+  },
+  {
+    "source": "reference/cli/server_postgres-builtin-serve",
+    "destination": "reference/cli/server/postgres-builtin-serve"
+  },
+  {
+    "source": "reference/cli/server_postgres-builtin-url",
+    "destination": "reference/cli/server/postgres-builtin-url"
+  },
+  {
+    "source": "reference/cli/stat_cpu",
+    "destination": "reference/cli/stat/cpu"
+  },
+  {
+    "source": "reference/cli/stat_disk",
+    "destination": "reference/cli/stat/disk"
+  },
+  {
+    "source": "reference/cli/stat_mem",
+    "destination": "reference/cli/stat/mem"
+  },
+  {
+    "source": "reference/cli/state_pull",
+    "destination": "reference/cli/state/pull"
+  },
+  {
+    "source": "reference/cli/state_push",
+    "destination": "reference/cli/state/push"
+  },
+  {
+    "source": "reference/cli/support_bundle",
+    "destination": "reference/cli/support/bundle"
+  },
+  {
+    "source": "reference/cli/templates_archive",
+    "destination": "reference/cli/templates/archive"
+  },
+  {
+    "source": "reference/cli/templates_create",
+    "destination": "reference/cli/templates/create"
+  },
+  {
+    "source": "reference/cli/templates_delete",
+    "destination": "reference/cli/templates/delete"
+  },
+  {
+    "source": "reference/cli/templates_edit",
+    "destination": "reference/cli/templates/edit"
+  },
+  {
+    "source": "reference/cli/templates_init",
+    "destination": "reference/cli/templates/init"
+  },
+  {
+    "source": "reference/cli/templates_list",
+    "destination": "reference/cli/templates/list"
+  },
+  {
+    "source": "reference/cli/templates_presets",
+    "destination": "reference/cli/templates/presets"
+  },
+  {
+    "source": "reference/cli/templates_presets_list",
+    "destination": "reference/cli/templates/presets/list"
+  },
+  {
+    "source": "reference/cli/templates_pull",
+    "destination": "reference/cli/templates/pull"
+  },
+  {
+    "source": "reference/cli/templates_push",
+    "destination": "reference/cli/templates/push"
+  },
+  {
+    "source": "reference/cli/templates_versions",
+    "destination": "reference/cli/templates/versions"
+  },
+  {
+    "source": "reference/cli/templates_versions_archive",
+    "destination": "reference/cli/templates/versions/archive"
+  },
+  {
+    "source": "reference/cli/templates_versions_list",
+    "destination": "reference/cli/templates/versions/list"
+  },
+  {
+    "source": "reference/cli/templates_versions_promote",
+    "destination": "reference/cli/templates/versions/promote"
+  },
+  {
+    "source": "reference/cli/templates_versions_unarchive",
+    "destination": "reference/cli/templates/versions/unarchive"
+  },
+  {
+    "source": "reference/cli/tokens_create",
+    "destination": "reference/cli/tokens/create"
+  },
+  {
+    "source": "reference/cli/tokens_list",
+    "destination": "reference/cli/tokens/list"
+  },
+  {
+    "source": "reference/cli/tokens_remove",
+    "destination": "reference/cli/tokens/remove"
+  },
+  {
+    "source": "reference/cli/tokens_view",
+    "destination": "reference/cli/tokens/view"
+  },
+  {
+    "source": "reference/cli/users_activate",
+    "destination": "reference/cli/users/activate"
+  },
+  {
+    "source": "reference/cli/users_create",
+    "destination": "reference/cli/users/create"
+  },
+  {
+    "source": "reference/cli/users_delete",
+    "destination": "reference/cli/users/delete"
+  },
+  {
+    "source": "reference/cli/users_edit-roles",
+    "destination": "reference/cli/users/edit-roles"
+  },
+  {
+    "source": "reference/cli/users_list",
+    "destination": "reference/cli/users/list"
+  },
+  {
+    "source": "reference/cli/users_oidc-claims",
+    "destination": "reference/cli/users/oidc-claims"
+  },
+  {
+    "source": "reference/cli/users_show",
+    "destination": "reference/cli/users/show"
+  },
+  {
+    "source": "reference/cli/users_suspend",
+    "destination": "reference/cli/users/suspend"
+  },
+  {
+    "source": "contributing/CONTRIBUTING",
+    "destination": "https://github.com/coder/coder/blob/main/CONTRIBUTING.md"
+  },
+  {
+    "source": "contributing/CODE_OF_CONDUCT",
+    "destination": "https://github.com/coder/coder/blob/main/CODE_OF_CONDUCT.md"
+  },
+  {
+    "source": "contributing/SECURITY",
+    "destination": "https://github.com/coder/coder/blob/main/SECURITY.md"
+  },
+  {
+    "source": "contributing/AI_CONTRIBUTING",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/AI_CONTRIBUTING.md"
+  },
+  {
+    "source": "contributing/backend",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/backend.md"
+  },
+  {
+    "source": "contributing/frontend",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/frontend.md"
+  },
+  {
+    "source": "contributing/modules",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/modules.md"
+  },
+  {
+    "source": "contributing/templates",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/templates.md"
+  },
+  {
+    "source": "contributing/documentation",
+    "destination": "https://github.com/coder/coder/blob/main/contributing/documentation.md"
+  },
+  {
+    "source": "ai-coder/ai-bridge/ai-bridge-proxy/*",
+    "destination": "ai-coder/ai-gateway/ai-gateway-proxy/*"
+  },
+  {
+    "source": "admin/infrastructure/validated-architectures/*",
+    "destination": "install/plan/sizing/*"
+  },
+  {
+    "source": "tutorials/ai-agents/*",
+    "destination": "ai-coder/*"
+  },
+  {
+    "source": "ai-coder/boundary/*",
+    "destination": "ai-coder/agent-firewall/*"
+  },
+  {
+    "source": "ai-coder/ai-bridge/*",
+    "destination": "ai-coder/ai-gateway/*"
+  },
+  {
+    "source": "ai-coder/agent-boundaries/*",
+    "destination": "ai-coder/agent-firewall/*"
+  },
+  {
+    "source": "install/cloud/*",
+    "destination": "install/server/cloud/*"
+  },
+  {
+    "source": "platforms/*",
+    "destination": "install/server/cloud"
+  }
+]
