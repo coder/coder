@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -914,6 +915,50 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
 	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
+}
+
+type systemPromptReadFailStore struct {
+	database.Store
+	failDeployment, failOrganization atomic.Bool
+}
+
+func (s *systemPromptReadFailStore) GetChatSystemPromptConfig(ctx context.Context) (database.GetChatSystemPromptConfigRow, error) {
+	if s.failDeployment.Load() {
+		return database.GetChatSystemPromptConfigRow{}, xerrors.New("deployment prompt read failed")
+	}
+	return s.Store.GetChatSystemPromptConfig(ctx)
+}
+
+func (s *systemPromptReadFailStore) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
+	if s.failOrganization.Load() {
+		return database.ChatOrganizationSystemPrompt{}, xerrors.New("organization prompt read failed")
+	}
+	return s.Store.GetChatOrganizationSystemPrompt(ctx, organizationID)
+}
+
+func TestCreateChildSubagentChatReturnsSystemPromptReadErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, organization := range []bool{false, true} {
+		name, wantErr := "Deployment", "deployment prompt read failed"
+		if organization {
+			name, wantErr = "Organization", "organization prompt read failed"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			store := &systemPromptReadFailStore{Store: db}
+			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{})
+			ctx := chatdTestContext(t)
+			user, org, model := seedInternalChatDeps(t, db)
+			parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "prompt-read-"+name)
+
+			store.failDeployment.Store(!organization)
+			store.failOrganization.Store(organization)
+			_, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect", "", childSubagentChatOptions{})
+			require.ErrorContains(t, err, wantErr)
+		})
+	}
 }
 
 func TestCreateChildSubagentChatResolvesOrganizationSystemPrompt(t *testing.T) {
@@ -3041,88 +3086,30 @@ func TestSpawnAgent_NotAvailableForExploreChats(t *testing.T) {
 	require.Contains(t, resp.Content, "explore chats cannot create child subagents")
 }
 
-func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *testing.T) {
+func TestSubagentToolRoundTrip(t *testing.T) {
 	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "parent-round-trip")
 
-	tests := []struct {
-		name    string
-		variant string
-	}{
-		{name: "General", variant: subagentTypeGeneral},
-		{name: "Explore", variant: subagentTypeExplore},
-		{name: "ComputerUse", variant: subagentTypeComputerUse},
-	}
+	spawn := requireSpawnAgentResponse(t, runSpawnAgentTool(ctx, t, server, parent, spawnAgentArgs{
+		Type: subagentTypeGeneral, Prompt: "delegate work",
+	}))
+	childID, err := uuid.Parse(spawn.ChatID)
+	require.NoError(t, err)
+	setChatStatus(ctx, t, db, childID, database.ChatStatusWaiting, "")
+	insertAssistantMessage(t, db, childID, model.ID, "task complete")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			db, ps := dbtestutil.NewDB(t)
-
-			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-			ctx := chatdTestContext(t)
-			user, org, model := seedInternalChatDeps(t, db)
-			if tt.variant == subagentTypeComputerUse {
-				insertEnabledAnthropicProvider(t, db, user.ID)
-			}
-			parentChat := createInternalParentChat(
-				ctx,
-				t,
-				server,
-				db,
-				org.ID,
-				user.ID,
-				model.ID,
-				"parent-lifecycle-"+tt.variant,
-			)
-
-			spawnResp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
-				Type:   tt.variant,
-				Prompt: "delegate work",
-			})
-			spawnResult := requireSpawnAgentResponse(t, spawnResp)
-			require.Equal(t, tt.variant, spawnResult.SubagentType)
-			childID, err := uuid.Parse(spawnResult.ChatID)
-			require.NoError(t, err)
-
-			setChatStatus(ctx, t, db, childID, database.ChatStatusWaiting, "")
-			insertAssistantMessage(t, db, childID, model.ID, "task complete")
-			waitResult := requireToolResponseMap(t, runSubagentTool(
-				ctx,
-				t,
-				server,
-				parentChat,
-				parentChat.LastModelConfigID,
-				"wait_agent",
-				waitAgentArgs{ChatID: childID.String()},
-			), false)
-			require.Equal(t, tt.variant, waitResult["type"])
-
-			messageResult := requireToolResponseMap(t, runSubagentTool(
-				ctx,
-				t,
-				server,
-				parentChat,
-				parentChat.LastModelConfigID,
-				"message_agent",
-				messageAgentArgs{ChatID: childID.String(), Message: "follow up"},
-			), false)
-			require.Equal(t, tt.variant, messageResult["type"])
-
-			setChatStatus(ctx, t, db, childID, database.ChatStatusRunning, "")
-			interruptResult := requireToolResponseMap(t, runSubagentTool(
-				ctx,
-				t,
-				server,
-				parentChat,
-				parentChat.LastModelConfigID,
-				"interrupt_agent",
-				interruptAgentArgs{ChatID: childID.String()},
-			), false)
-			require.Equal(t, tt.variant, interruptResult["type"])
-		})
-	}
+	result := requireToolResponseMap(t, runSubagentTool(
+		ctx, t, server, parent, parent.LastModelConfigID,
+		"wait_agent", waitAgentArgs{ChatID: childID.String()},
+	), false)
+	require.Equal(t, childID.String(), result["chat_id"])
+	require.Equal(t, "task complete", result["report"])
+	require.Equal(t, string(database.ChatStatusWaiting), result["status"])
+	require.Equal(t, subagentTypeGeneral, result["type"])
 }
 
 func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
@@ -3843,6 +3830,20 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Equal(t, "task complete", report)
 	})
 
+	t.Run("InterruptingIsNotDone", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		_, child := createParentChildChats(ctx, t, server, user, org, model)
+
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusInterrupting, "")
+		insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+
+		_, _, done, err := server.checkSubagentCompletion(ctx, child.ID)
+		require.NoError(t, err)
+		require.False(t, done)
+	})
+
 	t.Run("AlreadyError", func(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
@@ -4207,90 +4208,6 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	assert.Contains(t, tool.Info().Description, "A timeout with status paused means the child's owner is editing")
 }
 
-func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	mClock := quartz.NewMock(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
-	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-	require.NoError(t, WaitUntilIdleForTest(ctx, server))
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-
-	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
-
-	type toolResult struct {
-		resp fantasy.ToolResponse
-	}
-	resultCh := make(chan toolResult, 1)
-	oneSecond := 1
-	go func() {
-		resp := runSubagentTool(
-			ctx,
-			t,
-			server,
-			parent,
-			parent.LastModelConfigID,
-			"wait_agent",
-			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
-		)
-		resultCh <- toolResult{resp: resp}
-	}()
-
-	// Wait for the timer to be created, then advance past it.
-	timerTrap.MustWait(ctx).MustRelease(ctx)
-	timerTrap.Close()
-	mClock.Advance(time.Second).MustWait(ctx)
-
-	result := testutil.RequireReceive(ctx, t, resultCh)
-	m := requireToolResponseMap(t, result.resp, false)
-
-	require.Equal(t, true, m["timed_out"])
-	require.Equal(t, child.ID.String(), m["chat_id"])
-	require.Equal(t, string(database.ChatStatusRunning), m["status"])
-	require.Equal(t, subagentTypeGeneral, m["type"])
-}
-
-func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
-	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-	// An errored, non-archived agent is often recoverable. wait_agent
-	// must surface a structured payload (status, last_error, report)
-	// rather than a bare tool error.
-	require.NoError(t, WaitUntilIdleForTest(ctx, server))
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "provider overloaded")
-	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
-
-	result := requireToolResponseMap(t, runSubagentTool(
-		ctx,
-		t,
-		server,
-		parent,
-		parent.LastModelConfigID,
-		"wait_agent",
-		waitAgentArgs{ChatID: child.ID.String()},
-	), false)
-
-	require.Equal(t, string(database.ChatStatusError), result["status"])
-	require.Equal(t, child.ID.String(), result["chat_id"])
-	require.Equal(t, "provider overloaded", result["last_error"])
-	require.Equal(t, "partial progress", result["report"])
-	require.Equal(t, subagentTypeGeneral, result["type"])
-	require.Equal(t, string(codersdk.ChatErrorKindGeneric), result["last_error_kind"])
-	require.Equal(t, false, result["last_error_retryable"])
-	require.NotContains(t, result, "last_error_detail")
-	require.NotContains(t, result, "timed_out")
-}
-
 func TestSubagentLastError(t *testing.T) {
 	t.Parallel()
 
@@ -4365,398 +4282,294 @@ func TestSubagentLastError(t *testing.T) {
 	}
 }
 
-func TestWaitAgentErrorStatusSurfacesLastErrorDetail(t *testing.T) {
+func TestSubagentManagerAwait(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Timeout", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		clock := quartz.NewMock(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(clock))
+		ctx := chatdTestContext(t)
+		user, org, model := seedInternalChatDeps(t, db)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+		resultCh := make(chan subagentAwaitOutcome, 1)
+		errorCh := make(chan error, 1)
+		go func() {
+			outcome, err := server.awaitSubagent(ctx, parent, child.ID, time.Second)
+			resultCh <- outcome
+			errorCh <- err
+		}()
+
+		trap := clock.Trap().NewTimer("chatd", "subagent_await")
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+		clock.Advance(time.Second).MustWait(ctx)
+
+		require.NoError(t, testutil.RequireReceive(ctx, t, errorCh))
+		result := waitAgentResult(testutil.RequireReceive(ctx, t, resultCh))
+		require.True(t, result.TimedOut)
+		require.Equal(t, child.ID.String(), result.ChatID)
+		require.Equal(t, string(database.ChatStatusRunning), result.Status)
+		require.Equal(t, subagentTypeGeneral, result.Type)
+	})
+
+	t.Run("TimeoutGapError", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		clock := quartz.NewMock(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(clock))
+		ctx := chatdTestContext(t)
+		user, org, model := seedInternalChatDeps(t, db)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+		errorCh := make(chan error, 1)
+		go func() {
+			_, err := server.awaitSubagent(ctx, parent, child.ID, time.Second)
+			errorCh <- err
+		}()
+
+		trap := clock.Trap().NewTimer("chatd", "subagent_await")
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+		setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
+			Message: subagentGenericErrorMessage, Detail: "reasoning model max not supported",
+			Kind: codersdk.ChatErrorKindGeneric, Retryable: true,
+		})
+		insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+		clock.Advance(time.Second).MustWait(ctx)
+
+		var statusErr *subagentStatusError
+		require.ErrorAs(t, testutil.RequireReceive(ctx, t, errorCh), &statusErr)
+		result := subagentAwaitStatusErrorResult(statusErr)
+		require.False(t, result.TimedOut)
+		require.Equal(t, string(database.ChatStatusError), result.Status)
+		require.Equal(t, "reasoning model max not supported", result.LastError)
+		require.Equal(t, "reasoning model max not supported", result.LastErrorDetail)
+		require.NotNil(t, result.LastErrorRetryable)
+		require.True(t, *result.LastErrorRetryable)
+		require.NotNil(t, result.Report)
+		require.Equal(t, "partial progress", *result.Report)
+	})
+
+	cases := []struct {
+		name            string
+		chatError       *codersdk.ChatError
+		statusReason    string
+		wantLastError   string
+		wantDetail      string
+		wantKind        string
+		wantRetryable   *bool
+		unrecognizedRaw bool
+	}{
+		{name: "StatusReason", statusReason: "provider overloaded", wantLastError: "provider overloaded", wantKind: string(codersdk.ChatErrorKindGeneric), wantRetryable: ptr.Ref(false)},
+		{name: "Detail", chatError: &codersdk.ChatError{Message: subagentGenericErrorMessage, Detail: "reasoning model max not supported", Kind: codersdk.ChatErrorKindGeneric, Retryable: true}, wantLastError: "reasoning model max not supported", wantDetail: "reasoning model max not supported", wantKind: string(codersdk.ChatErrorKindGeneric), wantRetryable: ptr.Ref(true)},
+		{name: "Unrecognized", unrecognizedRaw: true, wantLastError: "agent reached error status"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+			ctx := chatdTestContext(t)
+			user, org, model := seedInternalChatDeps(t, db)
+			parent, child := createParentChildChats(ctx, t, server, user, org, model)
+			require.NoError(t, WaitUntilIdleForTest(ctx, server))
+			switch {
+			case tc.chatError != nil:
+				setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, *tc.chatError)
+			case tc.unrecognizedRaw:
+				_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{ID: child.ID, Status: database.ChatStatusError, LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage("\"oops\""), Valid: true}})
+				require.NoError(t, err)
+			default:
+				setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, tc.statusReason)
+			}
+			if !tc.unrecognizedRaw {
+				insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+			}
+
+			payload := requireToolResponseMap(t, runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "wait_agent", waitAgentArgs{ChatID: child.ID.String()}), false)
+			require.Equal(t, tc.wantLastError, payload["last_error"])
+			require.NotContains(t, payload, "timed_out")
+
+			_, err := server.awaitSubagent(ctx, parent, child.ID, defaultSubagentWaitTimeout)
+			var statusErr *subagentStatusError
+			require.ErrorAs(t, err, &statusErr)
+			result := subagentAwaitStatusErrorResult(statusErr)
+			require.Equal(t, child.ID.String(), result.ChatID)
+			require.Equal(t, string(database.ChatStatusError), result.Status)
+			require.Equal(t, tc.wantLastError, result.LastError)
+			require.Equal(t, tc.wantDetail, result.LastErrorDetail)
+			require.Equal(t, tc.wantKind, result.LastErrorKind)
+			require.Equal(t, tc.wantRetryable, result.LastErrorRetryable)
+			require.NotNil(t, result.Report)
+			if tc.unrecognizedRaw {
+				require.Empty(t, *result.Report)
+			} else {
+				require.Equal(t, "partial progress", *result.Report)
+			}
+		})
+	}
+}
+
+func TestSubagentManagerSendAndInterrupt(t *testing.T) {
+	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-	// A generic fallback message hides the actionable provider detail
-	// (e.g. an unsupported reasoning effort); wait_agent must surface
-	// the detail so the parent model can self-correct.
 	require.NoError(t, WaitUntilIdleForTest(ctx, server))
-	setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
-		Message:   "The chat request failed unexpectedly.",
-		Detail:    "reasoning model `max` not supported",
-		Kind:      codersdk.ChatErrorKindGeneric,
-		Provider:  "vercel",
-		Retryable: false,
-	})
-	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
 
-	result := requireToolResponseMap(t, runSubagentTool(
-		ctx,
-		t,
-		server,
-		parent,
-		parent.LastModelConfigID,
-		"wait_agent",
-		waitAgentArgs{ChatID: child.ID.String()},
-	), false)
+	_, err := server.sendSubagentMessage(ctx, parent.ID, child.ID, "  ", SendMessageBusyBehaviorQueue)
+	require.ErrorContains(t, err, "message is required")
 
-	require.Equal(t, string(database.ChatStatusError), result["status"])
-	require.Equal(t, child.ID.String(), result["chat_id"])
-	require.Equal(t, "reasoning model `max` not supported", result["last_error"])
-	require.Equal(t, "partial progress", result["report"])
-	require.Equal(t, string(codersdk.ChatErrorKindGeneric), result["last_error_kind"])
-	require.Equal(t, false, result["last_error_retryable"])
-	require.Equal(t, "reasoning model `max` not supported", result["last_error_detail"])
-}
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+	chat, interrupted, err := server.interruptSubagent(ctx, parent.ID, child.ID)
+	require.NoError(t, err)
+	require.False(t, interrupted)
+	require.Equal(t, database.ChatStatusWaiting, chat.Status)
 
-func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	mClock := quartz.NewMock(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
-	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-
-	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
-
-	type toolResult struct {
-		resp fantasy.ToolResponse
-	}
-	resultCh := make(chan toolResult, 1)
-	oneSecond := 1
-	go func() {
-		resp := runSubagentTool(
-			ctx,
-			t,
-			server,
-			parent,
-			parent.LastModelConfigID,
-			"wait_agent",
-			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
-		)
-		resultCh <- toolResult{resp: resp}
-	}()
-
-	// Wait for the timer to be created, then advance past it.
-	timerTrap.MustWait(ctx).MustRelease(ctx)
-	timerTrap.Close()
-
-	// Flip the child to error before the timer fires so the
-	// timeout-gap branch (checkSubagentCompletion after timeout)
-	// classifies it through handleSubagentDone.
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "provider overloaded")
-	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
-
-	mClock.Advance(time.Second).MustWait(ctx)
-
-	result := testutil.RequireReceive(ctx, t, resultCh)
-	m := requireToolResponseMap(t, result.resp, false)
-
-	require.Equal(t, string(database.ChatStatusError), m["status"])
-	require.Equal(t, "provider overloaded", m["last_error"])
-	require.Equal(t, "partial progress", m["report"])
-	require.Equal(t, child.ID.String(), m["chat_id"])
-	require.Equal(t, subagentTypeGeneral, m["type"])
-	require.Equal(t, string(codersdk.ChatErrorKindGeneric), m["last_error_kind"])
-	require.Equal(t, false, m["last_error_retryable"])
-	require.NotContains(t, m, "last_error_detail")
-	require.NotContains(t, m, "timed_out")
+	result := requireToolResponseMap(t, runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "message_agent", messageAgentArgs{
+		ChatID: child.ID.String(), Message: "redo it", Interrupt: true,
+	}), false)
+	require.Equal(t, true, result["interrupted"])
+	// The unowned run is interrupted at once, so the message is promoted
+	// into history instead of waiting in the queue.
+	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Empty(t, queued)
 }
 
-func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
+func TestSubagentManagerList(t *testing.T) {
 	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	mClock := quartz.NewMock(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
-	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-	require.NoError(t, WaitUntilIdleForTest(ctx, server))
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-
-	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
-
-	type toolResult struct {
-		resp fantasy.ToolResponse
-	}
-	resultCh := make(chan toolResult, 1)
-	oneSecond := 1
-	go func() {
-		resp := runSubagentTool(
-			ctx,
-			t,
-			server,
-			parent,
-			parent.LastModelConfigID,
-			"wait_agent",
-			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
-		)
-		resultCh <- toolResult{resp: resp}
-	}()
-
-	timerTrap.MustWait(ctx).MustRelease(ctx)
-	timerTrap.Close()
-
-	// The timeout-gap recheck must surface the same detail-aware
-	// last_error as the normal poll path.
-	setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
-		Message:   "The chat request failed unexpectedly.",
-		Detail:    "reasoning model `max` not supported",
-		Kind:      codersdk.ChatErrorKindGeneric,
-		Provider:  "vercel",
-		Retryable: true,
-	})
-	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
-
-	mClock.Advance(time.Second).MustWait(ctx)
-
-	result := testutil.RequireReceive(ctx, t, resultCh)
-	m := requireToolResponseMap(t, result.resp, false)
-
-	require.Equal(t, string(database.ChatStatusError), m["status"])
-	require.Equal(t, "reasoning model `max` not supported", m["last_error"])
-	require.Equal(t, "partial progress", m["report"])
-	require.Equal(t, child.ID.String(), m["chat_id"])
-	require.Equal(t, string(codersdk.ChatErrorKindGeneric), m["last_error_kind"])
-	require.Equal(t, true, m["last_error_retryable"])
-	require.Equal(t, "reasoning model `max` not supported", m["last_error_detail"])
-	require.NotContains(t, m, "timed_out")
-}
-
-func TestWaitAgentErrorStatusUnrecognizedLastError(t *testing.T) {
-	t.Parallel()
-
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
-	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-	require.NoError(t, WaitUntilIdleForTest(ctx, server))
-	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        child.ID,
-		Status:    database.ChatStatusError,
-		LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`"oops"`), Valid: true},
-	})
+	parent, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "manager-list", ModelConfigID: model.ID, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}})
 	require.NoError(t, err)
 
-	result := requireToolResponseMap(t, runSubagentTool(
-		ctx,
-		t,
-		server,
-		parent,
-		parent.LastModelConfigID,
-		"wait_agent",
-		waitAgentArgs{ChatID: child.ID.String()},
-	), false)
-
-	// Unrecognized payloads fall back to the status reason instead of
-	// leaking raw stored bytes, and omit the structured fields.
-	require.Equal(t, string(database.ChatStatusError), result["status"])
-	require.Equal(t, "agent reached error status", result["last_error"])
-	require.NotContains(t, result, "last_error_kind")
-	require.NotContains(t, result, "last_error_retryable")
-	require.NotContains(t, result, "last_error_detail")
-}
-
-func listAgentsChatIDs(t *testing.T, result map[string]any) []string {
-	t.Helper()
-	agents, ok := result["agents"].([]any)
-	require.True(t, ok, "agents must be an array")
-	ids := make([]string, 0, len(agents))
-	for _, raw := range agents {
-		agent, ok := raw.(map[string]any)
-		require.True(t, ok, "each agent must be an object")
-		id, ok := agent["chat_id"].(string)
-		require.True(t, ok, "each agent must have a chat_id")
-		ids = append(ids, id)
+	list := func(chat database.Chat, args listAgentsArgs) subagentListResult {
+		t.Helper()
+		resp := runSubagentTool(ctx, t, server, chat, chat.LastModelConfigID, "list_agents", args)
+		require.False(t, resp.IsError, resp.Content)
+		var result subagentListResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result
 	}
-	return ids
+	empty := list(parent, listAgentsArgs{})
+	require.Zero(t, empty.Total)
+	require.NotNil(t, empty.Agents)
+	require.Empty(t, empty.Agents)
+
+	children := make([]database.Chat, 0, 4)
+	for i, mode := range []database.NullChatMode{{}, {ChatMode: database.ChatModeExplore, Valid: true}, {}, {}} {
+		child, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true}, RootChatID: uuid.NullUUID{UUID: parent.ID, Valid: true}, Title: fmt.Sprintf("child-%d", i), ModelConfigID: model.ID, ChatMode: mode, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("work")}})
+		require.NoError(t, err)
+		children = append(children, child)
+	}
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
+	_, err = db.ArchiveChatByID(ctx, children[3].ID)
+	require.NoError(t, err)
+	// Touching the oldest child last makes it the most recently updated.
+	setChatStatus(ctx, t, db, children[0].ID, database.ChatStatusWaiting, "")
+
+	result := list(parent, listAgentsArgs{})
+	require.Equal(t, 3, result.Total)
+	require.Equal(t, 3, result.Returned)
+	require.False(t, result.HasMore)
+	require.Equal(t, children[0].ID.String(), result.Agents[0].ChatID)
+	typesByID := make(map[string]string, len(result.Agents))
+	for _, agent := range result.Agents {
+		require.NotEmpty(t, agent.CreatedAt)
+		require.NotEmpty(t, agent.UpdatedAt)
+		typesByID[agent.ChatID] = agent.Type
+	}
+	require.NotContains(t, typesByID, children[3].ID.String())
+	require.Equal(t, subagentTypeExplore, typesByID[children[1].ID.String()])
+
+	limit, offset := 2, 2
+	first := list(parent, listAgentsArgs{Limit: &limit})
+	require.Len(t, first.Agents, 2)
+	require.True(t, first.HasMore)
+	second := list(parent, listAgentsArgs{Limit: &limit, Offset: &offset})
+	require.Len(t, second.Agents, 1)
+	require.False(t, second.HasMore)
+	require.Equal(t, 3, second.Total)
+	require.Equal(t, 1, second.Returned)
+	require.NotContains(t, []string{first.Agents[0].ChatID, first.Agents[1].ChatID}, second.Agents[0].ChatID)
+	zero := 0
+	clamped := list(parent, listAgentsArgs{Limit: &zero})
+	require.Len(t, clamped.Agents, 1)
+
+	resp := runSubagentTool(ctx, t, server, children[0], children[0].LastModelConfigID, "list_agents", listAgentsArgs{})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "only available on root chats")
 }
 
-func TestListAgents(t *testing.T) {
+// The model reads these payloads, so their exact text is the contract.
+func TestSubagentToolOutputsJSON(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	user, org, model := seedInternalChatDeps(t, db)
-
-	// Helpers take the running subtest's t and ctx so a failed require
-	// fires on the correct goroutine.
-	newParent := func(t *testing.T, ctx context.Context, title string) database.Chat {
-		t.Helper()
-		parent, err := server.CreateChat(ctx, CreateOptions{
-			OrganizationID:     org.ID,
-			OwnerID:            user.ID,
-			Title:              title,
-			ModelConfigID:      model.ID,
-			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-		})
-		require.NoError(t, err)
-		return parent
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	chat := database.Chat{
+		ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		Title:     "child",
+		Status:    database.ChatStatusError,
+		Mode:      database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt.Add(time.Minute),
+		LastError: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`{"message":"` + subagentGenericErrorMessage + `","detail":"bad model","retryable":true}`),
+			Valid:      true,
+		},
 	}
-	newChild := func(t *testing.T, ctx context.Context, parent database.Chat, title string, mode database.NullChatMode) database.Chat {
-		t.Helper()
-		child, err := server.CreateChat(ctx, CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
-			RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
-			Title:          title,
-			ModelConfigID:  model.ID,
-			ChatMode:       mode,
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("do work"),
-			},
+	const id = `"chat_id":"11111111-1111-1111-1111-111111111111"`
+	waiting, running := chat, chat
+	waiting.Status, running.Status = database.ChatStatusWaiting, database.ChatStatusRunning
+	for _, tc := range []struct {
+		name   string
+		output any
+		want   string
+	}{
+		{"Spawn", spawnAgentResult(chat), `{` + id + `,"status":"error","title":"child","type":"explore"}`},
+		{"Action", subagentActionResult(chat, true), `{` + id + `,"interrupted":true,"status":"error","title":"child","type":"explore"}`},
+		{"List", subagentListResult{
+			Agents:   []subagentListEntry{{ChatID: chat.ID.String(), CreatedAt: "c", Status: "s", Title: "t", Type: "y", UpdatedAt: "u"}},
+			HasMore:  true,
+			Offset:   1,
+			Returned: 1,
+			Total:    3,
+		}, `{"agents":[{` + id + `,"created_at":"c","status":"s","title":"t","type":"y","updated_at":"u"}],"has_more":true,"offset":1,"returned":1,"total":3}`},
+		{"EmptyList", subagentListResult{Agents: []subagentListEntry{}}, `{"agents":[],"has_more":false,"offset":0,"returned":0,"total":0}`},
+		{
+			"WaitSuccess",
+			waitAgentResult(subagentAwaitOutcome{chat: waiting, report: "done", recording: recordingResult{recordingFileID: "r", thumbnailFileID: "th"}}),
+			`{` + id + `,"recording_file_id":"r","report":"done","status":"waiting","thumbnail_file_id":"th","title":"child","type":"explore"}`,
+		},
+		{
+			"WaitTimeout",
+			waitAgentResult(subagentAwaitOutcome{chat: running, timedOut: true}),
+			`{` + id + `,"status":"running","timed_out":true,"title":"child","type":"explore"}`,
+		},
+		{
+			"WaitError",
+			subagentAwaitStatusErrorResult(&subagentStatusError{chat: chat, report: "partial", reason: "partial"}),
+			`{` + id + `,"last_error":"bad model","last_error_detail":"bad model","last_error_kind":"generic","last_error_retryable":true,"report":"partial","status":"error","title":"child","type":"explore"}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, toolJSONResponse(tc.output).Content)
 		})
-		require.NoError(t, err)
-		return child
 	}
-
-	t.Run("Empty", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := newParent(t, ctx, "list-agents-empty")
-
-		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
-			"list_agents", listAgentsArgs{},
-		), false)
-
-		require.Equal(t, float64(0), result["total"])
-		require.Equal(t, float64(0), result["returned"])
-		require.Equal(t, false, result["has_more"])
-		require.Empty(t, listAgentsChatIDs(t, result))
-	})
-
-	t.Run("ReturnsChildren", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := newParent(t, ctx, "list-agents-children")
-		generalChild := newChild(t, ctx, parent, "general-child", database.NullChatMode{})
-		exploreChild := newChild(t, ctx, parent, "explore-child", database.NullChatMode{
-			ChatMode: database.ChatModeExplore,
-			Valid:    true,
-		})
-
-		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
-			"list_agents", listAgentsArgs{},
-		), false)
-
-		require.Equal(t, float64(2), result["total"])
-		require.Equal(t, float64(2), result["returned"])
-		require.Equal(t, false, result["has_more"])
-		ids := listAgentsChatIDs(t, result)
-		require.Contains(t, ids, generalChild.ID.String())
-		require.Contains(t, ids, exploreChild.ID.String())
-
-		agents, ok := result["agents"].([]any)
-		require.True(t, ok)
-		typesByID := map[string]string{}
-		for _, raw := range agents {
-			agent := raw.(map[string]any)
-			typesByID[agent["chat_id"].(string)] = agent["type"].(string)
-			require.NotEmpty(t, agent["created_at"])
-			require.NotEmpty(t, agent["updated_at"])
-		}
-		require.Equal(t, subagentTypeGeneral, typesByID[generalChild.ID.String()])
-		require.Equal(t, subagentTypeExplore, typesByID[exploreChild.ID.String()])
-	})
-
-	t.Run("Pagination", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := newParent(t, ctx, "list-agents-pagination")
-		newChild(t, ctx, parent, "child-a", database.NullChatMode{})
-		newChild(t, ctx, parent, "child-b", database.NullChatMode{})
-		newChild(t, ctx, parent, "child-c", database.NullChatMode{})
-
-		limit := 2
-		first := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
-			"list_agents", listAgentsArgs{Limit: &limit},
-		), false)
-		require.Equal(t, float64(3), first["total"])
-		require.Equal(t, float64(2), first["returned"])
-		require.Equal(t, true, first["has_more"])
-		firstIDs := listAgentsChatIDs(t, first)
-		require.Len(t, firstIDs, 2)
-
-		offset := 2
-		second := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
-			"list_agents", listAgentsArgs{Limit: &limit, Offset: &offset},
-		), false)
-		require.Equal(t, float64(3), second["total"])
-		require.Equal(t, float64(1), second["returned"])
-		require.Equal(t, false, second["has_more"])
-		secondIDs := listAgentsChatIDs(t, second)
-		require.Len(t, secondIDs, 1)
-		require.NotContains(t, firstIDs, secondIDs[0])
-	})
-
-	t.Run("OrderByUpdatedAtDesc", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := newParent(t, ctx, "list-agents-order")
-		older := newChild(t, ctx, parent, "older-child", database.NullChatMode{})
-		newChild(t, ctx, parent, "newer-child", database.NullChatMode{})
-
-		// Touch the older child so its updated_at advances past the
-		// newer one; it must then sort first.
-		setChatStatus(ctx, t, db, older.ID, database.ChatStatusWaiting, "")
-
-		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
-			"list_agents", listAgentsArgs{},
-		), false)
-		ids := listAgentsChatIDs(t, result)
-		require.Len(t, ids, 2)
-		require.Equal(t, older.ID.String(), ids[0])
-	})
-
-	t.Run("ExcludesArchived", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := newParent(t, ctx, "list-agents-archived")
-		archivedChild := newChild(t, ctx, parent, "archived-child", database.NullChatMode{})
-
-		require.NoError(t, WaitUntilIdleForTest(ctx, server))
-		// SetArchived is only allowed from a waiting/error state, so
-		// settle the family into waiting first. Archiving then marks
-		// the children archived; they must be excluded from
-		// list_agents by default.
-		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusWaiting, "")
-		setChatStatus(ctx, t, db, archivedChild.ID, database.ChatStatusWaiting, "")
-		require.NoError(t, server.ArchiveChat(ctx, parent))
-
-		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
-			"list_agents", listAgentsArgs{},
-		), false)
-		require.Equal(t, float64(0), result["total"])
-		require.Empty(t, listAgentsChatIDs(t, result))
-	})
-
-	t.Run("DelegatedChatRejected", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-		parent := newParent(t, ctx, "list-agents-delegated")
-		child := newChild(t, ctx, parent, "delegated-caller", database.NullChatMode{})
-
-		resp := runSubagentTool(
-			ctx, t, server, child, child.LastModelConfigID,
-			"list_agents", listAgentsArgs{},
-		)
-		require.True(t, resp.IsError, "list_agents on a delegated chat must return an error")
-		msg := resp.Content
-		require.Contains(t, msg, "only available on root chats")
-	})
 }
 
 func TestEnabledChatModelConfigsForOrganization(t *testing.T) {
