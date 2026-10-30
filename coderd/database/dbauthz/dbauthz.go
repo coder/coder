@@ -3878,28 +3878,12 @@ func (q *querier) GetChatQueuedMessageByID(ctx context.Context, arg database.Get
 	return q.db.GetChatQueuedMessageByID(ctx, arg)
 }
 
-func (q *querier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	return q.db.GetChatQueuedMessageHead(ctx, chatID)
-}
-
 func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
 	return q.db.GetChatQueuedMessages(ctx, chatID)
-}
-
-func (q *querier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return nil, err
-	}
-	return q.db.GetChatQueuedMessagesByPosition(ctx, chatID)
 }
 
 func (q *querier) GetChatRetentionDays(ctx context.Context) (int32, error) {
