@@ -24,6 +24,10 @@ import (
 )
 
 // @Summary Get template available acl users/groups
+// @Description Returns the users and groups you can add to a template's access control list.
+// @Description Pass `q` to search the users and groups and `limit` to cap how many of each return.
+// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID get-template-available-acl-usersgroups
 // @Security CoderSessionToken
 // @Produce json
@@ -121,6 +125,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Get template ACLs
+// @Description Returns the users and groups that have access to a template, each with its role, either `admin` or `use`.
+// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID get-template-acls
 // @Security CoderSessionToken
 // @Produce json
@@ -205,13 +212,17 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update template ACL
+// @Description Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in `user_perms` and group IDs in `group_perms` to a role, either `admin` or `use`.
+// @Description Set a role to an empty string to remove that user or group, and entries you leave out stay as they are.
+// @Description Requires permission to create templates, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID update-template-acl
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Param request body codersdk.UpdateTemplateACL true "Update template ACL request"
+// @Param request body codersdk.UpdateTemplateACL true "Users and groups to add, change, or remove, each mapped to a template role. An empty role removes the entry."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
@@ -367,6 +378,10 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 }
 
 // @Summary Invalidate presets for template
+// @Description Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.
+// @Description Returns the invalidated presets.
+// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID invalidate-presets-for-template
 // @Security CoderSessionToken
 // @Produce json

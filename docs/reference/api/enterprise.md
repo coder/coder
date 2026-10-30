@@ -515,13 +515,19 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 
 `GET /api/v2/connectionlog`
 
+Returns connection log entries, newest first, filtered by the `q` search query.
+Returns only the entries you can read.
+Requires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.
+The `count` in the response is capped, and `count_cap` reports the cap, which is `2000`.
+Requires a Premium license.
+
 ### Parameters
 
-| Name     | In    | Type    | Required | Description  |
-|----------|-------|---------|----------|--------------|
-| `q`      | query | string  | false    | Search query |
-| `limit`  | query | integer | true     | Page limit   |
-| `offset` | query | integer | false    | Page offset  |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+|----------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query as space-separated `key:value` terms. Available keys are: `organization` (ID or name), `workspace_owner` (username or `me`), `workspace_owner_email`, `username` (or `me`), `user_email`, `connected_after` and `connected_before` (RFC 3339 timestamps), `workspace_id`, `connection_id`, `client_session_id` (32 hexadecimal characters), `status` (`ongoing` or `completed`), `method` (`ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`), `type` (`ssh`, `vscode`, `jetbrains`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`, which can't be combined with `method` or `app`), and `app` (repeat to match any of several apps). Unknown keys return an error. |
+| `limit`  | query | integer | true     | Maximum number of results to return. A value of `0` returns up to `100` results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `offset` | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### Example responses
 
@@ -2626,7 +2632,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 `GET /api/v2/organizations/{organization}/paginated-groups`
 
-Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+Unlike "Get groups by organization" (`GET /api/v2/organizations/{organization}/groups`),
 which authorizes each group individually via its ACL, this endpoint requires
 organization-wide group read permission and does no per-group filtering. It is
 therefore not a drop-in replacement: callers without org-wide group read receive
@@ -2640,17 +2646,17 @@ unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
 
 This endpoint returns group summaries without the member roster: each group
 carries only `total_member_count` and no `members` field. Callers that need the
-roster use the group members endpoint (GET /groups/{group}/members).
+roster use the group members endpoint (`GET /api/v2/groups/{group}/members`).
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                 |
-|----------------|-------|--------------|----------|-------------------------------------------------------------|
-| `organization` | path  | string       | true     | Organization ID or name                                     |
-| `q`            | query | string       | false    | Search query (see description for syntax and colon-quoting) |
-| `limit`        | query | integer      | false    | Page limit                                                  |
-| `offset`       | query | integer      | false    | Page offset                                                 |
-| `after_id`     | query | string(uuid) | false    | After ID                                                    |
+| Name           | In    | Type         | Required | Description                                                                                                 |
+|----------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                           |
+| `q`            | query | string       | false    | Search query (see description for syntax and colon-quoting)                                                 |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                 |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                         |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`. |
 
 ### Example responses
 
@@ -3541,11 +3547,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/workspace-sharing`
 
+Returns whether workspaces in an organization can be shared, and whose workspaces can be shared: `none`, `everyone`, or `service_accounts`.
+When the deployment disables workspace sharing with `--disable-workspace-sharing`, `sharing_globally_disabled` is `true` and `shareable_workspace_owners` is `none` whatever the organization setting is.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3581,6 +3590,11 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/workspace-sharing`
 
+Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.
+Choosing `none` removes every workspace share in the organization.
+Choosing `service_accounts` removes the shares on workspaces that service accounts don't own.
+Requires permission to update the organization, which the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3592,10 +3606,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                                       | Required | Description                |
-|----------------|------|------------------------------------------------------------------------------------------------------------|----------|----------------------------|
-| `organization` | path | string(uuid)                                                                                               | true     | Organization ID            |
-| `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings |
+| Name           | In   | Type                                                                                                       | Required | Description                                                                                                                                                       |
+|----------------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                                               | true     | Organization ID, name, or `default` for the default organization.                                                                                                 |
+| `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings to apply. Set `shareable_workspace_owners`. The deprecated `sharing_disabled` applies only when `shareable_workspace_owners` is empty. |
 
 ### Example responses
 
@@ -4032,6 +4046,10 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 
 `GET /api/v2/templates/{template}/acl`
 
+Returns the users and groups that have access to a template, each with its role, either `admin` or `use`.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
 | Name       | In   | Type         | Required | Description |
@@ -4128,6 +4146,11 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 `PATCH /api/v2/templates/{template}/acl`
 
+Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in `user_perms` and group IDs in `group_perms` to a role, either `admin` or `use`.
+Set a role to an empty string to remove that user or group, and entries you leave out stay as they are.
+Requires permission to create templates, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4145,10 +4168,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ### Parameters
 
-| Name       | In   | Type                                                               | Required | Description                 |
-|------------|------|--------------------------------------------------------------------|----------|-----------------------------|
-| `template` | path | string(uuid)                                                       | true     | Template ID                 |
-| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Update template ACL request |
+| Name       | In   | Type                                                               | Required | Description                                                                                                  |
+|------------|------|--------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `template` | path | string(uuid)                                                       | true     | Template ID                                                                                                  |
+| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Users and groups to add, change, or remove, each mapped to a template role. An empty role removes the entry. |
 
 ### Example responses
 
@@ -4187,6 +4210,11 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 ```
 
 `GET /api/v2/templates/{template}/acl/available`
+
+Returns the users and groups you can add to a template's access control list.
+Pass `q` to search the users and groups and `limit` to cap how many of each return.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
 
 ### Parameters
 
@@ -4312,6 +4340,11 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 ```
 
 `POST /api/v2/templates/{template}/prebuilds/invalidate`
+
+Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.
+Returns the invalidated presets.
+Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
 
 ### Parameters
 
@@ -4539,11 +4572,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 `GET /api/v2/users/{user}/quiet-hours`
 
+Returns the daily quiet hours schedule that applies to a user, which is the deployment default until the user sets their own.
+Check `user_set` to see whether the user set the schedule, and `user_can_set` to see whether the deployment lets users set their own.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type         | Required | Description |
-|--------|------|--------------|----------|-------------|
-| `user` | path | string(uuid) | true     | User ID     |
+| Name   | In   | Type         | Required | Description                                            |
+|--------|------|--------------|----------|--------------------------------------------------------|
+| `user` | path | string(uuid) | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4598,6 +4635,11 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 `PUT /api/v2/users/{user}/quiet-hours`
 
+Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
+Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
+You can update your own schedule, and updating another user's schedule requires the Owner or User Admin role.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4608,10 +4650,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                   | Required | Description             |
-|--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `user` | path | string(uuid)                                                                                           | true     | User ID                 |
-| `body` | body | [codersdk.UpdateUserQuietHoursScheduleRequest](schemas.md#codersdkupdateuserquiethoursschedulerequest) | true     | Update schedule request |
+| Name   | In   | Type                                                                                                   | Required | Description                                            |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------|
+| `user` | path | string(uuid)                                                                                           | true     | User ID, username, or `me` for the authenticated user. |
+| `body` | body | [codersdk.UpdateUserQuietHoursScheduleRequest](schemas.md#codersdkupdateuserquiethoursschedulerequest) | true     | Quiet hours schedule to set.                           |
 
 ### Example responses
 
@@ -5050,12 +5092,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
 
 `GET /api/v2/workspaces/{workspace}/external-agent/{agent}/credentials`
 
+Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.
+Treat the response as a secret, because the token lets the holder act as the workspace agent.
+Requires permission to connect to the workspace over SSH, which the workspace owner has.
+Requires a Premium license.
+
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
-| `agent`     | path | string       | true     | Agent name   |
+| Name        | In   | Type         | Required | Description                                                                        |
+|-------------|------|--------------|----------|------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID                                                                       |
+| `agent`     | path | string       | true     | Name of the external workspace agent, as it appears in the latest workspace build. |
 
 ### Example responses
 
