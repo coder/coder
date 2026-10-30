@@ -14,7 +14,7 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import {
 	invalidateChatDiffContents,
@@ -126,6 +126,11 @@ type GitPanelProps = {
 	 * falls back like any other stale view.
 	 */
 	viewRequest?: GitViewRequest;
+	/**
+	 * Called once the panel shows `viewRequest`, so the owner can drop it and
+	 * a remounted panel does not show it again.
+	 */
+	onViewRequestApplied?: (id: number) => void;
 };
 
 type ViewItemBase = {
@@ -270,6 +275,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 	viewRequest,
+	onViewRequestApplied,
 }) => {
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
@@ -294,6 +300,14 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		setAppliedRequestId(viewRequest.id);
 		setView(viewRequest.view);
 	}
+	const reportViewRequestApplied = useEffectEvent((id: number) =>
+		onViewRequestApplied?.(id),
+	);
+	useEffect(() => {
+		if (appliedRequestId !== undefined) {
+			reportViewRequestApplied(appliedRequestId);
+		}
+	}, [appliedRequestId]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 

@@ -667,6 +667,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						primaryDiffStatus={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
 						viewRequest={overview.gitViewRequest}
+						onViewRequestApplied={overview.onGitViewRequestApplied}
 					/>
 				);
 			case "browser":
@@ -977,6 +978,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							chatTitle={chat.title}
 							focusRequestId={overview.focusRequestId}
+							onFocusRequestApplied={overview.onFocusRequestApplied}
 						/>
 					</RightPanel>
 				</div>

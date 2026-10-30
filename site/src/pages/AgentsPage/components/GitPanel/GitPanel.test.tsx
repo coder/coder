@@ -17,6 +17,7 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
+import { useChatOverview } from "../../hooks/useChatOverview";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { GitPanel } from "./GitPanel";
 import { viewIdFor } from "./gitViews";
@@ -507,6 +508,65 @@ describe("GitPanel view requests", () => {
 				view: { type: "remote", refId: "remote:gone:branch" },
 			},
 		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockPrimaryRef.url,
+		);
+	});
+
+	it("does not show an applied request again after a remount", async () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+		const queryClient = createTestQueryClient();
+		const OverviewHarness: React.FC<{ isMounted: boolean }> = ({
+			isMounted,
+		}) => {
+			const overview = useChatOverview({ isRightPanelOpen: true });
+			return (
+				<Wrapper queryClient={queryClient}>
+					<button
+						type="button"
+						onClick={() =>
+							overview.recordTarget({
+								tabId: "git",
+								view: { type: "remote", refId: viewIdFor(mockFirstRef) },
+							})
+						}
+					>
+						Open the first ref
+					</button>
+					{isMounted && (
+						<GitPanel
+							chatId="test-chat"
+							onRefresh={() => true}
+							repositories={new Map()}
+							isExpanded={false}
+							isGitStatusLoading={false}
+							everDirty={new Set()}
+							chatInputRef={{ current: null }}
+							{...refs}
+							viewRequest={overview.gitViewRequest}
+							onViewRequestApplied={overview.onGitViewRequestApplied}
+						/>
+					)}
+				</Wrapper>
+			);
+		};
+		const user = userEvent.setup();
+		const { rerender } = render(<OverviewHarness isMounted />);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open the first ref" }),
+		);
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
+		);
+
+		rerender(<OverviewHarness isMounted={false} />);
+		rerender(<OverviewHarness isMounted />);
 
 		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
 			"href",

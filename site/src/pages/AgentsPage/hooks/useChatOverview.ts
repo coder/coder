@@ -22,7 +22,8 @@ const OVERVIEW_MIN_CHAT_WIDTH_REM = 84;
  * choice is stored for every chat.
  *
  * `recordTarget` numbers each click, so repeating one target still moves
- * focus and opens its Git view.
+ * focus and opens its Git view. Each request applies once: its consumer
+ * reports it back, and the hook then stops passing it on.
  */
 export const useChatOverview = ({
 	isRightPanelOpen,
@@ -36,6 +37,10 @@ export const useChatOverview = ({
 		id: number;
 		target: OverviewTarget;
 	}>();
+	const [appliedRequestIds, setAppliedRequestIds] = useState<{
+		focus?: number;
+		gitView?: number;
+	}>({});
 	const [chatElement, setChatElement] = useState<HTMLElement | null>(null);
 	const [isChatWide, setIsChatWide] = useState(false);
 	useEffect(() => {
@@ -56,7 +61,7 @@ export const useChatOverview = ({
 	const canShow =
 		isChatWide && !isRightPanelOpen && !chatFullWidth && !isEmbedded;
 	const gitViewRequest: GitViewRequest | undefined =
-		request?.target.tabId === "git"
+		request?.target.tabId === "git" && request.id !== appliedRequestIds.gitView
 			? { id: request.id, view: request.target.view }
 			: undefined;
 	return {
@@ -73,7 +78,14 @@ export const useChatOverview = ({
 		isCardShown: canShow && isOpen,
 		recordTarget: (target: OverviewTarget) =>
 			setRequest((previous) => ({ id: (previous?.id ?? 0) + 1, target })),
-		focusRequestId: request?.id,
+		focusRequestId:
+			request && request.id !== appliedRequestIds.focus
+				? request.id
+				: undefined,
+		onFocusRequestApplied: (id: number) =>
+			setAppliedRequestIds((ids) => ({ ...ids, focus: id })),
 		gitViewRequest,
+		onGitViewRequestApplied: (id: number) =>
+			setAppliedRequestIds((ids) => ({ ...ids, gitView: id })),
 	};
 };
