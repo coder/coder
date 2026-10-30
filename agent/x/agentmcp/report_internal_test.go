@@ -95,11 +95,19 @@ func TestReport(t *testing.T) {
 		configPath := writeMCPConfig(t, dir, nil)
 		m, fires := newReportTestManager(t)
 
+		require.Equal(t, DiscoveryPending, m.Report().Phase, "pending until the first reload settles")
+
 		require.NoError(t, m.Reload(ctx, []string{configPath}))
 		got := m.Report()
 		assert.Empty(t, got.Servers)
 		assert.Empty(t, got.ConfigErrors)
-		assert.Equal(t, 0, fires(), "an unchanged empty report does not notify")
+		assert.Equal(t, DiscoveryComplete, got.Phase)
+		assert.Equal(t, 1, fires(), "settlement notifies once even with an unchanged empty catalog")
+
+		// An unchanged reload neither re-notifies nor moves the phase.
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		assert.Equal(t, DiscoveryComplete, m.Report().Phase)
+		assert.Equal(t, 1, fires())
 	})
 
 	t.Run("MissingFileIsNotAnError", func(t *testing.T) {
@@ -124,7 +132,9 @@ func TestReport(t *testing.T) {
 		require.Len(t, got.ConfigErrors, 1)
 		assert.Equal(t, configPath, got.ConfigErrors[0].Path)
 		assert.Contains(t, got.ConfigErrors[0].Err, "parse mcp config")
-		assert.Equal(t, 1, fires(), "a config error with an unchanged catalog still notifies")
+		assert.Equal(t, DiscoveryComplete, got.Phase, "a failed config still settles discovery")
+		// One notification for the report change and one for settlement.
+		assert.Equal(t, 2, fires(), "a config error with an unchanged catalog still notifies")
 	})
 
 	t.Run("SemanticErrorAttributedToFile", func(t *testing.T) {
@@ -171,7 +181,7 @@ func TestReport(t *testing.T) {
 		assert.True(t, got.Connected)
 		assert.Empty(t, got.Tools)
 		assert.Empty(t, got.Err)
-		assert.Equal(t, 1, fires())
+		assert.Equal(t, 2, fires(), "report change plus settlement")
 	})
 
 	t.Run("PartialFailureCarriesConnectError", func(t *testing.T) {
@@ -212,7 +222,8 @@ func TestReport(t *testing.T) {
 			assert.False(t, s.Connected)
 			assert.NotEmpty(t, s.Err)
 		}
-		assert.Equal(t, 2, fires(), "each failure is published as it settles")
+		assert.Equal(t, DiscoveryComplete, got.Phase, "total failure still settles discovery")
+		assert.Equal(t, 3, fires(), "each failure is published as it settles, plus settlement")
 	})
 
 	t.Run("RetainedSessionErrorRedactedWithItsOwnConfig", func(t *testing.T) {
@@ -345,7 +356,7 @@ func TestReport(t *testing.T) {
 
 		require.NoError(t, m.Reload(ctx, []string{configPath}))
 		require.Len(t, m.connectedTools(), 1)
-		require.Equal(t, 1, fires())
+		require.Equal(t, 2, fires(), "report change plus settlement")
 
 		// Point the same server at a broken command: the reconnect
 		// fails and the previous connection keeps serving.
@@ -356,7 +367,7 @@ func TestReport(t *testing.T) {
 		require.Len(t, got.Tools, 1, "tools still come from the retained connection")
 		assert.Contains(t, got.Warning, "previous connection")
 		assert.Contains(t, got.Warning, "missing-binary")
-		assert.Equal(t, 2, fires(), "the warning alone changes the report")
+		assert.Equal(t, 3, fires(), "the warning alone changes the report")
 
 		// Restoring a working configuration clears the warning.
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
@@ -364,7 +375,7 @@ func TestReport(t *testing.T) {
 		got = serverByName(t, m.Report(), "srv")
 		assert.True(t, got.Connected)
 		assert.Empty(t, got.Warning)
-		assert.Equal(t, 3, fires())
+		assert.Equal(t, 4, fires())
 	})
 
 	t.Run("RemovedServerLeavesReport", func(t *testing.T) {
@@ -407,6 +418,7 @@ func TestReport(t *testing.T) {
 		// The fast server is published while the hung handshake is
 		// still outstanding.
 		interim := testutil.RequireReceive(ctx, t, reports)
+		require.Equal(t, DiscoveryPending, interim.Phase)
 		require.Len(t, interim.Servers, 1, "a server still connecting is not reported yet")
 		require.True(t, interim.Servers[0].Connected)
 		require.Equal(t, "fast", interim.Servers[0].Name)
@@ -419,6 +431,7 @@ func TestReport(t *testing.T) {
 		clock.Advance(connectTimeout).MustWait(ctx)
 		require.NoError(t, testutil.RequireReceive(ctx, t, done))
 		final := m.Report()
+		require.Equal(t, DiscoveryComplete, final.Phase)
 		require.Len(t, final.Servers, 2)
 		require.True(t, serverByName(t, final, "fast").Connected)
 		hungStatus := serverByName(t, final, "hung")

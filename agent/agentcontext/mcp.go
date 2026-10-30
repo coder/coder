@@ -9,13 +9,30 @@ import (
 )
 
 // MCPReport is the agent-local mirror of the MCP engine's discovery
-// report: one status per declared server and one entry per config file
-// the engine could not use. The Manager samples it once per resolve so
-// every MCP resource in a snapshot describes the same engine state.
+// report: the discovery phase, one status per declared server, and one
+// entry per config file the engine could not use. The Manager samples
+// it once per resolve, before the filesystem walk, so every MCP-derived
+// field in a snapshot describes the same engine state and a phase can
+// never label a pre-settlement catalog as complete.
 type MCPReport struct {
+	Phase        MCPDiscoveryPhase
 	Servers      []MCPServerStatus
 	ConfigErrors []MCPConfigError
 }
+
+// MCPDiscoveryPhase is the completeness of the engine's initial MCP
+// reload. The zero value means no engine is wired and no guarantee is
+// published.
+type MCPDiscoveryPhase int
+
+const (
+	MCPDiscoveryUnspecified MCPDiscoveryPhase = iota
+	// MCPDiscoveryPending means the initial reload has not finished.
+	MCPDiscoveryPending
+	// MCPDiscoveryComplete means the initial reload reached a terminal
+	// result before this report was sampled.
+	MCPDiscoveryComplete
+)
 
 // maxSourceBytes matches coderd's per-resource source cap.
 const maxSourceBytes = 1024

@@ -43,6 +43,8 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 		AggregateHash: [32]byte{0xaa, 0xbb, 0xcc},
 		Initial:       true,
 		SnapshotError: "watcher degraded",
+		MCPDiscovery:  agentcontext.MCPDiscoveryComplete,
+		AgentRunID:    "run-7",
 		Resources: []agentcontext.Resource{
 			{
 				ID:          "instruction_file:/tmp/AGENTS.md",
@@ -118,6 +120,8 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	require.Equal(t, "watcher degraded", pb.SnapshotError)
 
 	require.Len(t, pb.Resources, 5)
+	require.Equal(t, "run-7", pb.GetAgentRunId())
+	require.Equal(t, agentproto.MCPDiscovery_COMPLETE, pb.GetMcpDiscovery().GetPhase())
 
 	// Instruction file: wire-flat fields plus typed body.
 	instr := pb.Resources[0]
@@ -166,6 +170,32 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	require.Equal(t, "Create a GitHub issue", tool.GetDescription())
 	require.NotNil(t, tool.GetInputSchema(), "input_schema must be set when supplied")
 	require.Equal(t, "object", tool.GetInputSchema().GetFields()["type"].GetStringValue())
+}
+
+// TestDRPCPusher_MCPDiscoveryPhase verifies the discovery phase mapping,
+// including that an unspecified phase sends no MCPDiscovery message so a
+// legacy-shaped push stays byte-identical.
+func TestDRPCPusher_MCPDiscoveryPhase(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		phase  agentcontext.MCPDiscoveryPhase
+		want   agentproto.MCPDiscovery_Phase
+		nilMsg bool
+	}{
+		{phase: agentcontext.MCPDiscoveryUnspecified, want: agentproto.MCPDiscovery_PHASE_UNSPECIFIED, nilMsg: true},
+		{phase: agentcontext.MCPDiscoveryPending, want: agentproto.MCPDiscovery_PENDING},
+		{phase: agentcontext.MCPDiscoveryComplete, want: agentproto.MCPDiscovery_COMPLETE},
+	} {
+		client := &fakeDRPCClient{}
+		_, err := agentcontext.NewDRPCPusher(client).PushContextState(context.Background(), &agentcontext.PushRequest{
+			Version:      1,
+			MCPDiscovery: tc.phase,
+		})
+		require.NoError(t, err)
+		require.Equal(t, tc.nilMsg, client.lastReq.GetMcpDiscovery() == nil)
+		require.Equal(t, tc.want, client.lastReq.GetMcpDiscovery().GetPhase())
+		require.Empty(t, client.lastReq.GetAgentRunId())
+	}
 }
 
 func TestDRPCPusher_UnimplementedTranslated(t *testing.T) {

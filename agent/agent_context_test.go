@@ -50,6 +50,17 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	assert.True(t, first.GetInitial(), "first push must carry Initial=true")
 	assert.NotEmpty(t, first.GetAggregateHash(), "aggregate_hash must be populated")
 
+	// Startup and every push name the same agent process, and every
+	// push states its MCP discovery completeness.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	startup := testutil.TryReceive(ctx, t, client.GetStartup())
+	require.NotEmpty(t, startup.GetAgentRunId(), "startup must carry the agent run id")
+	for _, p := range pushes {
+		assert.Equal(t, startup.GetAgentRunId(), p.GetAgentRunId(), "push must carry the startup run id")
+		assert.NotEqual(t, agentproto.MCPDiscovery_PHASE_UNSPECIFIED, p.GetMcpDiscovery().GetPhase(),
+			"an agent with an MCP engine always states its discovery phase")
+	}
+
 	// The first push must already reflect the ready workspace: the
 	// seeded AGENTS.md is present and no resource is UNREADABLE.
 	var foundAgents bool
