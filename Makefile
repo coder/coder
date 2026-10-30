@@ -597,19 +597,19 @@ $(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VE
 		--chart $* \
 		--output "$@"
 
-node_modules/.installed: package.json pnpm-lock.yaml
+node_modules/.installed: package.json pnpm-lock.yaml pnpm-workspace.yaml
 	./scripts/pnpm_install.sh
 	touch "$@"
 
-offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml
+offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml offlinedocs/pnpm-workspace.yaml
 	(cd offlinedocs/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
+site/node_modules/.installed: site/package.json site/pnpm-lock.yaml site/pnpm-workspace.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
+scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml scripts/apidocgen/pnpm-workspace.yaml
 	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
 	touch "$@"
 
