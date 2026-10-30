@@ -22,8 +22,8 @@ type UseChatAttachmentsOptions = {
 /**
  * A chat's attachments, newest first: the files in the loaded messages,
  * then the server's list for the messages before them. `attachments` is
- * undefined until the first messages hydrate. `earlier` is the state of the
- * server's list, with a retry for a failed request.
+ * undefined until the first messages hydrate. `earlierAttachmentsRequest` is
+ * the state of the server's list, with a retry for a failed request.
  */
 export const useChatAttachments = ({
 	chatId,
@@ -67,7 +67,7 @@ export const useChatAttachments = ({
 		hasMoreMessages && !earlierAttachmentsQuery.data
 			? (earlierAttachmentsQuery.error ?? retriedError)
 			: null;
-	const earlier = {
+	const earlierAttachmentsRequest = {
 		isLoading: hasMoreMessages && !earlierAttachmentsQuery.data && !error,
 		error,
 		isRetrying: earlierAttachmentsQuery.isFetching,
@@ -78,5 +78,10 @@ export const useChatAttachments = ({
 				.finally(() => setRetriedFailure(undefined));
 		},
 	};
-	return { messages, earlierAttachments, attachments, earlier };
+	return {
+		messages,
+		earlierAttachments,
+		attachments,
+		earlierAttachmentsRequest,
+	};
 };

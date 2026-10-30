@@ -37,14 +37,18 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
 
-	const { messages, earlierAttachments, attachments, earlier } =
-		useChatAttachments({
-			chatId,
-			store,
-			hasMoreMessages,
-			isHydratingMessages,
-			enabled: isVisible,
-		});
+	const {
+		messages,
+		earlierAttachments,
+		attachments,
+		earlierAttachmentsRequest,
+	} = useChatAttachments({
+		chatId,
+		store,
+		hasMoreMessages,
+		isHydratingMessages,
+		enabled: isVisible,
+	});
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
@@ -76,10 +80,10 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 			<ChatAttachments
 				attachments={attachments}
 				evictedFileIds={evictedFileIds}
-				isLoadingEarlierAttachments={earlier.isLoading}
-				earlierAttachmentsError={earlier.error}
-				isRetrying={earlier.isRetrying}
-				onRetry={earlier.retry}
+				isLoadingEarlierAttachments={earlierAttachmentsRequest.isLoading}
+				earlierAttachmentsError={earlierAttachmentsRequest.error}
+				isRetrying={earlierAttachmentsRequest.isRetrying}
+				onRetry={earlierAttachmentsRequest.retry}
 			/>
 		</div>
 	);
