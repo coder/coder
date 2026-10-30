@@ -73,12 +73,10 @@ export default defineConfig({
 						: "assets/[name]-[hash].js";
 				},
 				codeSplitting: {
-					groups: [
-						{ name: "monaco", test: /monaco-editor/ },
-						{ name: "xterm", test: /@xterm/ },
-						{ name: "emoji-mart", test: /emoji-mart/ },
-						{ name: "radix-ui", test: /radix-ui/ },
-					],
+					// A group also takes the modules its matches import that no earlier group
+					// took: a monaco group takes Vite's preload helper, and an emoji-mart group
+					// ahead of radix-ui takes React, so either would load on every page.
+					groups: [{ name: "radix-ui", test: /radix-ui/ }],
 				},
 			},
 		},
