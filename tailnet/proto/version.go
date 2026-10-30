@@ -109,9 +109,17 @@ import (
 //     lifecycle script that never ran because of a prerequisite and one the
 //     agent shut down before it finished.
 //   - A v2.15 agent reports skipped and canceled startup scripts.
+//
+// API v2.16:
+//   - Added agent_run_id (field 4) to Startup on the Agent API. It
+//     identifies the agent process and changes when the process restarts.
+//   - Added agent_run_id (field 7) and mcp_discovery (field 8) to
+//     PushContextStateRequest on the Agent API, with the MCPDiscovery
+//     message. They name the process that produced a context snapshot and
+//     report whether its workspace MCP discovery is complete.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 15
+	CurrentMinor = 16
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
