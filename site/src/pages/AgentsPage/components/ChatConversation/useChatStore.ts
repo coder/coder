@@ -412,6 +412,10 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
+		// Chunk strings of a batch the server split into chunk messages,
+		// joined when the last chunk message arrives.
+		const chunkBuf: string[] = [];
+
 		// Set when the stream reports a completed turn, cleared by any other
 		// stream status. While set, parts are dropped: they are late
 		// leftovers from the completed turn. REST and optimistic
@@ -468,20 +472,39 @@ export const useChatStore = (
 		};
 
 		const handleMessage = (
-			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
+			payload: OneWayMessageEvent<
+				TypesGen.ChatStreamEvent[] | TypesGen.ChatStreamChunk
+			>,
 		) => {
 			if (disposed) {
 				return;
 			}
-			if (payload.parseError || !payload.parsedMessage) {
+			const setParseError = () => {
 				store.setStreamError({
 					kind: "generic",
 					message: "Failed to parse chat stream update.",
 				});
+			};
+			if (payload.parseError || !payload.parsedMessage) {
+				setParseError();
 				return;
 			}
 
-			const streamEvents = payload.parsedMessage;
+			let streamEvents: TypesGen.ChatStreamEvent[];
+			if (Array.isArray(payload.parsedMessage)) {
+				streamEvents = payload.parsedMessage;
+			} else {
+				chunkBuf.push(payload.parsedMessage.chunk);
+				if (!payload.parsedMessage.last) {
+					return;
+				}
+				try {
+					streamEvents = JSON.parse(chunkBuf.splice(0).join(""));
+				} catch {
+					setParseError();
+					return;
+				}
+			}
 			if (streamEvents.length === 0) {
 				return;
 			}
@@ -729,10 +752,12 @@ export const useChatStore = (
 				// apply stale parts from the old connection
 				// into the fresh stream state.
 				discardBufferedParts();
-				// Drop any partial replacement run from the old
-				// socket; the new socket replays a fresh snapshot.
+				// Drop any partial replacement run or chunked batch
+				// from the old socket; the new socket replays a fresh
+				// snapshot.
 				historyResetPending = false;
 				historyReplacementBuf.length = 0;
+				chunkBuf.length = 0;
 			},
 			onDisconnect(reconnectState: ReconnectSchedule) {
 				// Only surface reconnecting when the disconnect

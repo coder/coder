@@ -10696,6 +10696,68 @@ func TestStreamChat(t *testing.T) {
 		advance.MustWait(ctx)
 	})
 
+	t.Run("LargeBatchChunks", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "stream chat large batch",
+			Status:            database.ChatStatusWaiting,
+		})
+		// The chunk size is 1 mod 3, so consecutive split points in the run
+		// of three-byte runes fall inside a rune. The backslashes fill at
+		// least one chunk that escaping doubles, and the < run fails the
+		// size check if the encoder stops escaping HTML.
+		large := strings.Repeat("日", 2*codersdk.ChatStreamChunkBytes) +
+			strings.Repeat(`\`, codersdk.ChatStreamChunkBytes) +
+			strings.Repeat("<", codersdk.ChatStreamChunkBytes)
+		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText(large)})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Content:       pqtype.NullRawMessage{RawMessage: content, Valid: true},
+		})
+
+		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID), nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+		conn.SetReadLimit(1 << 22)
+		var joined []byte
+		largest := 0
+		for chunks := 0; ; chunks++ {
+			_, data, err := conn.Read(ctx)
+			require.NoError(t, err)
+			// Escaping at most doubles a chunk; 64 bytes cover the
+			// {"chunk":"","last":false} wrapper and newline.
+			require.LessOrEqual(t, len(data), 2*codersdk.ChatStreamChunkBytes+64)
+			largest = max(largest, len(data))
+			var chunk codersdk.ChatStreamChunk
+			require.NoError(t, json.Unmarshal(data, &chunk), "snapshot frame is not a chunk")
+			joined = append(joined, chunk.Chunk...)
+			if chunk.Last {
+				require.Greater(t, chunks, 0)
+				break
+			}
+		}
+		require.Greater(t, largest, 2*codersdk.ChatStreamChunkBytes)
+		var batch []codersdk.ChatStreamEvent
+		require.NoError(t, json.Unmarshal(joined, &batch))
+		require.True(t, streamChatSnapshotHasText(batch, large))
+
+		events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		defer closer.Close()
+		require.True(t, streamChatSnapshotHasText(readStreamChatSnapshot(ctx, t, events), large))
+	})
+
 	t.Run("AfterID", func(t *testing.T) {
 		t.Parallel()
 
