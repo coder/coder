@@ -57,7 +57,9 @@ const meta: Meta<typeof ChartContainer> = {
 					/>
 					<ChartTooltip
 						cursor={false}
-						content={<ChartTooltipContent indicator="dot" />}
+						content={(props) => (
+							<ChartTooltipContent {...props} indicator="dot" />
+						)}
 					/>
 					<Area
 						dataKey="users"

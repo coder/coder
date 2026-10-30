@@ -5,7 +5,6 @@
 
 import { cn } from "cn";
 import {
-	cloneElement,
 	createContext,
 	useCallback,
 	useContext,
@@ -168,11 +167,13 @@ export function getDailyChartDescription(
 	return `${summary} from ${format(dates[0])} to ${format(dates[dates.length - 1])}. ${hint}`;
 }
 
-type ChartTooltipProps = Omit<
-	React.ComponentProps<typeof RechartsPrimitive.Tooltip>,
-	"content"
-> & {
-	content: React.ReactElement;
+type RechartsTooltipProps = React.ComponentProps<
+	typeof RechartsPrimitive.Tooltip
+>;
+
+type ChartTooltipProps = Omit<RechartsTooltipProps, "content"> & {
+	/** Renders the tooltip body from the props Recharts gives the content. */
+	content: (props: RechartsTooltipProps) => React.ReactNode;
 };
 
 /**
@@ -216,7 +217,7 @@ export const ChartTooltip: React.FC<ChartTooltipProps> = ({
 			content={
 				<HoverableTooltipContent
 					containerRef={measureContent}
-					innerContent={content}
+					renderContent={content}
 				/>
 			}
 		/>
@@ -225,9 +226,9 @@ export const ChartTooltip: React.FC<ChartTooltipProps> = ({
 // Recharts finds the tooltip among chart children by display name.
 ChartTooltip.displayName = "Tooltip";
 
-type HoverableTooltipContentProps = Omit<ChartTooltipProps, "content"> & {
+type HoverableTooltipContentProps = RechartsTooltipProps & {
 	containerRef: React.Ref<HTMLDivElement>;
-	innerContent: React.ReactElement;
+	renderContent: ChartTooltipProps["content"];
 };
 
 // Recharts keeps its wrapper at pointer-events: none, so only the visible
@@ -235,7 +236,7 @@ type HoverableTooltipContentProps = Omit<ChartTooltipProps, "content"> & {
 // the active point while the pointer is over the tooltip.
 const HoverableTooltipContent: React.FC<HoverableTooltipContentProps> = ({
 	containerRef,
-	innerContent,
+	renderContent,
 	...props
 }) => (
 	<div
@@ -243,7 +244,7 @@ const HoverableTooltipContent: React.FC<HoverableTooltipContentProps> = ({
 		className="pointer-events-auto"
 		onMouseMove={(event) => event.stopPropagation()}
 	>
-		{cloneElement(innerContent, props)}
+		{renderContent(props)}
 	</div>
 );
 
