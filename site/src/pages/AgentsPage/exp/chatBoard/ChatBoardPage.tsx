@@ -30,7 +30,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
-import { chatFamilyAllowsArchive } from "../../components/ChatActionsMenuItems";
+import { getArchiveBlockedReason } from "../../components/ChatActionsMenuItems";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { canDragChatToProject } from "../../components/ChatsSidebar/chats/projectDrag";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
@@ -447,27 +447,29 @@ const ChatBoardPage: React.FC = () => {
 			`Archived "${card.title}"`,
 		);
 	};
-	// A card with a working chat is left whole rather than half archived.
+	// A card with a busy chat (working, or a queued message under edit) is
+	// left whole rather than half archived.
 	const archiveCards = (cards: readonly BoardCardModel[]) => {
 		const chatsOf = (card: BoardCardModel) => {
 			const assistant = cardAssistants.get(card.id);
 			return [...card.members, ...(assistant ? [assistant] : [])];
 		};
 		const ready = cards.filter((card) =>
-			chatsOf(card).every((chat) =>
-				chatFamilyAllowsArchive(chat.status, chat.children),
+			chatsOf(card).every(
+				(chat) =>
+					getArchiveBlockedReason(chat.status, chat.children) === undefined,
 			),
 		);
 		const skipped = cards.length - ready.length;
 		if (ready.length === 0) {
-			toast.error("Every card here has a working chat.");
+			toast.error("Every card here has a busy chat.");
 			return;
 		}
 		const count = ready.length === 1 ? "1 card" : `${ready.length} cards`;
 		void archiveChatsAndOfferUndo(
 			ready.flatMap(chatsOf),
 			skipped > 0
-				? `Archived ${count}, ${skipped} with a working chat left`
+				? `Archived ${count}, ${skipped} with a busy chat left`
 				: `Archived ${count}`,
 		);
 	};

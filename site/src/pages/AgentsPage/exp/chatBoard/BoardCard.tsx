@@ -16,7 +16,7 @@ import {
 	DropdownMenuCheckboxItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { chatFamilyAllowsArchive } from "../../components/ChatActionsMenuItems";
+import { getArchiveBlockedReason } from "../../components/ChatActionsMenuItems";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import type { NoteSlot } from "./boardApi";
@@ -58,20 +58,24 @@ export type ChatOpenHandlers = {
 // dnd-kit sets the element on mount; before that there is nothing to
 // place a window beside.
 // The server archives a chat with its subagents and refuses while any of
-// them works, so the item says so instead of failing.
+// them works or has a queued message under edit, so the item says so.
 const archiveAction = (
 	label: string,
 	chats: readonly Chat[],
 	onSelect: () => void,
 ) => {
-	const blocked = chats.some(
-		(chat) => !chatFamilyAllowsArchive(chat.status, chat.children),
+	const reasons = chats.map((chat) =>
+		getArchiveBlockedReason(chat.status, chat.children),
 	);
+	let suffix = "";
+	if (reasons.includes("active")) suffix = " (a chat is working)";
+	else if (reasons.includes("paused"))
+		suffix = " (a queued message is being edited)";
 	return {
-		label: blocked ? `${label} (a chat is working)` : label,
+		label: `${label}${suffix}`,
 		icon: ArchiveIcon,
 		destructive: true,
-		disabled: blocked,
+		disabled: suffix !== "",
 		onSelect,
 	};
 };
