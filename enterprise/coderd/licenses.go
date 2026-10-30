@@ -69,12 +69,15 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 //     period, then the users will get a warning allowing them to gracefully stop using the feature.
 //
 // @Summary Add new license
+// @Description Adds a license to the deployment and recomputes its entitlements.
+// @Description A deployment can hold several licenses at once, and it doesn't need a license to add the first one.
+// @Description Requires permission to create licenses, which only the Owner role has.
 // @ID add-new-license
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.AddLicenseRequest true "Add license request"
+// @Param request body codersdk.AddLicenseRequest true "License to add. `license` is the license key string. The request fails with `400` if the key is invalid or is locked to a different deployment."
 // @Success 201 {object} codersdk.License
 // @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
@@ -130,12 +133,15 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Request a trial license
+// @Description Requests a trial license from the Coder license server and installs it.
+// @Description Returns `409` if the deployment already has a license, so delete the existing license first.
+// @Description Requires permission to create licenses, which only the Owner role has.
 // @ID request-a-trial-license
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.CreateTrialLicenseRequest true "Trial license request"
+// @Param request body codersdk.CreateTrialLicenseRequest true "Contact details for the trial. `email`, `first_name`, `last_name`, `phone_number`, `job_title`, `company_name`, `country`, and `developers` are required and go to the license server. `source` and `attribution_id` are optional, are used for telemetry, and aren't sent to the license server."
 // @Success 201 {object} codersdk.License
 // @Router /api/v2/licenses/trial [post]
 func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
@@ -298,6 +304,10 @@ func (api *API) installLicense(
 // and we want to be able to force an update immediately in some cases.
 //
 // @Summary Update license entitlements
+// @Description Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
+// @Description Use it to apply a license change immediately instead of waiting for the next automatic refresh.
+// @Description You can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.
+// @Description Requires permission to create licenses, which only the Owner role has.
 // @ID update-license-entitlements
 // @Security CoderSessionToken
 // @Produce json
@@ -365,6 +375,8 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 }
 
 // @Summary Get licenses
+// @Description Returns the licenses installed on the deployment, with the claims each one asserts.
+// @Description Returns only the licenses you can read, and only the Owner role can read licenses.
 // @ID get-licenses
 // @Security CoderSessionToken
 // @Produce json
@@ -406,11 +418,13 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete license
+// @Description Deletes a license by its numeric ID and recomputes the deployment's entitlements.
+// @Description Requires permission to delete licenses, which only the Owner role has.
 // @ID delete-license
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param id path string true "License ID" format(number)
+// @Param id path string true "License ID, which is the integer `id` that `GET /api/v2/licenses` returns." format(number)
 // @Success 200
 // @Router /api/v2/licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {

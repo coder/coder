@@ -2788,6 +2788,7 @@ const docTemplate = `{
         },
         "/api/v2/appearance": {
             "get": {
+                "description": "Returns the deployment's appearance settings, which are the application name, logo URL, announcement banners, support links, and docs URL.\nAccepts either a session token or a workspace agent token.\nThe application name, logo URL, and announcement banners are empty unless the license includes the appearance feature.",
                 "produces": [
                     "application/json"
                 ],
@@ -2811,6 +2812,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.\nRequires permission to update the deployment configuration, which only the Owner role has.\nThe application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2824,7 +2826,7 @@ const docTemplate = `{
                 "operationId": "update-appearance",
                 "parameters": [
                     {
-                        "description": "Update appearance request",
+                        "description": "Appearance settings to save. Each ` + "`" + `background_color` + "`" + ` in ` + "`" + `announcement_banners` + "`" + ` must be a hex color such as ` + "`" + `#004852` + "`" + `. ` + "`" + `service_banner` + "`" + ` is deprecated, so use ` + "`" + `announcement_banners` + "`" + ` instead.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5831,6 +5833,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/premium-funnel-events": {
             "post": {
+                "description": "Records through telemetry that a user selected the call to action on a Premium paywall.\nThe dashboard calls this when a user selects a paywall button, so you don't need to call it.\nRequires permission to read licenses, which only the Owner role has, and returns ` + "`" + `404` + "`" + ` for everyone else.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5841,7 +5844,7 @@ const docTemplate = `{
                 "operationId": "report-a-premium-paywall-click",
                 "parameters": [
                     {
-                        "description": "Premium funnel event",
+                        "description": "Paywall event to record. ` + "`" + `id` + "`" + ` identifies the event, and a later trial request can pass it as ` + "`" + `attribution_id` + "`" + `. ` + "`" + `source` + "`" + ` is the feature that the paywall is for, and ` + "`" + `variant` + "`" + ` is the paywall presentation, which is ` + "`" + `premium` + "`" + `, ` + "`" + `small` + "`" + `, or ` + "`" + `ai_governance` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5959,6 +5962,7 @@ const docTemplate = `{
         },
         "/api/v2/entitlements": {
             "get": {
+                "description": "Returns the features the deployment's licenses enable, with each feature's entitlement, whether it's enabled, its limit, and its current usage.\nIt also returns license warnings and errors, whether the deployment has a license or a trial license, whether telemetry is required, and when the entitlements were last refreshed.\nThe dashboard reads it to decide which features to turn on.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -6973,6 +6977,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses": {
             "get": {
+                "description": "Returns the licenses installed on the deployment, with the claims each one asserts.\nReturns only the licenses you can read, and only the Owner role can read licenses.",
                 "produces": [
                     "application/json"
                 ],
@@ -6999,6 +7004,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Adds a license to the deployment and recomputes its entitlements.\nA deployment can hold several licenses at once, and it doesn't need a license to add the first one.\nRequires permission to create licenses, which only the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7012,7 +7018,7 @@ const docTemplate = `{
                 "operationId": "add-new-license",
                 "parameters": [
                     {
-                        "description": "Add license request",
+                        "description": "License to add. ` + "`" + `license` + "`" + ` is the license key string. The request fails with ` + "`" + `400` + "`" + ` if the key is invalid or is locked to a different deployment.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7038,6 +7044,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/refresh-entitlements": {
             "post": {
+                "description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply a license change immediately instead of waiting for the next automatic refresh.\nYou can call it once per minute, and an earlier call returns ` + "`" + `400` + "`" + ` with a ` + "`" + `Retry-After` + "`" + ` header.\nRequires permission to create licenses, which only the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -7063,6 +7070,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/trial": {
             "post": {
+                "description": "Requests a trial license from the Coder license server and installs it.\nReturns ` + "`" + `409` + "`" + ` if the deployment already has a license, so delete the existing license first.\nRequires permission to create licenses, which only the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7076,7 +7084,7 @@ const docTemplate = `{
                 "operationId": "request-a-trial-license",
                 "parameters": [
                     {
-                        "description": "Trial license request",
+                        "description": "Contact details for the trial. ` + "`" + `email` + "`" + `, ` + "`" + `first_name` + "`" + `, ` + "`" + `last_name` + "`" + `, ` + "`" + `phone_number` + "`" + `, ` + "`" + `job_title` + "`" + `, ` + "`" + `company_name` + "`" + `, ` + "`" + `country` + "`" + `, and ` + "`" + `developers` + "`" + ` are required and go to the license server. ` + "`" + `source` + "`" + ` and ` + "`" + `attribution_id` + "`" + ` are optional, are used for telemetry, and aren't sent to the license server.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7102,6 +7110,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/{id}": {
             "delete": {
+                "description": "Deletes a license by its numeric ID and recomputes the deployment's entitlements.\nRequires permission to delete licenses, which only the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -7114,7 +7123,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "number",
-                        "description": "License ID",
+                        "description": "License ID, which is the integer ` + "`" + `id` + "`" + ` that ` + "`" + `GET /api/v2/licenses` + "`" + ` returns.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -7547,6 +7556,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/templates/{notification_template}/method": {
             "put": {
+                "description": "Sets the delivery method of a notification template to ` + "`" + `smtp` + "`" + `, ` + "`" + `webhook` + "`" + `, or ` + "`" + `inbox` + "`" + `.\nReturns ` + "`" + `304` + "`" + ` if the template already uses that method.\nRequires permission to update notification templates, which only the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -7558,7 +7568,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Notification template UUID",
+                        "description": "Notification template ID.",
                         "name": "notification_template",
                         "in": "path",
                         "required": true
