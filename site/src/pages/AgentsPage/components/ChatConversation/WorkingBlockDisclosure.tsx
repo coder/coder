@@ -1,5 +1,5 @@
-import { ListTreeIcon } from "lucide-react";
 import { Component } from "react";
+import { WorkingListIcon } from "#/components/Icons/WorkingListIcon";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
@@ -178,7 +178,10 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
-					<ListTreeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					<WorkingListIcon
+						animated={block.isLive}
+						className="size-4 shrink-0 stroke-[1.5] text-current"
+					/>
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
 					<LiveLabel block={block} />

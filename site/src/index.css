@@ -132,6 +132,32 @@
 		}
 	}
 
+	@keyframes working-line {
+		0%,
+		10% {
+			transform: translate(0, 12px) scaleX(0);
+			opacity: 1;
+		}
+		20%,
+		25% {
+			transform: translate(0, 12px) scaleX(1);
+		}
+		35%,
+		50% {
+			transform: translate(0, 6px) scaleX(1);
+		}
+		60%,
+		75% {
+			transform: translate(-5px, 0) scaleX(1.625);
+			opacity: 1;
+		}
+		85%,
+		100% {
+			transform: translate(-5px, -6px) scaleX(1.625);
+			opacity: 0;
+		}
+	}
+
 	/* Matches MUI LinearProgress bar1/bar2 indeterminate keyframes; two
 		staggered bars are required so one is visible while the other resets. */
 	@keyframes bar-indeterminate {
@@ -175,6 +201,7 @@
 		calc(var(--spinner-leaf-count) * 0.1s) ease-in-out
 		calc(var(--spinner-leaf-index) * -0.1s) infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-working-line: working-line 3.6s ease-in-out infinite;
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
 	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
