@@ -212,7 +212,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				<DropdownMenuSub>
 					<DropdownMenuSubTrigger>
 						<div className="flex items-center justify-between gap-2 flex-1">
-							<span>Group by</span>
+							<span>Grouped by</span>
 							<span className="text-content-primary">
 								{GROUP_OPTIONS.find((o) => o.value === filters.groupBy)?.label}
 							</span>
