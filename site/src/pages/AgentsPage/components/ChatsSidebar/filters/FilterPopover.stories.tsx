@@ -89,3 +89,12 @@ export const PrStatusSubmenu: Story = {
 		);
 	},
 };
+
+export const OneModifiedFilter: Story = {
+	args: {
+		filters: { ...DEFAULT_AGENT_SIDEBAR_FILTERS, unread: true },
+	},
+	play: async ({ canvasElement }) => {
+		await openFilterMenu(canvasElement);
+	},
+};

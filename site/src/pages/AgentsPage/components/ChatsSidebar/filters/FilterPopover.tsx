@@ -1,16 +1,10 @@
+import { cn } from "cn";
 import {
 	CalendarIcon,
-	CircleOffIcon,
 	DotIcon,
 	FilterIcon,
-	GitMergeIcon,
-	GitPullRequestClosedIcon,
-	GitPullRequestDraftIcon,
-	GitPullRequestIcon,
 	type LucideIcon,
 	MessagesSquareIcon,
-	UserIcon,
-	UsersIcon,
 } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import {
@@ -62,40 +56,14 @@ const SOURCE_LABELS: Record<AgentSourceFilter, string> = {
 	shared_with_me: "Shared with me",
 };
 
-const PR_STATUS_ICONS: Record<AgentPRStatusFilter, LucideIcon> = {
-	draft: GitPullRequestDraftIcon,
-	open: GitPullRequestIcon,
-	merged: GitMergeIcon,
-	closed: GitPullRequestClosedIcon,
-	none: CircleOffIcon,
-};
+const CHAT_STATUS_OPTIONS = AGENT_CHAT_STATUS_ORDER.map((status) => ({
+	value: status,
+	label: getChatStatusDisplay(status).label,
+}));
 
-const SOURCE_ICONS: Record<AgentSourceFilter, LucideIcon> = {
-	created_by_me: UserIcon,
-	shared_with_me: UsersIcon,
-};
-
-const CHAT_STATUS_OPTIONS: readonly Readonly<{
-	value: AgentChatStatusFilter;
-	label: string;
-	icon: LucideIcon;
-}>[] = AGENT_CHAT_STATUS_ORDER.map((status) => {
-	const display = getChatStatusDisplay(status);
-	return {
-		value: status,
-		label: display.label,
-		icon: display.icon,
-	};
-});
-
-const SOURCE_OPTIONS: readonly Readonly<{
-	value: AgentSourceFilter;
-	label: string;
-	icon: LucideIcon;
-}>[] = AGENT_SOURCE_ORDER.map((source) => ({
+const SOURCE_OPTIONS = AGENT_SOURCE_ORDER.map((source) => ({
 	value: source,
 	label: SOURCE_LABELS[source],
-	icon: SOURCE_ICONS[source],
 }));
 
 type FilterPopoverProps = {
@@ -112,23 +80,24 @@ const haveSameSelections = <T extends string>(
 	);
 };
 
-const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
-	return (
-		filters.archiveStatus !== DEFAULT_AGENT_SIDEBAR_FILTERS.archiveStatus ||
-		filters.prStatuses.length > 0 ||
-		!haveSameSelections(
-			filters.chatStatuses,
-			DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
-		) ||
-		filters.unread ||
-		!haveSameSelections(filters.sources, DEFAULT_AGENT_SIDEBAR_FILTERS.sources)
-	);
-};
-
 // Selecting a value would otherwise dismiss the menu before the next toggle.
 const keepMenuOpen = (event: Event) => {
 	event.preventDefault();
 };
+
+const FilterSubmenuCheckboxItem: React.FC<
+	React.ComponentProps<typeof DropdownMenuCheckboxItem>
+> = ({ className, ...props }) => (
+	<DropdownMenuCheckboxItem
+		className={cn(
+			"pl-9 pr-2 [&>span]:left-2 [&>span]:right-auto [&>span]:size-[18px] [&>span]:rounded-xs [&>span]:border [&>span]:border-solid [&>span]:border-border-control [&>span]:bg-surface-primary",
+			"data-[state=checked]:[&>span]:border-surface-invert-primary data-[state=checked]:[&>span]:bg-surface-invert-primary data-[state=checked]:[&>span]:text-content-invert",
+			"[&>span_svg]:stroke-[2.5]",
+			className,
+		)}
+		{...props}
+	/>
+);
 
 const FilterSubmenu: React.FC<{
 	readonly label: string;
@@ -225,7 +194,13 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 		filters.sources,
 		DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 	);
-	const filtersActive = hasActiveFilters(filters);
+	const modifiedFilterCount = [
+		prSummary,
+		chatSummary,
+		sourceSummary,
+		filters.unread,
+		filters.archiveStatus !== DEFAULT_AGENT_SIDEBAR_FILTERS.archiveStatus,
+	].filter(Boolean).length;
 
 	return (
 		<DropdownMenu>
@@ -244,7 +219,9 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 					<DropdownMenuSubTrigger>
 						<div className="flex items-center justify-between gap-2 flex-1">
 							<span>Group by</span>
-							<span className="text-content-primary">{GROUP_OPTIONS.find((o) => o.value === filters.groupBy)?.label}</span>
+							<span className="text-content-primary">
+								{GROUP_OPTIONS.find((o) => o.value === filters.groupBy)?.label}
+							</span>
 						</div>
 					</DropdownMenuSubTrigger>
 					<DropdownMenuSubContent>
@@ -273,9 +250,12 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				<DropdownMenuSeparator />
 
 				<DropdownMenuLabel className="flex items-center justify-between gap-2 pr-1">
-					<span>Filters</span>
+					<span>
+						{modifiedFilterCount === 1 ? "Filter" : "Filters"}
+						{modifiedFilterCount > 0 && ` (${modifiedFilterCount})`}
+					</span>
 					<DropdownMenuItem
-						disabled={!filtersActive}
+						disabled={modifiedFilterCount === 0}
 						onSelect={(event) => {
 							keepMenuOpen(event);
 							onFiltersChange({
@@ -289,60 +269,48 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 					</DropdownMenuItem>
 				</DropdownMenuLabel>
 				<FilterSubmenu label="PR" summary={prSummary}>
-					{AGENT_PR_STATUS_ORDER.map((status) => {
-						const Icon = PR_STATUS_ICONS[status];
-						return (
-							<DropdownMenuCheckboxItem
-								key={status}
-								checked={filters.prStatuses.includes(status)}
-								onCheckedChange={(checked) =>
-									setPRStatus(status, checked === true)
-								}
-								onSelect={keepMenuOpen}
-							>
-								<Icon />
-								{PR_STATUS_LABELS[status]}
-							</DropdownMenuCheckboxItem>
-						);
-					})}
+					{AGENT_PR_STATUS_ORDER.map((status) => (
+						<FilterSubmenuCheckboxItem
+							key={status}
+							checked={filters.prStatuses.includes(status)}
+							onCheckedChange={(checked) =>
+								setPRStatus(status, checked === true)
+							}
+							onSelect={keepMenuOpen}
+						>
+							{PR_STATUS_LABELS[status]}
+						</FilterSubmenuCheckboxItem>
+					))}
 				</FilterSubmenu>
 
 				<FilterSubmenu label="Status" summary={chatSummary}>
-					{CHAT_STATUS_OPTIONS.map((option) => {
-						const Icon = option.icon;
-						return (
-							<DropdownMenuCheckboxItem
-								key={option.value}
-								checked={filters.chatStatuses.includes(option.value)}
-								onCheckedChange={(checked) =>
-									setChatStatus(option.value, checked === true)
-								}
-								onSelect={keepMenuOpen}
-							>
-								<Icon />
-								{option.label}
-							</DropdownMenuCheckboxItem>
-						);
-					})}
+					{CHAT_STATUS_OPTIONS.map((option) => (
+						<FilterSubmenuCheckboxItem
+							key={option.value}
+							checked={filters.chatStatuses.includes(option.value)}
+							onCheckedChange={(checked) =>
+								setChatStatus(option.value, checked === true)
+							}
+							onSelect={keepMenuOpen}
+						>
+							{option.label}
+						</FilterSubmenuCheckboxItem>
+					))}
 				</FilterSubmenu>
 
 				<FilterSubmenu label="Source" summary={sourceSummary}>
-					{SOURCE_OPTIONS.map((option) => {
-						const Icon = option.icon;
-						return (
-							<DropdownMenuCheckboxItem
-								key={option.value}
-								checked={filters.sources.includes(option.value)}
-								onCheckedChange={(checked) =>
-									setSource(option.value, checked === true)
-								}
-								onSelect={keepMenuOpen}
-							>
-								<Icon />
-								{option.label}
-							</DropdownMenuCheckboxItem>
-						);
-					})}
+					{SOURCE_OPTIONS.map((option) => (
+						<FilterSubmenuCheckboxItem
+							key={option.value}
+							checked={filters.sources.includes(option.value)}
+							onCheckedChange={(checked) =>
+								setSource(option.value, checked === true)
+							}
+							onSelect={keepMenuOpen}
+						>
+							{option.label}
+						</FilterSubmenuCheckboxItem>
+					))}
 				</FilterSubmenu>
 
 				<DropdownMenuCheckboxItem
