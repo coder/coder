@@ -108,7 +108,7 @@ The same control is available outside the dashboard.
 Use `coder templates create --agents-allowed=false` or `coder templates edit --agents-allowed=false <template>` for a single template.
 Use the search filter `agents-allowed:false` on `GET /api/v2/templates` to list the templates that block agents.
 
-Check out [Template Optimization](./template-optimization.md) for best practices on writing discoverable descriptions, restricting template visibility, configuring network boundaries, scoping credentials, and designing template parameters for agent use.
+Refer to [Template Optimization](./template-optimization.md) for best practices on writing discoverable descriptions, restricting template visibility, configuring network boundaries, scoping credentials, and designing template parameters for agent use.
 
 ### MCP servers
 
@@ -197,7 +197,6 @@ Once enabled, runtime configuration for those features is available under **Admi
 
 See the following pages for experiment-gated features:
 
-- [Advisor](./advisor.md) (`--experiments=chat-advisor`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
 

@@ -11,15 +11,17 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, etc.).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
-The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.
+The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide.
+Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.
 
 ## Why a hidden directory
 
 The leading dot mirrors the `.github/`, `.vscode/`, and `.claude/` convention already used in this repo for tooling-internal directories.
-The structural Markdown linters and Vale still pick it up (except the style guide's own prose under `style-guide/`, which is exempt); coder.com's docs site does not.
+The structural Markdown linters and Vale still pick it up (except the style guide's own prose under `style-guide/`, which is exempt).
+Coder.com's docs site does not.
 Refer to "What does not run against this directory" below for that exemption.
 
 ## How exclusion from coder.com works
@@ -62,12 +64,29 @@ Two defense-in-depth changes in `.github/workflows/deploy-docs.yaml` keep the de
 ## Edit the content guidelines
 
 Open a PR against `docs/.style/content-guidelines.md`.
-The rules in that file apply to humans and AI-assisted workflows alike; when it conflicts with another style or contributing doc in the repo, it governs.
+The rules in that file apply to humans and AI-assisted workflows alike.
+When it conflicts with another style or contributing doc in the repo, it governs.
 
 ## Edit the style guide
 
 Open a PR against the appropriate subpage of `docs/.style/style-guide/`.
 Follow-up PRs add each rule and the matching style-guide section together.
+
+## Reviewer personas in front matter
+
+The `doc-check` skill reviews docs changes through several personas, each focused on one kind of problem, such as accuracy or word choice.
+Each rule page lists the personas that apply its rules in a `review-personas` front matter field:
+
+```yaml
+---
+review-personas: [language, consistency, accuracy]
+---
+```
+
+The skill finds a persona's rules by reading this field, not by file path, so pages can move or split without breaking the review.
+When you add a rule page, add the field.
+When you move a rule to a different page, check that the new page lists every persona that applied it.
+The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
 
 ## Add a Vale rule
 
@@ -76,9 +95,13 @@ A `suggestion` rule can ship with existing findings, as the severity notes below
 The PR that adds a rule is the rule's complete unit:
 
 1. **Cleanup commit**: fix every existing-content violation of the new rule so `make lint/prose` reports zero findings for it.
+
    The cleanup ships in the same PR as the enable, ordered first.
    For a `suggestion` rule, the cleanup is optional.
-2. **Enable commit**: add the rule to `.vale.ini` at its chosen severity, write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/` if applicable.
+2. **Enable commit**: enable the rule in `.vale.ini`, document it in the style guide, and add its YAML if applicable.
+
+   Set the rule's chosen severity in `.vale.ini`.
+   Write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/`.
    The rule's `message:` field points at the relevant style-guide subpage anchor.
    Update the coverage tables on [`style-guide/README.md`](style-guide/README.md) in the same commit.
    `make lint/style-claims` fails when a rule lands without its section, when the tables disagree with `.vale.ini`, or when an annotation claims enforcement that doesn't exist.
@@ -94,7 +117,8 @@ Severity is a deliberate per-rule choice:
   Use for soft guidance where the right fix is contextual: noun-as-adjective patterns like `desired state`, wordiness, optional sentence reshaping.
 
 The severity choice and the cleanup discipline are independent, with one exception.
-A rule landing at `warning` or `error` ships with zero baseline findings; the rule's purpose is to catch new violations, not to surface a backlog of existing ones.
+A rule landing at `warning` or `error` ships with zero baseline findings.
+The rule's purpose is to catch new violations, not to surface a backlog of existing ones.
 A rule that surfaces a standing backlog at those severities teaches contributors to ignore the annotation channel, which erodes trust in CI regardless of the severity at which the noise arrives.
 
 A rule at `suggestion` severity can land while existing findings remain.

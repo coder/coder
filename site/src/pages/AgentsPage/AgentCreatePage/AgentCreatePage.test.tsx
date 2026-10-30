@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { onlineManager } from "react-query";
+import { onlineManager, QueryClient } from "react-query";
 import {
 	afterEach,
 	beforeAll,
@@ -12,6 +12,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -234,7 +235,6 @@ afterEach(() => {
 
 describe("AgentCreatePage project assignment", () => {
 	it("passes the route's project to the composer once it loads", async () => {
-		enableExperiments("chat-projects");
 		serveProjects({
 			...MockChatProject,
 			organization_id: MockOrganization2.id,
@@ -252,7 +252,6 @@ describe("AgentCreatePage project assignment", () => {
 
 	it("creates the chat in the route's project", async () => {
 		realForm.enabled = true;
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		const { createChat } = mockPageQueries();
 		const user = userEvent.setup();
@@ -271,9 +270,31 @@ describe("AgentCreatePage project assignment", () => {
 		});
 	});
 
+	it("refreshes the project's skills when creating a chat fails", async () => {
+		serveProjects(MockChatProject);
+		const { createChat } = mockPageQueries();
+		createChat.mockRejectedValue(
+			new Error("Skill project/triage is not available."),
+		);
+		const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+
+		renderAgentsRoutes();
+		await screen.findByRole("button", { name: "Create chat" });
+		await expect(
+			formProps.onCreateChat?.({
+				message: "Run triage",
+				organizationId: MockChatProject.organization_id,
+				projectId: MockChatProject.id,
+			}),
+		).rejects.toThrow();
+
+		expect(invalidate).toHaveBeenCalledWith({
+			queryKey: chatProjectSkillsKey(MockChatProject.id),
+		});
+	});
+
 	it("omits the project ID on the plain new-chat route", async () => {
 		realForm.enabled = true;
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		const { createChat } = mockPageQueries();
 		const user = userEvent.setup();
@@ -291,7 +312,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("retries a failed project lookup before offering the composer", async () => {
-		enableExperiments("chat-projects");
 		let lookupCount = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
@@ -313,7 +333,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("keeps a loaded project usable when a background refetch fails", async () => {
-		enableExperiments("chat-projects");
 		let lookupCount = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
@@ -342,7 +361,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("shows a not-found message when the project is missing", async () => {
-		enableExperiments("chat-projects");
 		serveProjects();
 		const user = userEvent.setup();
 
@@ -357,7 +375,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("waits for the refetch before treating a cached list as final", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router, queryClient } = renderAgentsRoutes("/agents");
@@ -374,7 +391,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("keeps loading while the refetch of a cached list is paused offline", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router, queryClient } = renderAgentsRoutes("/agents");
@@ -396,7 +412,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("shows the plain composer on /agents after a project list is cached", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router } = renderAgentsRoutes();
@@ -408,7 +423,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("offers a retry when refreshing a stale list fails", async () => {
-		enableExperiments("chat-projects");
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json({ message: "List failed" }, { status: 500 }),
@@ -448,19 +462,11 @@ describe("AgentCreatePage project assignment", () => {
 		await user.click(screen.getByRole("button", { name: /Retry/ }));
 		expect(getChatProjects).toHaveBeenCalledTimes(2);
 	});
-
-	it("redirects to the new chat page when chat projects are disabled", async () => {
-		const { router } = renderAgentsRoutes();
-
-		await waitFor(() => {
-			expect(router.state.location.pathname).toBe("/agents");
-		});
-	});
 });
 
 describe("AgentCreatePage project frame", () => {
 	it("keeps the project route and organization after the debug prefill loads", async () => {
-		enableExperiments("chat-projects", "enable-ai-workspace-debug");
+		enableExperiments("enable-ai-workspace-debug");
 		serveProjects(MockChatProject);
 		const logs = Promise.withResolvers<TypesGen.ProvisionerJobLog[]>();
 		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
@@ -489,7 +495,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("prefills the project composer from a prompt link", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		renderAgentsRoutes(`${projectPath(MockChatProject.id)}?prompt=hi`);
@@ -502,7 +507,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("shows a create error only under the project it was attempted for", async () => {
-		enableExperiments("chat-projects");
 		const projectB = { ...MockChatProject, id: "project-b", name: "Beta" };
 		serveProjects(MockChatProject, projectB);
 		server.use(
@@ -524,7 +528,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("keeps the edit target aligned after browser history navigation", async () => {
-		enableExperiments("chat-projects");
 		const projectA = {
 			...MockChatProject,
 			id: "project-a",
@@ -572,7 +575,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("edits the project from the actions menu and shows the saved name", async () => {
-		enableExperiments("chat-projects");
 		let project = MockChatProject;
 		let requestBody: unknown;
 		server.use(
@@ -622,7 +624,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("clears a failed save when the edit dialog is reopened", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		server.use(
 			http.patch(
@@ -650,7 +651,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("deletes the project, clears its drafts, and returns to /agents with the sidebar filters", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		let deletedProjectId: string | undefined;
 		server.use(
@@ -695,7 +695,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("looks up the owner of a project owned by someone else", async () => {
-		enableExperiments("chat-projects");
 		serveProjects({ ...MockChatProject, owner_id: MockUserMember.id });
 		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 
@@ -707,7 +706,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("does not look up the owner of the user's own project", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		const getUser = vi.spyOn(API, "getUser");
 

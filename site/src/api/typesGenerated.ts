@@ -25,6 +25,11 @@ export interface AIBridgeAgenticAction {
 	 */
 	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * PricedModel is the model and prices used for this interception. Nil
+	 * when it was not priced.
+	 */
+	readonly priced_model?: AIBridgePricedModel;
 	readonly thinking: readonly AIBridgeModelThought[];
 	readonly tool_calls: readonly AIBridgeToolCall[];
 }
@@ -99,6 +104,25 @@ export interface AIBridgeListSessionsResponse {
  */
 export interface AIBridgeModelThought {
 	readonly text: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgePricedModel is the model and per-token prices used to compute the
+ * cost of an interception. Prices are integer micro-units per million
+ * tokens, so 1000000 is $1.00 per million tokens. A nil price means the
+ * price is not known and was treated as zero.
+ */
+export interface AIBridgePricedModel {
+	/**
+	 * Model is the priced model, either the requested model or the model
+	 * reported by the provider.
+	 */
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
 }
 
 // From codersdk/aibridge.go
@@ -231,6 +255,16 @@ export interface AIBridgeSessionThreadsTokenUsage {
 	readonly cache_write_input_tokens: number;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
+	/**
+	 * CostMicros is the summed cost of the priced usage, in micro-units
+	 * (1000000 is $1.00).
+	 */
+	readonly cost_micros: number;
+	/**
+	 * HasUnpricedUsage reports that some usage has no cost, so CostMicros
+	 * is a lower bound.
+	 */
+	readonly has_unpriced_usage: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -256,6 +290,13 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * PricedModel is the model and prices used for the root interception
+	 * (the prompt). Other requests in the thread may use different models
+	 * and prices, see agentic_actions[].priced_model. Nil when the root
+	 * interception was not priced.
+	 */
+	readonly priced_model?: AIBridgePricedModel;
 	/**
 	 * Attribution contains attribution data from the root interception.
 	 * Unknown attribution is serialized as an empty object.
@@ -1276,20 +1317,16 @@ export const Addons: Addon[] = ["ai_governance"];
 // From codersdk/chats.go
 /**
  * AdvisorConfig is the deployment-wide runtime configuration for the
- * experimental chat advisor.
- *
- * EXPERIMENTAL: this type is experimental and is subject to change.
+ * chat advisor.
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
+	 * Enabled is always true and cannot be changed.
 	 */
 	readonly enabled: boolean;
 	/**
 	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
+	 * chat turn. 0 means unlimited.
 	 */
 	readonly max_uses_per_run: number;
 	/**
@@ -1672,7 +1709,7 @@ export interface AppHostResponse {
 
 // From codersdk/appname.go
 /**
- * AppNameOverflow sums the app names past the per-report cap.
+ * AppNameOverflow sums the unregistered app names past the limit of 64.
  */
 export const AppNameOverflow = "overflow";
 
@@ -2168,6 +2205,56 @@ export interface ChatACL {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatACPTranscriptMessage is a workspace-local ACP message returned by
+ * acp_wait_agent without database message metadata.
+ */
+export interface ChatACPTranscriptMessage {
+	readonly role: ChatMessageRole;
+	readonly content: readonly ChatMessagePart[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatAttachment is a file part of a chat message, returned by
+ * GET /api/v2/chats/{chat}/attachments.
+ */
+export interface ChatAttachment {
+	readonly message_id: number;
+	/**
+	 * PartIndex is the file part's position in the message content the
+	 * messages endpoint returns.
+	 */
+	readonly part_index: number;
+	readonly role: ChatAttachmentRole;
+	readonly file: ChatAttachmentFile;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatAttachmentFile holds the fields of a file part, the only part type
+ * the attachments endpoint returns.
+ */
+export interface ChatAttachmentFile {
+	readonly type: ChatAttachmentFileType;
+	readonly media_type: string;
+	readonly name?: string;
+	/**
+	 * Data holds an inline file's bytes, which JSON carries as a base64 string.
+	 */
+	readonly data?: string;
+	/**
+	 * Omitted, not null, for an inline file.
+	 */
+	readonly file_id?: string;
+}
+
+// From codersdk/chats.go
+export type ChatAttachmentFileType = "file";
+
+export const ChatAttachmentFileTypes: ChatAttachmentFileType[] = ["file"];
+
+// From codersdk/chats.go
 export type ChatAttachmentMediaType =
 	| "application/json"
 	| "application/pdf"
@@ -2192,6 +2279,21 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
 	"text/markdown",
 	"text/plain",
 ];
+
+// From codersdk/chats.go
+export type ChatAttachmentRole = "assistant" | "user";
+
+export const ChatAttachmentRoles: ChatAttachmentRole[] = ["assistant", "user"];
+
+// From codersdk/chats.go
+/**
+ * ChatAttachmentsResponse is the payload of
+ * GET /api/v2/chats/{chat}/attachments. Attachments are returned newest
+ * first.
+ */
+export interface ChatAttachmentsResponse {
+	readonly attachments: readonly ChatAttachment[];
+}
 
 // From codersdk/chats.go
 /**
@@ -2221,15 +2323,6 @@ export const ChatCompactionThresholdKeyPrefix =
 
 // From codersdk/chats.go
 export type ChatComputerUseProvider = "anthropic" | "openai";
-
-// From codersdk/chats.go
-/**
- * ChatComputerUseProviderResponse is the response for getting the computer use
- * provider setting.
- */
-export interface ChatComputerUseProviderResponse {
-	readonly provider: ChatComputerUseProvider;
-}
 
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 	"anthropic",
@@ -2737,31 +2830,12 @@ export interface ChatFileReferencePart {
 
 // From codersdk/chats.go
 /**
- * ChatGitChange represents a git file change detected during a chat session.
- */
-export interface ChatGitChange {
-	readonly id: string;
-	readonly chat_id: string;
-	readonly file_path: string;
-	readonly change_type: string; // added, modified, deleted, renamed
-	readonly old_path?: string;
-	readonly diff_summary?: string;
-	readonly detected_at: string;
-}
-
-// From codersdk/chats.go
-/**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  * ChatGitWatchAgentStatePrefix is the common prefix of the
- * message produced by ChatGitWatchAgentStateMessage. The CLI
- * uses it as a mechanical fingerprint for the "agent not yet
- * connected" case without depending on the formatted values.
+ * message produced by ChatGitWatchAgentStateMessage.
  */
 export const ChatGitWatchAgentStatePrefix = "Agent state is ";
 
@@ -2770,10 +2844,7 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  */
 export const ChatGitWatchNoEligibleAgentMessage =
 	"No eligible agent found for chat workspace.";
@@ -2783,10 +2854,7 @@ export const ChatGitWatchNoEligibleAgentMessage =
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  */
 export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 
@@ -2795,10 +2863,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  */
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
 
@@ -3248,6 +3313,7 @@ export interface ChatModelOpenRouterProviderOptions {
 export type ChatModelOverrideContext =
 	| "advisor"
 	| "compaction"
+	| "computer_use"
 	| "explore"
 	| "general"
 	| "title_generation";
@@ -3255,6 +3321,7 @@ export type ChatModelOverrideContext =
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 	"advisor",
 	"compaction",
+	"computer_use",
 	"explore",
 	"general",
 	"title_generation",
@@ -3725,6 +3792,7 @@ export const ChatSkillSources: ChatSkillSource[] = [
 export interface ChatSourcePart {
 	readonly type: "source";
 	readonly url: string;
+	readonly tool_call_id?: string;
 	readonly source_id?: string;
 	readonly title?: string;
 }
@@ -4160,6 +4228,10 @@ export interface ConnectionLogResponse {
 export interface ConnectionLogSSHInfo {
 	readonly connection_id: string;
 	/**
+	 * ClientSessionID is set by the client and isn't guaranteed to be unique.
+	 */
+	readonly client_session_id?: string;
+	/**
 	 * DisconnectTime is omitted if a disconnect event with the same connection ID
 	 * has not yet been seen.
 	 */
@@ -4540,6 +4612,15 @@ export interface CreateSkillRequest {
 	 * followed by a non-empty body.
 	 */
 	readonly content: string;
+	/**
+	 * Action is only accepted for project skills and defaults to false.
+	 */
+	readonly action?: boolean;
+	/**
+	 * ModelInvocable defaults to false when the content's frontmatter sets
+	 * disable-model-invocation: true, and to true otherwise.
+	 */
+	readonly model_invocable?: boolean;
 }
 
 // From codersdk/organizations.go
@@ -4781,7 +4862,8 @@ export interface CreateUserRequest {
 	 */
 	readonly login_type: LoginType;
 	/**
-	 * UserStatus defaults to UserStatusDormant.
+	 * UserStatus defaults to UserStatusDormant. Service accounts default to
+	 * UserStatusActive and can't be dormant.
 	 */
 	readonly user_status: UserStatus | null;
 	/**
@@ -5614,15 +5696,13 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-acp-subagents"
-	| "chat-advisor"
 	| "chat-inline-mcp-servers"
-	| "chat-projects"
+	| "chat-project-sharing"
 	| "chat-stage-metrics"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
-	| "mcp-tool-search"
 	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
@@ -5695,15 +5775,13 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-acp-subagents",
-	"chat-advisor",
 	"chat-inline-mcp-servers",
-	"chat-projects",
+	"chat-project-sharing",
 	"chat-stage-metrics",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
-	"mcp-tool-search",
 	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",
@@ -7930,7 +8008,8 @@ export interface OrganizationAISpendUser {
 	 */
 	readonly unpriced_usage_count: number;
 	/**
-	 * Providers are the provider types the user spent through, sorted.
+	 * Providers are the configured provider names the user spent through,
+	 * sorted.
 	 */
 	readonly providers: readonly string[];
 	/**
@@ -8073,9 +8152,45 @@ export interface OrganizationSkillGroup extends Group {
 }
 
 // From codersdk/skills.go
+/**
+ * OrganizationSkillPreferences is an organization member's choices about the
+ * organization skills that load into their chats. The choices apply only
+ * while MembersCanDisableSkills is true.
+ */
+export interface OrganizationSkillPreferences {
+	/**
+	 * MembersCanDisableSkills is the organization's setting.
+	 */
+	readonly members_can_disable_skills: boolean;
+	/**
+	 * AllSkillsDisabled turns off every organization skill, including
+	 * skills added later. DisabledSkillIDs is kept and applies again when it
+	 * is false.
+	 */
+	readonly all_skills_disabled: boolean;
+	/**
+	 * DisabledSkillIDs lists the organization skills the member turned off.
+	 */
+	readonly disabled_skill_ids: readonly string[];
+}
+
+// From codersdk/skills.go
 export type OrganizationSkillRole = "" | "read";
 
 export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillSettings is an organization's member opt-out setting for
+ * organization skills.
+ */
+export interface OrganizationSkillSettings {
+	/**
+	 * MembersCanDisableSkills lets each organization member turn off
+	 * organization skills for their own chats.
+	 */
+	readonly members_can_disable_skills: boolean;
+}
 
 // From codersdk/skills.go
 /**
@@ -9784,6 +9899,18 @@ export interface SkillMetadata {
 	readonly name: string;
 	readonly description: string;
 	readonly enabled: boolean;
+	/**
+	 * Action reports whether a project skill is offered as a one-click
+	 * action above project composers. It is always false for personal and
+	 * organization skills.
+	 */
+	readonly action: boolean;
+	/**
+	 * ModelInvocable reports whether agents can discover and load the skill
+	 * on their own. Users can still invoke a skill explicitly when it is
+	 * false.
+	 */
+	readonly model_invocable: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -10699,14 +10826,6 @@ export interface UpdateActiveTemplateVersion {
 export interface UpdateAdvisorConfigRequest {
 	readonly max_uses_per_run: number;
 	readonly max_output_tokens: number;
-	/**
-	 * @deprecated moved to the organization model override endpoint.
-	 */
-	readonly model_config_id?: string;
-	/**
-	 * @deprecated moved to the organization model override endpoint.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/deployment.go
@@ -10734,15 +10853,6 @@ export interface UpdateChatACL {
  */
 export interface UpdateChatAutoArchiveDaysRequest {
 	readonly auto_archive_days: number;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatComputerUseProviderRequest is the request to update the computer use
- * provider setting.
- */
-export interface UpdateChatComputerUseProviderRequest {
-	readonly provider: ChatComputerUseProvider;
 }
 
 // From codersdk/chats.go
@@ -11066,6 +11176,30 @@ export interface UpdateOrganizationSkillACLRequest {
 	readonly group_roles?: Record<string, OrganizationSkillRole>;
 }
 
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillPreferencesRequest is a sparse update of an
+ * organization member's organization skill choices. At least one field must
+ * be set, and only the listed skills change.
+ */
+export interface UpdateOrganizationSkillPreferencesRequest {
+	readonly all_skills_disabled?: boolean;
+	/**
+	 * Skills maps an organization skill ID to whether the skill is enabled
+	 * for the member's chats.
+	 */
+	readonly skills?: Record<string, boolean>;
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillSettingsRequest is the payload for updating an
+ * organization's member opt-out setting for organization skills.
+ */
+export interface UpdateOrganizationSkillSettingsRequest {
+	readonly members_can_disable_skills: boolean;
+}
+
 // From codersdk/users.go
 export interface UpdateRoles {
 	readonly roles: readonly string[];
@@ -11084,6 +11218,11 @@ export interface UpdateSkillRequest {
 	 */
 	readonly content?: string;
 	readonly enabled?: boolean;
+	/**
+	 * Action is only accepted for project skills.
+	 */
+	readonly action?: boolean;
+	readonly model_invocable?: boolean;
 }
 
 // From codersdk/templates.go

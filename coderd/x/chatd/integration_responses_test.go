@@ -26,9 +26,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// TestOpenAIResponsesNoStaleWebSearchReplay checks that a follow-up after
+// an unstored turn sends no web search ID or item_reference, which
+// OpenAI cannot resolve, and sends the search inline instead.
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
 
+	// Both cases, including the stored destination, send the search
+	// inline right after the reasoning item.
+	const wantSearchReplay = `{"type":"web_search_call","status":"completed","action":{"type":"search","query":"coder changelog"}}`
 	for _, tc := range []struct {
 		name             string
 		destinationStore bool
@@ -123,9 +129,12 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 			require.Equal(t, tc.destinationStore, *followup.Store)
 			require.NotEmpty(t, followup.Prompt)
 			requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
-			require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
-			requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
+			reasoningIndex := requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
 				tc.summary)
+			require.Greater(t, len(followup.Prompt), reasoningIndex+1, "no item after the reasoning item")
+			replayed, err := json.Marshal(followup.Prompt[reasoningIndex+1])
+			require.NoError(t, err)
+			require.JSONEq(t, wantSearchReplay, string(replayed))
 		})
 	}
 }
@@ -754,6 +763,8 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	require.True(t, *followup.Store)
 	require.NotEmpty(t, followup.Prompt)
 	requirePromptItemReferenceOrder(t, followup.Prompt, reasoningID, webSearchID)
+	// The referenced search must not also be sent inline.
+	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
 }
 
 func TestOpenAIResponsesNarrationKeepsPhase(t *testing.T) {
@@ -949,6 +960,8 @@ func promptItemTypes(prompt []interface{}) []string {
 		}
 		if itemType := chattest.StringResponseField(itemMap, "type"); itemType != "" {
 			types = append(types, itemType)
+		} else if chattest.ResponsesItemReferenceID(itemMap) != "" {
+			types = append(types, "item_reference")
 		}
 	}
 	return types
@@ -977,14 +990,11 @@ func assertNoResponsesProviderItemReplay(
 	t.Helper()
 	switch typed := value.(type) {
 	case map[string]interface{}:
+		if id := chattest.ResponsesItemReferenceID(typed); id != "" {
+			require.FailNowf(t, "prompt replayed provider item reference", "id %q", id)
+		}
 		for key, raw := range typed {
 			if text, ok := raw.(string); ok {
-				if key == "type" && text == "web_search_call" {
-					require.FailNow(t, "prompt replayed web_search_call provider item")
-				}
-				if key == "type" && text == "item_reference" {
-					require.FailNow(t, "prompt replayed provider item reference")
-				}
 				if key == "id" || key == "call_id" || key == "item_id" {
 					if _, isStale := staleIDs[text]; isStale {
 						require.FailNowf(t, "prompt replayed stale provider item ID",

@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -50,6 +51,7 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -424,7 +426,8 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 
 	// workspaceAttribution is lookup-free: it parses the workspace UUID from the
 	// strict server-minted token name and validates the embedded owner against
-	// key.UserID without touching the database.
+	// key.UserID without touching the database. Only an attributed workspace
+	// is looked up, to resolve its organization.
 	tests := []struct {
 		name      string
 		configure func(key *database.APIKey, user database.User, workspaceID uuid.UUID)
@@ -491,7 +494,12 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 
 			db.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil)
 			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
-			// No GetWorkspaceByID: attribution is lookup-free.
+			// Unattributed requests make no workspace or organization lookups.
+			orgID := uuid.New()
+			if tt.wantWsID {
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
+				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return([]database.Organization{{ID: orgID}}, nil)
+			}
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store: db, AISeatTracker: agplaiseats.Noop{}, AccessURL: "/",
@@ -508,8 +516,137 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 			require.NoError(t, err)
 			if tt.wantWsID {
 				require.Equal(t, workspaceID.String(), resp.GetWorkspaceId())
+				require.Equal(t, orgID.String(), resp.GetOrganizationId())
 			} else {
 				require.Empty(t, resp.GetWorkspaceId())
+				require.Empty(t, resp.GetOrganizationId())
+			}
+		})
+	}
+}
+
+// TestAuthorization_WorkspaceOrgResolution verifies that requests made with a
+// workspace session token resolve to the workspace's organization, and are
+// rejected when the workspace or the user's membership in its organization no
+// longer exists. It runs against a real database behind dbauthz so the AI
+// Gateway subject's permissions are exercised.
+func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// configure mutates state after the workspace and its session token
+		// exist. It returns the token to authorize with.
+		configure func(t *testing.T, db database.Store, user database.User, org database.Organization, workspace database.WorkspaceTable) string
+		wantErr   error
+		wantOrg   bool
+	}{
+		{
+			name: "workspace session token resolves workspace org",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, workspace database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+				})
+				return token
+			},
+			wantOrg: true,
+		},
+		{
+			// Tokens that are not workspace session tokens have no org source
+			// yet and must keep authorizing without one.
+			name: "non-workspace token resolves no org",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, _ database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+				return token
+			},
+		},
+		{
+			name: "missing workspace",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, _ database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, uuid.New()),
+				})
+				return token
+			},
+			wantErr: aibridgedserver.ErrUnknownWorkspace,
+		},
+		{
+			name: "deleted workspace",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, workspace database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+				})
+				require.NoError(t, db.UpdateWorkspaceDeletedByID(t.Context(), database.UpdateWorkspaceDeletedByIDParams{
+					ID:      workspace.ID,
+					Deleted: true,
+				}))
+				return token
+			},
+			wantErr: aibridgedserver.ErrUnknownWorkspace,
+		},
+		{
+			name: "user no longer a member of workspace org",
+			configure: func(t *testing.T, db database.Store, user database.User, org database.Organization, workspace database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+				})
+				require.NoError(t, db.DeleteOrganizationMember(t.Context(), database.DeleteOrganizationMemberParams{
+					OrganizationID: org.ID,
+					UserID:         user.ID,
+				}))
+				return token
+			},
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+			workspace := dbfake.WorkspaceBuild(t, rawDB, database.WorkspaceTable{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+			}).Do().Workspace
+			token := tt.configure(t, rawDB, user, org, workspace)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: token})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, user.ID.String(), resp.GetOwnerId())
+			if tt.wantOrg {
+				require.Equal(t, workspace.ID.String(), resp.GetWorkspaceId())
+				require.Equal(t, org.ID.String(), resp.GetOrganizationId())
+			} else {
+				require.Empty(t, resp.GetWorkspaceId())
+				require.Empty(t, resp.GetOrganizationId())
 			}
 		})
 	}
@@ -536,9 +673,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			// No override and no group budget resolves: pass-through.
 			name: "no budget configured returns not exceeded",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
 					Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
@@ -552,9 +689,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			name: "under limit returns not exceeded",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 500}, nil)
@@ -570,9 +707,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			name: "at limit returns exceeded",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_000}, nil)
@@ -589,9 +726,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			name: "zero limit blocks all requests",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 0}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 0}, nil)
@@ -607,9 +744,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			name: "over limit returns exceeded",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_500}, nil)
@@ -626,8 +763,8 @@ func TestIsBudgetExceeded(t *testing.T) {
 			name: "user override wins over group budget",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				overrideGroupID := uuid.New()
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{
 						UserID:           userID,
 						GroupID:          overrideGroupID,
 						SpendLimitMicros: 500,
@@ -646,8 +783,8 @@ func TestIsBudgetExceeded(t *testing.T) {
 			// Unexpected error from budget override lookup propagates.
 			name: "budget resolution error propagates",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrConnDone)
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrConnDone)
 				return nil, uuid.Nil
 			},
 			wantErrContains:   "resolve effective AI budget",
@@ -657,9 +794,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			// Error from spend aggregation propagates (fail-closed).
 			name: "spend aggregation error propagates",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
-				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
-					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: uuid.New(), SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{}, sql.ErrConnDone)
@@ -1110,11 +1247,76 @@ func TestRecordInterception(t *testing.T) {
 		metadataJSON = `{"key":"value"}`
 	)
 
+	// organizationCase records an interception with the given raw organization
+	// attribution and expects the given values in the insert. Invalid pairs
+	// must be stored as NULL without failing the record.
+	organizationCase := func(name, rawOrgID, rawSource string, wantOrgID uuid.NullUUID, wantSource database.NullAIBridgeInterceptionOrganizationSource) testRecordMethodCase[*proto.RecordInterceptionRequest] {
+		return testRecordMethodCase[*proto.RecordInterceptionRequest]{
+			name: name,
+			request: &proto.RecordInterceptionRequest{
+				Id:                 uuid.NewString(),
+				ApiKeyId:           uuid.NewString(),
+				InitiatorId:        uuid.NewString(),
+				Provider:           "anthropic",
+				Model:              "claude-4-opus",
+				Metadata:           metadataProto,
+				StartedAt:          timestamppb.Now(),
+				OrganizationId:     rawOrgID,
+				OrganizationSource: rawSource,
+			},
+			setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+				interceptionID, err := uuid.Parse(req.GetId())
+				assert.NoError(t, err, "parse interception UUID")
+				initiatorID, err := uuid.Parse(req.GetInitiatorId())
+				assert.NoError(t, err, "parse interception initiator UUID")
+
+				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+					ID:                 interceptionID,
+					APIKeyID:           sql.NullString{String: req.ApiKeyId, Valid: true},
+					InitiatorID:        initiatorID,
+					Provider:           req.GetProvider(),
+					ProviderName:       req.GetProvider(),
+					Model:              req.GetModel(),
+					Metadata:           json.RawMessage(metadataJSON),
+					StartedAt:          req.StartedAt.AsTime().UTC(),
+					CredentialKind:     database.CredentialKindCentralized,
+					OrganizationID:     wantOrgID,
+					OrganizationSource: wantSource,
+				}).Return(database.AIBridgeInterception{
+					ID:                 interceptionID,
+					InitiatorID:        initiatorID,
+					OrganizationID:     wantOrgID,
+					OrganizationSource: wantSource,
+				}, nil)
+			},
+		}
+	}
+
+	orgID := uuid.New()
+	noOrgID := uuid.NullUUID{}
+	noSource := database.NullAIBridgeInterceptionOrganizationSource{}
+	sourceWorkspace := string(database.AibridgeInterceptionOrganizationSourceWorkspace)
+	var organizationCases []testRecordMethodCase[*proto.RecordInterceptionRequest]
+	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
+		organizationCases = append(organizationCases, organizationCase(
+			"organization attribution stored/"+string(source), orgID.String(), string(source),
+			uuid.NullUUID{UUID: orgID, Valid: true},
+			database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+		))
+	}
+	organizationCases = append(organizationCases,
+		organizationCase("absent organization treated as null", "", "", noOrgID, noSource),
+		organizationCase("organization without source dropped", orgID.String(), "", noOrgID, noSource),
+		organizationCase("source without organization dropped", "", sourceWorkspace, noOrgID, noSource),
+		organizationCase("invalid organization ID dropped", "not-a-uuid", sourceWorkspace, noOrgID, noSource),
+		organizationCase("unknown organization source dropped", orgID.String(), "not-a-source", noOrgID, noSource),
+	)
+
 	testRecordMethod(t,
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 			return srv.RecordInterception(ctx, req)
 		},
-		[]testRecordMethodCase[*proto.RecordInterceptionRequest]{
+		append([]testRecordMethodCase[*proto.RecordInterceptionRequest]{
 			{
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
@@ -1647,7 +1849,7 @@ func TestRecordInterception(t *testing.T) {
 					}, nil)
 				},
 			},
-		},
+		}, organizationCases...),
 	)
 }
 
@@ -1792,11 +1994,11 @@ func TestRecordTokenUsage(t *testing.T) {
 	// only provider resolution.
 	expectBudgetLookups := func(db *dbmock.MockStore, intc database.AIBridgeInterception) {
 		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intc.ID).Return(intc, nil)
-		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
-			Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-		db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).
+		db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(intc.InitiatorID)).
+			Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+		db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(intc.InitiatorID)).
 			Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
-		db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), intc.InitiatorID).Return(uuid.New(), nil)
+		db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), siteWideFallbackParams(intc.InitiatorID)).Return(uuid.New(), nil)
 	}
 
 	testRecordMethod(t,
@@ -1883,7 +2085,7 @@ func TestRecordTokenUsage(t *testing.T) {
 
 					intc := newTestInterception(interceptionID)
 					overrideGroupID := uuid.New()
-					override := &database.UserAIBudgetOverride{
+					override := &database.GetUserAIBudgetOverrideWithOrganizationRow{
 						UserID:           intc.InitiatorID,
 						GroupID:          overrideGroupID,
 						SpendLimitMicros: 1_500_000_000,
@@ -2501,11 +2703,11 @@ func TestRecordTokenUsage(t *testing.T) {
 					// the record.
 					intc := newTestInterception(interceptionID)
 					db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), interceptionID).Return(intc, nil)
-					db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
-						Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
-					db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).
+					db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(intc.InitiatorID)).
+						Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+					db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(intc.InitiatorID)).
 						Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
-					db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), intc.InitiatorID).
+					db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), siteWideFallbackParams(intc.InitiatorID)).
 						Return(uuid.New(), nil)
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
 						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeAnthropic}, nil)
@@ -3619,7 +3821,7 @@ func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
 			// spend is attributed to the same effective group, so the group lookup and
 			// notifications are identical apart from the limit_source label.
 			if tc.useOverride {
-				override := &database.UserAIBudgetOverride{GroupID: groupID, SpendLimitMicros: spendLimit}
+				override := &database.GetUserAIBudgetOverrideWithOrganizationRow{GroupID: groupID, SpendLimitMicros: spendLimit}
 				expectTokenUsageCostLookups(db, intc, override, nil, nil, price)
 			} else {
 				group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
@@ -3699,6 +3901,20 @@ func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
 	}
 }
 
+// siteWideOverrideParams, siteWideHighestParams and siteWideFallbackParams
+// build site-wide budget lookup params: the user ID and a null organization.
+func siteWideOverrideParams(userID uuid.UUID) database.GetUserAIBudgetOverrideWithOrganizationParams {
+	return database.GetUserAIBudgetOverrideWithOrganizationParams{UserID: userID, OrganizationID: uuid.NullUUID{}}
+}
+
+func siteWideHighestParams(userID uuid.UUID) database.GetHighestGroupAIBudgetByUserParams {
+	return database.GetHighestGroupAIBudgetByUserParams{UserID: userID, OrganizationID: uuid.NullUUID{}}
+}
+
+func siteWideFallbackParams(userID uuid.UUID) database.GetUserEveryoneFallbackGroupParams {
+	return database.GetUserEveryoneFallbackGroupParams{UserID: userID, OrganizationID: uuid.NullUUID{}}
+}
+
 // expectTokenUsageCostLookups mocks the store lookups made by resolveTokenUsageCost
 // (budget resolution, provider resolution, and the price lookup). A nil override, group,
 // everyoneGroupID, or price makes that lookup return sql.ErrNoRows. Budget resolution
@@ -3709,7 +3925,7 @@ func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
 func expectTokenUsageCostLookups(
 	db *dbmock.MockStore,
 	intc database.AIBridgeInterception,
-	override *database.UserAIBudgetOverride,
+	override *database.GetUserAIBudgetOverrideWithOrganizationRow,
 	group *database.GetHighestGroupAIBudgetByUserRow,
 	everyoneGroupID *uuid.UUID,
 	price *database.AIModelPrice,
@@ -3717,20 +3933,20 @@ func expectTokenUsageCostLookups(
 	db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intc.ID).Return(intc, nil)
 
 	if override != nil {
-		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).Return(*override, nil)
+		db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(intc.InitiatorID)).Return(*override, nil)
 	} else {
-		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
-			Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
+		db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(intc.InitiatorID)).
+			Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
 		if group != nil {
-			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).Return(*group, nil)
+			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(intc.InitiatorID)).Return(*group, nil)
 		} else {
-			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).
+			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(intc.InitiatorID)).
 				Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
 			if everyoneGroupID != nil {
-				db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), intc.InitiatorID).
+				db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), siteWideFallbackParams(intc.InitiatorID)).
 					Return(*everyoneGroupID, nil)
 			} else {
-				db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), intc.InitiatorID).
+				db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), siteWideFallbackParams(intc.InitiatorID)).
 					Return(uuid.Nil, sql.ErrNoRows)
 			}
 		}
@@ -4146,6 +4362,7 @@ func TestStructuredLogging(t *testing.T) {
 
 	toolCallID := "my-tool-call"
 	sessionID := "some-session-id"
+	organizationID := uuid.UUID{5}
 
 	cases := []testCase{
 		{
@@ -4175,6 +4392,8 @@ func TestStructuredLogging(t *testing.T) {
 					StartedAt:             timestamppb.Now(),
 					CorrelatingToolCallId: new(toolCallID),
 					ClientSessionId:       new(sessionID),
+					OrganizationId:        organizationID.String(),
+					OrganizationSource:    string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup),
 				})
 
 				return err
@@ -4189,6 +4408,8 @@ func TestStructuredLogging(t *testing.T) {
 				"thread_parent_id":         threadParentID.String(),
 				"thread_root_id":           threadRootID.String(),
 				"client_session_id":        sessionID,
+				"organization_id":          organizationID.String(),
+				"organization_source":      "effective_group",
 			},
 		},
 		{
@@ -4238,6 +4459,9 @@ func TestStructuredLogging(t *testing.T) {
 				"initiator_id":    initiatorID.String(),
 				"provider":        "anthropic",
 				"model":           "claude-4-opus",
+				// Organization fields are omitted when no organization was resolved.
+				"organization_id":     nil,
+				"organization_source": nil,
 			},
 		},
 		{

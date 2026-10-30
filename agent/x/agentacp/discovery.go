@@ -59,8 +59,8 @@ func (m *Manager) catalogLocked() []workspacesdk.ACPHarness {
 // Reload discovers immediate configuration files and probes changed harnesses.
 // Failed probes retry on each reload; successful probes stay cached until their
 // configuration, directory, or environment changes. It never prompts a harness.
-// Periodic discovery calls this independently of workspace readiness and context
-// resolution reads only the cached results.
+// RunDiscovery calls this synchronously once, then reloads in the background.
+// Context resolution reads only the cached results.
 func (m *Manager) Reload(ctx context.Context) error {
 	m.mu.Lock()
 	if m.closed {
@@ -199,6 +199,8 @@ func (m *Manager) probe(ctx context.Context, cfg harnessConfig, directory string
 	ctx, cancel := timeout(ctx, m.clock, setupTimeout)
 	defer cancel()
 	p, err := launch(ctx, cfg, directory, &discoveryClient{}, launchOptions{
+		logger:  m.logger,
+		clock:   m.clock,
 		execer:  m.execer,
 		envInfo: m.envInfo,
 		env:     env,
@@ -238,21 +240,44 @@ func (m *Manager) probe(ctx context.Context, cfg harnessConfig, directory string
 	return h
 }
 
-// RunDiscovery starts discovery once and returns without waiting for probes.
-// It scans immediately and polls for configuration changes every 30 seconds.
+// RunDiscovery waits for the initial discovery pass, including harness probes,
+// then polls for configuration changes at discoveryInterval. Each pass uses a
+// shared reloadTimeout budget. Repeated calls wait for the same initial pass.
 func (m *Manager) RunDiscovery() {
-	m.runOnce.Do(func() { m.run(m.pollDiscovery) })
+	m.runOnce.Do(func() {
+		start := m.clock.Now()
+		m.logger.Info(m.ctx, "starting initial acp discovery", slog.F("timeout", reloadTimeout))
+		err := m.reloadDiscovery()
+		if err != nil && m.ctx.Err() == nil {
+			m.logger.Warn(m.ctx, "acp discovery failed", slog.Error(err))
+		}
+		outcome := "complete"
+		switch {
+		case m.ctx.Err() != nil:
+			outcome = "canceled"
+		case errors.Is(err, context.DeadlineExceeded):
+			outcome = "timeout"
+		case err != nil:
+			outcome = "failed"
+		}
+		m.logger.Info(m.ctx, "finished initial acp discovery",
+			slog.F("duration", m.clock.Since(start)), slog.F("timeout", reloadTimeout),
+			slog.F("outcome", outcome), slog.F("harness_count", len(m.Catalog())))
+		m.run(m.pollDiscovery)
+	})
+}
+
+func (m *Manager) reloadDiscovery() error {
+	ctx, cancel := timeout(m.ctx, m.clock, reloadTimeout)
+	defer cancel()
+	err := m.Reload(ctx)
+	if err != nil && ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
+	return err
 }
 
 func (m *Manager) pollDiscovery() {
-	reload := func() {
-		ctx, cancel := context.WithTimeout(m.ctx, reloadTimeout)
-		defer cancel()
-		if err := m.Reload(ctx); err != nil {
-			m.logger.Warn(m.ctx, "acp discovery failed", slog.Error(err))
-		}
-	}
-	reload()
 	timer := m.clock.NewTimer(discoveryInterval, "acp-discovery")
 	defer timer.Stop()
 	for {
@@ -260,7 +285,9 @@ func (m *Manager) pollDiscovery() {
 		case <-m.ctx.Done():
 			return
 		case <-timer.C:
-			reload()
+			if err := m.reloadDiscovery(); err != nil && m.ctx.Err() == nil {
+				m.logger.Warn(m.ctx, "acp discovery failed", slog.Error(err))
+			}
 			timer.Reset(discoveryInterval, "acp-discovery")
 		}
 	}

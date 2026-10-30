@@ -27,10 +27,12 @@ export const deploymentStats = () => {
 	};
 };
 
+export const deploymentSSHConfigQueryKey = ["deployment", "sshConfig"];
+
 export const deploymentSSHConfig = () => {
 	return {
 		...disabledRefetchOptions,
-		queryKey: ["deployment", "sshConfig"],
+		queryKey: deploymentSSHConfigQueryKey,
 		queryFn: API.getDeploymentSSHConfig,
 	};
 };

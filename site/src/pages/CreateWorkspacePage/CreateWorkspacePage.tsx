@@ -391,12 +391,13 @@ const CreateWorkspacePage: React.FC = () => {
 		}
 	}, [autoCreateReady]);
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const isInitializing =
 		!latestResponse ||

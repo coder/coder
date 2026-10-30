@@ -767,8 +767,14 @@
 									"state": ["premium"]
 								},
 								{
+									"title": "Script ordering",
+									"description": "Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.",
+									"path": "./admin/templates/extending-templates/script-ordering.md",
+									"state": ["beta"]
+								},
+								{
 									"title": "Workspace startup coordination",
-									"description": "Coordinate workspace startup scripts with dependency management so they run in the right order.",
+									"description": "Coordinate units of work within startup scripts using experimental coder exp sync commands.",
 									"path": "./admin/templates/startup-coordination/index.md",
 									"state": ["early access"],
 									"children": [
@@ -931,6 +937,13 @@
 									]
 								}
 							]
+						},
+						{
+							"title": "Nix(OS)",
+							"description": "Define reproducible environments with Nix flakes, with or without NixOS.",
+							"path": "./admin/integrations/nix.md",
+							"icon_path": "./images/icons/nix.svg",
+							"state": ["early access"]
 						}
 					]
 				},
@@ -1000,6 +1013,11 @@
 							"description": "Monitor SSH, app, and agent connections to your workspaces with the connection log.",
 							"path": "./admin/monitoring/connection-logs.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Trace workspace connections",
+							"description": "Correlate client, coderd, and agent logs by session ID for SSH, IDE, and web terminal connections.",
+							"path": "./admin/monitoring/trace-connections.md"
 						},
 						{
 							"title": "Notifications",
@@ -1134,7 +1152,7 @@
 									"title": "Advisor",
 									"description": "Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.",
 									"path": "./ai-coder/agents/platform-controls/advisor.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Virtual desktop",
@@ -1151,8 +1169,14 @@
 						},
 						{
 							"title": "Extending agents",
-							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
+							"description": "Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.",
 							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "ACP subagents",
+							"description": "Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.",
+							"path": "./ai-coder/agents/acp-subagents.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Models",
@@ -1168,6 +1192,12 @@
 							"title": "Chat sharing",
 							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
 							"path": "./ai-coder/agents/chat-sharing.md"
+						},
+						{
+							"title": "Projects",
+							"description": "Group Coder Agents chats into projects with shared instructions, skills, and memory.",
+							"path": "./ai-coder/agents/projects.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Conversation search syntax",

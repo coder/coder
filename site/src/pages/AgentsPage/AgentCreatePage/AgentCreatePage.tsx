@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	Navigate,
 	Link as RouterLink,
 	useLocation,
 	useNavigate,
@@ -9,6 +8,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
@@ -95,10 +95,6 @@ const isConflictError = (error: unknown) =>
 
 const AgentCreatePage: React.FC = () => {
 	const { projectId } = useParams<{ projectId?: string }>();
-	const { experiments } = useDashboard();
-	if (projectId !== undefined && !experiments.includes("chat-projects")) {
-		return <Navigate to="/agents" replace />;
-	}
 	// Remount per project so the create mutation's pending and error state do
 	// not carry over. A create still in flight opens its chat on success, as
 	// from /agents; if it fails after the page unmounts, its error and the
@@ -261,7 +257,21 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
-	const handleCreateChat = async ({
+	const handleCreateChat = async (options: CreateChatOptions) => {
+		try {
+			await createChatAndNavigate(options);
+		} catch (error) {
+			// The request may have invoked a project skill removed elsewhere.
+			if (options.projectId) {
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSkillsKey(options.projectId),
+				});
+			}
+			throw error;
+		}
+	};
+
+	const createChatAndNavigate = async ({
 		message,
 		composerParts,
 		fileIDs,

@@ -5,6 +5,7 @@ import {
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
+	skipToken,
 } from "react-query";
 import {
 	API,
@@ -263,6 +264,48 @@ export const prependToInfiniteChatsCache = (
 };
 
 /**
+ * A pin or move takes a folder-only chat out of its folder, so it needs a
+ * copy in the sidebar list whose filters fetched it, or it vanishes until the
+ * lists refetch. Call it after the optimistic update so the copy carries it.
+ */
+const copyFolderChatToSidebarList = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	const folderQueries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatProjectListFamilyKey,
+	});
+	for (const [queryKey, data] of folderQueries) {
+		// projectFolderChatsKey ends with the sidebar's list params.
+		if (queryKey.length !== chatProjectListFamilyKey.length + 2) {
+			continue;
+		}
+		const chat = data?.pages.flat().find((c) => c.id === chatId);
+		if (!chat) {
+			continue;
+		}
+		const params = queryKey[chatProjectListFamilyKey.length + 1];
+		queryClient.setQueryData<InfiniteChatsCacheData>(
+			[...chatListFamilyKey, params],
+			(prev) => {
+				if (
+					!prev?.pages ||
+					prev.pages.some((page) => page.some((c) => c.id === chatId))
+				) {
+					return prev;
+				}
+				return {
+					...prev,
+					pages: prev.pages.map((page, i) =>
+						i === 0 ? [chat, ...page] : page,
+					),
+				};
+			},
+		);
+	}
+};
+
+/**
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */
@@ -400,12 +443,28 @@ const archivedFilterForChatListKey = (
 	if (queryKey.length !== chatListFamilyKey.length + 1) {
 		return undefined;
 	}
-	const params = queryKey[chatListFamilyKey.length];
-	if (!params || typeof params !== "object") {
+	return readArchivedParam(queryKey[chatListFamilyKey.length]);
+};
+
+// Inverse of projectFolderChatsKey, which builds keys as
+// [...chatProjectListFamilyKey, projectId, params]. Project page lists, keyed
+// without params, only hold unarchived chats.
+const archivedFilterForProjectListKey = (
+	queryKey: readonly unknown[],
+): boolean => {
+	if (queryKey.length !== chatProjectListFamilyKey.length + 2) {
+		return false;
+	}
+	return (
+		readArchivedParam(queryKey[chatProjectListFamilyKey.length + 1]) ?? false
+	);
+};
+
+const readArchivedParam = (params: unknown): boolean | undefined => {
+	if (!params || typeof params !== "object" || !("archived" in params)) {
 		return undefined;
 	}
-	const archived = (params as { archived?: unknown }).archived;
-	return typeof archived === "boolean" ? archived : undefined;
+	return typeof params.archived === "boolean" ? params.archived : undefined;
 };
 
 const isInfiniteChatsCacheData = (
@@ -460,7 +519,6 @@ export const applyChatArchiveStateToCaches = (
 		);
 	}
 
-	// Project lists only hold unarchived chats.
 	const queries = [
 		...queryClient
 			.getQueriesData<InfiniteChatsCacheData>({ queryKey: chatListFamilyKey })
@@ -472,7 +530,10 @@ export const applyChatArchiveStateToCaches = (
 			.getQueriesData<InfiniteChatsCacheData>({
 				queryKey: chatProjectListFamilyKey,
 			})
-			.map(([queryKey, data]) => [queryKey, data, false] as const),
+			.map(
+				([queryKey, data]) =>
+					[queryKey, data, archivedFilterForProjectListKey(queryKey)] as const,
+			),
 	];
 
 	for (const [queryKey, data, archivedFilter] of queries) {
@@ -1405,13 +1466,16 @@ export const getChatListQueryString = (
 export const chatListKey = (params: ChatListParams) =>
 	[...chatListFamilyKey, params] as const;
 
-export const infiniteChats = (input?: ChatListInput) => {
+const sidebarChatListOptions = <TQueryKey extends QueryKey>(
+	queryKey: TQueryKey,
+	params: ChatListParams,
+	projectId?: string,
+) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
-	const params = toChatListParams(input);
 	const q = getChatListQueryString(params);
 
 	return infiniteQueryOptions({
-		queryKey: chatListKey(params),
+		queryKey,
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
 				return undefined;
@@ -1425,6 +1489,7 @@ export const infiniteChats = (input?: ChatListInput) => {
 					limit,
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
+					project_id: projectId,
 				},
 				signal,
 			),
@@ -1446,8 +1511,32 @@ export const infiniteChats = (input?: ChatListInput) => {
 	});
 };
 
+export const infiniteChats = (input?: ChatListInput) => {
+	const params = toChatListParams(input);
+	return sidebarChatListOptions(chatListKey(params), params);
+};
+
 export const projectChatsKey = (projectId: string) =>
 	[...chatProjectListFamilyKey, projectId] as const;
+
+/** Whatever refreshes a project's page refreshes its sidebar folder too. */
+export const projectFolderChatsKey = (
+	projectId: string,
+	params: ChatListParams,
+) => [...projectChatsKey(projectId), params] as const;
+
+/** Applies the sidebar's filters, so a folder lists what the sidebar would. */
+export const infiniteProjectFolderChats = (
+	projectId: string,
+	input: ChatListInput,
+) => {
+	const params = toChatListParams(input);
+	return sidebarChatListOptions(
+		projectFolderChatsKey(projectId, params),
+		params,
+		projectId,
+	);
+};
 
 /** Unarchived chats in one project, newest first. */
 export const projectChats = (projectId: string) => {
@@ -1627,6 +1716,64 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+const chatAttachmentsFamilyKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "attachments"] as const;
+
+export const chatAttachmentsKey = (
+	chatId: string,
+	beforeId: number | undefined,
+) => [...chatAttachmentsFamilyKey(chatId), beforeId] as const;
+
+/**
+ * Attachments in a chat's messages before `beforeId`, newest first. A cached
+ * list for a later boundary holds every entry of an earlier one, so it seeds
+ * that boundary without a request.
+ */
+export const chatAttachments = (
+	queryClient: QueryClient,
+	chatId: string,
+	beforeId: number | undefined,
+) =>
+	queryOptions({
+		queryKey: chatAttachmentsKey(chatId, beforeId),
+		queryFn:
+			beforeId === undefined
+				? skipToken
+				: ({ signal }) =>
+						API.experimental.getChatAttachments(
+							chatId,
+							{ before_id: beforeId },
+							signal,
+						),
+		// An edit deletes the edited message and every later one, so the
+		// history before a message that still exists never changes.
+		staleTime: Number.POSITIVE_INFINITY,
+		initialData: () => {
+			if (beforeId === undefined) {
+				return undefined;
+			}
+			const covering = queryClient
+				.getQueriesData<TypesGen.ChatAttachmentsResponse>({
+					queryKey: chatAttachmentsFamilyKey(chatId),
+				})
+				.find(([queryKey, data]) => {
+					const coveredBeforeId = queryKey.at(-1);
+					return (
+						data !== undefined &&
+						typeof coveredBeforeId === "number" &&
+						coveredBeforeId > beforeId
+					);
+				})?.[1];
+			return covering
+				? {
+						attachments: covering.attachments.filter(
+							(attachment) => attachment.message_id < beforeId,
+						),
+					}
+				: undefined;
+		},
+	});
+
 export const chatArchiveMutationKey = (chatId: string) =>
 	["chats", "archive", chatId] as const;
 
@@ -1730,7 +1877,14 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			  }
 			| undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
+		// A folder can hold this chat when no entity cache does, and the
+		// refetch may fail too. Only this row is restored, so updates to
+		// other rows made while the request ran survive.
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? patchChatArchiveState(chat, true) : chat,
+			),
+		);
 		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
 			patchChatEntity(queryClient, chatId, () => context.previousChat);
@@ -1976,6 +2130,7 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 			findChatInListCaches(queryClient, chatId) ??
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
 		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
+		copyFolderChatToSidebarList(queryClient, chatId);
 		return { previousProjectId: previousChat?.project_id };
 	},
 	onError: (
@@ -2012,9 +2167,10 @@ const applyChatReadStateToLists = (
 	read: boolean,
 ): ChatListSnapshot => {
 	const snapshot: Array<readonly [QueryKey, InfiniteChatsCacheData]> = [];
-	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
-		queryKey: chatListFamilyKey,
-	});
+	const queries = [chatListFamilyKey, chatProjectListFamilyKey].flatMap(
+		(queryKey) =>
+			queryClient.getQueriesData<InfiniteChatsCacheData>({ queryKey }),
+	);
 
 	for (const [queryKey, data] of queries) {
 		if (!data?.pages) {
@@ -2174,6 +2330,36 @@ export const markChatRead = (queryClient: QueryClient) =>
 export const markChatUnread = (queryClient: QueryClient) =>
 	setChatReadState(queryClient, false);
 
+const setListedChatPinOrder = (
+	queryClient: QueryClient,
+	chatId: string,
+	pinOrder: number,
+) =>
+	updateInfiniteChatsCache(queryClient, (chats) =>
+		chats.map((chat) =>
+			chat.id === chatId ? { ...chat, pin_order: pinOrder } : chat,
+		),
+	);
+
+type PinChangeContext = {
+	readonly previousChat?: TypesGen.Chat;
+	readonly previousPinOrder?: number;
+};
+
+const rollBackPinChange =
+	(queryClient: QueryClient) =>
+	(_error: unknown, chatId: string, context: PinChangeContext | undefined) => {
+		// Restore before invalidating so a failed refetch still leaves the
+		// rejected pin state off the screen.
+		if (context?.previousPinOrder !== undefined) {
+			setListedChatPinOrder(queryClient, chatId, context.previousPinOrder);
+		}
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+	};
+
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),
@@ -2183,35 +2369,22 @@ export const pinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
+		const previousPinOrder = findChatInListCaches(
+			queryClient,
+			chatId,
+		)?.pin_order;
 		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: optimisticPinOrder } : chat,
-			),
-		);
+		setListedChatPinOrder(queryClient, chatId, optimisticPinOrder);
+		copyFolderChatToSidebarList(queryClient, chatId);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
 				pin_order: optimisticPinOrder,
 			});
 		}
-		return { previousChat };
+		return { previousChat, previousPinOrder };
 	},
-	onError: (
-		_error: unknown,
-		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
-	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
-		}
-	},
+	onError: rollBackPinChange(queryClient),
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await invalidateChatListQueries(queryClient);
 		await invalidateChatEntity(queryClient, chatId);
@@ -2227,34 +2400,20 @@ export const unpinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: 0 } : chat,
-			),
-		);
+		const previousPinOrder = findChatInListCaches(
+			queryClient,
+			chatId,
+		)?.pin_order;
+		setListedChatPinOrder(queryClient, chatId, 0);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
 				pin_order: 0,
 			});
 		}
-		return { previousChat };
+		return { previousChat, previousPinOrder };
 	},
-	onError: (
-		_error: unknown,
-		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
-	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
-		}
-	},
+	onError: rollBackPinChange(queryClient),
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await invalidateChatListQueries(queryClient);
 		await invalidateChatEntity(queryClient, chatId);
@@ -2765,25 +2924,6 @@ export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatComputerUseProviderKey = [
-	...chatConfigKey,
-	"computer-use-provider",
-] as const;
-
-export const chatComputerUseProvider = () => ({
-	queryKey: chatComputerUseProviderKey,
-	queryFn: () => API.experimental.getChatComputerUseProvider(),
-});
-
-export const updateChatComputerUseProvider = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatComputerUseProvider,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatComputerUseProviderKey,
-		});
-	},
-});
-
 const chatWorkspaceTTLKey = [...chatConfigKey, "workspace-ttl"] as const;
 
 export const chatWorkspaceTTL = () => ({
@@ -3206,6 +3346,17 @@ export const deleteChatModel = (queryClient: QueryClient) => ({
 export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
 
+/**
+ * Disabled, so nothing built from these options fetches on mount. The text
+ * can be megabytes, so the default `gcTime` frees it after it goes unobserved.
+ */
+export const chatFileText = (fileId: string) =>
+	queryOptions({
+		queryKey: chatFileTextKey(fileId),
+		queryFn: () => API.experimental.getChatFileText(fileId),
+		enabled: false,
+	});
+
 const GATEWAY_REQUEST_STALE_MS = 30_000;
 
 export const chatCostTreeKey = (rootChatId: string) =>
@@ -3319,7 +3470,10 @@ export const mcpServerConfigACLAvailable = (
 	enabled: organization !== "" && id !== "",
 });
 
-const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
+/** Invalidates the MCP server queries of every organization. */
+export const invalidateMCPServerConfigQueries = async (
+	queryClient: QueryClient,
+) => {
 	await queryClient.invalidateQueries({ queryKey: mcpServersKey });
 };
 

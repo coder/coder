@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -182,6 +181,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -202,7 +202,6 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
-	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -287,6 +286,7 @@ func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg advisorRuntimeConfig,
+	priorUses int,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -350,6 +350,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		PriorUses:            priorUses,
 	})
 	if err != nil {
 		logger.Warn(
@@ -1020,39 +1021,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 
 const manualTitleMessageWindowLimit = 50
 
-// generatedChatTitle carries the title produced by the detached
-// automatic title-generation goroutine. maybeGenerateChatTitle stores
-// the generated title here so tests can observe it without a database
-// read; the title_change pubsub event it publishes remains the source of
-// truth for clients.
-type generatedChatTitle struct {
-	mu    sync.RWMutex
-	title string
-}
-
-func (t *generatedChatTitle) Store(title string) {
-	if t == nil || title == "" {
-		return
-	}
-
-	t.mu.Lock()
-	t.title = title
-	t.mu.Unlock()
-}
-
-func (t *generatedChatTitle) Load() (string, bool) {
-	if t == nil {
-		return "", false
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if t.title == "" {
-		return "", false
-	}
-	return t.title, true
-}
-
 // RenameChatTitle persists a user-supplied chat title. An unchanged
 // title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
@@ -1287,11 +1255,8 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	// ExperimentEvaluator decides user-scoped experiments for a chat's
-	// owner. It is required.
-	ExperimentEvaluator *experiments.Evaluator
-	PrometheusRegistry  prometheus.Registerer
-	TracerProvider      trace.TracerProvider
+	PrometheusRegistry             prometheus.Registerer
+	TracerProvider                 trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1301,6 +1266,9 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// InternalMCPServers are MCP servers that coderd code serves to chats
+	// in process. Slugs must be unique and not empty.
+	InternalMCPServers []InternalMCPServer
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -1312,8 +1280,8 @@ type Config struct {
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
-	if cfg.ExperimentEvaluator == nil {
-		return nil, xerrors.New("chatd: experiment evaluator is required")
+	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
+		return nil, xerrors.Errorf("chatd: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1398,6 +1366,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
 			return chatdebug.NewService(
 				cfg.Database,
@@ -1408,7 +1377,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
-		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -1796,25 +1764,15 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
-	region := ""
-	supportsAmbientCredentials := false
-	if settings.Bedrock != nil {
-		region = strings.TrimSpace(settings.Bedrock.Region)
-	}
-	if cp := settings.ClaudePlatformAWS; cp != nil {
-		region = strings.TrimSpace(cp.Region)
-		supportsAmbientCredentials = true
-	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
-		Region:                     region,
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
-		SupportsAmbientCredentials: supportsAmbientCredentials,
+		SupportsAmbientCredentials: settings.ClaudePlatformAWS != nil,
 	}, nil
 }
 
@@ -1891,44 +1849,6 @@ func (p *Server) resolveUserProviderAPIKeysForProvider(
 		userKeys,
 	)
 	return keys, nil
-}
-
-func (p *Server) resolveUserProviderAPIKeysForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, error) {
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
-	return keys, err
-}
-
-func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, nil, err
-		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
-			return keys, &provider, nil
-		}
-	}
-	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, err
-	}
-	return keys, nil, nil
 }
 
 func (p *Server) resolveUserProviderAPIKeys(

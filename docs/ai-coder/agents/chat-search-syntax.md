@@ -4,7 +4,8 @@ title: Conversation search syntax
 
 The chat list endpoint accepts a `q` query parameter for filtering conversations.
 All filters use `key:value` syntax.
-Bare search terms are rejected; use `title:` for title filtering or `search:` for full-text search.
+Bare search terms are rejected.
+Use `title:` for title filtering or `search:` for full-text search.
 
 ## Filters
 
@@ -35,7 +36,8 @@ Multiple filters in one query combine with AND logic.
   Titles and PR titles do not stem.
 - No fuzzy, semantic, or word-prefix matching.
 - Whole-number values also match PR numbers by prefix: `302` matches PR `30281`.
-- A value with no searchable words (punctuation only) returns an empty list; an empty value returns HTTP 400.
+- A value with no searchable words (punctuation only) returns an empty list.
+  An empty value returns HTTP 400.
 - Results use the standard chat list ordering (pinned first, then most recently updated) and pagination, without match snippets.
 - Message content becomes searchable shortly after it is written (background indexing, usually within 10&nbsp;minutes).
   Titles and PR titles are searchable immediately.

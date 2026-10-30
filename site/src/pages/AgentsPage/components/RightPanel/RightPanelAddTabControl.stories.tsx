@@ -178,6 +178,13 @@ export const Default: Story = {
 	},
 };
 
+export const AddPanelFocusedWithKeyboard: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByLabelText("Add panel").focus();
+	},
+};
+
 export const UnsupportedSingletonPanels: Story = {
 	args: {
 		supportedSingletonTabs: [],

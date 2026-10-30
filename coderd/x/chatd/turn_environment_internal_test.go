@@ -25,7 +25,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -102,25 +105,18 @@ func TestLatestAssistantText(t *testing.T) {
 	})
 }
 
-func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
+func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
-	})
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type: database.AIProviderTypeOpenai,
-	}, "test-key")
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: new("turn-options-sentinel"),
-			},
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{User: new("turn-options-sentinel")},
 		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 			Default: new(codersdk.ChatModelReasoningEffortLow),
@@ -136,85 +132,6 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
-
-	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "clamp reasoning effort",
-		ClientType:        database.ChatClientTypeApi,
-		InitialMessages: []chatstate.Message{
-			{
-				Role:          database.ChatMessageRoleUser,
-				Content:       mustMarshalText(t, "hello"),
-				Visibility:    database.ChatMessageVisibilityBoth,
-				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				ReasoningEffort: database.NullChatReasoningEffort{
-					ChatReasoningEffort: database.ChatReasoningEffortHigh,
-					Valid:               true,
-				},
-				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-				ContentVersion: chatprompt.CurrentContentVersion,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	server := newInternalTestServer(
-		t,
-		db,
-		ps,
-		chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
-	})
-	require.NoError(t, err)
-	t.Cleanup(prepared.Close)
-
-	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
-	require.NotNil(t, providerOptions.ReasoningEffort)
-	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
-	require.NotNil(t, prepared.Compaction.Options.ToolDefinitions)
-	require.Equal(t,
-		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
-		prepared.Compaction.Options.ToolDefinitions,
-	)
-
-	require.NotNil(t, providerOptions.User)
-	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
-	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
-	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
-
-	require.NotNil(t, prepared.Compaction)
-	summaryCall := prepared.Compaction.Options.SummaryCall
-	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
-	require.NotNil(t, summaryCall.ToolChoice)
-	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
-	require.NotNil(t, summaryCall.MaxOutputTokens)
-	require.Equal(t, *prepared.CallTemplate.MaxOutputTokens, *summaryCall.MaxOutputTokens)
-}
-
-func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
-	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:          "gpt-4o-mini",
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-		OrganizationID: org.ID,
-	}, func(p *database.InsertChatModelConfigParams) {
-		p.Enabled = true
-	})
 	message := func(role database.ChatMessageRole, text string) chatstate.Message {
 		return chatstate.Message{
 			Role:           role,
@@ -225,6 +142,8 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 			ContentVersion: chatprompt.CurrentContentVersion,
 		}
 	}
+	unanswered := message(database.ChatMessageRoleUser, "unanswered")
+	unanswered.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true}
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
@@ -234,7 +153,7 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		InitialMessages: []chatstate.Message{
 			message(database.ChatMessageRoleUser, "first"),
 			message(database.ChatMessageRoleAssistant, "answered"),
-			message(database.ChatMessageRoleUser, "unanswered"),
+			unanswered,
 		},
 	})
 	require.NoError(t, err)
@@ -243,9 +162,8 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(env.Close)
@@ -256,6 +174,17 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 	// boundary, so the summarizer input must stop before it.
 	require.Equal(t, fantasy.MessageRoleUser, env.Prompt[len(env.Prompt)-1].Role)
 	require.Equal(t, env.Prompt[:len(env.Prompt)-1], env.Compaction.Options.Messages)
+
+	providerOptions, ok := env.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", env.CallTemplate.ProviderOptions[fantasyopenai.Name])
+	require.Equal(t, new(fantasyopenai.ReasoningEffortMedium), providerOptions.ReasoningEffort)
+	require.Equal(t, new("turn-options-sentinel"), providerOptions.User)
+	require.Equal(t, new(defaultChatMaxOutputTokens), env.CallTemplate.MaxOutputTokens)
+	require.NotNil(t, env.Compaction.Options.ToolDefinitions)
+	require.Equal(t, chatloop.BuildToolDefinitions(env.Tools, env.ActiveTools, env.ProviderTools), env.Compaction.Options.ToolDefinitions)
+	wantSummaryCall := env.CallTemplate
+	wantSummaryCall.ToolChoice = new(fantasy.ToolChoiceNone)
+	require.Equal(t, wantSummaryCall, env.Compaction.Options.SummaryCall)
 }
 
 func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
@@ -342,9 +271,8 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
@@ -368,132 +296,177 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 	}
 }
 
-func TestBuildTurnEnvironmentComputerUseIgnoresChatTransportOverride(t *testing.T) {
+// Computer use chats run on their own model config; the tool flavor follows
+// that model's AI provider type.
+func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
-	})
-	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderOpenAI)))
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type: database.AIProviderTypeOpenai,
-	}, "test-key")
-	forceCompletions := false
-	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
-		OpenAIConfig: &codersdk.ChatModelOpenAIConfig{
-			UseResponsesAPI: &forceCompletions,
+	tests := []struct {
+		name            string
+		providerType    database.AIProviderType
+		model           string
+		useResponsesAPI *bool
+		wantProvider    codersdk.ChatComputerUseProvider
+		wantErr         string
+	}{
+		{
+			name:         "Anthropic",
+			providerType: database.AIProviderTypeAnthropic,
+			model:        "claude-opus-5",
+			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
 		},
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: new("computer-use"),
-			},
+		{
+			// The model is absent from the SDK's known Responses models, so
+			// the turn must force the Responses API for the computer tool.
+			name:         "OpenAI",
+			providerType: database.AIProviderTypeOpenai,
+			model:        "custom-openai-model",
+			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
 		},
-	})
-	require.NoError(t, err)
-	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:          "gpt-4o-mini",
-		Options:        modelConfigRaw,
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-		OrganizationID: org.ID,
-	}, func(p *database.InsertChatModelConfigParams) {
-		p.Enabled = true
-	})
-
-	const attachmentText = "text attachment body"
-	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-		Name:           "notes.txt",
-		Mimetype:       "text/plain",
-		Data:           []byte(attachmentText),
-	})
-	require.NoError(t, err)
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("hello"),
-		codersdk.ChatMessageFile(file.ID, "text/plain", "notes.txt"),
-	})
-	require.NoError(t, err)
-
-	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "computer use transport",
-		ClientType:        database.ChatClientTypeApi,
-		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
-		InitialMessages: []chatstate.Message{
-			{
-				Role:           database.ChatMessageRoleUser,
-				Content:        content,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-				ContentVersion: chatprompt.CurrentContentVersion,
-			},
+		{
+			name:            "OpenAIResponsesDisabled",
+			providerType:    database.AIProviderTypeOpenai,
+			model:           "gpt-4o-mini",
+			useResponsesAPI: ptr.Ref(false),
+			wantErr:         "disables the OpenAI Responses API, which computer use requires",
 		},
-	})
-	require.NoError(t, err)
-
-	server := newInternalTestServer(
-		t,
-		db,
-		ps,
-		chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
-	})
-	require.NoError(t, err)
-	t.Cleanup(prepared.Close)
-
-	// The computer-use model is Responses-selected by the SDK and its client
-	// ignores the config's forced Chat Completions, so the options must be the
-	// Responses type or the SDK discards them.
-	_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
-
-	// File classification must also key on the substituted model: the
-	// Responses transport drops native text file parts, so the attachment
-	// must be inlined as text rather than kept as a FilePart.
-	var sawInlinedText bool
-	for _, message := range prepared.Prompt {
-		for _, part := range message.Content {
-			if filePart, isFile := part.(fantasy.FilePart); isFile {
-				t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
-			}
-			if textPart, isText := part.(fantasy.TextPart); isText &&
-				strings.Contains(textPart.Text, attachmentText) {
-				sawInlinedText = true
-			}
-		}
+		{
+			name:         "UnsupportedProvider",
+			providerType: database.AIProviderTypeOpenrouter,
+			model:        "openai/gpt-4o-mini",
+			wantErr:      "computer use requires a model from an Anthropic or OpenAI AI provider",
+		},
 	}
-	require.True(t, sawInlinedText, "attachment was not inlined as text")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+				Type: tt.providerType,
+			}, "test-key")
+			var callConfig codersdk.ChatModelCallConfig
+			if tt.useResponsesAPI != nil {
+				callConfig.OpenAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tt.useResponsesAPI}
+			}
+			modelConfigRaw, err := json.Marshal(callConfig)
+			require.NoError(t, err)
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tt.model,
+				Options:        modelConfigRaw,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+			})
+
+			const attachmentText = "text attachment body"
+			ctx := chatdTestContext(t)
+			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				Name:           "notes.txt",
+				Mimetype:       "text/plain",
+				Data:           []byte(attachmentText),
+			})
+			require.NoError(t, err)
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+				codersdk.ChatMessageFile(file.ID, "text/plain", "notes.txt"),
+			})
+			require.NoError(t, err)
+
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "computer use model",
+				ClientType:        database.ChatClientTypeApi,
+				Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+				InitialMessages: []chatstate.Message{
+					{
+						Role:           database.ChatMessageRoleUser,
+						Content:        content,
+						Visibility:     database.ChatMessageVisibilityBoth,
+						ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+						CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+						ContentVersion: chatprompt.CurrentContentVersion,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			server := newInternalTestServer(
+				t,
+				db,
+				ps,
+				chatprovider.ProviderAPIKeys{},
+				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			)
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
+			})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			t.Cleanup(prepared.Close)
+
+			require.Equal(t, modelConfig.ID, prepared.ModelConfigID)
+			require.Equal(t, tt.model, prepared.Model.ModelID())
+			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.wantProvider)
+			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, geometry.DeclaredWidth, geometry.DeclaredHeight)
+			require.NoError(t, err)
+			require.Len(t, prepared.ProviderTools, 1)
+			require.Equal(t, wantTool, prepared.ProviderTools[0].Definition)
+
+			if tt.wantProvider != codersdk.ChatComputerUseProviderOpenAI {
+				return
+			}
+			require.Equal(t, chatopenai.TransportResponses, prepared.Model.Transport())
+			_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+			require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
+			// The Responses transport drops native text file parts, so the
+			// attachment must be inlined as text rather than kept as a FilePart.
+			var sawInlinedText bool
+			for _, message := range prepared.Prompt {
+				for _, part := range message.Content {
+					if filePart, isFile := part.(fantasy.FilePart); isFile {
+						t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
+					}
+					if textPart, isText := part.(fantasy.TextPart); isText &&
+						strings.Contains(textPart.Text, attachmentText) {
+						sawInlinedText = true
+					}
+				}
+			}
+			require.True(t, sawInlinedText, "attachment was not inlined as text")
+		})
+	}
 }
 
 func TestBuildTurnEnvironmentMemory(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		project            bool
-		subagent           bool
-		experimentsEnabled bool
-		wantMemoryBlock    bool
-		wantMemoryTools    bool
-		intro              string
+		name            string
+		project         bool
+		subagent        bool
+		wantMemoryBlock bool
+		wantMemoryTools bool
+		intro           string
 	}{
-		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
-		{name: "NoProject", experimentsEnabled: true},
-		{name: "ExperimentDisabled"},
-		{name: "Subagent", experimentsEnabled: true, subagent: true},
+		{name: "Project", project: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "NoProject"},
+		{name: "Subagent", subagent: true},
 	}
 
 	for _, tt := range tests {
@@ -531,9 +504,6 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 			require.NoError(t, err)
 
 			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
-			if !tt.experimentsEnabled {
-				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
-			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)
@@ -691,9 +661,8 @@ func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
@@ -770,13 +739,21 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	seedAgentContext(ctx, t, db, agent.ID, "workspace", []byte("workspace"),
 		database.WorkspaceAgentContextBodyKindMcpServer, workspaceMCPBody)
+	acpBody, err := protojson.Marshal(&agentproto.ACPHarnessBody{Slug: "test", DisplayName: "Test"})
+	require.NoError(t, err)
+	seedAgentContext(ctx, t, db, agent.ID, "test", []byte("acp"),
+		database.WorkspaceAgentContextBodyKindAcpHarness, acpBody)
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
+	// A stored enabled=false must not remove the advisor from root chats.
+	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: false, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
 	)
 	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 
@@ -787,7 +764,12 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		planRootOverlay  = "You are in Plan Mode."
 		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
 		proposePlan      = "When the plan is ready, call propose_plan"
+		advisorGuidance  = chatadvisor.ParentGuidanceBlock
 	)
+	rootOnlyTools := []string{
+		"list_templates", "read_template", "create_workspace", "start_workspace", "stop_workspace",
+		"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents",
+	}
 	tests := []struct {
 		name     string
 		mode     database.NullChatMode
@@ -806,12 +788,20 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		dontWant []string
 	}{
 		{
-			name: "Root",
-			want: []string{
-				"write_file", "edit_files", "spawn_agent", "approved__echo", "blocked__echo", "filtered__visible",
-				"forced__echo", "inline__echo", "workspace__echo", "web_search",
-			},
-			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question"},
+			name:   "Root",
+			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
+			want: append([]string{
+				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
+				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
+			}, rootOnlyTools...),
+			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
+		},
+		{
+			name:     "GeneralChild",
+			child:    true,
+			want:     []string{"read_file", "write_file", "edit_files", "execute"},
+			dontWant: append([]string{"ask_user_question", chatadvisor.ToolName}, rootOnlyTools...),
 		},
 		{
 			name:     "PlanRoot",
@@ -819,10 +809,12 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			spawn:    true,
 			prompt:   []string{planRootOverlay, proposePlan},
 			want: []string{
-				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "spawn_agent",
-				"approved__echo", "filtered__visible", "inline__echo",
+				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "propose_plan",
+				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
 			},
-			dontWant: []string{"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search"},
+			dontWant: []string{
+				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+			},
 		},
 		{
 			name:     "PlanChild",
@@ -832,7 +824,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			want:     []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
 				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
-				"workspace__echo", "web_search",
+				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -842,7 +834,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			want:   []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
-				"workspace__echo", "web_search",
+				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -856,7 +848,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			},
 			dontWant: []string{
 				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
-				"inline__echo", "workspace__echo",
+				"inline__echo", "workspace__echo", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -910,6 +902,17 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 
 			chat, messages := created.Chat, created.InitialMessages
+			if tt.planMode.Valid {
+				_, err = server.SendMessage(ctx, SendMessageOptions{
+					ChatID:       chat.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+					BusyBehavior: SendMessageBusyBehaviorQueue,
+				})
+				require.NoError(t, err)
+				chat, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, tt.planMode, chat.PlanMode)
+			}
 			if tt.replaceMCP {
 				_, err = server.SendMessage(ctx, SendMessageOptions{
 					ChatID:       chat.ID,
@@ -927,9 +930,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 
 			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            chat,
-				Messages:        messages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     chat,
+				Messages: messages,
 			})
 			require.NoError(t, err)
 			t.Cleanup(env.Close)
@@ -938,10 +940,15 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			for _, definition := range chatloop.BuildToolDefinitions(env.Tools, env.ActiveTools, env.ProviderTools) {
 				offered = append(offered, definition.GetName())
 			}
+			// Deferred MCP tools reach the model through the find_tools catalog.
+			for name := range env.AllowInactiveTools {
+				offered = append(offered, name)
+			}
 			loaded := make(map[string]bool, len(env.Tools))
 			for _, tool := range env.Tools {
 				loaded[tool.Info().Name] = true
 			}
+			require.Equal(t, slices.Contains(tt.prompt, acpSubagentPromptBlock), slices.Contains(offered, "acp_spawn_agent"))
 			require.Subset(t, offered, tt.want)
 			for _, name := range tt.dontWant {
 				require.NotContains(t, offered, name)
@@ -961,6 +968,11 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				}
 				require.Empty(t, hidden)
 			}
+			if slices.Contains(tt.want, chatadvisor.ToolName) {
+				require.Equal(t, map[string]bool{chatadvisor.ToolName: true}, env.ExclusiveToolNames)
+			} else {
+				require.Empty(t, env.ExclusiveToolNames)
+			}
 
 			var system strings.Builder
 			for _, message := range env.Prompt {
@@ -970,7 +982,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance, acpSubagentPromptBlock} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 

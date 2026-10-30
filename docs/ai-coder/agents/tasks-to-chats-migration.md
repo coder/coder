@@ -60,7 +60,7 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 
 ### 1. Configure an LLM provider
 
-With Tasks, LLM credentials are injected into the workspace as environment variables (e.g. `ANTHROPIC_API_KEY`).
+With Tasks, LLM credentials are injected into the workspace as environment variables (for example, `ANTHROPIC_API_KEY`).
 With Coder Agents, credentials are configured once in the control plane:
 
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
@@ -117,7 +117,8 @@ Key differences:
   To pin to a specific workspace, pass `workspace_id` instead.
 - Optionally pass `model_config_id` to override the default model, or `mcp_server_ids` to attach MCP servers.
 - Optionally pass `title` to set the chat's title.
-  A title you set is kept; automatic title generation runs only when `title` is omitted.
+  A title you set is kept.
+  Automatic title generation runs only when `title` is omitted.
 
 ### 3. Update follow-up message calls
 
@@ -258,7 +259,8 @@ curl -X POST \
 ```
 
 In the Tasks API, pausing stops the workspace and frees compute.
-In the Chats API, interrupt stops the agent loop in the control plane; the workspace may remain running.
+In the Chats API, interrupt stops the agent loop in the control plane.
+The workspace may remain running.
 The workspace lifecycle is managed independently.
 
 ### 8. Update GitHub Actions integrations
@@ -308,7 +310,8 @@ jobs:
 Key differences from the Tasks GHA:
 
 - No `coder-template-name` or `coder-task-name-prefix`.
-  The agent auto-provisions a workspace; pass `workspace-id` if you want to pin to an existing workspace instead.
+  The agent auto-provisions a workspace.
+  Pass `workspace-id` if you want to pin to an existing workspace instead.
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template.
   They are configured in the Coder control plane.
@@ -433,7 +436,8 @@ The pattern is two API calls:
 
 1. Create a workspace from a specific template via [`POST /api/v2/users/{user}/workspaces`](../../reference/api/workspaces.md#create-user-workspace).
    You control the template, the version, and any rich parameters.
-2. Create the chat with `workspace_id` set to the workspace you just created.
+2. Create the chat with `workspace_id` set to the new workspace.
+
    The agent runs against that workspace instead of selecting one heuristically.
 
 ```sh
@@ -460,7 +464,7 @@ curl -s -X POST https://coder.example.com/api/v2/chats \
   }"
 ```
 
-This pattern is the closest analogue to the Tasks API behavior of `template_version_id` plus `coder-template-name`: you decide which template runs, the agent decides what to do inside it.
+This pattern is the closest analog to the Tasks API behavior of `template_version_id` plus `coder-template-name`: you decide which template runs, the agent decides what to do inside it.
 The same approach works from the [`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action) GHA, which exposes the same pin via its `workspace-id` input.
 
 ## How to test your migration

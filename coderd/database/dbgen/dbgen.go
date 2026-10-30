@@ -1189,7 +1189,7 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 }
 
 // OrganizationSkill inserts a skill owned by seed.OrganizationID, which is
-// required. Inserted skills are enabled.
+// required. Inserted skills are enabled and model-invocable.
 func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) database.Skill {
 	t.Helper()
 
@@ -1202,6 +1202,7 @@ func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) dat
 		Name:           name,
 		Description:    description,
 		Content:        takeFirst(seed.Content, fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nFixture instructions.\n", name, description)),
+		ModelInvocable: sql.NullBool{},
 		GroupACL:       seed.GroupACL,
 		UserACL:        seed.UserACL,
 	})
@@ -2145,6 +2146,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
 		WorkspaceID:                 seed.WorkspaceID,
+		OrganizationID:              seed.OrganizationID,
+		OrganizationSource:          seed.OrganizationSource,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"mime"
 	"regexp"
 	"strings"
@@ -74,28 +75,6 @@ type FileData struct {
 
 // FileResolver fetches file content by ID for LLM prompt building.
 type FileResolver func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]FileData, error)
-
-// ExtractFileID parses the file_id from a serialized file content
-// block envelope. Returns uuid.Nil and an error when the block is
-// not a file-type block or has no file_id.
-func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			FileID string `json:"file_id"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return uuid.Nil, xerrors.Errorf("unmarshal content block: %w", err)
-	}
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeFile)) {
-		return uuid.Nil, xerrors.Errorf("not a file content block: %s", envelope.Type)
-	}
-	if envelope.Data.FileID == "" {
-		return uuid.Nil, xerrors.New("no file_id")
-	}
-	return uuid.Parse(envelope.Data.FileID)
-}
 
 // FileIDs returns the valid file IDs referenced by file parts.
 func FileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
@@ -289,10 +268,6 @@ func InsertSystem(prompt []fantasy.Message, instruction string) []fantasy.Messag
 }
 
 const (
-	// ContentVersionV0 is the legacy content format. Parsing uses
-	// role-aware heuristics to distinguish fantasy envelope format
-	// from SDK parts.
-	ContentVersionV0 int16 = 0
 	// ContentVersionV1 stores content as []codersdk.ChatMessagePart
 	// JSON for all roles.
 	ContentVersionV1 int16 = 1
@@ -302,10 +277,7 @@ const (
 )
 
 // ParseContent decodes persisted chat message content blocks into
-// SDK parts. Dispatches on content version: version 0 (legacy) uses
-// a role-aware heuristic to distinguish fantasy envelope format
-// from SDK parts, version 1 (current) unmarshals SDK-format
-// []ChatMessagePart directly.
+// SDK parts. Only version 1 content is supported.
 func ParseContent(msg database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
 	if !msg.Content.Valid || len(msg.Content.RawMessage) == 0 {
 		return nil, nil
@@ -314,30 +286,10 @@ func ParseContent(msg database.ChatMessage) ([]codersdk.ChatMessagePart, error) 
 	role := codersdk.ChatMessageRole(msg.Role)
 
 	switch msg.ContentVersion {
-	case ContentVersionV0:
-		return parseLegacyContent(role, msg.Content)
 	case ContentVersionV1:
 		return parseContentV1(role, msg.Content)
 	default:
 		return nil, xerrors.Errorf("unsupported content version %d", msg.ContentVersion)
-	}
-}
-
-// parseLegacyContent handles content version 0, where the format
-// varies by role and era. Uses structural heuristics to distinguish
-// fantasy envelope format from SDK parts.
-func parseLegacyContent(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	switch role {
-	case codersdk.ChatMessageRoleSystem:
-		return parseSystemRole(raw)
-	case codersdk.ChatMessageRoleAssistant:
-		return parseAssistantRole(raw)
-	case codersdk.ChatMessageRoleTool:
-		return parseToolRole(raw)
-	case codersdk.ChatMessageRoleUser:
-		return parseUserRole(raw)
-	default:
-		return nil, xerrors.Errorf("unsupported chat message role %q", role)
 	}
 }
 
@@ -350,203 +302,6 @@ func parseContentV1(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([
 	}
 	decodeNulInParts(parts)
 	return parts, nil
-}
-
-// parseSystemRole decodes a system message (JSON string) into a
-// single text part.
-func parseSystemRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	var text string
-	if err := json.Unmarshal(raw.RawMessage, &text); err != nil {
-		return nil, xerrors.Errorf("parse system content: %w", err)
-	}
-	if strings.TrimSpace(text) == "" {
-		return nil, nil
-	}
-	return []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}, nil
-}
-
-// parseAssistantRole uses the structural heuristic to distinguish
-// legacy fantasy envelope from new SDK parts. We don't use
-// try/fallback here because json.Unmarshal of a fantasy envelope
-// into []ChatMessagePart can partially succeed (Type gets set from
-// the envelope's "type" field) while silently losing content. The
-// only thing preventing that today is that Data ([]byte) rejects
-// the envelope's "data" JSON object, but that's a brittle
-// invariant tied to Go's json decoder behavior for []byte.
-func parseAssistantRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	if isFantasyEnvelopeFormat(raw.RawMessage) {
-		return parseLegacyFantasyBlocks(string(codersdk.ChatMessageRoleAssistant), raw)
-	}
-
-	// New SDK format.
-	var parts []codersdk.ChatMessagePart
-	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
-		return nil, xerrors.Errorf("parse assistant content: %w", err)
-	}
-	if !hasNonEmptyType(parts) {
-		return nil, nil
-	}
-	return parts, nil
-}
-
-// parseToolRole tries SDK parts first, then falls back to legacy
-// tool result rows. Unlike assistant/user roles, tool messages
-// don't need the isFantasyEnvelopeFormat heuristic: legacy tool
-// result rows have no "type" field (just tool_call_id, tool_name,
-// result), so hasToolResultType reliably rejects them.
-func parseToolRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	// Try SDK parts.
-	var parts []codersdk.ChatMessagePart
-	if err := json.Unmarshal(raw.RawMessage, &parts); err == nil && hasToolResultType(parts) {
-		return parts, nil
-	}
-
-	// Fall back to legacy tool result rows.
-	rows, err := parseToolResultRows(raw)
-	if err != nil {
-		return nil, err
-	}
-	parts = make([]codersdk.ChatMessagePart, 0, len(rows))
-	for _, row := range rows {
-		part := codersdk.ChatMessageToolResult(row.ToolCallID, row.ToolName, row.Result, row.IsError, row.IsMedia)
-		part.ProviderExecuted = row.ProviderExecuted
-		part.ProviderMetadata = row.ProviderMetadata
-		parts = append(parts, part)
-	}
-	return parts, nil
-}
-
-// parseUserRole uses a structural heuristic to distinguish legacy
-// fantasy envelope from new SDK parts.
-func parseUserRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	// Legacy: plain JSON string (very old format).
-	var text string
-	if err := json.Unmarshal(raw.RawMessage, &text); err == nil {
-		if strings.TrimSpace(text) == "" {
-			return nil, nil
-		}
-		return []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}, nil
-	}
-
-	if isFantasyEnvelopeFormat(raw.RawMessage) {
-		return parseLegacyUserBlocks(raw)
-	}
-
-	// New SDK format.
-	var parts []codersdk.ChatMessagePart
-	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
-		return nil, xerrors.Errorf("parse user content: %w", err)
-	}
-	if !hasNonEmptyType(parts) {
-		return nil, nil
-	}
-	return parts, nil
-}
-
-// parseLegacyUserBlocks decodes a user message stored in fantasy
-// envelope format, extracting file_id references from the raw
-// envelope for file-type blocks.
-func parseLegacyUserBlocks(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	var rawBlocks []json.RawMessage
-	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
-		return nil, xerrors.Errorf("parse user content: %w", err)
-	}
-
-	parts := make([]codersdk.ChatMessagePart, 0, len(rawBlocks))
-	for i, rawBlock := range rawBlocks {
-		block, err := fantasy.UnmarshalContent(rawBlock)
-		if err != nil {
-			return nil, xerrors.Errorf("parse user content block %d: %w", i, err)
-		}
-		part := PartFromContent(block)
-		if part.Type == "" {
-			continue
-		}
-		// For file-type blocks, extract file_id from the raw
-		// envelope's data sub-object.
-		if part.Type == codersdk.ChatMessagePartTypeFile {
-			if fid, err := ExtractFileID(rawBlock); err == nil {
-				part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
-				// Clear inline data when file_id is present;
-				// resolved at LLM dispatch time.
-				part.Data = nil
-			}
-		}
-		parts = append(parts, part)
-	}
-	return parts, nil
-}
-
-// parseLegacyFantasyBlocks decodes an assistant message stored in
-// fantasy envelope format, converting each block via PartFromContent
-// which preserves ProviderMetadata.
-func parseLegacyFantasyBlocks(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	var rawBlocks []json.RawMessage
-	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
-		return nil, xerrors.Errorf("parse %s content: %w", role, err)
-	}
-
-	parts := make([]codersdk.ChatMessagePart, 0, len(rawBlocks))
-	for i, rawBlock := range rawBlocks {
-		block, err := fantasy.UnmarshalContent(rawBlock)
-		if err != nil {
-			return nil, xerrors.Errorf("parse %s content block %d: %w", role, i, err)
-		}
-		part := PartFromContent(block)
-		if part.Type == "" {
-			continue
-		}
-		parts = append(parts, part)
-	}
-	return parts, nil
-}
-
-// hasNonEmptyType returns true if at least one part has a non-empty
-// Type field, indicating a valid SDK parts array.
-func hasNonEmptyType(parts []codersdk.ChatMessagePart) bool {
-	for _, p := range parts {
-		if p.Type != "" {
-			return true
-		}
-	}
-	return false
-}
-
-// hasToolResultType returns true if at least one part has Type ==
-// ToolResult, indicating a valid SDK tool-result array.
-func hasToolResultType(parts []codersdk.ChatMessagePart) bool {
-	for _, p := range parts {
-		if p.Type == codersdk.ChatMessagePartTypeToolResult {
-			return true
-		}
-	}
-	return false
-}
-
-// toolResultRaw is an untyped representation of a persisted tool
-// result row. We intentionally avoid a strict Go struct so that
-// historical shapes are never rejected.
-type toolResultRaw struct {
-	ToolCallID       string          `json:"tool_call_id"`
-	ToolName         string          `json:"tool_name"`
-	Result           json.RawMessage `json:"result"`
-	IsError          bool            `json:"is_error,omitempty"`
-	IsMedia          bool            `json:"is_media,omitempty"`
-	ProviderExecuted bool            `json:"provider_executed,omitempty"`
-	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty"`
-}
-
-// parseToolResultRows decodes persisted tool result rows.
-func parseToolResultRows(raw pqtype.NullRawMessage) ([]toolResultRaw, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil, nil
-	}
-
-	var rows []toolResultRaw
-	if err := json.Unmarshal(raw.RawMessage, &rows); err != nil {
-		return nil, xerrors.Errorf("parse tool content: %w", err)
-	}
-	return rows, nil
 }
 
 // extractErrorString pulls the "error" field from a JSON object if
@@ -702,6 +457,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.SourceContent:
@@ -710,6 +466,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.FileContent:
@@ -847,10 +604,9 @@ func matchingAttachmentForMedia(
 
 // isSubagentLifecycleToolName lists subagent tools whose error results
 // may carry structured JSON. Keep in sync with coderd/x/chatd/subagent.go.
-// See subagentToolNameAliases for the full alias map.
 func isSubagentLifecycleToolName(name string) bool {
 	switch name {
-	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
+	case "acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent", "spawn_agent", "wait_agent", "message_agent", "interrupt_agent":
 		return true
 	default:
 		return false
@@ -1125,32 +881,6 @@ func MarshalParts(parts []codersdk.ChatMessagePart) (pqtype.NullRawMessage, erro
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
-// isFantasyEnvelopeFormat checks whether raw message content uses
-// the fantasy envelope format (legacy) vs SDK parts (new). It
-// examines the first array element for a "data" field containing a
-// JSON object (starts with '{'). Fantasy always serializes Data
-// from json.Marshal(struct{...}), producing a JSON object.
-// ChatMessagePart.Data is []byte, which serializes to a base64
-// string or is omitted via omitempty. This structural invariant
-// means a "data" field starting with '{' can only come from
-// fantasy.
-func isFantasyEnvelopeFormat(raw json.RawMessage) bool {
-	var arr []json.RawMessage
-	if err := json.Unmarshal(raw, &arr); err != nil || len(arr) == 0 {
-		return false
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(arr[0], &fields); err != nil {
-		return false
-	}
-	data, ok := fields["data"]
-	if !ok {
-		return false
-	}
-	trimmed := bytes.TrimSpace(data)
-	return len(trimmed) > 0 && trimmed[0] == '{'
-}
-
 // marshalProviderMetadata converts fantasy provider metadata to raw
 // JSON for storage in SDK parts.
 func marshalProviderMetadata(metadata fantasy.ProviderMetadata) json.RawMessage {
@@ -1346,9 +1076,14 @@ func SkillInvocationAlias(part codersdk.ChatMessagePart) string {
 var invokedSkillTagPattern = regexp.MustCompile(`(?i)<\s*/?\s*invoked-skill\b[^>]*>`)
 
 // skillInvocationPartToText tells the model which skill the user invoked
-// and includes the skill body loaded at send time. Wrapper tags inside the
-// body are escaped so it cannot end the block early.
-func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
+// and includes the skill body loaded at send time, plus the directory of a
+// workspace skill so the model can run the scripts its body references.
+// Like a workspace file reference, the directory is shown only while the
+// chat stays bound to the workspace the skill was invoked in.
+// Wrapper tags inside the body are escaped so it cannot end the block
+// early, and the directory is escaped as an attribute value so it cannot
+// end the opening tag.
+func skillInvocationPartToText(part codersdk.ChatMessagePart, chatWorkspaceID uuid.NullUUID) string {
 	alias := SkillInvocationAlias(part)
 	text := fmt.Sprintf("The user invoked the %s skill for this message. Follow its instructions.", alias)
 	body := strings.TrimSpace(codersdk.SanitizePromptText(part.SkillBody))
@@ -1358,7 +1093,11 @@ func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
 	body = invokedSkillTagPattern.ReplaceAllStringFunc(body, func(tag string) string {
 		return "&lt;" + tag[1:len(tag)-1] + "&gt;"
 	})
-	return text + "\n<invoked-skill name=\"" + alias + "\">\n" + body + "\n</invoked-skill>"
+	openTag := "<invoked-skill name=\"" + alias + "\""
+	if part.SkillDir != "" && chatWorkspaceID.Valid && part.SkillWorkspaceID == chatWorkspaceID.UUID {
+		openTag += " dir=\"" + html.EscapeString(part.SkillDir) + "\""
+	}
+	return text + "\n" + openTag + ">\n" + body + "\n</invoked-skill>"
 }
 
 // toolResultPartToMessagePart converts an SDK tool-result part
@@ -1626,7 +1365,7 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeSkillInvocation:
 			result = append(result, fantasy.TextPart{
-				Text: skillInvocationPartToText(part),
+				Text: skillInvocationPartToText(part, chatWorkspaceID),
 			})
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent == "" {

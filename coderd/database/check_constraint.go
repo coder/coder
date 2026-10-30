@@ -20,6 +20,7 @@ const (
 	CheckAIModelPricesOutputPriceCheck                       CheckConstraint = "ai_model_prices_output_price_check"                        // ai_model_prices
 	CheckAIProvidersNameCheck                                CheckConstraint = "ai_providers_name_check"                                   // ai_providers
 	CheckAIUserDailySpendSpendMicrosCheck                    CheckConstraint = "ai_user_daily_spend_spend_micros_check"                    // ai_user_daily_spend
+	CheckAibridgeInterceptionsOrganizationSourceCheck        CheckConstraint = "aibridge_interceptions_organization_source_check"          // aibridge_interceptions
 	CheckAibridgeTokenUsagesCacheReadPriceMicrosCheck        CheckConstraint = "aibridge_token_usages_cache_read_price_micros_check"       // aibridge_token_usages
 	CheckAibridgeTokenUsagesCacheWritePriceMicrosCheck       CheckConstraint = "aibridge_token_usages_cache_write_price_micros_check"      // aibridge_token_usages
 	CheckAibridgeTokenUsagesCostMicrosCheck                  CheckConstraint = "aibridge_token_usages_cost_micros_check"                   // aibridge_token_usages
@@ -74,6 +75,7 @@ const (
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
 	CheckSkillsAclOnlyOnOrganizationSkills                   CheckConstraint = "skills_acl_only_on_organization_skills"                    // skills
+	CheckSkillsActionProjectOnly                             CheckConstraint = "skills_action_project_only"                                // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
 	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills

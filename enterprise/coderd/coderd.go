@@ -1057,6 +1057,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				committer := committer{
 					Log:      api.Logger.Named("quota_committer"),
 					Database: api.Database,
+					Clock:    api.Clock,
 				}
 				qcPtr := proto.QuotaCommitter(&committer)
 				api.AGPL.QuotaCommitter.Store(&qcPtr)

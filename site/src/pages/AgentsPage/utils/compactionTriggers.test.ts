@@ -11,6 +11,7 @@ import {
 	compactionOverrideWindowPercent,
 	compactionPointAsPercent,
 	compactionThresholdLabel,
+	compactionThresholdPercent,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
 	type ResolvedCompactionThreshold,
@@ -415,6 +416,46 @@ describe("compaction triggers", () => {
 			});
 		});
 	});
+
+	it.each<[ResolvedCompactionThreshold, number, number | undefined]>([
+		[{ source: "organization", pointTokens: 16_000 }, 200_000, 8],
+		[{ source: "organization", pointTokens: 10_000 }, 10_000, 100],
+		[{ source: "organization", pointTokens: 16_000 }, 10_000, undefined],
+		[{ source: "organization", pointTokens: 16_000 }, 0, undefined],
+		[{ source: "organization", pointTokens: Number.NaN }, 10_000, undefined],
+		[
+			{ percent: 0, source: "model", organizationOverrideNotLoaded: false },
+			200_000,
+			0,
+		],
+		[
+			{ percent: 33.33, source: "user", organizationOverrideNotLoaded: false },
+			200_000,
+			33.33,
+		],
+		[
+			{ percent: 70, source: "model", organizationOverrideNotLoaded: true },
+			200_000,
+			70,
+		],
+		[
+			{ percent: 100, source: "user", organizationOverrideNotLoaded: false },
+			200_000,
+			undefined,
+		],
+		[
+			{ percent: 100, source: "user", organizationOverrideNotLoaded: true },
+			200_000,
+			undefined,
+		],
+	])(
+		"returns the numeric threshold for %o in a %i-token window",
+		(compaction, contextLimit, expected) => {
+			expect(compactionThresholdPercent(compaction, contextLimit)).toBe(
+				expected,
+			);
+		},
+	);
 
 	it.each<[ResolvedCompactionThreshold, number, string | undefined]>([
 		[

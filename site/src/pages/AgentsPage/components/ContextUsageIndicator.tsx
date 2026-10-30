@@ -1,16 +1,14 @@
 import { cn } from "cn";
 import {
+	BotIcon,
+	CircleAlertIcon,
 	FileIcon,
-	FolderIcon,
 	PlugIcon,
 	TriangleAlertIcon,
-	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
 import type {
 	ChatContext,
-	ChatContextResource,
 	ChatContextResourceKind,
 	ChatContextResourceStatus,
 	ChatContextTool,
@@ -23,19 +21,27 @@ import {
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { formatKiB } from "#/utils/fileSize";
-import { isMobileViewport } from "#/utils/mobile";
-import {
 	compactionThresholdLabel,
+	compactionThresholdPercent,
 	type ResolvedCompactionThreshold,
 } from "../utils/compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
-import { SvgRingProgress } from "./SvgRingProgress";
+import {
+	ContextAlert,
+	ContextAlertActions,
+	ContextAlertDescription,
+	ContextAlertTitle,
+} from "./ContextAlert";
+import {
+	ContextResourceAccordion,
+	ContextResourceAccordionContent,
+	ContextResourceAccordionTrigger,
+} from "./ContextResourceAccordion";
+import {
+	ContextResourceTree,
+	ContextResourceTreeDirectory,
+	ContextResourceTreeItem,
+} from "./ContextResourceTree";
 
 export type AgentContextUsage = {
 	readonly usedTokens?: number;
@@ -110,38 +116,17 @@ const formatTokenCountCompact = (value: number | undefined): string => {
 	return String(value);
 };
 
-// Sum the byte size of the OK resources in the given kinds so each popover
-// section can show how much context it costs. Non-OK resources are excluded
-// because they are not injected into the prompt.
-const sumResourceBytes = (
-	resources: readonly ChatContextResource[],
-	kinds: readonly ChatContextResourceKind[],
-): number =>
-	resources.reduce(
-		(total, resource) =>
-			resource.status === "ok" && kinds.includes(resource.kind)
-				? total + (resource.size_bytes ?? 0)
-				: total,
-		0,
-	);
-
-// Dimmed "(N.N KiB)" size suffix for a section header, omitted when the
-// section has no measurable size.
-const SectionSize: React.FC<{ bytes: number }> = ({ bytes }) =>
-	bytes > 0 ? (
-		<span className="ml-1 font-normal text-content-secondary">
-			{`(${formatKiB(bytes)})`}
-		</span>
-	) : null;
-
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
+const getIndicatorToneClassName = (
+	percentUsed: number | null,
+	compactionPercent: number | undefined,
+): string => {
 	if (percentUsed === null) {
 		return "text-content-secondary";
 	}
 	if (percentUsed >= 95) {
 		return "text-content-destructive";
 	}
-	if (percentUsed >= 85) {
+	if (percentUsed >= (compactionPercent ?? 100) * 0.9) {
 		return "text-content-warning";
 	}
 	return "text-content-secondary";
@@ -175,55 +160,71 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 22;
-const RING_STROKE = 2.25;
+const ContextResourceIssues: React.FC<{
+	issues: readonly ContextIssueItem[];
+}> = ({ issues }) =>
+	issues.length > 0 ? (
+		<ContextAlert severity="warning" variant="panel">
+			<ContextAlertTitle>Issues</ContextAlertTitle>
+			<ContextAlertDescription>
+				{issues.map((issue) => (
+					<span
+						key={`${issue.kind}:${issue.source}`}
+						className="flex flex-col gap-1"
+						title={issue.source}
+					>
+						<span className="truncate">
+							{issue.name}{" "}
+							<span className="text-content-secondary">
+								({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+							</span>
+						</span>
+						{issue.error && <span>{issue.error}</span>}
+					</span>
+				))}
+			</ContextAlertDescription>
+		</ContextAlert>
+	) : null;
 
-const GLYPH_HEIGHT = 11;
-const GLYPH_STROKE = 1.75;
-const GLYPH_BAR_LENGTH = 8.1;
-const GLYPH_TOP = (RING_SIZE - GLYPH_HEIGHT) / 2;
-const GLYPH_CX = RING_SIZE / 2;
+const ContextIssueIndicator: React.FC<{ count: number }> = ({ count }) =>
+	count > 0 ? (
+		<span className="ml-1 inline-flex align-middle text-content-warning">
+			<TriangleAlertIcon aria-hidden="true" className="size-3" />
+			<span className="sr-only">
+				{count} {count === 1 ? "issue" : "issues"}
+			</span>
+		</span>
+	) : null;
 
-const ExclamationGlyph: React.FC = () => (
-	<svg
-		width={RING_SIZE}
-		height={RING_SIZE}
-		viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-		fill="none"
-		aria-hidden="true"
-	>
-		<line
-			x1={GLYPH_CX}
-			y1={GLYPH_TOP + GLYPH_STROKE / 2}
-			x2={GLYPH_CX}
-			y2={GLYPH_TOP + GLYPH_BAR_LENGTH - GLYPH_STROKE / 2}
-			stroke="currentColor"
-			strokeWidth={GLYPH_STROKE}
-			strokeLinecap="round"
-		/>
-		<circle
-			cx={GLYPH_CX}
-			cy={GLYPH_TOP + GLYPH_HEIGHT - GLYPH_STROKE / 2}
-			r={GLYPH_STROKE / 2}
-			fill="currentColor"
-		/>
-	</svg>
-);
-
-// Delay before the popover closes after the mouse leaves, giving
-// the user time to move into the popover content.
-const HOVER_CLOSE_DELAY_MS = 150;
-
-// Dimmed directory header shown above a group of context resources when a
-// section spans more than one directory.
-const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
-	<span
-		className="flex items-center gap-1 text-[11px] text-content-secondary"
-		title={dir}
-	>
-		<FolderIcon className="size-3 shrink-0" />
-		<span className="truncate">{dir}</span>
-	</span>
+const ContextHarnessSection: React.FC<{
+	groups: readonly DirectoryGroup<{ slug: string; dir: string }>[];
+	issues: readonly ContextIssueItem[];
+}> = ({ groups, issues }) => (
+	<ContextResourceAccordion>
+		<ContextResourceAccordionTrigger>
+			ACP
+			<ContextIssueIndicator count={issues.length} />
+		</ContextResourceAccordionTrigger>
+		<ContextResourceAccordionContent>
+			{groups.length > 0 && (
+				<ContextResourceTree>
+					{groups.map((group) => (
+						<ContextResourceTreeDirectory key={group.dir} dir={group.dir}>
+							{group.items.map((harness) => (
+								<ContextResourceTreeItem
+									key={harness.slug}
+									icon={group.dir === "" ? BotIcon : undefined}
+									name={harness.slug}
+									title={harness.slug}
+								/>
+							))}
+						</ContextResourceTreeDirectory>
+					))}
+				</ContextResourceTree>
+			)}
+			<ContextResourceIssues issues={issues} />
+		</ContextResourceAccordionContent>
+	</ContextResourceAccordion>
 );
 
 export const ContextUsageIndicator: React.FC<{
@@ -231,29 +232,6 @@ export const ContextUsageIndicator: React.FC<{
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
-	const [open, setOpen] = useState(false);
-	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-	const cancelClose = () => {
-		if (closeTimerRef.current) {
-			clearTimeout(closeTimerRef.current);
-			closeTimerRef.current = null;
-		}
-	};
-
-	const scheduleClose = () => {
-		cancelClose();
-		closeTimerRef.current = setTimeout(() => {
-			setOpen(false);
-			closeTimerRef.current = null;
-		}, HOVER_CLOSE_DELAY_MS);
-	};
-
-	const handleMouseEnter = () => {
-		cancelClose();
-		setOpen(true);
-	};
-
 	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
 		? usage.usedTokens
 		: undefined;
@@ -283,6 +261,13 @@ export const ContextUsageIndicator: React.FC<{
 	const compactionLabel =
 		usage.compactionThreshold && contextLimitTokens !== undefined
 			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
+			: undefined;
+	const compactionPercent =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdPercent(
+					usage.compactionThreshold,
+					contextLimitTokens,
+				)
 			: undefined;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
@@ -344,6 +329,15 @@ export const ContextUsageIndicator: React.FC<{
 		// a blank row.
 		.filter((server) => server.name.trim().length > 0);
 	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
+	const harnessItems = (pinnedResources ?? [])
+		.filter(
+			(resource) => resource.kind === "acp_harness" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			slug: resource.source,
+			dir: resource.source_path ?? "",
+		}))
+		.filter((harness) => harness.slug.trim().length > 0);
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
 	// visible rather than a silent omission.
@@ -360,27 +354,32 @@ export const ContextUsageIndicator: React.FC<{
 			source: resource.source,
 		}))
 		.filter((issue) => issue.name.trim().length > 0);
+	const fileIssues = issueItems.filter(
+		(issue) => issue.kind === "instruction_file",
+	);
+	const skillIssues = issueItems.filter((issue) => issue.kind === "skill");
+	const mcpIssues = issueItems.filter(
+		(issue) => issue.kind === "mcp_config" || issue.kind === "mcp_server",
+	);
+	const harnessIssues = issueItems.filter(
+		(issue) => issue.kind === "acp_harness",
+	);
+
 	const hasContextList =
 		fileItems.length > 0 ||
 		skillItems.length > 0 ||
 		hasMcp ||
+		harnessItems.length > 0 ||
 		issueItems.length > 0;
 
 	const hasResourceIssues = issueItems.length > 0;
 	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const AttentionIcon = hasContextError ? CircleAlertIcon : TriangleAlertIcon;
 	const toneClassName = hasContextError
 		? "text-content-destructive"
 		: isDirty || hasResourceIssues
 			? "text-content-warning"
-			: getIndicatorToneClassName(percentUsed);
-	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
-		"instruction_file",
-	]);
-	const skillBytes = sumResourceBytes(pinnedResources ?? [], ["skill"]);
-	const mcpBytes = sumResourceBytes(pinnedResources ?? [], [
-		"mcp_config",
-		"mcp_server",
-	]);
+			: getIndicatorToneClassName(percentUsed, compactionPercent);
 
 	// Group files and skills by directory so every context root is labeled,
 	// keeping resources pulled from different directories distinguishable.
@@ -401,296 +400,277 @@ export const ContextUsageIndicator: React.FC<{
 		ariaLabel = `Context usage.${statusNote}`;
 	}
 
-	let usageLabel = "Context usage will appear after sending a message.";
-	if (hasPercent) {
-		const prefix = usage.estimated ? "Estimated: " : "";
-		usageLabel = `${prefix}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`;
-	} else if (hasReportedUsage) {
-		usageLabel = "Context usage unavailable";
-	}
-
-	const panelContent = (
-		<div className="text-xs text-content-primary">
-			{usageLabel}
-			{hasPercent && usage.estimated && (
-				<div className="mt-1 max-w-64 text-content-secondary">
-					Based on the compacted summary only, excluding other prompt content
-					and tools. Replaced by measured usage after the next response.
-				</div>
-			)}
-			{hasPercent && compactionLabel !== undefined && (
-				<div className="mt-1 text-content-secondary">{compactionLabel}</div>
-			)}
-			{hasContextList && (
-				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
-					{fileItems.length > 0 && (
-						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">
-								<span>Context files</span>
-								<SectionSize bytes={fileBytes} />
-							</span>
-							{fileGroups.map((group) => (
-								<div key={group.dir} className="flex flex-col gap-1">
-									{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
-									<div
-										className={cn(
-											"flex flex-col",
-											group.dir !== "" ? "ml-3.5 gap-0.5" : "gap-1",
-										)}
-									>
-										{group.items.map((file) => (
-											<div
-												key={file.path}
-												className="flex items-center gap-1.5"
-											>
-												<FileIcon className="size-3 shrink-0" />
-												<span className="truncate" title={file.path}>
-													{getPathBasename(file.path)}
-												</span>
-											</div>
-										))}
-									</div>
-								</div>
-							))}
-						</div>
-					)}
-					{skillItems.length > 0 && (
-						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">
-								<span>Skills</span>
-								<SectionSize bytes={skillBytes} />
-							</span>
-							<TooltipProvider delayDuration={300}>
-								{skillGroups.map((group) => (
-									<div key={group.dir} className="flex flex-col gap-1">
-										{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
-										<div
-											className={cn(
-												"flex flex-col",
-												group.dir !== "" ? "ml-3.5 gap-0.5" : "gap-1",
-											)}
-										>
-											{group.items.map((skill) => {
-												const row = (
-													<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
-														<ZapIcon className="size-3 shrink-0" />
-														<span className="truncate">{skill.name}</span>
-													</div>
-												);
-												if (!skill.description) {
-													return <div key={skill.source}>{row}</div>;
-												}
-												return (
-													<Tooltip key={skill.source}>
-														<TooltipTrigger asChild>
-															<div className="cursor-default">{row}</div>
-														</TooltipTrigger>
-														<TooltipContent
-															side="right"
-															sideOffset={4}
-															className="max-w-48 text-xs"
-														>
-															{skill.description}
-														</TooltipContent>
-													</Tooltip>
-												);
-											})}
-										</div>
-									</div>
-								))}
-							</TooltipProvider>
-						</div>
-					)}
-					{hasMcp && (
-						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">
-								<span>MCP</span>
-								<SectionSize bytes={mcpBytes} />
-							</span>
-							<TooltipProvider delayDuration={300}>
-								{mcpConfigItems.map((config) => (
-									<div
-										key={config.source}
-										className="flex items-center gap-1.5"
-										title={config.source}
-									>
-										<FileIcon className="size-3 shrink-0" />
-										<span className="truncate">{config.source}</span>
-									</div>
-								))}
-								{mcpServerItems.map((mcp) => (
-									<div key={mcp.source} className="flex flex-col gap-0.5">
-										<div
-											className="flex items-center gap-1.5"
-											title={mcp.source}
-										>
-											<PlugIcon className="size-3 shrink-0" />
-											<span className="truncate">{mcp.name}</span>
-										</div>
-										{mcp.tools.length > 0 && (
-											<div className="ml-4 flex flex-col gap-0.5">
-												{mcp.tools.map((tool) => {
-													const row = (
-														<div className="flex items-center gap-1.5 rounded px-0.5 py-px text-content-secondary transition-colors hover:bg-surface-tertiary">
-															<WrenchIcon className="size-3 shrink-0" />
-															<span className="truncate">{tool.name}</span>
-														</div>
-													);
-													if (!tool.description) {
-														return <div key={tool.name}>{row}</div>;
-													}
-													return (
-														<Tooltip key={tool.name}>
-															<TooltipTrigger asChild>
-																<div className="cursor-default">{row}</div>
-															</TooltipTrigger>
-															<TooltipContent
-																side="right"
-																sideOffset={4}
-																className="max-w-48 text-xs"
-															>
-																{tool.description}
-															</TooltipContent>
-														</Tooltip>
-													);
-												})}
-											</div>
-										)}
-									</div>
-								))}
-							</TooltipProvider>
-						</div>
-					)}
-					{issueItems.length > 0 && (
-						<div className="flex flex-col gap-1">
-							<span className="flex items-center gap-1.5 font-medium text-content-warning">
-								<TriangleAlertIcon className="size-3 shrink-0" />
-								Issues
-							</span>
-							{issueItems.map((issue) => (
-								<div
-									key={issue.source}
-									className="flex flex-col"
-									title={issue.source}
-								>
-									<span className="truncate">
-										{issue.name}{" "}
-										<span className="text-content-secondary">
-											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
-										</span>
-									</span>
-									{issue.error && (
-										<span className="text-content-secondary">
-											{issue.error}
-										</span>
-									)}
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			)}
-			{(isDirty || hasContextError) && (
-				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border pt-2">
-					{hasContextError ? (
-						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
-							<TriangleAlertIcon className="size-3 shrink-0" />
-							Context error
-						</span>
-					) : (
-						<span className="flex items-center gap-1.5 font-medium text-content-warning">
-							<TriangleAlertIcon className="size-3 shrink-0" />
-							Context changed
-						</span>
-					)}
-					{hasContextError ? (
-						<span className="text-content-secondary">{contextError}</span>
-					) : (
-						<span className="text-content-secondary">
-							The workspace context changed since this chat was pinned.
-						</span>
-					)}
-					{onRefreshContext && (
-						<div className="flex flex-wrap gap-2">
-							<Button
-								size="xs"
-								disabled={isRefreshingContext}
-								onClick={() => onRefreshContext()}
-							>
-								<Spinner size="sm" loading={isRefreshingContext} />
-								Refresh context
-							</Button>
-						</div>
-					)}
-				</div>
-			)}
-		</div>
-	);
-
 	const triggerButton = (
 		<button
 			type="button"
 			aria-label={ariaLabel}
-			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+			className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-none bg-transparent px-1 text-xs outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link"
 		>
-			<SvgRingProgress
-				size={RING_SIZE}
-				strokeWidth={RING_STROKE}
-				percent={clampedPercent}
-				trackClassName="stroke-border"
-				progressClassName="stroke-current"
-				className={toneClassName}
-			/>
-			{needsAttention && (
+			<span
+				aria-hidden="true"
+				className="relative h-2 w-10 rounded-xs bg-surface-tertiary"
+			>
 				<span
-					aria-hidden="true"
 					className={cn(
-						"absolute inset-0 flex items-center justify-center",
-						toneClassName,
+						"block h-full rounded-xs bg-current",
+						clampedPercent > 0 && "min-w-1",
+						getIndicatorToneClassName(percentUsed, compactionPercent),
 					)}
-				>
-					<ExclamationGlyph />
-				</span>
+					style={{ width: `${clampedPercent}%` }}
+				/>
+				{compactionPercent !== undefined && (
+					<span
+						className="absolute -top-0.5 h-3 w-0.5 -translate-x-1/2 bg-content-primary"
+						style={{ left: `${compactionPercent}%` }}
+					/>
+				)}
+			</span>
+			<span className="text-content-secondary tabular-nums">
+				{percentLabel}
+			</span>
+			{needsAttention && (
+				<AttentionIcon
+					aria-hidden="true"
+					className={cn("size-3 shrink-0", toneClassName)}
+				/>
 			)}
 		</button>
 	);
 
-	// On mobile, a tap toggles the popover. On desktop, hover opens
-	// it like a dropdown menu and skill descriptions appear as
-	// nested tooltips to the right.
-	if (isMobileViewport()) {
-		return (
-			<Popover>
-				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-				<PopoverContent
-					side="top"
-					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
-				>
-					{panelContent}
-				</PopoverContent>
-			</Popover>
-		);
-	}
-
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<div
-				className="flex"
-				onMouseEnter={handleMouseEnter}
-				onMouseLeave={scheduleClose}
-			>
-				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-			</div>
+		<Popover>
+			<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 			<PopoverContent
 				side="top"
-				className="w-auto max-w-72 px-3 py-2"
-				onMouseEnter={cancelClose}
-				onMouseLeave={scheduleClose}
-				// Prevent the popover from stealing focus, which would
-				// interfere with the chat input.
-				onOpenAutoFocus={(e) => e.preventDefault()}
+				align="end"
+				className="mobile-full-width-dropdown w-76 text-xs pb-0.5 font-normal"
 			>
-				{panelContent}
+				<div className="text-xs text-content-primary p-3">
+					<div className="text-sm font-semibold">Context</div>
+					{hasReportedUsage ? (
+						hasPercent ? (
+							<div className="flex gap-2 items-center pt-2">
+								<div
+									className="flex-1 bg-surface-tertiary rounded-xs h-2 relative"
+									style={{
+										"--data-compactsAt": compactionPercent,
+										"--data-percentUsed": clampedPercent,
+									}}
+								>
+									<div
+										className={cn(
+											"h-2 w-[calc(var(--data-percentUsed)*1%)] bg-current rounded-xs",
+											clampedPercent > 0 && "min-w-1",
+											getIndicatorToneClassName(percentUsed, compactionPercent),
+										)}
+									/>
+									{compactionPercent !== undefined && (
+										<div className="absolute top-0 left-[calc(var(--data-compactsAt)*1%)] h-2 w-0.5 -translate-x-1/2 bg-content-primary" />
+									)}
+								</div>
+								<span
+									className={getIndicatorToneClassName(
+										percentUsed,
+										compactionPercent,
+									)}
+								>
+									{usage.estimated && "~"}
+									{percentLabel}
+								</span>
+								<span className="text-content-secondary">
+									({formatTokenCountCompact(usedTokens)}/
+									{formatTokenCountCompact(contextLimitTokens)})
+								</span>
+							</div>
+						) : (
+							<div
+								role="status"
+								className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+							>
+								<h3 className="m-0 text-xs font-semibold text-content-primary">
+									Context usage unavailable.
+								</h3>
+							</div>
+						)
+					) : (
+						<div
+							role="status"
+							className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+						>
+							<h3 className="m-0 text-xs font-semibold text-content-primary">
+								Usage not available yet
+							</h3>
+							<p className="mb-0 mt-2 text-xs font-normal text-content-secondary max-w-48 mx-auto leading-5">
+								Context usage will appear after sending a message.
+							</p>
+						</div>
+					)}
+					{hasPercent && compactionLabel !== undefined && (
+						<div className="mt-2 text-content-secondary">{compactionLabel}</div>
+					)}
+					{hasPercent && usage.estimated && (
+						<ContextAlert
+							severity="info"
+							variant="panel"
+							className="mt-2 font-normal"
+						>
+							<ContextAlertTitle className="font-normal">
+								Estimated usage
+							</ContextAlertTitle>
+							<ContextAlertDescription>
+								Based on the compacted summary only, excluding other prompt
+								content and tools. Replaced by measured usage after the next
+								response.
+							</ContextAlertDescription>
+						</ContextAlert>
+					)}
+				</div>
+				{hasContextList && (
+					<div className="flex flex-col text-content-secondary px-1.5">
+						{(fileItems.length > 0 || fileIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${fileItems.length} ${fileItems.length === 1 ? "file" : "files"}`}
+								>
+									Context files
+									<ContextIssueIndicator count={fileIssues.length} />
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent>
+									{fileItems.length > 0 && (
+										<ContextResourceTree>
+											{fileGroups.map((group) => (
+												<ContextResourceTreeDirectory
+													key={group.dir}
+													dir={group.dir}
+												>
+													{group.items.map((file) => (
+														<ContextResourceTreeItem
+															key={file.path}
+															icon={group.dir === "" ? FileIcon : undefined}
+															name={getPathBasename(file.path)}
+															title={file.path}
+														/>
+													))}
+												</ContextResourceTreeDirectory>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={fileIssues} />
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(skillItems.length > 0 || skillIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${skillItems.length} available`}
+								>
+									Skills
+									<ContextIssueIndicator count={skillIssues.length} />
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent>
+									{skillItems.length > 0 && (
+										<ContextResourceTree>
+											{skillGroups.map((group) => (
+												<ContextResourceTreeDirectory
+													key={group.dir}
+													dir={group.dir}
+												>
+													{group.items.map((skill) => (
+														<ContextResourceTreeItem
+															key={skill.source}
+															icon={group.dir === "" ? ZapIcon : undefined}
+															name={skill.name}
+															description={skill.description}
+															className="text-content-primary"
+														/>
+													))}
+												</ContextResourceTreeDirectory>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={skillIssues} />
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(hasMcp || mcpIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${mcpServerItems.length} connected`}
+								>
+									MCP Servers
+									<ContextIssueIndicator count={mcpIssues.length} />
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent>
+									{hasMcp && (
+										<ContextResourceTree>
+											{mcpConfigItems.map((config) => (
+												<ContextResourceTreeItem
+													key={config.source}
+													icon={FileIcon}
+													name={config.source}
+													title={config.source}
+												/>
+											))}
+											{mcpServerItems.map((mcp) => (
+												<ContextResourceTreeItem
+													key={mcp.source}
+													icon={PlugIcon}
+													name={mcp.name}
+													title={mcp.source}
+												>
+													{mcp.tools.length > 0 &&
+														mcp.tools.map((tool) => (
+															<ContextResourceTreeItem
+																key={tool.name}
+																name={tool.name}
+																description={tool.description}
+															/>
+														))}
+												</ContextResourceTreeItem>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={mcpIssues} />
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(harnessItems.length > 0 || harnessIssues.length > 0) && (
+							<ContextHarnessSection
+								groups={groupByDirectory(harnessItems)}
+								issues={harnessIssues}
+							/>
+						)}
+					</div>
+				)}
+				{(isDirty || hasContextError) && (
+					<ContextAlert
+						severity={hasContextError ? "error" : "warning"}
+						variant="panel"
+						className="mx-3 mb-3 mt-2"
+					>
+						<ContextAlertTitle>
+							{hasContextError ? "Context error" : "Context changed"}
+						</ContextAlertTitle>
+						<ContextAlertDescription>
+							{hasContextError
+								? contextError
+								: "The workspace context changed since this chat was pinned."}
+							{onRefreshContext && (
+								<ContextAlertActions>
+									<Button
+										size="xs"
+										disabled={isRefreshingContext}
+										onClick={() => onRefreshContext()}
+										variant="outline"
+									>
+										<Spinner size="sm" loading={isRefreshingContext} />
+										Refresh context
+									</Button>
+								</ContextAlertActions>
+							)}
+						</ContextAlertDescription>
+					</ContextAlert>
+				)}
 			</PopoverContent>
 		</Popover>
 	);

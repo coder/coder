@@ -167,6 +167,7 @@ func (p *Server) buildTurnEnvironment(
 		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
+	usesMCPServers := turnUsesMCPServers(chat)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -188,6 +189,14 @@ func (p *Server) buildTurnEnvironment(
 			return err
 		})
 	}
+	var internalMCPServers []mcpclient.InProcessServer
+	if usesMCPServers && len(p.internalMCPServers) > 0 {
+		g.Go(func() error {
+			var err error
+			internalMCPServers, err = p.internalMCPServersForChat(ctx, chat)
+			return err
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return turnEnvironment{}, err
 	}
@@ -198,58 +207,36 @@ func (p *Server) buildTurnEnvironment(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	requestedEffort := chatRequestedEffort(chat)
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "standard_turn",
 		chat:            chat,
 		requestedEffort: requestedEffort,
 		buildOptions:    modelOpts,
+		// The OpenAI computer tool exists only on the Responses API.
+		requireOpenAIResponses: isComputerUse,
 	})
 	if err != nil {
 		return turnEnvironment{}, err
 	}
-	// The chat config keeps driving compaction, sanitization, and debug
-	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
-	// Computer-use turns swap in a specialized model, so the substitution
-	// must happen before anything model-sensitive runs: file-part
-	// classification, history sanitization, and provider option preparation
-	// must all agree with the client actually used for the turn.
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	if isComputerUse {
-		var cuModelProvider, cuModelName string
-		computerUseProvider, cuModelProvider, cuModelName, err = p.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			return turnEnvironment{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		cuResolved, cuErr := p.resolveModelCall(ctx, modelCallSpec{
-			purpose: "computer_use",
-			chat:    chat,
-			fixedModel: &fixedModelCall{
-				providerType: cuModelProvider,
-				modelName:    cuModelName,
-				callConfig:   resolved.callConfig,
-			},
-			requestedEffort: requestedEffort,
-			buildOptions:    modelOpts,
-		})
-		if cuErr != nil {
+		var ok bool
+		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"resolve computer use model for provider %q model %q: %w",
-				computerUseProvider,
-				cuModelName,
-				cuErr,
+				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
+				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
 		}
-		resolved = cuResolved
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
@@ -265,18 +252,25 @@ func (p *Server) buildTurnEnvironment(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn, so all of them
-	// are allowed in plan mode.
+	// Root plan-mode chats allow inline servers selected by the caller
+	// and internal servers selected by coderd.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
 		chat.ParentChatID,
 		func(srv mcpclient.Server) (uuid.UUID, bool) { return srv.ID, true },
 	)
-	// Both sets are nil outside plan mode, so this never writes to a nil
+	internalMCPConnectServers, approvedInternalMCPServerIDs := filterMCPServersForTurn(
+		internalMCPServers,
+		currentPlanMode,
+		chat.ParentChatID,
+		func(srv mcpclient.InProcessServer) (uuid.UUID, bool) { return srv.ID, true },
+	)
+	// All sets are nil outside plan mode, so this never writes to a nil
 	// map. Every tool source below is filtered against the union.
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
-	if isExploreSubagent && isRootChat {
+	maps.Copy(approvedPlanMCPConfigIDs, approvedInternalMCPServerIDs)
+	if !usesMCPServers {
 		mcpConnectConfigs = nil
 		inlineMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
@@ -288,16 +282,20 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
-		var advisorErr error
+		advisorUses, advisorErr := currentTurnAdvisorUses(ctx, logger, input.Messages)
+		if advisorErr != nil {
+			return turnEnvironment{}, xerrors.Errorf("count advisor uses: %w", advisorErr)
+		}
 		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
+			advisorUses,
 			modelOpts,
 			logger,
 		)
@@ -329,13 +327,15 @@ func (p *Server) buildTurnEnvironment(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
-	// read only after g2.Wait, so no error path can run this before
-	// they are set.
-	var mcpCleanup, inlineMCPCleanup func()
+	// Once g2 starts, cleanup must wait for g2.Wait because its callbacks
+	// are assigned by g2 goroutines.
+	var mcpCleanup, inlineMCPCleanup, internalMCPCleanup func()
 	cleanup := func() {
 		if inlineMCPCleanup != nil {
 			inlineMCPCleanup()
+		}
+		if internalMCPCleanup != nil {
+			internalMCPCleanup()
 		}
 		if mcpCleanup != nil {
 			mcpCleanup()
@@ -525,7 +525,7 @@ func (p *Server) buildTurnEnvironment(
 		if err != nil {
 			return err
 		}
-		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OwnerID, chat.OrganizationID)
 		return err
 	})
 	g2.Go(func() error {
@@ -616,6 +616,20 @@ func (p *Server) buildTurnEnvironment(
 			return nil
 		})
 	}
+	var (
+		internalMCPTools     []fantasy.AgentTool
+		internalMCPSummaries []mcpclient.ConnectSummary
+	)
+	if len(internalMCPConnectServers) > 0 {
+		g2.Go(func() error {
+			internalMCPTools, internalMCPSummaries, internalMCPCleanup = mcpclient.ConnectInProcess(
+				ctx,
+				logger,
+				internalMCPConnectServers,
+			)
+			return nil
+		})
+	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			var err error
@@ -636,6 +650,7 @@ func (p *Server) buildTurnEnvironment(
 	}
 	g2Err := g2.Wait()
 	mcpSummaries = append(mcpSummaries, inlineMCPSummaries...)
+	mcpSummaries = append(mcpSummaries, internalMCPSummaries...)
 	mcpSummaries = append(mcpSummaries, mcpLoadFailures...)
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
@@ -673,38 +688,6 @@ func (p *Server) buildTurnEnvironment(
 	if hasMemory {
 		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
 	}
-
-	prompt = buildSystemPrompt(
-		prompt,
-		subagentInstruction,
-		instruction,
-		initialResolvedSkills,
-		memoryIndex,
-		projectInstructions,
-		resolvedUserPrompt,
-		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
-		},
-	)
-	if advisorRuntime != nil {
-		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
-	}
-	prompt = renderPlanPathPrompt(prompt, planPathBlock)
-	compactionPromptMessages := prompt
-	pendingUserRows := promptRows[pendingRowsStart:]
-	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
-		pendingUserRows = nil
-	}
-	// Full slice expression: appending the tail must not share the
-	// head's backing array with the summarizer input.
-	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
-	if pendingUserRows == nil {
-		compactionPromptMessages = prompt
-	}
-	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
@@ -749,6 +732,43 @@ func (p *Server) buildTurnEnvironment(
 		}
 	}
 
+	acpSubagentsAvailable := !isExploreSubagent && slices.ContainsFunc(tools, func(tool fantasy.AgentTool) bool {
+		_, ok := tool.(acpSpawnTool)
+		return ok
+	})
+	prompt = buildSystemPrompt(
+		prompt,
+		subagentInstruction,
+		instruction,
+		initialResolvedSkills,
+		memoryIndex,
+		projectInstructions,
+		resolvedUserPrompt,
+		systemPromptBehaviorContext{
+			planMode:              currentPlanMode,
+			chatMode:              chat.Mode,
+			planModeInstructions:  planModeInstructions,
+			isRootChat:            isRootChat,
+			acpSubagentsAvailable: acpSubagentsAvailable,
+		},
+	)
+	if advisorRuntime != nil {
+		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
+	}
+	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
+	setAdvisorPromptSnapshot(prompt)
+
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		GetSkills: func() []chattool.SkillMeta {
@@ -758,11 +778,11 @@ func (p *Server) buildTurnEnvironment(
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			switch skill.Source {
 			case skillspkg.SourceOrganization:
-				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
+				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OwnerID, chat.OrganizationID, skill.Name, skillLoaderModel)
 			case skillspkg.SourceProject:
-				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name)
+				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name, skillLoaderModel)
 			default:
-				return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
+				return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name, skillLoaderModel)
 			}
 		},
 	}
@@ -814,6 +834,20 @@ func (p *Server) buildTurnEnvironment(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	// Append sources in trust order so less trusted tools cannot replace
+	// trusted tools: built-in, internal, admin, workspace, then inline.
+	// Apply the plan-mode filter after all sources join.
+	tools = mcpclient.AppendTools(ctx, logger, tools, internalMCPTools)
+	// Exclude rejected tools from deferral so a name collision cannot
+	// hide the winning tool through the rejected tool's deferral policy.
+	numTools := len(tools)
+	tools = mcpclient.AppendTools(ctx, logger, tools, mcpTools)
+	mcpTools = tools[numTools:]
+	if !isExploreSubagent {
+		numTools = len(tools)
+		tools = mcpclient.AppendTools(ctx, logger, tools, workspaceMCPTools)
+		workspaceMCPTools = tools[numTools:]
+	}
 	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
 	for _, config := range mcpConnectConfigs {
 		mcpConfigByID[config.ID] = config
@@ -827,14 +861,7 @@ func (p *Server) buildTurnEnvironment(
 		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
 		includeWorkspaceTools: !isExploreSubagent,
 	})
-	tools = append(tools, mcpTools...)
-	if !isExploreSubagent {
-		tools = append(tools, workspaceMCPTools...)
-	}
-	// Inline tools join after every trusted source so a name
-	// collision resolves in favor of the trusted tool, and before the
-	// plan-mode filter so they are subject to the same approved set.
-	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
+	tools = mcpclient.AppendTools(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	// chatloop reads an empty active tool list as every tool, so Explore
 	// children also drop the tools their allowlist blocks.
@@ -898,22 +925,9 @@ func (p *Server) buildTurnEnvironment(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	// The owner is the subject: only the owner posts turns and descendant
-	// chats inherit it. Preparation runs for every step, so the first step
-	// with MCP candidates decides and later steps of the same turn reuse
-	// that decision; otherwise a rule change mid-turn would reject
-	// find_tools calls the model already issued. Without candidates
-	// find_tools is never offered, so skip the read.
-	toolSearchEnabled := false
-	if len(deferredCandidates) > 0 {
-		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
-			return p.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
-		})
-	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: toolSearchEnabled,
-		candidates:        deferredCandidates,
-		dynamicToolNames:  dynamicToolNames,
+		candidates:       deferredCandidates,
+		dynamicToolNames: dynamicToolNames,
 	}) {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
@@ -1956,24 +1970,31 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-// filterMCPServersForTurn returns the external MCP servers visible on the
-// current turn and the set of their IDs. Outside plan mode every server is
-// visible and the set is nil. Plan-mode subagents see none: their trust
-// boundary is narrower than the root chat's. Root plan-mode chats see the
-// servers whose policy allows plan mode.
+func isPlanModeSubagentTurn(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) bool {
+	return mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan && parentChatID.Valid
+}
+
+func turnUsesMCPServers(chat database.Chat) bool {
+	isExploreRootChat := isExploreSubagentMode(chat.Mode) && !chat.ParentChatID.Valid
+	return !isPlanModeSubagentTurn(chat.PlanMode, chat.ParentChatID) && !isExploreRootChat
+}
+
+// Plan-mode subagents have a narrower trust boundary and cannot use MCP
+// servers. Root plan-mode chats require policy approval. Outside plan mode,
+// all servers are visible and the approved-ID set is nil.
 func filterMCPServersForTurn[T any](
 	servers []T,
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 	policy func(T) (id uuid.UUID, allowInPlanMode bool),
 ) ([]T, map[uuid.UUID]struct{}) {
+	if isPlanModeSubagentTurn(mode, parentChatID) {
+		return nil, map[uuid.UUID]struct{}{}
+	}
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return servers, nil
 	}
 	approved := map[uuid.UUID]struct{}{}
-	if parentChatID.Valid {
-		return nil, approved
-	}
 	filtered := make([]T, 0, len(servers))
 	for _, srv := range servers {
 		id, allowInPlanMode := policy(srv)
@@ -2009,7 +2030,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "message_agent", "interrupt_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -2056,8 +2077,6 @@ func filterToolsForTurn(
 	return filtered
 }
 
-// activeToolNamesForTurn extends the built-in plan allowlist with approved
-// external MCP tools for root plan-mode chats.
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -2078,12 +2097,9 @@ func exploreToolAllowed(tool fantasy.AgentTool) bool {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
 		return true
 	}
-	// External MCP tools pass through here. Org tools were
-	// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-	// tools come only from root chat servers with allow_in_subagents.
-	// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-	// workspace tools are excluded here too, in addition to the
-	// structural exclusion in runChat tool assembly.
+	// Org tools use the spawn-time snapshot; inline tools require
+	// allow_in_subagents. Internal servers decide access in ServerForChat.
+	// WorkspaceMCPTool lacks MCPToolIdentifier and remains excluded.
 	_, ok := tool.(mcpclient.MCPToolIdentifier)
 	return ok
 }
@@ -2126,18 +2142,26 @@ func stopAfterBehaviorTools(
 }
 
 type systemPromptBehaviorContext struct {
-	planMode             database.NullChatPlanMode
-	chatMode             database.NullChatMode
-	planModeInstructions string
-	isRootChat           bool
+	acpSubagentsAvailable bool
+	planMode              database.NullChatPlanMode
+	chatMode              database.NullChatMode
+	planModeInstructions  string
+	isRootChat            bool
 }
 
+// workspaceSkillsForResolution returns the workspace skills the model may
+// list and load. Skills hidden from the model are left out before merging,
+// like stored skills that are not model-invocable, so they neither appear
+// in the index nor change the aliases of listed skills.
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
 	if len(workspaceSkills) == 0 {
 		return nil
 	}
 	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
 	for _, skill := range workspaceSkills {
+		if !skill.ModelInvocable() {
+			continue
+		}
 		resolved = append(resolved, skillspkg.Skill{
 			Name:        skill.Name,
 			Description: skill.Description,
@@ -2163,7 +2187,7 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// project instructions, user prompt, then mode overlay prompts. Project
+// ACP guidance, project instructions, user prompt, then mode overlays. Project
 // instructions precede the user prompt so personal instructions keep the
 // last word.
 func buildSystemPrompt(
@@ -2187,6 +2211,9 @@ func buildSystemPrompt(
 	}
 	if memoryIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
+	}
+	if behaviorContext.acpSubagentsAvailable {
+		prompt = chatprompt.InsertSystem(prompt, acpSubagentPromptBlock)
 	}
 	if projectInstructions != "" {
 		prompt = chatprompt.InsertSystem(prompt, projectInstructions)
@@ -2259,6 +2286,23 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 	return dbauthz.As(ctx, actor)
 }
 
+// skillLoader says who asked for a stored skill body. Skills that are not
+// model-invocable stay hidden from the agent but load for users who invoke
+// them explicitly.
+type skillLoader int
+
+const (
+	// skillLoaderModel loads a skill the agent asked for with read_skill.
+	skillLoaderModel skillLoader = iota
+	// skillLoaderUser loads a skill the user invoked in a message.
+	skillLoaderUser
+)
+
+// hides reports whether the loader must treat a skill as missing.
+func (l skillLoader) hides(enabled, modelInvocable bool) bool {
+	return !enabled || (l == skillLoaderModel && !modelInvocable)
+}
+
 func (p *Server) fetchPersonalSkillMetadata(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -2270,7 +2314,7 @@ func (p *Server) fetchPersonalSkillMetadata(
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if !row.Enabled {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
 			continue
 		}
 		personalSkills = append(personalSkills, skillspkg.Skill{
@@ -2286,6 +2330,7 @@ func (p *Server) loadPersonalSkillBody(
 	ctx context.Context,
 	userID uuid.UUID,
 	name string,
+	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	row, err := p.db.GetUserSkillByUserIDAndName(
 		userSkillContext(ctx, userID),
@@ -2305,7 +2350,7 @@ func (p *Server) loadPersonalSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
 	}
-	if !row.Enabled {
+	if loader.hides(row.Enabled, row.ModelInvocable) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
@@ -2339,17 +2384,26 @@ func (p *Server) chatOwnerSubject(ctx context.Context, ownerID uuid.UUID) (rbac.
 func (p *Server) fetchOrganizationSkillMetadata(
 	ctx context.Context,
 	owner rbac.Subject,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 ) ([]skillspkg.Skill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
-	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(dbauthz.As(ctx, owner), organizationID)
+	ownerCtx := dbauthz.As(ctx, owner)
+	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(ownerCtx, organizationID)
 	if err != nil {
 		return nil, xerrors.Errorf("list organization skill metadata: %w", err)
+	}
+	prefs, err := p.db.GetOrganizationSkillMemberPreferences(ownerCtx, database.GetOrganizationSkillMemberPreferencesParams{
+		OrganizationID: organizationID,
+		UserID:         ownerID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get organization skill member preferences: %w", err)
 	}
 
 	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if !row.Enabled {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) || prefs.Excludes(row.ID) {
 			continue
 		}
 		organizationSkills = append(organizationSkills, skillspkg.Skill{
@@ -2364,12 +2418,15 @@ func (p *Server) fetchOrganizationSkillMetadata(
 func (p *Server) loadOrganizationSkillBody(
 	ctx context.Context,
 	owner rbac.Subject,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 	name string,
+	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	ownerCtx := dbauthz.As(ctx, owner)
 	row, err := p.db.GetOrganizationSkillByOrganizationIDAndName(
-		dbauthz.As(ctx, owner),
+		ownerCtx,
 		database.GetOrganizationSkillByOrganizationIDAndNameParams{
 			OrganizationID: organizationID,
 			Name:           name,
@@ -2387,7 +2444,19 @@ func (p *Server) loadOrganizationSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load organization skill body: %w", err)
 	}
-	if !row.Enabled {
+	if loader.hides(row.Enabled, row.ModelInvocable) {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+	// Re-check at load time so an opt-out made mid-chat applies to the
+	// next load.
+	prefs, err := p.db.GetOrganizationSkillMemberPreferences(ownerCtx, database.GetOrganizationSkillMemberPreferencesParams{
+		OrganizationID: organizationID,
+		UserID:         ownerID,
+	})
+	if err != nil {
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("get organization skill member preferences: %w", err)
+	}
+	if prefs.Excludes(row.ID) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
@@ -2404,9 +2473,10 @@ func (p *Server) loadOrganizationSkillBody(
 	return parsed, nil
 }
 
-// fetchProjectSkillMetadata lists the enabled skills of a chat project. It
-// reads as chatd, so callers must first check that the chat owner can use the
-// project with usableChatProject, as for project instructions and memory.
+// fetchProjectSkillMetadata lists the enabled, model-invocable skills of a
+// chat project. It reads as chatd, so callers must first check that the chat
+// owner can use the project with usableChatProject, as for project
+// instructions and memory.
 func (p *Server) fetchProjectSkillMetadata(
 	ctx context.Context,
 	projectID uuid.UUID,
@@ -2418,7 +2488,7 @@ func (p *Server) fetchProjectSkillMetadata(
 
 	projectSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if !row.Enabled {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
 			continue
 		}
 		projectSkills = append(projectSkills, skillspkg.Skill{
@@ -2433,11 +2503,12 @@ func (p *Server) fetchProjectSkillMetadata(
 // loadProjectSkillBody loads the current body of a chat project skill. Like
 // fetchProjectSkillMetadata, it reads as chatd and relies on the caller's
 // project access check. It returns skillspkg.ErrSkillNotFound when the skill
-// or project is gone, or the skill is disabled.
+// or project is gone, or the skill is disabled or hidden from loader.
 func (p *Server) loadProjectSkillBody(
 	ctx context.Context,
 	projectID uuid.UUID,
 	name string,
+	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	row, err := p.db.GetProjectSkillByProjectIDAndName(ctx, database.GetProjectSkillByProjectIDAndNameParams{
 		ProjectID: projectID,
@@ -2454,7 +2525,7 @@ func (p *Server) loadProjectSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load project skill body: %w", err)
 	}
-	if !row.Enabled {
+	if loader.hides(row.Enabled, row.ModelInvocable) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
@@ -2534,6 +2605,7 @@ func (p *Server) appendRootChatTools(
 	if err != nil {
 		return nil, err
 	}
+	tools = append(tools, p.acpTools(ctx, opts)...)
 	return append(tools, subagentTools...), nil
 }
 

@@ -1,4 +1,4 @@
-import { ListChecksIcon } from "lucide-react";
+import { ListTreeIcon } from "lucide-react";
 import { Component } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
@@ -68,7 +68,6 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 };
 
 const getCompletedWorkingLabel = (block: WorkingBlock): string => {
-	// A block of narration without tool calls has no steps to count.
 	const steps =
 		block.stepCount > 0 ? countLabel(block, block.stepCount, "step") : "";
 	if (block.startedAt === undefined || block.endedAt === undefined) {
@@ -175,10 +174,11 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 			hasContent
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
+			revealEndOnExpand
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
-					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					<ListTreeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
 					<LiveLabel block={block} />

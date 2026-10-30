@@ -45,7 +45,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	type ArchiveAndDeleteAction,
 	fetchArchiveAndDeleteAction,
@@ -329,7 +328,6 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	SubContent,
 }) => {
 	const { copyToClipboard } = useClipboard();
-	const { experiments } = useDashboard();
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
@@ -341,13 +339,11 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	// child chats expose neither archive nor unarchive.
 	const showArchiveActions = canManage && !isArchived && !isChildChat;
 	const showUnarchiveAction = canManage && isArchived && !isChildChat;
-	const showMoveToProject =
-		showArchiveActions && experiments.includes("chat-projects");
 	const hasActionsAboveCopy = canManage
 		? showUnarchiveAction ||
 			(!isArchived &&
 				(Boolean(onOpenRenameDialog) ||
-					showMoveToProject ||
+					showArchiveActions ||
 					showPinAction ||
 					showSubagentsToggle ||
 					showReadToggle))
@@ -389,8 +385,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const copyItems = [
 		<Item
 			key="id"
-			onSelect={() => {
-				void copyToClipboard(chat.id);
+			onSelect={async () => {
+				if (await copyToClipboard(chat.id)) {
+					toast.success("Chat ID copied to clipboard.");
+				}
 			}}
 		>
 			<HashIcon className="size-3.5" />
@@ -401,8 +399,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		copyItems.push(
 			<Item
 				key="branch"
-				onSelect={() => {
-					void copyToClipboard(branch);
+				onSelect={async () => {
+					if (await copyToClipboard(branch)) {
+						toast.success("Branch name copied to clipboard.");
+					}
 				}}
 			>
 				<GitBranchIcon className="size-3.5" />
@@ -482,7 +482,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
-					{showMoveToProject && (
+					{showArchiveActions && (
 						<MoveToProjectMenuItems
 							chat={chat}
 							blocked={isArchiveBlocked}
