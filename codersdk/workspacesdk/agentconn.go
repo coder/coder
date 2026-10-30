@@ -1531,7 +1531,7 @@ func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return CancelToolCallResponse{}, codersdk.ReadBodyAsError(res)
+		return CancelToolCallResponse{}, readAgentError(res)
 	}
 	var resp CancelToolCallResponse
 	return resp, decodeAgentJSON(res, &resp)
