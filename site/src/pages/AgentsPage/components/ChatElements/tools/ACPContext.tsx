@@ -10,15 +10,23 @@ export const ACPContext = createContext<
 	ReadonlyMap<string, ACPSessionDescriptor>
 >(new Map());
 
+/** Reads the native harness identity from lifecycle inputs and results. */
+export function acpHarnessId(
+	input: Record<string, unknown> | null,
+	output: Record<string, unknown> | null,
+): string {
+	return (
+		asString(output?.harness_id) ||
+		asString(input?.harness_id) ||
+		asString(asRecord(input?.agent)?.harness_id)
+	);
+}
+
 /** Encodes the full native identity without collisions between its fields. */
 export function acpSessionKey(args: unknown, result: unknown): string {
 	const input = parseArgs(args);
 	const output = parseArgs(result);
-	const agent = asRecord(input?.agent);
-	const harnessId =
-		asString(output?.harness_id) ||
-		asString(input?.harness_id) ||
-		asString(agent?.harness_id);
+	const harnessId = acpHarnessId(input, output);
 	const directory =
 		asString(output?.working_directory) || asString(input?.working_directory);
 	const sessionId = asString(output?.session_id) || asString(input?.session_id);

@@ -4,12 +4,14 @@ import { useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import { preferenceSettings } from "#/api/queries/users";
 import { Badge } from "#/components/Badge/Badge";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	ReasoningDisclosure,
 	ResponseBlock,
 } from "../../ChatConversation/MessageText";
 import { Response } from "../Response";
-import { ACPContext, acpSessionKey } from "./ACPContext";
+import { ACPContext, acpHarnessId, acpSessionKey } from "./ACPContext";
+import { getACPHarnessIcon } from "./acpHarnessIcon";
 import { type ACPToolName, ACPToolNames } from "./acpToolNames";
 import { parseACPTranscript } from "./acpTranscript";
 import type { Tool } from "./Tool";
@@ -78,12 +80,11 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 	const output = parseArgs(result);
 	const session = acpSessionKey(args, result);
 	const descriptor = sessions.get(session);
-	const agentName =
-		asString(output?.harness_display_name) ||
-		descriptor?.displayName ||
-		asString(output?.harness_id) ||
-		asString(input?.harness_id) ||
-		"ACP agent";
+	const harnessId = acpHarnessId(input, output);
+	const displayName =
+		asString(output?.harness_display_name) || descriptor?.displayName || "";
+	const agentName = displayName || harnessId || "ACP agent";
+	const iconSrc = getACPHarnessIcon(harnessId, displayName);
 	const prompt = asString(input?.prompt) || asString(input?.message);
 	const title = descriptor?.prompt || asString(input?.prompt) || "ACP agent";
 	const action = verbs[name][status === "running" ? 0 : 1];
@@ -103,7 +104,11 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 		>
 			<ToolCall.HeaderLayout>
 				<ToolCall.HeaderButton>
-					<BotIcon aria-hidden className="size-4 shrink-0" />
+					{iconSrc ? (
+						<ExternalImage src={iconSrc} alt="" className="size-4 shrink-0" />
+					) : (
+						<BotIcon aria-hidden className="size-4 shrink-0" />
+					)}
 					<ToolCall.Label>
 						{action}{" "}
 						<Badge
