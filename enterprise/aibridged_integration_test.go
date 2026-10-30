@@ -3,6 +3,7 @@ package enterprise_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -720,19 +721,33 @@ func TestIntegrationResolvedOrganization(t *testing.T) {
 		TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
 	})
 
-	// Given: the model is priced, so the request has a cost.
-	dbgen.AIProvider(t, db, database.AIProvider{
+	// Given: the model has a site-wide custom price and a different price in
+	// each of orgs A and B, so the price used identifies the organization.
+	const siteWideInputPrice, orgAInputPrice, orgBInputPrice int64 = 2_000_000, 3_000_000, 4_000_000
+	aiProvider := dbgen.AIProvider(t, db, database.AIProvider{
 		Name: config.ProviderOpenAI,
 		Type: database.AIProviderTypeOpenai,
 	})
 	priceSeed, err := json.Marshal([]map[string]any{{
 		"provider":     config.ProviderOpenAI,
 		"model":        "gpt-4.1",
-		"input_price":  2_000_000,
+		"input_price":  siteWideInputPrice,
 		"output_price": 8_000_000,
 	}})
 	require.NoError(t, err)
-	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}))
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceCustom}))
+	for orgID, inputPrice := range map[uuid.UUID]int64{
+		groupA.OrganizationID: orgAInputPrice,
+		groupB.OrganizationID: orgBInputPrice,
+	} {
+		require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID,
+			ProviderID:     aiProvider.ID,
+			Model:          "gpt-4.1",
+			InputPrice:     sql.NullInt64{Int64: inputPrice, Valid: true},
+			OutputPrice:    sql.NullInt64{Int64: 8_000_000, Valid: true},
+		}))
+	}
 
 	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
 	require.NoError(t, err)
@@ -781,12 +796,14 @@ func TestIntegrationResolvedOrganization(t *testing.T) {
 	}, intc.OrganizationSource)
 	require.Equal(t, uuid.NullUUID{UUID: workspace.ID, Valid: true}, intc.WorkspaceID)
 
-	// Then: cost attributes the token usage and the spend to org B's group,
-	// and org A's group spend is unchanged.
+	// Then: cost prices the request with org B's price and attributes the
+	// token usage and the spend to org B's group, and org A's group spend is
+	// unchanged.
 	tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
 	require.Equal(t, uuid.NullUUID{UUID: groupB.ID, Valid: true}, tokens[0].EffectiveGroupID)
+	require.Equal(t, sql.NullInt64{Int64: orgBInputPrice, Valid: true}, tokens[0].InputPriceMicros)
 	require.True(t, tokens[0].CostMicros.Valid)
 	require.Positive(t, tokens[0].CostMicros.Int64)
 
