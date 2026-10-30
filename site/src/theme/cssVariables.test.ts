@@ -185,6 +185,37 @@ describe("theme CSS variables", () => {
 		});
 	}
 
+	// Warning text renders as small status labels on the page surface, so it
+	// needs WCAG 1.4.3 contrast (4.5:1) in every theme.
+	describe("warning text contrast", () => {
+		const relativeLuminance = (hsl: string | null) => {
+			const probe = document.createElement("div");
+			probe.style.color = `hsl(${hsl})`;
+			const channels = probe.style.color.match(/\d+/g)?.map(Number) ?? [];
+			const [r = 0, g = 0, b = 0] = channels.map((channel) => {
+				const value = channel / 255;
+				return value <= 0.03928
+					? value / 12.92
+					: ((value + 0.055) / 1.055) ** 2.4;
+			});
+			return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+		};
+
+		it.each(CONCRETE_THEMES)(
+			"%s keeps --content-warning at 4.5:1 on --surface-primary",
+			(themeName) => {
+				const block = extractEffectiveBlock(css, `.${themeName}`) ?? "";
+				const [lighter, darker] = [
+					relativeLuminance(extractVariable(block, "--content-warning")),
+					relativeLuminance(extractVariable(block, "--surface-primary")),
+				].sort((a, b) => b - a);
+				expect(
+					((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05),
+				).toBeGreaterThanOrEqual(4.5);
+			},
+		);
+	});
+
 	it("gives body the surface that ThemeProvider copies into theme-color", () => {
 		expect(extractBlocks(css, "body").join("\n")).toContain(
 			"bg-surface-primary",
