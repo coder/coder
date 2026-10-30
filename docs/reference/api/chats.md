@@ -3945,6 +3945,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}
 
 `PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
 
+Replaces the content of a message in a chat's queue, or begins or ends an edit of it.
+While a message is under edit, it and the messages behind it wait, so the chat pauses when it reaches that message.
+Ending the edit of the message that a paused chat stopped at sends it, and beginning an edit of another message while the chat is paused returns `409`.
+Returns `404` when the message is no longer in the queue.
+Only the chat owner can edit queued messages.
+
 > Body parameter
 
 ```json
@@ -3975,11 +3981,11 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}
 
 ### Parameters
 
-| Name            | In   | Type                                                                                     | Required | Description                      |
-|-----------------|------|------------------------------------------------------------------------------------------|----------|----------------------------------|
-| `chat`          | path | string(uuid)                                                                             | true     | Chat ID                          |
-| `queuedMessage` | path | integer                                                                                  | true     | Queued message ID                |
-| `body`          | body | [codersdk.EditChatQueuedMessageRequest](schemas.md#codersdkeditchatqueuedmessagerequest) | true     | Edit chat queued message request |
+| Name            | In   | Type                                                                                     | Required | Description                                                                                                                              |
+|-----------------|------|------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat`          | path | string(uuid)                                                                             | true     | Chat ID                                                                                                                                  |
+| `queuedMessage` | path | integer                                                                                  | true     | ID of the queued message to edit.                                                                                                        |
+| `body`          | body | [codersdk.EditChatQueuedMessageRequest](schemas.md#codersdkeditchatqueuedmessagerequest) | true     | Changes to the queued message. Send `content`, `editing`, or both, and send `model_config_id` or `reasoning_effort` only with `content`. |
 
 ### Responses
 

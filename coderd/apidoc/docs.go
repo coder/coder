@@ -4941,6 +4941,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces the content of a message in a chat's queue, or begins or ends an edit of it.\nWhile a message is under edit, it and the messages behind it wait, so the chat pauses when it reaches that message.\nEnding the edit of the message that a paused chat stopped at sends it, and beginning an edit of another message while the chat is paused returns ` + "`" + `409` + "`" + `.\nReturns ` + "`" + `404` + "`" + ` when the message is no longer in the queue.\nOnly the chat owner can edit queued messages.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4960,13 +4961,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Queued message ID",
+                        "description": "ID of the queued message to edit.",
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Edit chat queued message request",
+                        "description": "Changes to the queued message. Send ` + "`" + `content` + "`" + `, ` + "`" + `editing` + "`" + `, or both, and send ` + "`" + `model_config_id` + "`" + ` or ` + "`" + `reasoning_effort` + "`" + ` only with ` + "`" + `content` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,

@@ -3756,13 +3756,18 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Edit chat queued message
+// @Description Replaces the content of a message in a chat's queue, or begins or ends an edit of it.
+// @Description While a message is under edit, it and the messages behind it wait, so the chat pauses when it reaches that message.
+// @Description Ending the edit of the message that a paused chat stopped at sends it, and beginning an edit of another message while the chat is paused returns `409`.
+// @Description Returns `404` when the message is no longer in the queue.
+// @Description Only the chat owner can edit queued messages.
 // @ID edit-chat-queued-message
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path int true "Queued message ID"
-// @Param request body codersdk.EditChatQueuedMessageRequest true "Edit chat queued message request"
+// @Param queuedMessage path int true "ID of the queued message to edit."
+// @Param request body codersdk.EditChatQueuedMessageRequest true "Changes to the queued message. Send `content`, `editing`, or both, and send `model_config_id` or `reasoning_effort` only with `content`."
 // @Success 204
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [patch]
 func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
