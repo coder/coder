@@ -96,7 +96,7 @@ export const OnMarkNotificationAsRead: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const notifications = body.getAllByRole("menuitem");
+		const notifications = body.getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		await userEvent.click(secondNotification);
 		const markButton = body.getByRole("button", { name: /mark as read/i });

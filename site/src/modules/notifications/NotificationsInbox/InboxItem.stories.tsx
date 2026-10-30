@@ -9,7 +9,10 @@ const meta: Meta<typeof InboxItem> = {
 	component: InboxItem,
 	render: (args) => {
 		return (
-			<div className="max-w-[460px] border-solid border-border rounded">
+			<div
+				role="list"
+				className="max-w-[460px] border-solid border-border rounded"
+			>
 				<InboxItem {...args} />
 			</div>
 		);
@@ -75,7 +78,7 @@ export const UnreadFocus: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const notification = canvas.getByRole("menuitem");
+		const notification = canvas.getByRole("listitem");
 		await userEvent.click(notification);
 	},
 };
@@ -90,7 +93,7 @@ export const OnMarkNotificationAsRead: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const notification = canvas.getByRole("menuitem");
+		const notification = canvas.getByRole("listitem");
 		await userEvent.click(notification);
 		const markButton = canvas.getByRole("button", { name: /mark as read/i });
 		await userEvent.click(markButton);
