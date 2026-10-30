@@ -51,13 +51,6 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-const chatQueuedMessagesEqualByID = (
-	left: readonly TypesGen.ChatQueuedMessage[],
-	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean =>
-	left.length === right.length &&
-	left.every((message, index) => message.id === right[index].id);
-
 const retryStatesEqual = (
 	left: RetryState | null,
 	right: RetryState,
@@ -105,6 +98,14 @@ export const isActiveChatStatus = (
 	status === "running" ||
 	status === "requires_action" ||
 	status === "interrupting";
+
+/**
+ * A turn completes in `waiting`, or in `paused` when the queue head is under
+ * edit. A turn that ends in `error` did not complete.
+ */
+export const isTurnCompletedChatStatus = (
+	status: TypesGen.ChatStatus,
+): boolean => status === "waiting" || status === "paused";
 
 /**
  * A user request whose expected result the store shows from the click; see
@@ -481,7 +482,7 @@ export const createChatStore = (): ChatStore => {
 		setQueuedMessages: (queuedMessages, snapshotVersion) => {
 			batch(() => {
 				setState((current) =>
-					chatQueuedMessagesEqualByID(current.queuedMessages, queuedMessages)
+					isEqual(current.queuedMessages, queuedMessages)
 						? current
 						: { ...current, queuedMessages },
 				);
