@@ -44,7 +44,7 @@ export const Markdown: React.FC<MarkdownProps> = (props) => {
 							href={href}
 							target={isExternal ? "_blank" : undefined}
 							showExternalIcon={isExternal}
-							className="text-[length:inherit] p-0"
+							className="text-[length:inherit] pl-0"
 						>
 							{children}
 						</Link>

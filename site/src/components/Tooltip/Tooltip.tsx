@@ -380,7 +380,7 @@ export const TooltipMessage: React.FC<React.ComponentProps<"p">> = ({
 	...props
 }) => (
 	<p
-		className={cn("m-0 text-content-secondary [&_a]:mt-2", className)}
+		className={cn("m-0 text-content-secondary [&_a]:mt-1", className)}
 		{...props}
 	/>
 );
