@@ -8,10 +8,13 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/skratchdot/open-golang/open"
@@ -39,10 +42,99 @@ func (r *RootCmd) open() *serpent.Command {
 
 const vscodeDesktopName = "VS Code Desktop"
 
-// externalSessionTokenPlaceholder is the literal substring in an external
-// workspace-app URL that the CLI replaces with the user's session token
-// when the app belongs to a trusted (top-level) agent.
 const externalSessionTokenPlaceholder = "$SESSION_TOKEN"
+
+// bareOriginPattern matches `scheme://host[:port]` and an optional `/`.
+var bareOriginPattern = regexp.MustCompile(`(?i)^[a-z][a-z\d+.-]*://[^/\\?#@\s]+/?$`)
+
+// isSessionTokenDestinationTrusted mirrors the dashboard check of the same name
+// in site/src/modules/apps/apps.ts, but trusts only the CLI's deployment.
+func isSessionTokenDestinationTrusted(appURL string, deployment *url.URL) bool {
+	// Openers strip tab, LF and CR, so `ur\tl` would become a second `url`.
+	if strings.ContainsFunc(appURL, unicode.IsControl) ||
+		strings.Count(appURL, externalSessionTokenPlaceholder) != 1 {
+		return false
+	}
+	params, ok := sessionTokenHandlerParams(appURL)
+	if !ok || strings.Contains(params, "#") {
+		return false
+	}
+	// The raw placeholder is replaced, so it must be the raw `token` entry.
+	// JetBrains Gateway doesn't decode names, so they must be literal.
+	entries := strings.Split(params, "&")
+	if !slices.Contains(entries, "token="+externalSessionTokenPlaceholder) {
+		return false
+	}
+	for _, entry := range entries {
+		if name, _, _ := strings.Cut(entry, "="); strings.Contains(name, "%") {
+			return false
+		}
+	}
+	// IDEs decode values twice, so the decoded view must pass too.
+	decoded, err := url.PathUnescape(params)
+	return err == nil && utf8.ValidString(decoded) && !strings.Contains(decoded, "%") &&
+		hasTrustedSessionTokenParams(params, deployment) &&
+		hasTrustedSessionTokenParams(decoded, deployment)
+}
+
+// sessionTokenHandlerPrefixes are the link prefixes that may receive the
+// session token.
+var sessionTokenHandlerPrefixes = func() []string {
+	var prefixes []string
+	for _, scheme := range codersdk.VSCodeSessionTokenSchemes {
+		for _, route := range codersdk.VSCodeSessionTokenPaths {
+			prefixes = append(prefixes, string(scheme)+"://"+codersdk.VSCodeCoderExtensionID+string(route))
+		}
+	}
+	for _, h := range codersdk.JetBrainsSessionTokenHandlers {
+		prefixes = append(prefixes, string(h))
+	}
+	return prefixes
+}()
+
+// sessionTokenHandlerParams returns what follows the first `?` or `#` of the
+// handler prefix that appURL starts with. The scheme and authority match
+// ASCII case-insensitively.
+func sessionTokenHandlerParams(appURL string) (string, bool) {
+	for _, prefix := range sessionTokenHandlerPrefixes {
+		authority := strings.Index(prefix, "://") + len("://")
+		base := authority + strings.IndexAny(prefix[authority:], "/?#")
+		if len(appURL) >= len(prefix) && asciiLower(appURL[:base]) == prefix[:base] &&
+			strings.HasPrefix(appURL[base:], prefix[base:]) {
+			return appURL[strings.IndexAny(prefix, "?#")+1:], true
+		}
+	}
+	return "", false
+}
+
+// hasTrustedSessionTokenParams reports whether every name appears once,
+// `token` is the placeholder and `url` is the deployment's bare origin.
+func hasTrustedSessionTokenParams(query string, deployment *url.URL) bool {
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		return false
+	}
+	for _, v := range values {
+		if len(v) != 1 {
+			return false
+		}
+	}
+	dest := values.Get("url")
+	u, err := url.Parse(dest)
+	return err == nil && bareOriginPattern.MatchString(dest) &&
+		values.Get("token") == externalSessionTokenPlaceholder &&
+		strings.EqualFold(u.Scheme, deployment.Scheme) && strings.EqualFold(u.Host, deployment.Host)
+}
+
+// asciiLower lowercases ASCII letters only, so a Kelvin sign isn't `k`.
+func asciiLower(s string) string {
+	return strings.Map(func(r rune) rune {
+		if 'A' <= r && r <= 'Z' {
+			return r + 'a' - 'A'
+		}
+		return r
+	}, s)
+}
 
 func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
@@ -392,12 +484,9 @@ func (r *RootCmd) openApp() *serpent.Command {
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
 			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
-			externalSubAgentApp := foundApp.External && agt.ParentID.Valid
-			if foundApp.External && !agt.ParentID.Valid {
-				// Template-defined apps run on a top-level agent and are
-				// admin-authored, so their URLs are trusted. Substitute the
-				// session token placeholder so the OS open handler receives
-				// a usable URL.
+			// Sub-agent apps are registered from inside the workspace and never
+			// get the token.
+			if foundApp.External && !agt.ParentID.Valid && isSessionTokenDestinationTrusted(appURL, client.URL) {
 				appURL = strings.ReplaceAll(appURL, externalSessionTokenPlaceholder, client.SessionToken())
 			}
 
@@ -410,14 +499,14 @@ func (r *RootCmd) openApp() *serpent.Command {
 				return nil
 			}
 
-			// Sub-agent external app URLs are set at runtime. Only open
-			// sub-agent URLs that don't contain the placeholder to prevent
-			// token exfiltration.
-			if externalSubAgentApp && strings.Contains(appURL, externalSessionTokenPlaceholder) {
+			if foundApp.External && strings.Contains(appURL, externalSessionTokenPlaceholder) {
+				reason := "This app's URL isn't trusted to receive your session token."
+				if agt.ParentID.Valid {
+					reason = "This app was registered from inside the workspace rather than from the workspace template."
+				}
 				cliui.Warnf(inv.Stderr,
-					"This app was registered from inside the workspace rather than from the workspace template. "+
-						"Inspect the URL below carefully and, if you trust the source, substitute the $SESSION_TOKEN placeholder "+
-						"with your session token and manually open it:")
+					"%s Inspect the URL below carefully and, if you trust the source, substitute the $SESSION_TOKEN placeholder "+
+						"with your session token and manually open it:", reason)
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
 				return nil
 			}
@@ -475,7 +564,7 @@ func buildVSCodeWorkspaceLink(
 
 	return &url.URL{
 		Scheme:   "vscode",
-		Host:     "coder.coder-remote",
+		Host:     codersdk.VSCodeCoderExtensionID,
 		Path:     "/open",
 		RawQuery: qp.Encode(),
 	}, qp
@@ -513,7 +602,7 @@ func buildVSCodeWorkspaceDevContainerLink(
 
 	return &url.URL{
 		Scheme:   "vscode",
-		Host:     "coder.coder-remote",
+		Host:     codersdk.VSCodeCoderExtensionID,
 		Path:     "/openDevContainer",
 		RawQuery: qp.Encode(),
 	}, qp

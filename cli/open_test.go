@@ -708,115 +708,69 @@ func TestOpenApp(t *testing.T) {
 		w.RequireContains("region not found")
 	})
 
-	t.Run("ExternalAppOnTopLevelAgentSubstitutes", func(t *testing.T) {
+	t.Run("ExternalApps", func(t *testing.T) {
 		t.Parallel()
 
-		// Apps on the top-level (template-defined) agent are trusted, so the
-		// CLI substitutes $SESSION_TOKEN regardless of scheme.
-		client, ws, _ := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
-			agents[0].Apps = []*proto.App{
-				{
-					Slug:     "app1",
-					Url:      "vscode://coder.coder-remote/open?token=$SESSION_TOKEN",
-					External: true,
-				},
+		ownerClient, store := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		client, user := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
+		trusted := "vscode://coder.coder-remote/open?url=" + client.URL.String() + "&token=$SESSION_TOKEN"
+		topLevelApps := map[string]string{
+			"trusted":          trusted,
+			"https":            "https://attacker.example/?t=$SESSION_TOKEN",
+			"unknown-scheme":   "myapp://open?token=$SESSION_TOKEN",
+			"other-deployment": "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
+		}
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			for slug, appURL := range topLevelApps {
+				agents[0].Apps = append(agents[0].Apps, &proto.App{Slug: slug, Url: appURL, External: true})
 			}
 			return agents
-		})
-		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
-		clitest.SetupConfig(t, client, root)
+		}).Do()
+		// Sub-agent apps are registered from inside the workspace, so even a
+		// trusted link must not get the token.
+		subAgent := dbgen.WorkspaceSubAgent(t, store, r.Agents[0], database.WorkspaceAgent{Name: "devcontainer"})
+		for slug, appURL := range map[string]string{"sub-trusted": trusted, "sub-plain": "https://example.com/some/path"} {
+			dbgen.WorkspaceApp(t, store, database.WorkspaceApp{
+				AgentID:  subAgent.ID,
+				Slug:     slug,
+				External: true,
+				Url:      sql.NullString{Valid: true, String: appURL},
+			})
+		}
 
-		w := clitest.StartWithWaiter(t, inv)
-		w.RequireError()
-		w.RequireContains("test.open-error")
-		w.RequireContains(client.SessionToken())
-	})
+		for _, tc := range []struct {
+			name, agent, slug, wantURL string
+			wantOpen                   bool
+		}{
+			{"TopLevelTrustedSubstitutes", r.Agents[0].Name, "trusted", strings.ReplaceAll(trusted, "$SESSION_TOKEN", client.SessionToken()), true},
+			{"TopLevelHTTPSPrints", r.Agents[0].Name, "https", topLevelApps["https"], false},
+			{"TopLevelUnknownSchemePrints", r.Agents[0].Name, "unknown-scheme", topLevelApps["unknown-scheme"], false},
+			{"TopLevelOtherDeploymentPrints", r.Agents[0].Name, "other-deployment", topLevelApps["other-deployment"], false},
+			{"SubAgentWithPlaceholderPrints", "devcontainer", "sub-trusted", trusted, false},
+			{"SubAgentWithoutPlaceholderOpens", "devcontainer", "sub-plain", "https://example.com/some/path", true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-	t.Run("ExternalAppOnSubAgentWithPlaceholderPrintsURLAndDoesNotOpen", func(t *testing.T) {
-		t.Parallel()
+				inv, root := clitest.New(t, "open", "app", r.Workspace.Name+"."+tc.agent, tc.slug, "--test.open-error")
+				clitest.SetupConfig(t, client, root)
+				var stdout, stderr bytes.Buffer
+				inv.Stdout, inv.Stderr = &stdout, &stderr
 
-		// Sub-agent app URLs are attacker-influenceable through workspace
-		// configuration and runtime registration. The CLI must not
-		// substitute the session token, and must not hand the URL to the
-		// OS open handler. The URL is printed to stdout so a user who
-		// trusts the source can substitute and open it manually.
-		ownerClient, store := coderdtest.NewWithDatabase(t, nil)
-		ownerClient.SetLogger(testutil.Logger(t).Named("client"))
-		first := coderdtest.CreateFirstUser(t, ownerClient)
-		userClient, user := coderdtest.CreateAnotherUserMutators(t, ownerClient, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.Username = "subagentowner"
-		})
-		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "subagentws",
-			OrganizationID: first.OrganizationID,
-			OwnerID:        user.ID,
-		}).WithAgent().Do()
-
-		require.NotEmpty(t, r.Agents, "expected at least one workspace agent")
-		mainAgent := r.Agents[0]
-
-		subAgent := dbgen.WorkspaceSubAgent(t, store, mainAgent, database.WorkspaceAgent{
-			Name: "devcontainer",
-		})
-		_ = dbgen.WorkspaceApp(t, store, database.WorkspaceApp{
-			AgentID:  subAgent.ID,
-			Slug:     "subapp",
-			External: true,
-			Url:      sql.NullString{Valid: true, String: "vscode://coder.coder-remote/open?token=$SESSION_TOKEN"},
-		})
-
-		inv, root := clitest.New(t, "open", "app", r.Workspace.Name+".devcontainer", "subapp", "--test.open-error")
-		clitest.SetupConfig(t, userClient, root)
-		var stdout, stderr bytes.Buffer
-		inv.Stdout = &stdout
-		inv.Stderr = &stderr
-
-		w := clitest.StartWithWaiter(t, inv)
-		w.RequireSuccess()
-		require.NotContains(t, stderr.String(), "test.open-error")
-		require.NotContains(t, stdout.String(), "test.open-error")
-		require.Contains(t, stdout.String(), "vscode://coder.coder-remote/open?token=$SESSION_TOKEN")
-		require.NotContains(t, stdout.String(), userClient.SessionToken())
-		require.Contains(t, stderr.String(), "substitute")
-	})
-
-	t.Run("ExternalAppOnSubAgentWithoutPlaceholderOpensAsIs", func(t *testing.T) {
-		t.Parallel()
-
-		// Sub-agent app URLs that don't reference $SESSION_TOKEN carry no
-		// token to leak. The CLI auto-opens them like any other external
-		// app; only placeholder-bearing URLs are gated.
-		ownerClient, store := coderdtest.NewWithDatabase(t, nil)
-		ownerClient.SetLogger(testutil.Logger(t).Named("client"))
-		first := coderdtest.CreateFirstUser(t, ownerClient)
-		userClient, user := coderdtest.CreateAnotherUserMutators(t, ownerClient, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.Username = "subagentowner2"
-		})
-		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			Name:           "subagentws2",
-			OrganizationID: first.OrganizationID,
-			OwnerID:        user.ID,
-		}).WithAgent().Do()
-
-		require.NotEmpty(t, r.Agents, "expected at least one workspace agent")
-		mainAgent := r.Agents[0]
-
-		subAgent := dbgen.WorkspaceSubAgent(t, store, mainAgent, database.WorkspaceAgent{
-			Name: "devcontainer",
-		})
-		_ = dbgen.WorkspaceApp(t, store, database.WorkspaceApp{
-			AgentID:  subAgent.ID,
-			Slug:     "subapp",
-			External: true,
-			Url:      sql.NullString{Valid: true, String: "https://example.com/some/path"},
-		})
-
-		inv, root := clitest.New(t, "open", "app", r.Workspace.Name+".devcontainer", "subapp", "--test.open-error")
-		clitest.SetupConfig(t, userClient, root)
-
-		w := clitest.StartWithWaiter(t, inv)
-		w.RequireError()
-		w.RequireContains("test.open-error")
-		w.RequireContains("https://example.com/some/path")
+				err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+				if tc.wantOpen {
+					require.ErrorContains(t, err, "test.open-error: "+tc.wantURL+":")
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tc.wantURL+"\n", stdout.String())
+				require.Contains(t, stderr.String(), "substitute the $SESSION_TOKEN placeholder")
+				require.NotContains(t, stderr.String(), client.SessionToken())
+			})
+		}
 	})
 }

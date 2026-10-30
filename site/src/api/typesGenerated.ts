@@ -6604,6 +6604,18 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 	readonly signed_token: string;
 }
 
+// From codersdk/workspaceapps.go
+export type JetBrainsSessionTokenHandler =
+	| "jetbrains-gateway://connect#type=coder&"
+	| "jetbrains://gateway/coder?"
+	| "jetbrains://gateway/com.coder.toolbox?";
+
+export const JetBrainsSessionTokenHandlers: JetBrainsSessionTokenHandler[] = [
+	"jetbrains-gateway://connect#type=coder&",
+	"jetbrains://gateway/coder?",
+	"jetbrains://gateway/com.coder.toolbox?",
+];
+
 // From codersdk/provisionerdaemons.go
 export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
 
@@ -12105,6 +12117,45 @@ export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 export interface UsersRequest extends Pagination {
 	readonly q?: string;
 }
+
+// From codersdk/workspaceapps.go
+/**
+ * VSCodeCoderExtensionID is the Coder VS Code extension, the authority of its
+ * deep links such as `vscode://coder.coder-remote/open?...`.
+ */
+export const VSCodeCoderExtensionID = "coder.coder-remote";
+
+// From codersdk/workspaceapps.go
+export type VSCodeSessionTokenPath = "/open?" | "/openDevContainer?";
+
+export const VSCodeSessionTokenPaths: VSCodeSessionTokenPath[] = [
+	"/open?",
+	"/openDevContainer?",
+];
+
+// From codersdk/workspaceapps.go
+export type VSCodeSessionTokenScheme =
+	| "antigravity"
+	| "antigravity-ide"
+	| "cursor"
+	| "devin"
+	| "kiro"
+	| "positron"
+	| "vscode"
+	| "vscode-insiders"
+	| "windsurf";
+
+export const VSCodeSessionTokenSchemes: VSCodeSessionTokenScheme[] = [
+	"antigravity",
+	"antigravity-ide",
+	"cursor",
+	"devin",
+	"kiro",
+	"positron",
+	"vscode",
+	"vscode-insiders",
+	"windsurf",
+];
 
 // From codersdk/users.go
 export interface ValidateUserPasswordRequest {

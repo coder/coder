@@ -165,3 +165,69 @@ func Test_buildAppLinkURL(t *testing.T) {
 		})
 	}
 }
+
+func Test_isSessionTokenDestinationTrusted(t *testing.T) {
+	t.Parallel()
+
+	const (
+		origin = "https://coder.example.com"
+		vs     = "vscode://coder.coder-remote/open?"
+		gw     = "jetbrains-gateway://connect#type=coder&"
+		u      = "url=" + origin
+		tok    = "&token=" + externalSessionTokenPlaceholder
+		evil   = "https://attacker.example"
+	)
+	deployment, err := url.Parse(origin)
+	require.NoError(t, err)
+
+	cases := map[string]bool{
+		"cursor://coder.coder-remote/open?" + u + "/" + tok:                          true,
+		"jetbrains://gateway/coder?&workspace=b&" + u + tok + "&ide_product_code=GO": true,
+		gw + "workspace=b&" + u + tok:                                                true,
+		"VSCode://Coder.Coder-Remote/open?owner=a&" + u + tok:                        true,
+
+		"https://attacker.example/?t=$SESSION_TOKEN":              false,
+		"http://attacker.example/?t=$SESSION_TOKEN":               false,
+		"myapp://open?" + u + tok:                                 false,
+		vs + "url=" + evil + tok:                                  false,
+		vs + "url=https://coder.example.com:1" + tok:              false,
+		vs + "url=http://coder.example.com" + tok:                 false,
+		vs + "url=https%3A%2F%2Fattacker.example" + tok:           false,
+		vs + "token=$SESSION_TOKEN":                               false,
+		vs + "url=not-a-url" + tok:                                false,
+		vs + u + "&url=" + evil + tok:                             false,
+		"jetbrains-gateway://connect?url=" + evil + "#" + u + tok: false,
+		"jetbrains://gateway/coder?" + u + "&token=x&ide_download_link=" + evil + "/$SESSION_TOKEN": false,
+		vs + u + tok + "&t=$SESSION_TOKEN":                                               false,
+		vs + u + "#token=$SESSION_TOKEN":                                                 false,
+		vs + u + tok + "#url=" + evil:                                                    false,
+		"vscode://attacker.ext/open?" + u + tok:                                          false,
+		vs + u + "/@victim/ws.main/apps/evil/" + tok:                                     false,
+		vs + "url=https://attacker.example%252Fx@coder.example.com/" + tok:               false,
+		vs + "owner=x%26url%3Dhttps%253A%252F%252Fattacker.example&" + u + tok:           false,
+		vs + "x=%252526url%25253Dhttps%25253A%25252F%25252Fattacker.example&" + u + tok:  false,
+		vs + "x=%FF&" + u + tok:                                                          false,
+		"vscode:coder.coder-remote/open?" + u + tok:                                      false,
+		"vscode://x@coder.coder-remote/open?" + u + tok:                                  false,
+		"vscode://coder.coder-remote/open/../open?" + u + tok:                            false,
+		"vscode://coder.coder-remote/open#" + u + tok:                                    false,
+		"jetbrains-gateway://connect?" + u + tok:                                         false,
+		gw + u + "&token=%24SESSION_TOKEN&ide_download_link=" + evil + "/$SESSION_TOKEN": false,
+		gw + "%75rl=" + origin + tok:                                                     false,
+		"jetbrains-gateway://connect#type=ssh&host=attacker.example&" + u + tok:          false,
+		gw + u + tok + "&type=ssh":                                                       false,
+		vs + "x=1#&" + u + tok:                                                           false,
+		"\u212Airo://coder.coder-remote/open?" + u + tok:                                 false,
+		gw + u + "&ur\tl=" + evil + tok:                                                  false,
+		gw + u + "&ur\nl=" + evil + tok:                                                  false,
+		gw + u + "&ur\rl=" + evil + tok:                                                  false,
+		vs + "url=https://attacker.example@coder.example.com" + tok:                      false,
+		vs + "url=https://coder.example.com%20" + tok:                                    false,
+	}
+	for _, prefix := range sessionTokenHandlerPrefixes {
+		cases[prefix+u+tok] = true
+	}
+	for link, want := range cases {
+		assert.Equal(t, want, isSessionTokenDestinationTrusted(link, deployment), "%q", link)
+	}
+}
