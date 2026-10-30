@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useState } from "react";
 import { expect, fn, screen, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
 import { AssistantOutput } from "./AssistantOutput";
@@ -176,6 +177,7 @@ export const StartingShowsThinkingActivity: Story = {
 	},
 };
 
+/** Response text that is still arriving is its own activity cue. */
 export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: responseStreamState,
 };
@@ -188,6 +190,61 @@ export const StreamingThinkingHeading: Story = {
 			text: "**Checking the co",
 		},
 	]),
+};
+
+/** Text that resumes after Thinking showed keeps the activity row's height. */
+export const ResumedResponseHoldsActivityRow: Story = {
+	// A trailing citation row must not release the held row.
+	args: buildStreamRenderState([
+		{ type: "text", text: "The answer is streaming." },
+		{ type: "source", url: "https://coder.com/docs", title: "Coder docs" },
+	]),
+	render: function ResumedResponseHoldsActivityRowRender(args) {
+		// The row is held only after Thinking has rendered, so the first render is
+		// quiet.
+		const [resumed, setResumed] = useState(false);
+		useEffect(() => setResumed(true), []);
+		return (
+			<LiveAssistantOutput
+				{...args}
+				liveStatus={buildLiveStatus({
+					streamState: args.streamState,
+					hasRecentOutput: resumed,
+				})}
+			/>
+		);
+	},
+};
+
+const responseThenToolState = buildStreamRenderState([
+	{ type: "text" as const, text: "The answer is streaming." },
+	{
+		type: "tool-call",
+		tool_name: "execute",
+		tool_call_id: "tc-1",
+		args: { command: "ls -la" },
+	},
+]);
+
+/** A tool that starts after the activity row was held releases its height. */
+export const ToolReleasesHeldActivityRow: Story = {
+	args: responseStreamState,
+	render: function ToolReleasesHeldActivityRowRender(args) {
+		const [toolStarted, setToolStarted] = useState(false);
+		useEffect(() => setToolStarted(true), []);
+		if (toolStarted) {
+			return <LiveAssistantOutput {...responseThenToolState} />;
+		}
+		return (
+			<LiveAssistantOutput
+				{...args}
+				liveStatus={buildLiveStatus({
+					streamState: args.streamState,
+					hasRecentOutput: false,
+				})}
+			/>
+		);
+	},
 };
 
 /** Tool-only streams use running tool affordances instead of generic thinking. */

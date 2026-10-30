@@ -69,6 +69,7 @@ const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
 	persistedError: null,
 	isAwaitingFirstStreamChunk: false,
 	chatStatus: null,
+	hasRecentOutput: true,
 };
 
 export const buildLiveStatus = (

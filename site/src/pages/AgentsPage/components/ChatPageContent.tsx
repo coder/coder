@@ -11,6 +11,7 @@ import {
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
@@ -83,6 +84,10 @@ import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+// Stream output older than this no longer shows that the turn is progressing.
+// The value was chosen by hand, not measured against model token gaps.
+const RECENT_STREAM_OUTPUT_MS = 1_000;
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
@@ -164,6 +169,13 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		selectIsAwaitingFirstStreamChunk,
 	);
 	const streamState = useChatSelector(store, selectStreamState);
+	// The store replaces the stream state object for every part that changes
+	// it, so a debounced copy that still differs means output arrived recently.
+	// A stream already present at mount counts as quiet.
+	const settledStreamState = useDebouncedValue(
+		streamState,
+		RECENT_STREAM_OUTPUT_MS,
+	);
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
@@ -183,6 +195,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
+		hasRecentOutput: streamState !== null && streamState !== settledStreamState,
 	});
 	const streamTools = buildStreamTools(
 		liveStreamState?.toolCalls,

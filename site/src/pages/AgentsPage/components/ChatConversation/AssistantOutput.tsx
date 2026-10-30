@@ -1,18 +1,22 @@
 import { cn } from "cn";
 import { PauseIcon } from "lucide-react";
+import { useState } from "react";
 import { Shimmer } from "../ChatElements/Shimmer";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
-import { shouldShowGenericThinking } from "./streamingActivity";
+import {
+	lastProgressBlock,
+	shouldShowGenericThinking,
+} from "./streamingActivity";
 
 const LiveActivitySlot: React.FC<{ interrupting: boolean }> = ({
 	interrupting,
 }) => (
 	<div
 		data-testid="live-activity-slot"
-		className="flex h-6 items-center gap-2 text-content-secondary"
+		className="flex h-full items-center gap-2 text-content-secondary"
 	>
 		{interrupting ? (
 			<PauseIcon className="size-4 shrink-0 stroke-[1.5]" />
@@ -44,6 +48,36 @@ export const AssistantOutput: React.FC<AssistantOutputProps> = ({
 		liveStatus?.phase === "retrying" || liveStatus?.phase === "reconnecting"
 			? liveStatus
 			: undefined;
+	const showsActivity =
+		liveStatus !== undefined &&
+		(liveStatus.phase === "interrupting" ||
+			shouldShowGenericThinking({ liveStatus, blocks, tools }));
+
+	// Removing the activity row when text resumes shrinks the live row, and the
+	// anchored transcript jumps for a frame.
+	const canHoldActivityRow =
+		liveStatus?.phase === "streaming" &&
+		lastProgressBlock(blocks)?.type === "response";
+	const [holdsActivityRow, setHoldsActivityRow] = useState(false);
+	if (showsActivity && canHoldActivityRow && !holdsActivityRow) {
+		setHoldsActivityRow(true);
+	}
+	if (holdsActivityRow && !canHoldActivityRow) {
+		setHoldsActivityRow(false);
+	}
+
+	let activityRow: React.ReactNode = null;
+	if (showsActivity || holdsActivityRow) {
+		activityRow = (
+			<div className="h-6">
+				{showsActivity && (
+					<LiveActivitySlot
+						interrupting={liveStatus.phase === "interrupting"}
+					/>
+				)}
+			</div>
+		);
+	}
 
 	return (
 		<div
@@ -59,13 +93,7 @@ export const AssistantOutput: React.FC<AssistantOutputProps> = ({
 		>
 			<BlockList {...blockProps} />
 			{callout && <ChatStatusCallout status={callout} />}
-			{liveStatus &&
-				(liveStatus.phase === "interrupting" ||
-					shouldShowGenericThinking({ liveStatus, blocks, tools })) && (
-					<LiveActivitySlot
-						interrupting={liveStatus.phase === "interrupting"}
-					/>
-				)}
+			{activityRow}
 		</div>
 	);
 };
