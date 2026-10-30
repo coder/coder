@@ -883,9 +883,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										isOtherUserReadOnly ? undefined : handleEditQueuedMessage
 									}
 									onEndQueuedMessageEdit={
-										isOtherUserReadOnly
-											? undefined
-											: handleEndQueuedMessageEdit
+										isOtherUserReadOnly ? undefined : handleEndQueuedMessageEdit
 									}
 									onInterrupt={handleInterrupt}
 									isInputDisabled={isInputDisabled}
