@@ -201,13 +201,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const summary = useContext(ToolCallSummaryContext);
-	const branchMode = useContext(ToolCallBranchContext);
-	const branch = branchMode !== "off";
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent && !summary;
 	const active = status === "running";
-	const showsBranch =
-		branchMode === "always" || (branchMode === "running" && active);
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
@@ -235,33 +231,59 @@ const Root: React.FC<ToolCallRootProps> = ({
 				view,
 			}}
 		>
-			<div
-				className={cn(branch && "relative", className)}
-				// The working block ends its rail at the last row on it.
-				data-rail-row={branch ? "" : undefined}
-				{...divProps}
-			>
-				{branch && (
-					// It retracts toward the rail when the row stops branching.
-					<span
-						aria-hidden
-						className="pointer-events-none absolute border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
-						style={{
-							left: -branchGeometry.railOffset,
-							top: branchGeometry.rowCenter - branchGeometry.rise,
-							height: branchGeometry.rise,
-							width: branchGeometry.arm,
-							borderBottomLeftRadius: branchGeometry.radius,
-							clipPath: showsBranch ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
-						}}
-					/>
-				)}
-				{/* Nested rows, such as a sub-agent's tools, sit off the rail. */}
-				<ToolCallBranchContext.Provider value="off">
-					{children}
-				</ToolCallBranchContext.Provider>
-			</div>
+			<RailRow active={active} className={className} {...divProps}>
+				{children}
+			</RailRow>
 		</ToolCallContext.Provider>
+	);
+};
+
+type ToolCallRailRowProps = React.ComponentProps<"div"> & {
+	/** Running: a `running` rail shows this row's branch. */
+	active: boolean;
+};
+
+/**
+ * PROTOTYPE: a row of a working block, on its rail. Inside a BranchProvider
+ * it draws its branch from the rail and marks itself so the block can end
+ * the rail at its last row; elsewhere it is a plain div.
+ */
+const RailRow: React.FC<ToolCallRailRowProps> = ({
+	active,
+	className,
+	children,
+	...divProps
+}) => {
+	const branchMode = useContext(ToolCallBranchContext);
+	const branch = branchMode !== "off";
+	const showsBranch =
+		branchMode === "always" || (branchMode === "running" && active);
+	return (
+		<div
+			className={cn(branch && "relative", className)}
+			data-rail-row={branch ? "" : undefined}
+			{...divProps}
+		>
+			{branch && (
+				// It retracts toward the rail when the row stops branching.
+				<span
+					aria-hidden
+					className="pointer-events-none absolute border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+					style={{
+						left: -branchGeometry.railOffset,
+						top: branchGeometry.rowCenter - branchGeometry.rise,
+						height: branchGeometry.rise,
+						width: branchGeometry.arm,
+						borderBottomLeftRadius: branchGeometry.radius,
+						clipPath: showsBranch ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
+					}}
+				/>
+			)}
+			{/* Nested rows, such as a sub-agent's tools, sit off the rail. */}
+			<ToolCallBranchContext.Provider value="off">
+				{children}
+			</ToolCallBranchContext.Provider>
+		</div>
 	);
 };
 type ToolCallHeaderRowProps = {
@@ -588,6 +610,7 @@ export const ToolCall = {
 	PolicyProvider,
 	SummaryProvider,
 	BranchProvider,
+	RailRow,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

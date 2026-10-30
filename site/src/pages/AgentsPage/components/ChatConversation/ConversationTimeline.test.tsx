@@ -720,6 +720,27 @@ describe("ConversationTimeline live working blocks", () => {
 		expect(summary).toHaveFocus();
 	});
 
+	it("shows the live turn's Thinking row in the block's peek and in the open block", async () => {
+		const user = userEvent.setup();
+		renderTimeline({
+			messages: MockWorkingMessages.slice(0, 5),
+			chatStatus: "running",
+			streamState: null,
+			streamTools: [],
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+
+		// The Thinking row is not a step.
+		const summary = screen.getByRole("button", {
+			name: "Working for 12s (2 steps)",
+		});
+		expect(screen.getAllByTestId("live-activity-slot")).toHaveLength(1);
+
+		await user.click(summary);
+		expect(summary).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getAllByTestId("live-activity-slot")).toHaveLength(1);
+	});
+
 	it("keeps an open promptless block mounted through completion and prompt prepend", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline({

@@ -1,16 +1,22 @@
 import { cn } from "cn";
 import { PauseIcon } from "lucide-react";
 import { Shimmer } from "../ChatElements/Shimmer";
+import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
 import { shouldShowGenericThinking } from "./streamingActivity";
 
-const LiveActivitySlot: React.FC<{ interrupting: boolean }> = ({
+/**
+ * The live turn's generic activity row. Inside a working block it sits on the
+ * block's rail like a step, but it is not one.
+ */
+export const LiveActivitySlot: React.FC<{ interrupting: boolean }> = ({
 	interrupting,
 }) => (
-	<div
+	<ToolCall.RailRow
+		active
 		data-testid="live-activity-slot"
 		className="flex h-6 items-center gap-2 text-content-secondary"
 	>
@@ -22,7 +28,7 @@ const LiveActivitySlot: React.FC<{ interrupting: boolean }> = ({
 		<Shimmer as="span" className="text-[13px] leading-6">
 			{interrupting ? "Interrupting" : "Thinking"}
 		</Shimmer>
-	</div>
+	</ToolCall.RailRow>
 );
 
 type AssistantOutputProps = BlockListProps & {

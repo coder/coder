@@ -12,24 +12,32 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
 import { branchGeometry, ToolCall } from "../ChatElements/tools/ToolCall";
+import { LiveActivitySlot } from "./AssistantOutput";
 import { ReasoningDisclosure } from "./MessageText";
 import { getVisibleContent } from "./messageHelpers";
 import type { MergedTool, RenderBlock } from "./types";
 
 type PeekItem =
 	| { kind: "thinking"; key: string; text: string; isStreaming: boolean }
-	| { kind: "tool"; key: string; tool: MergedTool };
+	| { kind: "tool"; key: string; tool: MergedTool }
+	// The generic "Thinking" row while the next step has not streamed.
+	| { kind: "pending"; key: string };
 
 type PeekSource = {
 	blocks: readonly RenderBlock[];
 	tools: readonly MergedTool[];
 	isStreaming: boolean;
+	/** The live row shows its generic "Thinking" row after these blocks. */
+	pending?: boolean;
 };
 
+const isPendingKey = (key: string) => key.startsWith("pending:");
+
 /**
- * A block's reasoning and tool calls, oldest first. Tools key by call ID and
- * reasoning by the tool before it, so a step keeps its key, and its row, when
- * the live stream persists as a message.
+ * A block's rows, oldest first, as the expanded block shows them: reasoning,
+ * tool calls, and the live row's generic "Thinking" row. Tools key by call ID
+ * and the rest by the tool before them, so a step keeps its key, and its row,
+ * when the live stream persists as a message.
  */
 export const collectPeekItems = (
 	sources: readonly PeekSource[],
@@ -65,6 +73,9 @@ export const collectPeekItems = (
 					sinceAnchor = 0;
 				}
 			}
+		}
+		if (source.pending) {
+			put({ kind: "pending", key: `pending:${anchor}:${sinceAnchor}` });
 		}
 	}
 	return [...byKey.values()];
@@ -117,6 +128,12 @@ export const slide = {
 	ease: [0.2, 0.8, 0.2, 1],
 } satisfies Transition;
 
+/** A step replacing the "Thinking" row in place crossfades with it. */
+const handover = {
+	duration: 0.15,
+	ease: slide.ease,
+} satisfies Transition;
+
 type ToolContext = {
 	organizationId: string;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -131,6 +148,9 @@ const PeekRow: React.FC<{ item: PeekItem } & ToolContext> = ({
 	subagentTitles,
 	subagentVariants,
 }) => {
+	if (item.kind === "pending") {
+		return <LiveActivitySlot interrupting={false} />;
+	}
 	if (item.kind === "thinking") {
 		return (
 			<ReasoningDisclosure
@@ -186,21 +206,45 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	const { fadedRow, branches } = useContext(PeekVariantsContext);
 	const shown = items.slice(fadedRow ? -3 : -2);
 
-	// Slots are handed out in arrival order and never reused, so a row keeps
-	// its slot from the moment it appears until it has faded out above.
+	// Slots are handed out in arrival order, so a row keeps its slot from the
+	// moment it appears until it has faded out above. Only a "Thinking" row
+	// passes its slot on: the step that ends it takes its place and fades in
+	// there, so each step slides in once.
 	const [slots, setSlots] = useState<ReadonlyMap<string, number>>(
 		() => new Map(shown.map((item, index) => [item.key, index])),
 	);
 	const unslotted = shown.filter((item) => !slots.has(item.key));
 	if (unslotted.length > 0) {
-		let next = Math.max(-1, ...slots.values()) + 1;
+		const shownKeys = new Set(shown.map((item) => item.key));
+		const lastSlot = Math.max(-1, ...slots.values());
+		const lastOwners = [...slots].flatMap(([key, slot]) =>
+			slot === lastSlot ? [key] : [],
+		);
+		// Only a "Thinking" row that is gone and was not already replaced.
+		let vacated =
+			lastOwners.length === 1 &&
+			isPendingKey(lastOwners[0]) &&
+			!shownKeys.has(lastOwners[0])
+				? lastSlot
+				: undefined;
+		let next = lastSlot + 1;
 		const nextSlots = new Map(slots);
 		for (const item of unslotted) {
-			nextSlots.set(item.key, next++);
+			if (vacated !== undefined && !isPendingKey(item.key)) {
+				nextSlots.set(item.key, vacated);
+				vacated = undefined;
+			} else {
+				nextSlots.set(item.key, next++);
+			}
 		}
 		setSlots(nextSlots);
 	}
 	const slotOf = (item: PeekItem) => slots.get(item.key) ?? 0;
+	const pendingSlots = new Set(
+		[...slots].flatMap(([key, slot]) => (isPendingKey(key) ? [slot] : [])),
+	);
+	const takesPendingSlot = (item: PeekItem) =>
+		item.kind !== "pending" && pendingSlots.has(slotOf(item));
 	// The window follows the newest row, so it always shows.
 	const newestSlot = Math.max(0, ...shown.map(slotOf));
 	const trackOffset = -(newestSlot - (shown.length - 1)) * ROW_PITCH;
@@ -300,12 +344,23 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 												// row, where the rail ends inside it.
 												clipPath: `inset(-${branchGeometry.rise - branchGeometry.rowCenter}px 0 0 -${ROW_INSET + 4}px)`,
 											}}
-											// Stays mounted until the track has carried it past
-											// the top edge.
-											exit={{
-												opacity: 0,
-												transition: { delay: slide.duration, duration: 0 },
-											}}
+											initial={takesPendingSlot(item) ? { opacity: 0 } : false}
+											animate={{ opacity: 1 }}
+											transition={handover}
+											// A "Thinking" row fades out where the next step fades
+											// in. Any other row stays mounted until the track has
+											// carried it past the top edge.
+											exit={
+												item.kind === "pending"
+													? { opacity: 0, transition: handover }
+													: {
+															opacity: 0,
+															transition: {
+																delay: slide.duration,
+																duration: 0,
+															},
+														}
+											}
 										>
 											<ToolCall.BranchProvider mode={branchModeOf(item)}>
 												<PeekRow item={item} {...ctx} />

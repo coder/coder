@@ -43,6 +43,7 @@ import {
 	deriveMessageDisplayState,
 	type MessageAttachment,
 } from "./messageHelpers";
+import { shouldShowGenericThinking } from "./streamingActivity";
 import { TurnAttachments } from "./TurnAttachments";
 import { assignTimelineRows } from "./timelineRows";
 import type {
@@ -745,14 +746,25 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 													row.type === "live"
 														? { blocks: liveBlocks, tools: liveTools }
 														: row.entry.parsed;
+												const content = getSliceContent(
+													source.blocks,
+													source.tools,
+													{ pieceRange, hideAttachments: true },
+												);
 												return {
-													...getSliceContent(source.blocks, source.tools, {
-														pieceRange,
-														hideAttachments: true,
-													}),
+													...content,
 													isStreaming:
 														row.type === "live" &&
 														liveStatus.phase === "streaming",
+													// As the expanded block's live slice decides it.
+													pending:
+														row.type === "live" &&
+														content.endsRow &&
+														shouldShowGenericThinking({
+															liveStatus,
+															blocks: content.blocks,
+															tools: content.tools,
+														}),
 												};
 											}),
 										)
