@@ -182,12 +182,13 @@ Each WebSocket message is a JSON array of events, and each event has a `type` fi
 | `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
-An array that encodes to more than 256&nbsp;KiB arrives instead as consecutive objects of the form `{"chunk": "...", "last": false}`, with no other message between them.
+If you add `chunks=true` to the query, an array that encodes to more than 256&nbsp;KiB arrives instead as consecutive objects of the form `{"chunk": "...", "last": false}`, each up to 512&nbsp;KiB, with no other message between them.
 Concatenate the `chunk` strings up to and including the object where `last` is `true`, then parse the result as the array.
 Discard a partial array when you reconnect.
 
 When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
-To detect a connection that stops delivering data without closing, start a 75-second timer when you open the WebSocket, restart it on every message, and reconnect when it fires.
+To detect a connection that stops delivering data without closing, start a timer when you open the WebSocket, restart it on every message, and reconnect when it fires.
+Use 40&nbsp;seconds with `chunks=true`; without it, use 75&nbsp;seconds so that one large array has time to download.
 
 Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
 

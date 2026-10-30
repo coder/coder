@@ -74,7 +74,7 @@ export const watchChat = (
 ): OneWayWebSocketApi<
 	TypesGen.ChatStreamEvent[] | TypesGen.ChatStreamChunk
 > => {
-	const params = new URLSearchParams();
+	const params = new URLSearchParams({ chunks: "true" });
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
 	}
@@ -82,8 +82,7 @@ export const watchChat = (
 	if (token) {
 		params.set(SessionTokenCookie, token);
 	}
-	const query = params.toString();
-	const route = `/api/v2/chats/${chatId}/stream${query ? `?${query}` : ""}`;
+	const route = `/api/v2/chats/${chatId}/stream?${params.toString()}`;
 	return new OneWayWebSocket({
 		apiRoute: route,
 	});

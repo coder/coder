@@ -10713,8 +10713,9 @@ func TestStreamChat(t *testing.T) {
 		// The chunk size is 1 mod 3, so consecutive split points in the run
 		// of three-byte runes fall inside a rune. The backslashes fill at
 		// least one chunk that escaping doubles, and the < run fails the
-		// size check if the encoder stops escaping HTML.
-		large := strings.Repeat("日", 2*codersdk.ChatStreamChunkBytes) +
+		// size check if the encoder stops escaping HTML. The batch is over
+		// the SDK's 4 MiB read limit, so StreamChat reads it only as chunks.
+		large := strings.Repeat("日", 3*codersdk.ChatStreamChunkBytes) +
 			strings.Repeat(`\`, codersdk.ChatStreamChunkBytes) +
 			strings.Repeat("<", codersdk.ChatStreamChunkBytes)
 		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText(large)})
@@ -10726,7 +10727,18 @@ func TestStreamChat(t *testing.T) {
 			Content:       pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		})
 
-		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID), nil)
+		// Without the parameter the batch is one array message.
+		plain, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID), nil)
+		require.NoError(t, err)
+		defer plain.Close(websocket.StatusNormalClosure, "")
+		plain.SetReadLimit(1 << 24)
+		_, data, err := plain.Read(ctx)
+		require.NoError(t, err)
+		var unsplit []codersdk.ChatStreamEvent
+		require.NoError(t, json.Unmarshal(data, &unsplit), "snapshot message is not an array")
+		require.True(t, streamChatSnapshotHasText(unsplit, large))
+
+		conn, err := client.Dial(ctx, fmt.Sprintf("/api/v2/chats/%s/stream?chunks=true", chat.ID), nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "")
 		conn.SetReadLimit(1 << 22)
