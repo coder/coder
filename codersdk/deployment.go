@@ -1008,6 +1008,7 @@ type PrometheusConfig struct {
 	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
 	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	CollectWorkspaceStats serpent.Bool        `json:"collect_workspace_stats" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -2699,6 +2700,16 @@ communicating directly.`,
 			Group:   &deploymentGroupIntrospectionPrometheus,
 			YAML:    "collect_db_metrics",
 			Default: "false",
+		},
+		{
+			Name:        "Prometheus Collect Workspace Stats",
+			Description: "Collect per-workspace stats (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-workspace-stats",
+			Env:         "CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS",
+			Value:       &c.Prometheus.CollectWorkspaceStats,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_workspace_stats",
+			Default:     "false",
 		},
 		// Pprof settings
 		{

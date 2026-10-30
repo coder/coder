@@ -349,6 +349,17 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 
 Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
 
+### --prometheus-collect-workspace-stats
+
+| Property    | Value                                                         |
+|-------------|---------------------------------------------------------------|
+| Type        | <code>bool</code>                                             |
+| Environment | <code>$CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS</code>        |
+| YAML        | <code>introspection.prometheus.collect_workspace_stats</code> |
+| Default     | <code>false</code>                                            |
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
 ### --pprof-enable
 
 | Property    | Value                                   |

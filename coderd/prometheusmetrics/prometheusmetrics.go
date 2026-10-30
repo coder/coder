@@ -245,6 +245,47 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	}, nil
 }
 
+// WorkspaceStats tracks per-workspace usage, one series per workspace.
+func WorkspaceStats(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+	if duration == 0 {
+		duration = defaultRefreshRate
+	}
+
+	lastUsed := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "workspace_last_used_timestamp_seconds",
+		Help:      "The last time each workspace was used, as a Unix timestamp in seconds. Every replica reports the same database-derived value; aggregate with max, not sum.",
+	}, []string{"organization_name", "template_name", "workspace_owner", "workspace_name", "workspace_id"}))
+	if err := registerer.Register(lastUsed); err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	collect := func() {
+		workspaces, err := db.GetWorkspaceLastUsedForMetrics(ctx)
+		if err != nil {
+			logger.Warn(ctx, "failed to load workspace last used times for metrics", slog.Error(err))
+			return
+		}
+		for _, w := range workspaces {
+			lastUsed.WithLabelValues(VectorOperationSet, float64(w.LastUsedAt.Unix()),
+				w.OrganizationName, w.TemplateName, w.OwnerUsername, w.WorkspaceName, w.WorkspaceID.String())
+		}
+		lastUsed.Commit()
+	}
+	collect()
+	ticker := clk.TickerFunc(ctx, duration, func() error {
+		collect()
+		return nil
+	}, "workspace_stats")
+	return func() {
+		cancelFunc()
+		if err := ticker.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Warn(ctx, "workspace stats metrics ticker stopped", slog.Error(err))
+		}
+	}, nil
+}
+
 // Agents tracks the total number of workspaces with labels on status.
 func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
 	if duration == 0 {
