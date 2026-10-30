@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { chatACLKey } from "#/api/queries/chats";
+import { getGroupsByOrganizationQueryKey } from "#/api/queries/groups";
+import { organizationMembersKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
@@ -40,6 +43,17 @@ const chatUser: TypesGen.ChatUser = {
 const chatGroup: TypesGen.ChatGroup = {
 	...MockGroup,
 	role: "read",
+};
+
+const mockPlatformGroup: TypesGen.ChatGroup = {
+	...chatGroup,
+	display_name: "Platform",
+	avatar_url: "/icon/k8s.svg",
+};
+const mockDesignGroup: TypesGen.Group = {
+	...MockGroup2,
+	display_name: "Design",
+	avatar_url: "/emojis/1f34c.png",
 };
 
 const emptyACL: TypesGen.ChatACL = { users: [], groups: [] };
@@ -233,6 +247,36 @@ export const LoadingACL: Story = {
 	beforeEach: () => mockDialogRequests({ aclPending: true }),
 	play: async ({ canvasElement }) => {
 		await openChatSharing(canvasElement);
+	},
+};
+
+export const BuiltinGroupAvatars: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatACLKey(chatId),
+				data: { users: [], groups: [mockPlatformGroup] },
+			},
+			{
+				key: getGroupsByOrganizationQueryKey(organizationId),
+				data: [mockDesignGroup],
+			},
+			{
+				key: organizationMembersKey(organizationId, { limit: 0 }),
+				data: {
+					members: [MockOrganizationMember, MockOrganizationMember2],
+					count: 2,
+				},
+			},
+		],
+	},
+	beforeEach: ignoreResizeObserverLoopError,
+	play: async ({ canvasElement }) => {
+		const body = await openChatSharing(canvasElement);
+		await userEvent.click(
+			await body.findByRole("button", { name: "Search for user or group" }),
+		);
+		await body.findByRole("option", { name: /Design/ });
 	},
 };
 
