@@ -310,15 +310,11 @@ export function sliceAtGraphemeBoundary(
 	}
 
 	if (graphemeSegmenter) {
-		// Runs every animation frame while streaming; containing() avoids
-		// walking every earlier cluster.
-		const last = graphemeSegmenter
-			.segment(text)
-			.containing(maxCodeUnitLength - 1);
-		if (last) {
-			const end = last.index + last.segment.length;
-			return text.slice(0, end <= maxCodeUnitLength ? end : last.index);
-		}
+		// containing() finds the cluster holding the first code unit past the
+		// cut without walking earlier ones; it starts at the largest boundary
+		// that fits. The guards leave 0 < maxCodeUnitLength < text.length.
+		const cut = graphemeSegmenter.segment(text).containing(maxCodeUnitLength)!;
+		return text.slice(0, cut.index);
 	}
 
 	// Fallback: iterate by codepoint to avoid splitting surrogate
