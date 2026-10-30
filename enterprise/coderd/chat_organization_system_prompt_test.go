@@ -232,14 +232,10 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 		}))
 
 		baseline := systemTexts(otherOrg.ID, otherModel)
-		require.NotContains(t, baseline, orgPrompt)
-		require.GreaterOrEqual(t, len(baseline), 2, "deployment and workspace awareness rows")
-		require.Equal(t, chatd.DefaultSystemPrompt, baseline[0])
+		require.Equal(t, []string{chatd.DefaultSystemPrompt}, baseline)
 
-		// The organization row follows the deployment row and leaves the
-		// rest of the initial system rows unchanged.
-		want := append([]string{baseline[0], orgPrompt}, baseline[1:]...)
-		require.Equal(t, want, systemTexts(orgID, orgModel))
+		// The organization row follows the deployment row.
+		require.Equal(t, []string{chatd.DefaultSystemPrompt, orgPrompt}, systemTexts(orgID, orgModel))
 
 		// Clearing the prompt restores the baseline rows.
 		require.NoError(t, owner.UpdateOrganizationChatSystemPrompt(ctx, orgID, codersdk.UpdateOrganizationChatSystemPromptRequest{}))
