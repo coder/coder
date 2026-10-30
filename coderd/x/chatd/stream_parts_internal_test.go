@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -136,6 +137,83 @@ func TestStreamPartsEndpointReselectsWhileEpisodeMissing(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Equal(t, "selected", got[0].MessagePart.Part.Text)
 	require.Equal(t, selectedKey.HistoryVersion, got[0].MessagePart.HistoryVersion)
+}
+
+type writeCountingServerTransport struct {
+	streamPartsServerTransport
+	writes atomic.Int64
+}
+
+func (c *writeCountingServerTransport) WriteEvents(ctx context.Context, events []codersdk.ChatStreamEvent) error {
+	c.writes.Add(1)
+	return c.streamPartsServerTransport.WriteEvents(ctx, events)
+}
+
+func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	chatID := uuid.New()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
+	endpoint := streamPartsEndpoint{
+		chatID: chatID,
+		buffer: buffer,
+		logger: slogtest.Make(t, nil),
+	}
+	serverTransport, clientTransport := newStreamPartsChannelTransportPair()
+	channelTransport, ok := serverTransport.(streamPartsChannelServerTransport)
+	require.True(t, ok, "unexpected transport type %T", serverTransport)
+	pipe := channelTransport.pipe
+	counting := &writeCountingServerTransport{streamPartsServerTransport: serverTransport}
+	serveDone := serveStreamPartsEndpoint(ctx, t, endpoint, counting)
+	defer func() {
+		require.NoError(t, clientTransport.Close())
+		<-serveDone
+	}()
+
+	blockingKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
+	// A reader that queued selections in a buffer of fewer than 16 would never
+	// take latestKey from the pipe.
+	var staleKeys []messagepartbuffer.Key
+	for i := range int64(16) {
+		staleKeys = append(staleKeys, messagepartbuffer.Key{ChatID: chatID, HistoryVersion: i + 2, GenerationAttempt: 1})
+	}
+	latestKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: staleKeys[len(staleKeys)-1].HistoryVersion + 1, GenerationAttempt: 1}
+	require.NoError(t, buffer.CreateEpisode(blockingKey))
+	for range cap(pipe.eventsCh) + 1 {
+		require.NoError(t, buffer.AddPart(blockingKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("blocking")))
+	}
+	for _, key := range staleKeys {
+		require.NoError(t, buffer.CreateEpisode(key))
+		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("stale")))
+	}
+	require.NoError(t, buffer.CreateEpisode(latestKey))
+	require.NoError(t, buffer.AddPart(latestKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("latest")))
+
+	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: blockingKey.HistoryVersion, GenerationAttempt: blockingKey.GenerationAttempt}))
+	// A full eventsCh alone does not show that the serve loop stopped
+	// selecting; a started write that cannot finish does.
+	require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
+		return counting.writes.Load() == int64(cap(pipe.eventsCh))+1
+	}, testutil.IntervalFast))
+	// The serve loop is now blocked sending parts. A reader that waited for
+	// it would hold the second of these selections and leave the third in
+	// the pipe.
+	for _, key := range append(staleKeys, latestKey) {
+		require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: key.HistoryVersion, GenerationAttempt: key.GenerationAttempt}))
+		require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(pipe.controlCh) == 0
+		}, testutil.IntervalFast), "selection for history version %d was not read", key.HistoryVersion)
+	}
+
+	for {
+		got := readStreamPartsTransportBatch(ctx, t, clientTransport)
+		if got[0].MessagePart.HistoryVersion == latestKey.HistoryVersion {
+			require.Equal(t, "latest", got[0].MessagePart.Part.Text)
+			return
+		}
+	}
 }
 
 func TestStreamPartsEndpointClientDisconnectCancels(t *testing.T) {
