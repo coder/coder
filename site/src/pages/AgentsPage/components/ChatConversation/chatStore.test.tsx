@@ -3316,7 +3316,7 @@ describe("useChatStore", () => {
 			timeout: 3_000,
 		});
 
-		// Second disconnect — reconnect after 2s.
+		// Second disconnect. The next reconnect comes after 2s.
 		const socket2 = sockets[1]!;
 		act(() => socket2.emitClose());
 
@@ -3489,7 +3489,7 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Transition to running — should call clearChatErrorReason.
+		// Transition to running, which should call clearChatErrorReason.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -4106,7 +4106,7 @@ describe("updateSidebarChat via stream events", () => {
 			});
 		});
 
-		// The per-chat WebSocket does not write updated_at — only the
+		// The per-chat WebSocket does not write updated_at. Only the
 		// global chat-list WebSocket delivers the authoritative server
 		// timestamp. Verify it stays at the original value.
 		await waitFor(() => {
