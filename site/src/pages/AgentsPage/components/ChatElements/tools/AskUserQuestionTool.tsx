@@ -15,7 +15,7 @@ import type { ToolStatus } from "./utils";
 export type AskUserQuestion = {
 	header: string;
 	question: string;
-	options: Array<{ label: string; description: string }>;
+	options: Array<{ label: string; description?: string }>;
 };
 
 type QuestionAnswer =
@@ -136,7 +136,7 @@ type SelectableAnswerOptionProps = {
 	id: string;
 	value: string;
 	label: string;
-	description: string;
+	description?: string;
 	isInteractive: boolean;
 	isSubmitting: boolean;
 };
@@ -169,9 +169,11 @@ const SelectableAnswerOption: React.FC<SelectableAnswerOptionProps> = ({
 			<span className="text-[13px] font-medium text-content-primary">
 				{label}
 			</span>
-			<p className="col-start-2 m-0 whitespace-pre-wrap text-[13px] text-content-secondary">
-				{description}
-			</p>
+			{description && (
+				<p className="col-start-2 m-0 whitespace-pre-wrap text-[13px] text-content-secondary">
+					{description}
+				</p>
+			)}
 		</label>
 	);
 };
@@ -196,7 +198,7 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
 			id={`${questionIdBase}-option-${optionIndex}`}
 			value={`option-${optionIndex}`}
 			label={option.label || `Option ${optionIndex + 1}`}
-			description={option.description || "No description provided."}
+			description={option.description}
 			isInteractive={isInteractive}
 			isSubmitting={isSubmitting}
 		/>
