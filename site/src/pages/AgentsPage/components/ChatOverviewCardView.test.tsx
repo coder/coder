@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -121,5 +121,40 @@ describe("ChatOverviewCardView", () => {
 		expect(
 			screen.getByRole("region", { name: "Subagents · 0 of 3 not idle" }),
 		).toHaveAccessibleName();
+	});
+
+	it("shows a row's full label in a tooltip on hover", async () => {
+		const user = userEvent.setup();
+		renderCard();
+
+		await user.hover(screen.getByRole("button", { name: /#123 Queue jobs/ }));
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"#123 Queue jobs",
+		);
+	});
+
+	it("opens the tooltip of a repository without changes from the keyboard", async () => {
+		const user = userEvent.setup();
+		renderCard({
+			...mockChatOverview,
+			cost: undefined,
+			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+		});
+
+		await user.tab();
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("main");
+		expect(document.activeElement).toHaveTextContent("main+0 −0");
+	});
+
+	it("opens a subagent row's tooltip from the keyboard", async () => {
+		renderCard({ ...mockChatOverview, cost: undefined, repos: [] });
+
+		act(() => screen.getByRole("link", { name: /Find the flake/ }).focus());
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Find the flake",
+		);
 	});
 });
