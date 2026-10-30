@@ -830,22 +830,6 @@ func callerModelConfigContext(
 	return dbauthz.As(ctx, actor), nil
 }
 
-func resolveSendMessageModelConfigID(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	requested uuid.UUID,
-) (uuid.UUID, error) {
-	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID)
-	}
-
-	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
-		return uuid.Nil, err
-	}
-	return requested, nil
-}
-
 // requireEnabledChatModelConfig rechecks enabled state inside the daemon.
 // The coderd preflight can race an admin disabling the model or provider.
 func requireEnabledChatModelConfig(
@@ -928,6 +912,13 @@ func resolveFallbackModelConfigID(
 	return defaultConfig.ID, nil
 }
 
+// validateModelConfigOverride returns requested as an override if it is
+// an enabled model config in the organization, and no override when
+// requested is uuid.Nil. Call it before the chat transaction: model
+// config writes serialize on an organization advisory lock that chat
+// transactions do not take, so the chat row lock cannot stop a
+// concurrent disable. If the config is disabled after this check, the
+// turn runs on the organization default model (see resolveModelConfig).
 func validateModelConfigOverride(
 	ctx context.Context,
 	store database.Store,

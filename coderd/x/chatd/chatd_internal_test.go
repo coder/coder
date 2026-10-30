@@ -4061,9 +4061,9 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, orgID, provider.ID, false)
 
-		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		resolved, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.NoError(t, err)
-		require.Equal(t, model.ID, resolved)
+		require.Equal(t, uuid.NullUUID{UUID: model.ID, Valid: true}, resolved)
 	})
 
 	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
@@ -4076,12 +4076,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, defaultOrg.ID, provider.ID, false)
 
-		_, err = resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
+		_, err = validateModelConfigOverride(ctx, db, chatOrgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
@@ -4094,12 +4089,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, unrelatedOrgID, provider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
+		_, err := validateModelConfigOverride(ctx, db, chatOrgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
@@ -4113,7 +4103,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		disabledProvider := newProvider(t, db, false)
 		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		_, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
