@@ -105,20 +105,20 @@ export const LongLineFencedBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		// The fenced block renders asynchronously inside the FileViewer
-		// shadow root, so retry until a horizontally scrollable viewport
+		// shadow root, so retry until a horizontally scrollable container
 		// exists, then scroll it so the capture shows the scrolled state.
-		const viewport = await waitFor(() => {
-			const found = [
-				...canvasElement.querySelectorAll<HTMLElement>(
-					"[data-radix-scroll-area-viewport]",
-				),
-			].find((v) => v.scrollWidth > v.clientWidth);
+		const scroller = await waitFor(() => {
+			const found = [...canvasElement.querySelectorAll<HTMLElement>("*")].find(
+				(el) =>
+					getComputedStyle(el).overflowX === "auto" &&
+					el.scrollWidth > el.clientWidth,
+			);
 			if (!found) {
-				throw new Error("Expected a horizontally scrollable viewport.");
+				throw new Error("Expected a horizontally scrollable code block.");
 			}
 			return found;
 		});
-		viewport.scrollLeft = 200;
+		scroller.scrollLeft = 200;
 	},
 };
 
