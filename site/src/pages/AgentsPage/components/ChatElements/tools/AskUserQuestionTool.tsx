@@ -476,6 +476,31 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		status === "completed" &&
 		isLatestAskUserQuestion &&
 		Boolean(onSubmitAnswer);
+	const draftKey =
+		toolCallId === undefined
+			? undefined
+			: getQuestionCallKey(toolCallId, startedAt);
+
+	// Only the latest question takes an answer, so an older one's draft goes.
+	useEffect(() => {
+		if (!isLatestAskUserQuestion && draftKey !== undefined) {
+			removeFormDraft(draftKey);
+		}
+	}, [isLatestAskUserQuestion, draftKey]);
+
+	const runningHeader = (
+		<ToolCall.Root
+			status={status}
+			hasContent={false}
+			role="status"
+			aria-live="polite"
+		>
+			<ToolCall.Header
+				iconName="ask_user_question"
+				label="Asking for clarification..."
+			/>
+		</ToolCall.Root>
+	);
 
 	if (isError) {
 		return (
@@ -499,17 +524,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<ToolCall.Root
-						status={status}
-						hasContent={false}
-						role="status"
-						aria-live="polite"
-					>
-						<ToolCall.Header
-							iconName="ask_user_question"
-							label="Asking for clarification..."
-						/>
-					</ToolCall.Root>
+					runningHeader
 				) : (
 					<p className="text-[13px] italic text-content-secondary">
 						No questions available.
@@ -521,14 +536,11 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 
 	return (
 		<div className="w-full">
+			{isRunning && runningHeader}
 			<AskUserQuestionForm
 				questions={questions}
 				previousResponseText={previousResponseText}
-				draftKey={
-					toolCallId === undefined
-						? undefined
-						: getQuestionCallKey(toolCallId, startedAt)
-				}
+				draftKey={draftKey}
 				showSubmittedAnswer={isLatestAskUserQuestion}
 				onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
 			/>
