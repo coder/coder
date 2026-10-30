@@ -1,7 +1,7 @@
 /**
  * React Compiler diagnostic checker.
  *
- * Runs babel-plugin-react-compiler over every .ts/.tsx file in the
+ * Runs Oxc's React Compiler (oxc-transform-react) over every .ts/.tsx file in the
  * target directories and reports functions that failed to compile or
  * were skipped. Exits with code 1 when any diagnostics are present
  * or a target directory is missing.
@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { transformSync } from "@babel/core";
+import { transformSync } from "oxc-transform-react";
 
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
@@ -34,7 +34,8 @@ const MAX_ERROR_LENGTH = 120;
 // assignment. Primitives (strings, numbers, booleans) are fine without
 // memoization because `!==` compares them by value. Only reference types
 // (closures, objects, arrays) cause problems.
-const CLOSURE_RHS = /^\s*(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\s*\()/;
+const CLOSURE_RHS =
+	/^\s*(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\w+\s*=>|function\s*\()/;
 
 // Matches a `$[N] !== name` fragment inside an `if (...)` guard.
 const DEP_CHECK = /\$\[\d+\]\s*!==\s*(\w+)/g;
@@ -78,14 +79,21 @@ function collectFiles(dir) {
 
 // ---------------------------------------------------------------------------
 // Compilation & diagnostics
-//
-// We use transformSync deliberately. The React Compiler plugin is
-// CPU-bound (parse-only takes ~2s vs ~19s with the compiler over all
-// of site/src), so transformAsync + Promise.all gives no speedup
-// because Node still runs all transforms on a single thread. Benchmarked
-// sync, async-sequential, and async-parallel: all land within noise
-// of each other. The sync API keeps the code simple.
 // ---------------------------------------------------------------------------
+
+/**
+ * Convert a UTF-8 byte offset into a 1-based line number. Oxc reports
+ * label spans as byte offsets into the UTF-8 source, not UTF-16 string
+ * indices, so the count must happen on the encoded bytes.
+ */
+function lineAtByteOffset(bytes, offset) {
+	let line = 1;
+	const end = Math.min(offset, bytes.length);
+	for (let i = 0; i < end; i++) {
+		if (bytes[i] === 0x0a) line++;
+	}
+	return line;
+}
 
 /**
  * Shorten a compiler diagnostic message to its first sentence, stripping
@@ -128,40 +136,35 @@ export function deduplicateDiagnostics(diagnostics) {
  * than thrown, so the caller always gets a result.
  */
 function compileFile(file) {
-	const isTSX = file.endsWith(".tsx");
-	const diagnostics = [];
-
 	try {
-		const code = readFileSync(join(siteDir, file), "utf-8");
-		const result = transformSync(code, {
-			plugins: [
-				["@babel/plugin-syntax-typescript", { isTSX }],
-				["babel-plugin-react-compiler", {
-					logger: {
-						logEvent(_filename, event) {
-							if (event.kind === "CompileError" || event.kind === "CompileSkip") {
-								const msg = event.detail || event.reason || "(unknown)";
-								diagnostics.push({
-									line: event.fnLoc?.start?.line ?? 0,
-									short: shortenMessage(msg),
-								});
-							}
-						},
-					},
-				}],
-			],
-			filename: file,
-			// Skip config-file resolution. No babel.config.js exists in the
-			// repo, so the search is wasted I/O on every file.
-			configFile: false,
-			babelrc: false,
+		const bytes = readFileSync(join(siteDir, file));
+		// The filename determines whether the source is parsed as TS or TSX.
+		const result = transformSync(file, bytes.toString("utf-8"), {
+			// Leave JSX untouched so the output stays close to the source
+			// for the scope-pruning scan below.
+			jsx: "preserve",
+			reactCompiler: {
+				// Without this, only fatal diagnostics are returned and
+				// skipped or bailed-out functions are silently dropped.
+				reportDiagnostics: true,
+			},
+		});
+
+		const diagnostics = result.errors.map((err) => {
+			const start = err.labels[0]?.start;
+			const short = shortenMessage(err.message || "(unknown)");
+			return {
+				line: start === undefined ? 0 : lineAtByteOffset(bytes, start),
+				short: result.fatal ? `Transform error: ${short}` : short,
+			};
 		});
 
 		// The compiler inserts `const $ = _c(N)` at the top of every
 		// function it successfully compiles, where N is the number of
 		// memoization slots. Counting these tells us how many functions
 		// were compiled in this file.
-		const compiledCount = result?.code?.match(/const \$ = _c\(\d+\)/g)?.length ?? 0;
+		const compiledCount =
+			result?.code?.match(/const \$ = _c\(\d+\)/g)?.length ?? 0;
 
 		return {
 			compiled: compiledCount,
@@ -172,11 +175,13 @@ function compileFile(file) {
 		return {
 			compiled: 0,
 			code: "",
-			diagnostics: [{
-				line: 0,
-				// Truncate to keep the one-line report readable.
-				short: `Transform error: ${(e instanceof Error ? e.message : String(e)).substring(0, MAX_ERROR_LENGTH)}`,
-			}],
+			diagnostics: [
+				{
+					line: 0,
+					// Truncate to keep the one-line report readable.
+					short: `Transform error: ${(e instanceof Error ? e.message : String(e)).substring(0, MAX_ERROR_LENGTH)}`,
+				},
+			],
 		};
 	}
 }
@@ -265,7 +270,9 @@ export function shortPath(file, dirs = targetDirs) {
 
 /** Print a summary of compilation results and per-file diagnostics. */
 function printReport(failures, totalCompiled, fileCount, hadErrors) {
-	console.log(`\nTotal: ${totalCompiled} functions compiled across ${fileCount} files`);
+	console.log(
+		`\nTotal: ${totalCompiled} functions compiled across ${fileCount} files`,
+	);
 	console.log(`Files with diagnostics: ${failures.length}\n`);
 
 	for (const f of failures) {
@@ -292,7 +299,6 @@ let hadCollectionErrors = false;
 // Only run the main block when executed directly, not when imported
 // by tests for the exported pure functions.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-
 	const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
 
 	let totalCompiled = 0;
