@@ -29,7 +29,15 @@ const createStore = () => {
 const meta: Meta<typeof ChatOverviewCard> = {
 	title: "pages/AgentsPage/ChatOverviewCard",
 	component: ChatOverviewCard,
-	decorators: [withDashboardProvider],
+	decorators: [
+		withDashboardProvider,
+		// The card hangs below the top bar's bottom edge, at its right side.
+		(Story) => (
+			<div className="relative h-0 w-80">
+				<Story />
+			</div>
+		),
+	],
 	parameters: {
 		features: ["aibridge"] satisfies TypesGen.FeatureName[],
 		queries: [{ key: chatCostTreeKey(MockChat.id), data: mockCost }],
