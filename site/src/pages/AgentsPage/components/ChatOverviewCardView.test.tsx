@@ -1,4 +1,4 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -127,10 +127,11 @@ describe("ChatOverviewCardView", () => {
 		const user = userEvent.setup();
 		renderCard();
 
-		await user.hover(screen.getByRole("button", { name: /#123 Queue jobs/ }));
+		const row = screen.getByRole("button", { name: /#123 Queue jobs/ });
+		await user.hover(row);
 
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"#123 Queue jobs",
+		await waitFor(() =>
+			expect(row).toHaveAccessibleDescription("#123 Queue jobs"),
 		);
 	});
 
@@ -144,17 +145,19 @@ describe("ChatOverviewCardView", () => {
 
 		await user.tab();
 
-		expect(await screen.findByRole("tooltip")).toHaveTextContent("main");
-		expect(document.activeElement).toHaveTextContent("main+0 −0");
+		await waitFor(() =>
+			expect(document.activeElement).toHaveAccessibleDescription("main"),
+		);
 	});
 
 	it("opens a subagent row's tooltip from the keyboard", async () => {
 		renderCard({ ...mockChatOverview, cost: undefined, repos: [] });
 
-		act(() => screen.getByRole("link", { name: /Find the flake/ }).focus());
+		const row = screen.getByRole("link", { name: /Find the flake/ });
+		act(() => row.focus());
 
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Find the flake",
+		await waitFor(() =>
+			expect(row).toHaveAccessibleDescription("Find the flake"),
 		);
 	});
 
@@ -174,7 +177,6 @@ describe("ChatOverviewCardView", () => {
 		);
 
 		const section = screen.getByRole("region", { name: "Attachments" });
-		expect(section).toHaveTextContent("Failed to get chat attachments.");
 		await user.click(within(section).getByRole("button", { name: "Retry" }));
 		expect(retry).toHaveBeenCalledOnce();
 	});

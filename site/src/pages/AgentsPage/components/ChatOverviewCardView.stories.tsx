@@ -153,6 +153,18 @@ export const NoCostCleanRepo: Story = {
 	},
 };
 
+/** A truncated row shows its full label in a tooltip. */
+export const TruncatedRowTooltip: Story = {
+	args: { overview: mockLongChatOverview },
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", {
+				name: /feat\/a-very-long-branch-name-for-api/,
+			}),
+		);
+	},
+};
+
 /** Long lists fold behind a toggle, and long names truncate. */
 export const ManyRows: Story = {
 	args: { overview: mockLongChatOverview },
