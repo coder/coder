@@ -24171,6 +24171,9 @@ SET owner_id   = $1::uuid,
 WHERE w.id IN (
 	SELECT p.id
 	FROM workspace_prebuilds p
+		-- workspace_prebuilds is built from CTEs, and Postgres does not push row locks into a CTE.
+		-- Locking the view locks nothing, so we lock the underlying workspaces row instead.
+		INNER JOIN workspaces pw ON pw.id = p.id
 		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 		INNER JOIN templates t ON p.template_id = t.id
 	WHERE (b.transition = 'start'::workspace_transition
@@ -24181,7 +24184,14 @@ WHERE w.id IN (
 		AND p.current_preset_id = $7::uuid
 		AND p.ready
 		AND NOT t.deleted
-	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+		-- Postgres rechecks these on the locked row, so a prebuild claimed or deleted by a
+		-- just-committed transaction is excluded rather than claimed.
+		AND pw.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+		AND NOT pw.deleted
+	-- NO KEY UPDATE matches the lock the outer UPDATE takes. FOR UPDATE would also block FK
+	-- checks from inserts that reference this workspace (e.g. a reconciler delete build),
+	-- which can deadlock with the claim's own build insert.
+	LIMIT 1 FOR NO KEY UPDATE OF pw SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name
 `
