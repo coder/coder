@@ -157,4 +157,25 @@ describe("ChatOverviewCardView", () => {
 			"Find the flake",
 		);
 	});
+
+	it("shows a failed earlier attachments request with a retry", async () => {
+		const user = userEvent.setup();
+		const retry = vi.fn();
+		render(
+			<ChatOverviewCardView
+				overview={{ ...mockChatOverview, attachments: [] }}
+				earlierAttachmentsRequest={{
+					error: new Error("Failed to get chat attachments."),
+					isRetrying: false,
+					retry,
+				}}
+				onOpenTarget={vi.fn()}
+			/>,
+		);
+
+		const section = screen.getByRole("region", { name: "Attachments" });
+		expect(section).toHaveTextContent("Failed to get chat attachments.");
+		await user.click(within(section).getByRole("button", { name: "Retry" }));
+		expect(retry).toHaveBeenCalledOnce();
+	});
 });
