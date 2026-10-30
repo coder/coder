@@ -308,6 +308,7 @@ const ChatMessageItem = memo<{
 							}
 							onImageClick={openImagePreview}
 							onTextFileClick={openTextPreview}
+							urlTransform={urlTransform}
 						/>
 					) : (
 						<Message className="w-full">

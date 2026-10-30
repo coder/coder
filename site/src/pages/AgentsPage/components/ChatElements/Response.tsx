@@ -3,17 +3,32 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
+import { createContext, useContext } from "react";
+import remarkBreaks from "remark-breaks";
 import {
 	type Components,
 	defaultRehypePlugins,
+	defaultRemarkPlugins,
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import {
+	inlineNodeIndexProperty,
+	rehypeInlineNodes,
+	replaceInlineNodePlaceholders,
+} from "./inlineNodes";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
+
+/** A React element that replaces a placeholder, with its plain text form. */
+export type InlineNode = {
+	element: React.ReactNode;
+	/** Plain text shown where the node lands inside fenced code. */
+	text: string;
+};
 
 type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	children: string;
@@ -22,6 +37,10 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	 * preprocessing (remend). Pass true only for live-streaming
 	 * output. */
 	streaming?: boolean;
+	/** Nodes that replace `inlineNodePlaceholder(index)` in the source. */
+	inlineNodes?: readonly InlineNode[];
+	/** Render single newlines as line breaks, as typed text expects. */
+	preserveLineBreaks?: boolean;
 };
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -34,6 +53,23 @@ const chatRehypePlugins = [
 	defaultRehypePlugins.harden,
 ];
 
+// Placeholders resolve after sanitization, which strips the index
+// property the plugin adds, and before hardening, so shortened links are
+// still validated.
+const inlineNodeRehypePlugins = [
+	defaultRehypePlugins.sanitize,
+	rehypeInlineNodes,
+	defaultRehypePlugins.harden,
+];
+
+const lineBreakRemarkPlugins = [
+	...Object.values(defaultRemarkPlugins),
+	remarkBreaks,
+];
+
+const noInlineNodes: readonly InlineNode[] = [];
+const InlineNodesContext = createContext(noInlineNodes);
+
 type HastNode = {
 	type?: string;
 	value?: string;
@@ -41,6 +77,7 @@ type HastNode = {
 	tagName?: string;
 	properties?: {
 		className?: string[] | string;
+		[inlineNodeIndexProperty]?: number;
 	};
 };
 
@@ -102,6 +139,20 @@ const markdownFileViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "12px",
 	"--diffs-line-height": "20px",
+};
+
+// Renders the inline node a placeholder span stands for, and every other
+// span unchanged.
+const InlineNodeSpan = ({
+	node,
+	...props
+}: React.ComponentProps<"span"> & { node?: HastNode }) => {
+	const inlineNodes = useContext(InlineNodesContext);
+	const index = node?.properties?.[inlineNodeIndexProperty];
+	if (index === undefined) {
+		return <span {...props} />;
+	}
+	return inlineNodes[index]?.element ?? null;
 };
 
 const createComponents = (
@@ -215,7 +266,9 @@ const createComponents = (
 				{children}
 			</code>
 		),
-		pre: ({ node }: MarkdownComponentProps) => {
+		span: InlineNodeSpan,
+		pre: function MarkdownPre({ node }: MarkdownComponentProps) {
+			const inlineNodes = useContext(InlineNodesContext);
 			const codeChild = node?.children?.[0];
 			if (codeChild?.tagName === "code") {
 				const classes = getClassNames(codeChild.properties?.className);
@@ -223,7 +276,10 @@ const createComponents = (
 					c.startsWith("language-"),
 				);
 				const lang = langClass?.replace(/^language-/, "") ?? "text";
-				const content = getHastText(codeChild).trimEnd();
+				const content = replaceInlineNodePlaceholders(
+					getHastText(codeChild).trimEnd(),
+					inlineNodes.map((inlineNode) => inlineNode.text),
+				);
 				if (content) {
 					const isMermaid = lang === "mermaid";
 					// Shiki has no Mermaid grammar and the viewer renders
@@ -293,6 +349,8 @@ export const Response = ({
 	ref,
 	urlTransform,
 	streaming,
+	inlineNodes,
+	preserveLineBreaks,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -309,25 +367,32 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			<Streamdown
-				controls={false}
-				components={components}
-				urlTransform={urlTransform}
-				rehypePlugins={chatRehypePlugins}
-				mode={streaming ? "streaming" : "static"}
-				parseIncompleteMarkdown={streaming}
-				// Streamdown only flags the trailing block as an
-				// incomplete code fence while isAnimating is set, which
-				// MermaidDiagram relies on to defer rendering.
-				isAnimating={streaming}
-				// Streamdown 2.6 caps table height at 300px by
-				// default, even with controls disabled. Chat tables
-				// should grow with their content instead of
-				// scrolling internally.
-				tableMaxHeight={0}
-			>
-				{children}
-			</Streamdown>
+			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
+				<Streamdown
+					controls={false}
+					components={components}
+					urlTransform={urlTransform}
+					remarkPlugins={
+						preserveLineBreaks ? lineBreakRemarkPlugins : undefined
+					}
+					rehypePlugins={
+						inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
+					}
+					mode={streaming ? "streaming" : "static"}
+					parseIncompleteMarkdown={streaming}
+					// Streamdown only flags the trailing block as an
+					// incomplete code fence while isAnimating is set, which
+					// MermaidDiagram relies on to defer rendering.
+					isAnimating={streaming}
+					// Streamdown 2.6 caps table height at 300px by
+					// default, even with controls disabled. Chat tables
+					// should grow with their content instead of
+					// scrolling internally.
+					tableMaxHeight={0}
+				>
+					{children}
+				</Streamdown>
+			</InlineNodesContext>
 		</div>
 	);
 };
