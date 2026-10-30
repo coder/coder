@@ -2621,6 +2621,7 @@ const docTemplate = `{
         },
         "/api/v2/ai/providers": {
             "get": {
+                "description": "Returns every AI provider configured for the deployment, including disabled ones, with each API key masked.\nCoder Agents and AI Gateway use these providers to reach model APIs.\nRequires permission to read AI providers, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -2647,6 +2648,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an AI provider that Coder Agents and AI Gateway can use to reach a model API.\nSet ` + "`" + `type` + "`" + `, ` + "`" + `name` + "`" + ` (lowercase letters, digits, and single hyphens between words), ` + "`" + `enabled` + "`" + `, and ` + "`" + `base_url` + "`" + ` (an absolute ` + "`" + `http` + "`" + ` or ` + "`" + `https` + "`" + ` URL), and optionally ` + "`" + `api_keys` + "`" + `.\nProviders of type ` + "`" + `bedrock` + "`" + ` use ` + "`" + `settings` + "`" + ` for credentials, so they don't accept ` + "`" + `api_keys` + "`" + `.\nReturns ` + "`" + `409` + "`" + ` when a provider with that name exists.\nRequires permission to create AI providers, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2660,7 +2662,7 @@ const docTemplate = `{
                 "operationId": "create-an-ai-provider",
                 "parameters": [
                     {
-                        "description": "Create AI provider request",
+                        "description": "AI provider to create.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2686,6 +2688,7 @@ const docTemplate = `{
         },
         "/api/v2/ai/providers/{idOrName}": {
             "get": {
+                "description": "Returns an AI provider's configuration and routing warnings, with each API key masked.\nRequires permission to read AI providers, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -2697,7 +2700,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provider ID or name",
+                        "description": "AI provider ID, or its name, which is lowercase letters, digits, and hyphens.",
                         "name": "idOrName",
                         "in": "path",
                         "required": true
@@ -2718,6 +2721,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an AI provider.\nTo stop using a provider without deleting it, update it with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.\nRequires permission to delete AI providers, which the Owner role has.",
                 "tags": [
                     "AI Providers"
                 ],
@@ -2726,7 +2730,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provider ID or name",
+                        "description": "AI provider ID, or its name, which is lowercase letters, digits, and hyphens.",
                         "name": "idOrName",
                         "in": "path",
                         "required": true
@@ -2744,6 +2748,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates the fields you send on an AI provider, and leaves the rest as they are.\nSend at least one field.\nIn ` + "`" + `api_keys` + "`" + `, send the full set of keys to keep, each existing key by ` + "`" + `id` + "`" + ` and each new key as ` + "`" + `api_key` + "`" + `, because Coder removes any existing key you leave out.\nRequires permission to update AI providers, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2758,13 +2763,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provider ID or name",
+                        "description": "AI provider ID, or its name, which is lowercase letters, digits, and hyphens.",
                         "name": "idOrName",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update AI provider request",
+                        "description": "AI provider fields to change. Fields you leave out stay as they are.",
                         "name": "request",
                         "in": "body",
                         "required": true,
