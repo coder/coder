@@ -3,6 +3,7 @@ package codersdk_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,8 +15,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUploadChatWorkspaceFileContentType(t *testing.T) {
@@ -58,6 +61,45 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestChatClientRequests(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, transport testutil.RoundTripperFunc) *codersdk.Client {
+		t.Helper()
+		serverURL, err := url.Parse("https://coder.example.com")
+		require.NoError(t, err)
+		return codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: transport}))
+	}
+
+	t.Run("TransportError", func(t *testing.T) {
+		t.Parallel()
+
+		errTransport := xerrors.New("transport failed")
+		client := newClient(t, func(*http.Request) (*http.Response, error) {
+			return nil, errTransport
+		})
+		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorIs(t, err, errTransport)
+		err = client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorIs(t, err, errTransport)
+	})
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(t, func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Request:    req,
+			}, nil
+		})
+		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+		require.Error(t, err)
+	})
 }
 
 func TestChatMessageWorkspaceFileReference_JSONRoundTrip(t *testing.T) {
