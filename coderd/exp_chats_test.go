@@ -1481,7 +1481,7 @@ func TestPostChats(t *testing.T) {
 		require.NoError(t, err)
 
 		// Expect: deployment system prompt, per-chat system prompt,
-		// workspace awareness, user message.
+		// user message.
 		var systemMessages []database.ChatMessage
 		for _, msg := range dbMessages {
 			if msg.Role == database.ChatMessageRoleSystem {
