@@ -1507,6 +1507,24 @@ None
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
 
+## codersdk.AdvisorConfig
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                       |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled is always true and cannot be changed.                                                     |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.        |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat turn. 0 means unlimited. |
+
 ## codersdk.AgentChatSendShortcut
 
 ```json
@@ -4577,9 +4595,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                          |
-|-------------------------------------------------------------------|
-| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `advisor`, `compaction`, `computer_use`, `explore`, `general`, `title_generation` |
 
 ## codersdk.ChatModelOverrideResponse
 
@@ -10099,9 +10117,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -13241,6 +13259,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|----------|
 | `role`   | `read`   |
 
+## codersdk.OrganizationSkillPreferences
+
+```json
+{
+  "all_skills_disabled": true,
+  "disabled_skill_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                        |
+|------------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `all_skills_disabled`        | boolean         | false    |              | All skills disabled turns off every organization skill, including skills added later. DisabledSkillIDs is kept and applies again when it is false. |
+| `disabled_skill_ids`         | array of string | false    |              | Disabled skill ids lists the organization skills the member turned off.                                                                            |
+| `members_can_disable_skills` | boolean         | false    |              | Members can disable skills is the organization's setting.                                                                                          |
+
 ## codersdk.OrganizationSkillRole
 
 ```json
@@ -13254,6 +13292,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.OrganizationSkillSettings
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `members_can_disable_skills` | boolean | false    |              | Members can disable skills lets each organization member turn off organization skills for their own chats. |
 
 ## codersdk.OrganizationSkillUser
 
@@ -16937,6 +16989,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------|--------|----------|--------------|-------------|
 | `id` | string | true     |              |             |
 
+## codersdk.UpdateAdvisorConfigRequest
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `max_output_tokens` | integer | false    |              |             |
+| `max_uses_per_run`  | integer | false    |              |             |
+
 ## codersdk.UpdateAppearanceConfig
 
 ```json
@@ -17599,6 +17667,40 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
 | `user_roles`       | object                                                           | false    |              |             |
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+
+## codersdk.UpdateOrganizationSkillPreferencesRequest
+
+```json
+{
+  "all_skills_disabled": true,
+  "skills": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                  |
+|-----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `all_skills_disabled` | boolean | false    |              |                                                                                              |
+| `skills`              | object  | false    |              | Skills maps an organization skill ID to whether the skill is enabled for the member's chats. |
+| » `[any property]`    | boolean | false    |              |                                                                                              |
+
+## codersdk.UpdateOrganizationSkillSettingsRequest
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `members_can_disable_skills` | boolean | false    |              |             |
 
 ## codersdk.UpdateRoles
 
