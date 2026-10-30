@@ -181,7 +181,7 @@ describe("Tool generic rows", () => {
 });
 
 describe("Tool open_preview rows", () => {
-	it("opens the result's endpoint in the Preview tab", async () => {
+	const renderOpenPreview = (result: Record<string, unknown>) => {
 		const onOpenPreview = vi.fn();
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
@@ -192,14 +192,13 @@ describe("Tool open_preview rows", () => {
 							organizationId="organization-id"
 							mcpServers={[]}
 							status="completed"
-							args={{ title: "Docs", path: "/home/coder/project/docs" }}
+							args={{ title: "Docs" }}
 							result={{
 								ok: true,
 								title: "Docs",
 								workspace_id: MockWorkspace.id,
 								agent_name: MockWorkspaceAgent.name,
-								preview_id: "0123456789abcdef",
-								path: "/home/coder/project/docs",
+								...result,
 							}}
 							isError={false}
 							subagentTitles={new Map()}
@@ -212,6 +211,15 @@ describe("Tool open_preview rows", () => {
 			</QueryClientProvider>,
 		);
 
+		return onOpenPreview;
+	};
+
+	it("opens the result's endpoint in the Preview tab", async () => {
+		const onOpenPreview = renderOpenPreview({
+			preview_id: "0123456789abcdef",
+			path: "/home/coder/project/docs",
+		});
+
 		await userEvent.click(screen.getByRole("button", { name: "Open preview" }));
 
 		expect(onOpenPreview).toHaveBeenCalledWith({
@@ -221,5 +229,22 @@ describe("Tool open_preview rows", () => {
 				preview_id: "0123456789abcdef",
 			},
 		});
+	});
+
+	it("opens the result's app in its own tab", async () => {
+		const onOpenPreview = renderOpenPreview({ app_slug: "code-server" });
+
+		await userEvent.click(screen.getByRole("button", { name: "Open app" }));
+
+		expect(onOpenPreview).toHaveBeenCalledWith({
+			workspaceId: MockWorkspace.id,
+			app: { agent_name: MockWorkspaceAgent.name, slug: "code-server" },
+		});
+	});
+
+	it("hides the action for another workspace's result", () => {
+		renderOpenPreview({ workspace_id: "other-workspace", port: 3000 });
+
+		expect(screen.queryByRole("button", { name: "Open preview" })).toBeNull();
 	});
 });

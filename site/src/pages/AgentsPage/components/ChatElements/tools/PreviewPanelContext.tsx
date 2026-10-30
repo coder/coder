@@ -20,11 +20,19 @@ type PreviewIdentity = Pick<
 	"agent_name" | "port" | "preview_id" | "url_path"
 >;
 
-/** The preview a successful `open_preview` result points at. */
-export type OpenPreviewTarget = {
-	workspaceId: string;
-	preview: PreviewIdentity;
-};
+/**
+ * What a successful `open_preview` result points at: a preview listed in the
+ * Preview tab, or a workspace app that opens in its own tab.
+ */
+export type OpenPreviewTarget =
+	| {
+			workspaceId: string;
+			preview: PreviewIdentity;
+	  }
+	| {
+			workspaceId: string;
+			app: { agent_name: string; slug: string };
+	  };
 
 /**
  * Key for a preview's Select value and saved selection. Port previews have no
@@ -59,6 +67,13 @@ export const parseOpenPreviewTarget = ({
 		return undefined;
 	}
 
+	if (typeof rec.app_slug === "string") {
+		return {
+			workspaceId: rec.workspace_id,
+			app: { agent_name: rec.agent_name, slug: rec.app_slug },
+		};
+	}
+
 	const port = typeof rec.port === "number" ? rec.port : undefined;
 	const previewID =
 		typeof rec.preview_id === "string" ? rec.preview_id : undefined;
@@ -80,7 +95,7 @@ export const parseOpenPreviewTarget = ({
 };
 
 type PreviewPanelContextValue = {
-	/** Selects the target in the Preview tab and shows the tab. */
+	/** Shows the target in the Preview tab or in its app's tab. */
 	onOpenPreview?: (target: OpenPreviewTarget) => void;
 };
 

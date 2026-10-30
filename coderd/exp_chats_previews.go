@@ -56,7 +56,8 @@ func (api *API) listChatPreviews(rw http.ResponseWriter, r *http.Request) {
 // Results that do not decode, that do not name exactly one valid port or
 // preview ID on a valid agent, that carry an invalid URL path, or that belong
 // to a workspace the chat is no longer bound to are skipped, because clients
-// build URLs from them.
+// build URLs from them. App results name neither a port nor a preview ID, so
+// they are skipped too: they open the app's own tab instead.
 func chatPreviewsFromResults(workspaceID uuid.UUID, results []json.RawMessage) []codersdk.ChatPreview {
 	type endpoint struct {
 		agentName string

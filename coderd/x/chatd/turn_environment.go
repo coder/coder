@@ -1980,6 +1980,7 @@ func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattoo
 		workspace := chattool.PreviewWorkspace{
 			Conn:        c.conn,
 			WorkspaceID: c.cachedWorkspaceID.UUID,
+			AgentID:     c.agent.ID,
 			AgentName:   c.agent.Name,
 		}
 		isBound := c.conn != nil &&
@@ -2587,6 +2588,8 @@ func (p *Server) appendRootChatTools(
 	if p.enablePreviews {
 		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
 			GetWorkspace: opts.workspaceCtx.getPreviewWorkspace,
+			DB:           p.db,
+			OwnerID:      opts.chat.OwnerID,
 		}))
 	}
 
