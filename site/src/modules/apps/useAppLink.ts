@@ -31,6 +31,7 @@ type AppLink = {
 	href: string | undefined;
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
+	// True while the on-click session token mint is in flight.
 	isLoading: boolean;
 	isBlocked: boolean;
 };

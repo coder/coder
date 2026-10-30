@@ -9,7 +9,6 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
-import { stubLocationHref } from "#/testHelpers/location";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { WorkspacePill } from "./WorkspacePill";
 
@@ -24,7 +23,18 @@ const renderWorkspacePill = () => {
 	const getApiKey = vi
 		.spyOn(API, "getApiKey")
 		.mockResolvedValue({ key: "minted-key" });
-	const navigate = stubLocationHref();
+	const navigate = vi.fn<(url: string) => void>();
+	const { origin, href } = location;
+	// jsdom can't navigate to custom protocols, so capture the assignment.
+	vi.stubGlobal("location", {
+		origin,
+		get href() {
+			return href;
+		},
+		set href(url: string) {
+			navigate(url);
+		},
+	});
 	renderWithAuth(
 		<WorkspacePill
 			workspace={MockWorkspace}

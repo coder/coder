@@ -15,6 +15,7 @@ const buttonVariants = cva(
 	text-sm font-medium cursor-pointer no-underline
 	focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
+	aria-disabled:text-content-disabled
 	[&:is(a):not([href])]:pointer-events-none [&:is(a):not([href])]:text-content-disabled
 	[&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg]:p-0.5
 	[&>img]:pointer-events-none [&>img]:shrink-0 [&>img]:p-0.5
@@ -25,7 +26,7 @@ const buttonVariants = cva(
 				default: `
 					border-none bg-surface-invert-primary font-semibold text-content-invert
 					hover:bg-surface-invert-secondary
-					disabled:bg-surface-secondary
+					disabled:bg-surface-secondary aria-disabled:bg-surface-secondary
 					`,
 				outline: `
 					border border-border bg-transparent text-content-primary
@@ -39,6 +40,7 @@ const buttonVariants = cva(
 					border border-border-destructive font-semibold text-content-primary bg-surface-destructive
 					hover:bg-transparent
 					disabled:bg-transparent disabled:text-content-disabled
+					aria-disabled:bg-transparent aria-disabled:text-content-disabled
 					`,
 			},
 
