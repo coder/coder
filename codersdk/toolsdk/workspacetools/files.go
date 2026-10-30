@@ -2,6 +2,7 @@ package workspacetools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -17,6 +18,7 @@ type ReadFileResult struct {
 	Content    string `json:"content"`
 	FileSize   int64  `json:"file_size"`
 	LinesRead  int    `json:"lines_read"`
+	Note       string `json:"note,omitempty"`
 	TotalLines int    `json:"total_lines"`
 }
 
@@ -42,12 +44,21 @@ func ReadFile(ctx context.Context, conn workspacesdk.AgentConn, path string, off
 	if !resp.Success {
 		return ReadFileResult{}, xerrors.New(resp.Error)
 	}
-	return ReadFileResult{
+	result := ReadFileResult{
 		Content:    resp.Content,
 		FileSize:   resp.FileSize,
 		TotalLines: resp.TotalLines,
 		LinesRead:  resp.LinesRead,
-	}, nil
+	}
+	start := max(lineOffset, 1) // The agent reads offset 0 as line 1.
+	end := start + int64(resp.LinesRead) - 1
+	if resp.LinesRead > 0 && end < int64(resp.TotalLines) {
+		result.Note = fmt.Sprintf(
+			"Showing lines %d-%d of %d. To read more, call this tool again with offset=%d.",
+			start, end, resp.TotalLines, end+1,
+		)
+	}
+	return result, nil
 }
 
 // ValidateFileEdits trims each path in place and rejects batches the

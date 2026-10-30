@@ -28,6 +28,14 @@ export const LongContent: Story = {
 	},
 };
 
+export const Loading: Story = {
+	args: {
+		content: undefined,
+		fileName: "PLAN.md",
+		onClose: () => {},
+	},
+};
+
 export const NoFileName: Story = {
 	args: {
 		content: "Some pasted content without a filename.",

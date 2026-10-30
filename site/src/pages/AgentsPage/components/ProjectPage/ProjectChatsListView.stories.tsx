@@ -1,13 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
+	MockChatProject,
 	MockUserMember,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ProjectChatsListView } from "./ProjectChatsListView";
 
 const chats: Chat[] = [
@@ -70,6 +73,7 @@ const meta: Meta<typeof ProjectChatsListView> = {
 				<Story />
 			</div>
 		),
+		withDashboardProvider,
 	],
 	args: {
 		chats,
@@ -87,10 +91,13 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		showCost: true,
 	},
 	parameters: {
-		queries: chats.map((chat, index) => ({
-			key: chatCostTreeKey(chat.id),
-			data: mockChatCost(chat.id, [1_234_000, 5_000, 0, 87_650_000][index]),
-		})),
+		queries: [
+			...chats.map((chat, index) => ({
+				key: chatCostTreeKey(chat.id),
+				data: mockChatCost(chat.id, [1_234_000, 5_000, 0, 87_650_000][index]),
+			})),
+			{ key: chatProjectsKey, data: [MockChatProject] },
+		],
 	},
 };
 
@@ -98,6 +105,45 @@ export default meta;
 type Story = StoryObj<typeof ProjectChatsListView>;
 
 export const Populated: Story = {};
+
+const mockPinnedRunningChat: Chat = { ...chats[0], pin_order: 2 };
+const mockPinnedMergedChat: Chat = { ...chats[1], pin_order: 1 };
+const mockOtherOwnerPinnedChat: Chat = { ...chats[2], pin_order: 1 };
+
+/**
+ * The viewer's pins lead the page in pin order. Another owner's pin is their
+ * own sidebar preference, so that chat stays under Chats.
+ */
+export const WithPinnedChats: Story = {
+	args: {
+		chats: [
+			mockPinnedRunningChat,
+			mockPinnedMergedChat,
+			mockOtherOwnerPinnedChat,
+			chats[3],
+		],
+	},
+};
+
+export const OnlyPinnedChats: Story = {
+	args: { chats: [mockPinnedRunningChat, mockPinnedMergedChat] },
+};
+
+export const OnlyPinnedChatsMoreToLoad: Story = {
+	args: {
+		...OnlyPinnedChats.args,
+		hasNextPage: true,
+		isFetchingNextPage: true,
+	},
+};
+
+export const OnlyPinnedChatsLoadError: Story = {
+	args: {
+		...OnlyPinnedChats.args,
+		hasNextPage: true,
+		error: mockApiError({ message: "Failed to load chats." }),
+	},
+};
 
 export const MoreToLoad: Story = {
 	args: { hasNextPage: true, isFetchingNextPage: true },

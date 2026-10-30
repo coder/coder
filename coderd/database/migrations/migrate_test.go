@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -406,6 +407,9 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000621Skills", 621, testMigration000621Skills},
+		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
+		{"Migration000635ChatModelOverrideComputerUse", 635, testMigration000635ChatModelOverrideComputerUse},
+		{"Migration000637DeleteMCPToolSearchExperimentRule", 637, testMigration000637DeleteMCPToolSearchExperimentRule},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1634,15 +1638,14 @@ func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next 
 func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 587
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	db := database.New(sqlDB)
 	user := dbgen.User(t, db, database.User{
 		RBACRoles: []string{"auditor", "agents-access"},
 	})
-	org := dbgen.Organization(t, db, database.Organization{
-		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
-	})
+	orgID := insertMigrationTestOrganization(ctx, t, sqlDB, []string{"organization-workspace-access", "agents-access"})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org.ID,
+		OrganizationID: orgID,
 		UserID:         user.ID,
 		Roles:          []string{"organization-auditor", "agents-access"},
 	})
@@ -1651,13 +1654,12 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.NoError(t, err)
 	require.EqualValues(t, migrationVersion, version)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	var siteRoles, orgRoles, defaultRoles pq.StringArray
 	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgID, user.ID).Scan(&orgRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgID).Scan(&defaultRoles)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"auditor"}, []string(siteRoles))
@@ -1681,11 +1683,7 @@ func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 	}
 	orgIDs := make([]uuid.UUID, len(orgs))
 	for i, o := range orgs {
-		org := dbgen.Organization(t, db, database.Organization{})
-		// dbgen replaces an empty slice with the current defaults.
-		_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = $1 WHERE id = $2", pq.StringArray(o.defaults), org.ID)
-		require.NoError(t, err)
-		orgIDs[i] = org.ID
+		orgIDs[i] = insertMigrationTestOrganization(ctx, t, sqlDB, o.defaults)
 	}
 
 	member := dbgen.User(t, db, database.User{})
@@ -4476,4 +4474,319 @@ func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	assertRows()
+}
+
+func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 625
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db := database.New(sqlDB)
+	// Avoid GetDefaultOrganization: it reads columns added by later migrations.
+	var orgID uuid.UUID
+	err := sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default`).Scan(&orgID)
+	require.NoError(t, err)
+	user := dbgen.User(t, db, database.User{})
+	// GIVEN: An existing template version and a user-secrets telemetry lock.
+	// (Avoid dbgen.TemplateVersion: its view query expects the new columns.)
+	legacyID := uuid.New()
+	err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+		ID:             legacyID,
+		OrganizationID: orgID,
+		CreatedBy:      user.ID,
+		JobID:          uuid.New(),
+		Name:           testutil.GetRandomName(t),
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	// An existing event type's lock must survive both upgrade and rollback.
+	legacyLock := database.InsertTelemetryLockParams{
+		EventType:      "user_secrets_summary",
+		PeriodEndingAt: dbtime.Now(),
+	}
+	require.NoError(t, db.InsertTelemetryLock(ctx, legacyLock))
+
+	// WHEN: The migration is applied.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// THEN: Script-order locks are accepted, existing and new versions default
+	// to zero counts, and only valid counts can be stored.
+	scriptOrderLock := database.InsertTelemetryLockParams{
+		EventType:      "script_order_summary",
+		PeriodEndingAt: legacyLock.PeriodEndingAt,
+	}
+	require.NoError(t, db.InsertTelemetryLock(ctx, scriptOrderLock))
+
+	legacyVersion, err := db.GetTemplateVersionByID(ctx, legacyID)
+	require.NoError(t, err)
+	require.Zero(t, legacyVersion.ScriptOrderDataSourceCount)
+	require.Zero(t, legacyVersion.ScriptOrderRuleCount)
+
+	// An older provisioner omits the counts, so new rows also default to zero.
+	newVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: orgID,
+		CreatedBy:      user.ID,
+	})
+	require.Zero(t, newVersion.ScriptOrderDataSourceCount)
+	require.Zero(t, newVersion.ScriptOrderRuleCount)
+
+	for _, tt := range []struct {
+		query      string
+		constraint database.CheckConstraint
+	}{
+		{"UPDATE template_versions SET script_order_data_source_count = -1 WHERE id = $1", database.CheckTemplateVersionsScriptOrderDataSourceCountCheck},
+		{"UPDATE template_versions SET script_order_rule_count = -1 WHERE id = $1", database.CheckTemplateVersionsScriptOrderRuleCountCheck},
+	} {
+		_, err := sqlDB.ExecContext(ctx, tt.query, legacyVersion.ID)
+		require.True(t, database.IsCheckViolation(err, tt.constraint), "%s: %v", tt.query, err)
+	}
+
+	for _, query := range []string{
+		"UPDATE template_versions SET script_order_data_source_count = NULL WHERE id = $1",
+		"UPDATE template_versions SET script_order_rule_count = NULL WHERE id = $1",
+	} {
+		_, err := sqlDB.ExecContext(ctx, query, legacyVersion.ID)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr, "%s: %v", query, err)
+		require.Equal(t, "not_null_violation", pqErr.Code.Name(), "%s: %v", query, err)
+	}
+
+	err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+		JobID:                      legacyVersion.JobID,
+		ScriptOrderDataSourceCount: 2,
+		ScriptOrderRuleCount:       3,
+		UpdatedAt:                  dbtime.Now(),
+	})
+	require.NoError(t, err)
+	updated, err := db.GetTemplateVersionByID(ctx, legacyVersion.ID)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), updated.ScriptOrderDataSourceCount)
+	require.Equal(t, int32(3), updated.ScriptOrderRuleCount)
+
+	// Roll back the migration to verify script-order locks are rejected.
+	down, err := os.ReadFile("000625_template_version_script_order_usage.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(down))
+	require.NoError(t, err)
+	err = db.InsertTelemetryLock(ctx, scriptOrderLock)
+	require.True(t, database.IsCheckViolation(err, database.CheckTelemetryLockEventTypeConstraint), "unexpected error: %v", err)
+
+	// Reapply the migration to verify script-order locks are accepted again
+	// and the pre-existing lock survives rollback and reapplication.
+	up, err := os.ReadFile("000625_template_version_script_order_usage.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(up))
+	require.NoError(t, err)
+	require.NoError(t, db.InsertTelemetryLock(ctx, scriptOrderLock))
+	err = db.InsertTelemetryLock(ctx, legacyLock)
+	require.True(t, database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey), "unexpected error: %v", err)
+
+	updated, err = db.GetTemplateVersionByID(ctx, legacyVersion.ID)
+	require.NoError(t, err)
+	require.Equal(t, legacyVersion.Name, updated.Name)
+	require.Zero(t, updated.ScriptOrderDataSourceCount)
+	require.Zero(t, updated.ScriptOrderRuleCount)
+}
+
+func TestMigration000627WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	enumValues := func() []string {
+		var values []string
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT enum_range(NULL::workspace_agent_script_timing_status)::text[]`,
+		).Scan(pq.Array(&values))
+		require.NoError(t, err)
+		return values
+	}
+	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{WorkspaceAgentID: agent.ID})
+
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	timingWith := func(status database.WorkspaceAgentScriptTimingStatus, startedAt time.Time, exitCode int32) database.WorkspaceAgentScriptTiming {
+		return dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+			ScriptID:  script.ID,
+			StartedAt: startedAt,
+			EndedAt:   startedAt.Add(time.Second),
+			Status:    status,
+			ExitCode:  exitCode,
+		})
+	}
+	okTiming := timingWith(database.WorkspaceAgentScriptTimingStatusOk, at, 0)
+	skippedTiming := timingWith(database.WorkspaceAgentScriptTimingStatusSkipped, at.Add(time.Minute), 0)
+	canceledTiming := timingWith(database.WorkspaceAgentScriptTimingStatusCanceled, at.Add(2*time.Minute), -1)
+
+	downSQL, err := os.ReadFile("000627_workspace_agent_script_timing_skipped_canceled.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open"}, enumValues())
+
+	statusAndExitCode := func(startedAt time.Time) (string, int32) {
+		var status string
+		var exitCode int32
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT status, exit_code FROM workspace_agent_script_timings WHERE script_id = $1 AND started_at = $2`,
+			script.ID, startedAt,
+		).Scan(&status, &exitCode)
+		require.NoError(t, err)
+		return status, exitCode
+	}
+	status, exitCode := statusAndExitCode(okTiming.StartedAt)
+	require.Equal(t, "ok", status)
+	require.Equal(t, int32(0), exitCode)
+	status, exitCode = statusAndExitCode(skippedTiming.StartedAt)
+	require.Equal(t, "exit_failure", status)
+	require.Equal(t, int32(255), exitCode)
+	status, exitCode = statusAndExitCode(canceledTiming.StartedAt)
+	require.Equal(t, "exit_failure", status)
+	require.Equal(t, int32(255), exitCode)
+
+	upSQL, err := os.ReadFile("000627_workspace_agent_script_timing_skipped_canceled.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+}
+
+// insertMigrationTestOrganization inserts an organization with raw SQL for
+// tests that run at an older schema version. dbgen.Organization reads back
+// every column of the current schema, so it fails before a later migration
+// adds a column to organizations.
+func insertMigrationTestOrganization(ctx context.Context, t *testing.T, sqlDB *sql.DB, defaultOrgMemberRoles []string) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := sqlDB.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, $2, '', NOW(), NOW(), $3)`,
+		id, "org-"+id.String(), pq.StringArray(defaultOrgMemberRoles),
+	)
+	require.NoError(t, err)
+	return id
+}
+
+func testMigration000635ChatModelOverrideComputerUse(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 635
+
+	orgID, providerID, modelID := uuid.New(), uuid.New(), uuid.New()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, fixture := range []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', NOW(), NOW(), '{}')",
+			[]any{orgID, orgID.String()},
+		},
+		{
+			"INSERT INTO ai_providers (id, type, name, base_url) VALUES ($1, 'anthropic', $2, 'https://example.com')",
+			[]any{providerID, providerID.String()},
+		},
+		{
+			"INSERT INTO chat_model_configs (id, model, context_limit, compression_threshold, ai_provider_id, organization_id) VALUES ($1, 'claude-opus-5', 128000, 70, $2, $3)",
+			[]any{modelID, providerID, orgID},
+		},
+		{
+			"INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', 'openai'), ('migration000635_control', 'kept')",
+			nil,
+		},
+	} {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+
+	insertOverride := func(overrideContext string) error {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id) VALUES ($1, $2, $3)",
+			orgID, overrideContext, modelID)
+		return err
+	}
+	requireCheckViolation := func(err error) {
+		t.Helper()
+		require.True(t, database.IsCheckViolation(err, database.CheckChatOrganizationModelOverridesContextCheck), "unexpected error: %v", err)
+	}
+	overrideContexts := func() []string {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx,
+			"SELECT context FROM chat_organization_model_overrides WHERE organization_id = $1", orgID)
+		require.NoError(t, err)
+		defer rows.Close()
+
+		var contexts []string
+		for rows.Next() {
+			var overrideContext string
+			require.NoError(t, rows.Scan(&overrideContext))
+			contexts = append(contexts, overrideContext)
+		}
+		require.NoError(t, rows.Err())
+		return contexts
+	}
+
+	requireCheckViolation(insertOverride("computer_use"))
+	require.NoError(t, insertOverride("advisor"))
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	require.NoError(t, insertOverride("computer_use"))
+	require.ElementsMatch(t, []string{"advisor", "computer_use"}, overrideContexts())
+
+	var legacyRows, controlRows int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE key = 'agents_computer_use_provider'),
+			count(*) FILTER (WHERE key = 'migration000635_control')
+		FROM site_configs`).Scan(&legacyRows, &controlRows))
+	require.Zero(t, legacyRows)
+	require.Equal(t, 1, controlRows)
+
+	// The down migration must delete computer_use rows before it restores the
+	// old constraint.
+	downSQL, err := os.ReadFile("000635_chat_model_override_computer_use.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"advisor"}, overrideContexts())
+	requireCheckViolation(insertOverride("computer_use"))
+
+	// Reapply the migration so the chain stays at this version.
+	upSQL, err := os.ReadFile("000635_chat_model_override_computer_use.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+}
+
+func testMigration000637DeleteMCPToolSearchExperimentRule(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 637
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO site_configs (key, value) VALUES ('experiment_rule:mcp-tool-search', '{}'), ('experiment_rule:example', '{}')`)
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	var keys pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, `SELECT array_agg(key ORDER BY key) FROM site_configs
+		WHERE key IN ('experiment_rule:mcp-tool-search', 'experiment_rule:example')`).Scan(&keys)
+	require.NoError(t, err)
+	require.Equal(t, []string{"experiment_rule:example"}, []string(keys))
 }

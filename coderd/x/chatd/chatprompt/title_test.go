@@ -72,6 +72,14 @@ func TestTitleText(t *testing.T) {
 			want: "Say DONE. frozen.zip",
 		},
 		{
+			name: "renders skill invocations as slash aliases",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceProject, "triage"),
+				codersdk.ChatMessageText("the new issues"),
+			},
+			want: "/project/triage the new issues",
+		},
+		{
 			name: "falls back to paste content for file only messages",
 			parts: []codersdk.ChatMessagePart{
 				syntheticPasteFile(pasteFileID),

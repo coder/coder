@@ -2,23 +2,21 @@
 title: MCP server
 ---
 
-Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
-(MCP) server that provides AI assistants with tools and context about your Coder
-deployment. This enables AI-powered workflows for managing workspaces,
-templates, and development environments.
+Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that provides AI assistants with tools and context about your Coder deployment.
+This enables AI-powered workflows for managing workspaces, templates, and development environments.
 
 Coder supports two MCP server modes:
 
-- **[Local MCP Server](#local-mcp-server)**: Runs via the Coder CLI using stdio
-  transport. Ideal for local AI tools and IDE integrations.
-- **[Remote MCP Server](#remote-mcp-server)**: HTTP-based server exposed by your
-  Coder deployment. Supports OAuth2 authentication and is published to the MCP
-  Registry.
+- **[Local MCP Server](#local-mcp-server)**:
+  Runs via the Coder CLI using stdio transport.
+  Ideal for local AI tools and IDE integrations.
+- **[Remote MCP Server](#remote-mcp-server)**:
+  HTTP-based server exposed by your Coder deployment.
+  Supports OAuth2 authentication and is published to the MCP Registry.
 
 ## Local MCP Server
 
-The local MCP server runs via the Coder CLI and uses stdio transport to
-communicate with AI tools.
+The local MCP server runs via the Coder CLI and uses stdio transport to communicate with AI tools.
 
 ### Setup
 
@@ -85,19 +83,12 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ## Remote MCP Server
 
-The remote MCP server is an HTTP endpoint exposed by your Coder deployment at
-`/api/experimental/mcp/http`. This enables MCP clients to connect to Coder
-without running the CLI locally.
+The remote MCP server is an HTTP endpoint exposed by your Coder deployment at `/api/experimental/mcp/http`.
+This enables MCP clients to connect to Coder without running the CLI locally.
 
-The endpoint implements the
-[Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
-in stateless mode: it supports MCP specification versions from `2024-11-05`
-through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
-`GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
-server-event stream or explicit session termination, both permitted by the
-specification). The server exposes tools only; MCP resources, prompts,
-structured tool output, elicitation, and the MCP Tasks extension are not
-implemented.
+The endpoint implements the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) in stateless mode: it supports MCP specification versions from `2024-11-05` through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone server-event stream or explicit session termination, both permitted by the specification).
+The server exposes tools only.
+MCP resources, prompts, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
 
 ### Prerequisites
 
@@ -115,19 +106,19 @@ CODER_EXPERIMENTS=mcp-server-http
 ```
 
 For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
-That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server/index.md#--experiments) YAML key.
+That page does not cover the experiment.
+Set it with the top-level [`experiments`](../reference/cli/server/index.md#--experiments) YAML key.
 
 ### MCP Registry
 
-Coder is published to the official [MCP Registry](https://github.com/modelcontextprotocol/registry)
-as `io.github.coder/coder`, enabling easy installation in supported MCP clients.
+Coder is published to the official [MCP Registry](https://github.com/modelcontextprotocol/registry) as `io.github.coder/coder`, enabling easy installation in supported MCP clients.
 
 #### VS Code / GitHub Copilot
 
 1. Open VS Code Command Palette and run **MCP: Add Server...**
 1. Select **From MCP Registry**
 1. Search for "Coder" and select it
-1. Enter your Coder deployment hostname when prompted (e.g., `coder.example.com`)
+1. Enter your Coder deployment hostname when prompted (for example, `coder.example.com`)
 1. VS Code will automatically handle OAuth2 authentication
 
 #### Claude Desktop (Remote)
@@ -144,13 +135,11 @@ Add to your Claude Desktop configuration file (`claude_desktop_config.json`):
 }
 ```
 
-Claude Desktop will automatically discover OAuth2 endpoints and prompt you to
-authenticate through your browser.
+Claude Desktop will automatically discover OAuth2 endpoints and prompt you to authenticate through your browser.
 
 ### Manual Configuration
 
-For MCP clients that don't support the registry or OAuth2 discovery, configure
-the server manually with a session token:
+For MCP clients that don't support the registry or OAuth2 discovery, configure the server manually with a session token:
 
 ```json
 {
@@ -191,9 +180,7 @@ This metadata identifies the full MCP endpoint URL as the `resource`, for exampl
 
 ### Session Token (For Programmatic Access)
 
-For clients that don't support OAuth2 discovery, or for programmatic access, use
-a session token as shown in the [Manual Configuration](#manual-configuration)
-section.
+For clients that don't support OAuth2 discovery, or for programmatic access, use a session token as shown in the [Manual Configuration](#manual-configuration) section.
 
 ## Available Tools
 
@@ -206,35 +193,24 @@ The MCP server exposes tools across several areas:
 - **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, organization memberships, and tar uploads
 
-The full, authoritative set of tools, including their names, descriptions, and
-arguments, is defined in Coder's
-[`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
-current list, since the available tools can change between releases.
+The full, authoritative set of tools, including their names, descriptions, and arguments, is defined in Coder's [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go).
+Refer to it for the current list, since the available tools can change between releases.
 
-The workspace file and command tools (`coder_workspace_read_file`,
-`coder_workspace_write_file`, `coder_workspace_edit_files`,
-`coder_workspace_execute`, and the `coder_workspace_process_*` tools) share
-their arguments and result formats with the matching
-[Coder Agents](./agents/index.md) tools, with these differences:
+The workspace file and command tools (`coder_workspace_read_file`, `coder_workspace_write_file`, `coder_workspace_edit_files`, `coder_workspace_execute`, and the `coder_workspace_process_*` tools) share their arguments and result formats with the matching [Coder Agents](./agents/index.md) tools, with these differences:
 
 - Each tool takes a `workspace` argument that selects the workspace to act on.
 - Invalid arguments and workspace agent errors are returned as MCP tool errors.
-- A single call waits at most 5 minutes. Run longer commands with
-  `run_in_background` and check on them with `coder_workspace_process_output`.
-- Commands started through MCP are separate from Coder Agents chat processes,
-  but anyone with SSH access to the workspace can list and signal them.
+- A single call waits at most 5 minutes.
+  Run longer commands with `run_in_background` and check on them with `coder_workspace_process_output`.
+- Commands started through MCP are separate from Coder Agents chat processes, but anyone with SSH access to the workspace can list and signal them.
 
 ## Available Prompts
 
-The MCP server also exposes
-[prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)
-for common Coder Agents chat workflows. Clients that support prompts surface
-them for you to invoke, for example as slash commands:
+The MCP server also exposes [prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts) for common Coder Agents chat workflows.
+Clients that support prompts surface them for you to invoke, for example as slash commands:
 
-- `coder_agents_delegate`: delegate a coding task to a Coder Agents chat and
-  monitor it to completion
-- `coder_agents_check`: check the status and recent activity of an existing
-  Coder Agents chat
+- `coder_agents_delegate`: delegate a coding task to a Coder Agents chat and monitor it to completion
+- `coder_agents_check`: check the status and recent activity of an existing Coder Agents chat
 
 ## Troubleshooting
 

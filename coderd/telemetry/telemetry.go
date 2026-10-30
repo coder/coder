@@ -854,6 +854,18 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		summary, err := r.collectScriptOrderSummary(ctx)
+		if err != nil {
+			// A script-order collection failure should not prevent
+			// the rest of the telemetry snapshot from being sent,
+			// as some collectors reset counters during collection.
+			r.options.Logger.Warn(ctx, "collect script order summary", slog.Error(err))
+			return nil
+		}
+		snapshot.ScriptOrderSummary = summary
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -1024,6 +1036,35 @@ func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSe
 		SecretsPerUserP50: row.SecretsPerUserP50,
 		SecretsPerUserP75: row.SecretsPerUserP75,
 		SecretsPerUserP90: row.SecretsPerUserP90,
+	}, nil
+}
+
+// collectScriptOrderSummary collects deployment-wide adoption counts from active,
+// successfully imported versions of non-deleted templates. It elects one replica
+// per snapshot period to avoid overrepresenting multi-replica deployments and
+// returns (nil, nil) if the period's telemetry lock is already claimed.
+func (r *remoteReporter) collectScriptOrderSummary(ctx context.Context) (*ScriptOrderSummary, error) {
+	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "script_order_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "script order telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // Another replica reports this period's summary.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert script order telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	row, err := r.options.Database.GetScriptOrderTelemetrySummary(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get script order telemetry summary: %w", err)
+	}
+	return &ScriptOrderSummary{
+		TemplatesWithScriptOrder: row.TemplatesWithScriptOrder,
+		DataSourceCount:          row.DataSourceCount,
+		RuleCount:                row.RuleCount,
 	}, nil
 }
 
@@ -1478,6 +1519,7 @@ type Snapshot struct {
 	Licenses                             []License                             `json:"licenses"`
 	ProvisionerJobs                      []ProvisionerJob                      `json:"provisioner_jobs"`
 	TemplateVersions                     []TemplateVersion                     `json:"template_versions"`
+	ScriptOrderSummary                   *ScriptOrderSummary                   `json:"script_order_summary"`
 	Templates                            []Template                            `json:"templates"`
 	Users                                []User                                `json:"users"`
 	Groups                               []Group                               `json:"groups"`
@@ -2172,9 +2214,9 @@ const (
 	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
 	// dedicated model override and reuses the chat model at runtime.
 	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
-	// AgentsExperimentUnknown reports a value that could not be determined,
-	// e.g. after a transient DB error.
-	AgentsExperimentUnknown = "unknown"
+	// AgentsExperimentComputerUseOrgDefaultModel reports that computer use has
+	// no usable model override and runs on the organization's default model.
+	AgentsExperimentComputerUseOrgDefaultModel = "org_default_model"
 )
 
 // AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
@@ -2184,9 +2226,21 @@ type AgentsVirtualDesktopTelemetry struct {
 	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
 }
 
+// AgentsComputerUseTelemetry describes the per-organization computer use
+// model overrides. Organizations without an override use their default chat
+// model.
 type AgentsComputerUseTelemetry struct {
+	// Overrides is null when the overrides could not be read, so a failed
+	// query stays distinguishable from an empty list.
+	Overrides []AgentsComputerUseOverrideTelemetry `json:"overrides"`
+}
+
+// AgentsComputerUseOverrideTelemetry describes one organization's computer use
+// model override.
+type AgentsComputerUseOverrideTelemetry struct {
+	OrganizationID string `json:"organization_id"`
 	Provider       string `json:"provider"`
-	ProviderSource string `json:"provider_source"`
+	Model          string `json:"model"`
 }
 
 // AgentsAdvisorOverrideTelemetry describes one organization's advisor model override.
@@ -2209,24 +2263,36 @@ type AgentsAdvisorTelemetry struct {
 // Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
 // the desktop and computer use.
 func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
-	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
-	providerSource := "configured"
-	switch {
-	case err != nil:
-		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
-		provider = AgentsExperimentUnknown
-		providerSource = AgentsExperimentUnknown
-	case provider == "":
-		provider = string(codersdk.ChatComputerUseProviderAnthropic)
-		providerSource = "default"
-	}
-	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
+	payload := AgentsVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
-		ComputerUse: AgentsComputerUseTelemetry{
-			Provider:       provider,
-			ProviderSource: providerSource,
-		},
-	})
+	}
+
+	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextComputerUse))
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat computer use model overrides for telemetry", slog.Error(err))
+	} else {
+		payload.ComputerUse.Overrides = []AgentsComputerUseOverrideTelemetry{}
+
+		for _, override := range overrides {
+			// When the override's model is disabled or deleted, or its AI
+			// provider type does not support computer use, the runtime falls
+			// back to the organization's default chat model.
+			supported := override.ProviderType == string(database.AIProviderTypeAnthropic) ||
+				override.ProviderType == string(database.AIProviderTypeOpenai)
+			provider, model := AgentsExperimentComputerUseOrgDefaultModel, AgentsExperimentComputerUseOrgDefaultModel
+			if override.ModelAvailable && supported {
+				provider, model = override.ProviderType, override.Model
+			}
+
+			payload.ComputerUse.Overrides = append(payload.ComputerUse.Overrides, AgentsComputerUseOverrideTelemetry{
+				OrganizationID: override.OrganizationID.String(),
+				Provider:       provider,
+				Model:          model,
+			})
+		}
+	}
+
+	val, err := json.Marshal(payload)
 	if err != nil {
 		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
 		return nil
@@ -2238,7 +2304,7 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 // Deployment.AgentsExperiments.
 func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsAdvisorTelemetry{
-		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Enabled:   true,
 		Overrides: []AgentsAdvisorOverrideTelemetry{},
 	}
 	var cfg codersdk.AdvisorConfig
@@ -2481,6 +2547,15 @@ type UserSecretsSummary struct {
 	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
 	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
 	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
+}
+
+// ScriptOrderSummary contains deployment-wide counts from active,
+// successfully imported versions of non-deleted templates, without
+// template identifiers or rule contents.
+type ScriptOrderSummary struct {
+	TemplatesWithScriptOrder int64 `json:"templates_with_script_order"`
+	DataSourceCount          int64 `json:"data_source_count"`
+	RuleCount                int64 `json:"rule_count"`
 }
 
 // TemplateBuilderSession tracks a single event in the template builder

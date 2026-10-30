@@ -89,6 +89,67 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIBridgeInterceptionOrganizationSource string
+
+const (
+	AibridgeInterceptionOrganizationSourceWorkspace      AIBridgeInterceptionOrganizationSource = "workspace"
+	AibridgeInterceptionOrganizationSourceChatd          AIBridgeInterceptionOrganizationSource = "chatd"
+	AibridgeInterceptionOrganizationSourceEffectiveGroup AIBridgeInterceptionOrganizationSource = "effective_group"
+)
+
+func (e *AIBridgeInterceptionOrganizationSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	case string:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIBridgeInterceptionOrganizationSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIBridgeInterceptionOrganizationSource struct {
+	AIBridgeInterceptionOrganizationSource AIBridgeInterceptionOrganizationSource `json:"aibridge_interception_organization_source"`
+	Valid                                  bool                                   `json:"valid"` // Valid is true if AIBridgeInterceptionOrganizationSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIBridgeInterceptionOrganizationSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIBridgeInterceptionOrganizationSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIBridgeInterceptionOrganizationSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIBridgeInterceptionOrganizationSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIBridgeInterceptionOrganizationSource), nil
+}
+
+func (e AIBridgeInterceptionOrganizationSource) Valid() bool {
+	switch e {
+	case AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup:
+		return true
+	}
+	return false
+}
+
+func AllAIBridgeInterceptionOrganizationSourceValues() []AIBridgeInterceptionOrganizationSource {
+	return []AIBridgeInterceptionOrganizationSource{
+		AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup,
+	}
+}
+
 type AIModelPriceSource string
 
 const (
@@ -546,6 +607,11 @@ const (
 	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
 	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
 	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
+	ApiKeyScopeWorkspaceSecret                     APIKeyScope = "workspace_secret:*"
+	ApiKeyScopeWorkspaceSecretCreate               APIKeyScope = "workspace_secret:create"
+	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
+	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
+	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -843,7 +909,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
 		ApiKeyScopeOrganizationSkillShare,
-		ApiKeyScopeChatProjectShare:
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate:
 		return true
 	}
 	return false
@@ -1110,6 +1181,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeOrganizationSkillDelete,
 		ApiKeyScopeOrganizationSkillShare,
 		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate,
 	}
 }
 
@@ -3778,6 +3854,7 @@ const (
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
+	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3863,7 +3940,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
-		ResourceTypeOrganizationSkill:
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill:
 		return true
 	}
 	return false
@@ -3918,6 +3996,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill,
 	}
 }
 
@@ -4171,6 +4250,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4217,7 +4297,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4233,6 +4314,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
@@ -4502,7 +4584,7 @@ func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStag
 	}
 }
 
-// What the exit status of the script is.
+// The terminal outcome of a script execution.
 type WorkspaceAgentScriptTimingStatus string
 
 const (
@@ -4510,6 +4592,8 @@ const (
 	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
 	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
 	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+	WorkspaceAgentScriptTimingStatusSkipped       WorkspaceAgentScriptTimingStatus = "skipped"
+	WorkspaceAgentScriptTimingStatusCanceled      WorkspaceAgentScriptTimingStatus = "canceled"
 )
 
 func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
@@ -4552,7 +4636,9 @@ func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
 	case WorkspaceAgentScriptTimingStatusOk,
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
-		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled:
 		return true
 	}
 	return false
@@ -4564,6 +4650,8 @@ func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingSta
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
 		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled,
 	}
 }
 
@@ -4820,6 +4908,64 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 	}
 }
 
+type WorkspaceSecretSource string
+
+const (
+	WorkspaceSecretSourceRequest      WorkspaceSecretSource = "request"
+	WorkspaceSecretSourceCarryForward WorkspaceSecretSource = "carry_forward"
+)
+
+func (e *WorkspaceSecretSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceSecretSource(s)
+	case string:
+		*e = WorkspaceSecretSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceSecretSource: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceSecretSource struct {
+	WorkspaceSecretSource WorkspaceSecretSource `json:"workspace_secret_source"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkspaceSecretSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceSecretSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceSecretSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceSecretSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceSecretSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceSecretSource), nil
+}
+
+func (e WorkspaceSecretSource) Valid() bool {
+	switch e {
+	case WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceSecretSourceValues() []WorkspaceSecretSource {
+	return []WorkspaceSecretSource{
+		WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward,
+	}
+}
+
 type WorkspaceTransition string
 
 const (
@@ -4917,6 +5063,10 @@ type AIBridgeInterception struct {
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
 	// The workspace in which the agent ran. NULL when no workspace context is available.
 	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	// The organization the interception was attributed to. NULL when no organization was resolved.
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// How organization_id was chosen. NULL exactly when organization_id is NULL.
+	OrganizationSource NullAIBridgeInterceptionOrganizationSource `db:"organization_source" json:"organization_source"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4992,6 +5142,22 @@ type AIGatewayKey struct {
 	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
+}
+
+// AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
+type AIModelConfig struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -5564,6 +5730,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Total bytes received by the agent on this connection. Null for web events and non-disconnect events.
+	RxBytes sql.NullInt64 `db:"rx_bytes" json:"rx_bytes"`
+	// Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.
+	TxBytes sql.NullInt64 `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type CryptoKey struct {
@@ -5948,6 +6118,8 @@ type Organization struct {
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
 	// Roles granted to every member of this organization at request time. The set is unioned into each member's effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.
 	DefaultOrgMemberRoles []string `db:"default_org_member_roles" json:"default_org_member_roles"`
+	// Whether organization members can turn off organization skills for their own chats. While false, member choices are kept but ignored.
+	MembersCanDisableSkills bool `db:"members_can_disable_skills" json:"members_can_disable_skills"`
 }
 
 type OrganizationMember struct {
@@ -5956,6 +6128,21 @@ type OrganizationMember struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 	Roles          []string  `db:"roles" json:"roles"`
+}
+
+// Organization skills that a member turned off for their own chats. Applied only while organizations.members_can_disable_skills is true.
+type OrganizationMemberDisabledSkill struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	SkillID        uuid.UUID `db:"skill_id" json:"skill_id"`
+}
+
+// Per-member organization skill settings. Applied only while organizations.members_can_disable_skills is true.
+type OrganizationMemberSkillSetting struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	// Whether the member turned off every organization skill, including skills added later. Per-skill choices in organization_member_disabled_skills are kept and apply again when this is false.
+	AllSkillsDisabled bool `db:"all_skills_disabled" json:"all_skills_disabled"`
 }
 
 type ParameterSchema struct {
@@ -6116,6 +6303,8 @@ type Skill struct {
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
@@ -6279,23 +6468,25 @@ type TemplateUsageStatsSessionApp struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID       `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	Name                  string          `db:"name" json:"name"`
-	Readme                string          `db:"readme" json:"readme"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
-	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string          `db:"message" json:"message"`
-	Archived              bool            `db:"archived" json:"archived"`
-	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
-	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
-	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
-	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+	TemplateID                 uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt                  time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	Name                       string          `db:"name" json:"name"`
+	Readme                     string          `db:"readme" json:"readme"`
+	JobID                      uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy                  uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders      json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message                    string          `db:"message" json:"message"`
+	Archived                   bool            `db:"archived" json:"archived"`
+	SourceExampleID            sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasExternalAgent           sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
+	ScriptOrderDataSourceCount int32           `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32           `db:"script_order_rule_count" json:"script_order_rule_count"`
+	CreatedByAvatarURL         string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername          string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName              string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -6384,6 +6575,10 @@ type TemplateVersionTable struct {
 	Archived         bool           `db:"archived" json:"archived"`
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
+	// Number of coder_script_order data source declarations in the template configuration.
+	ScriptOrderDataSourceCount int32 `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	// Number of rule blocks across coder_script_order declarations in the template configuration.
+	ScriptOrderRuleCount int32 `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -7051,6 +7246,21 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceSecret struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt        time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt        sql.NullTime          `db:"cleared_at" json:"cleared_at"`
 }
 
 type WorkspaceTable struct {

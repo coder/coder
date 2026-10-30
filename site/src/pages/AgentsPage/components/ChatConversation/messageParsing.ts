@@ -8,7 +8,8 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "../ChatElements/tools/subagentDescriptor";
-import { appendTextBlock } from "./blockUtils";
+import { serializeMessageDraft } from "../ChatMessageInput/SkillInvocationNode";
+import { appendResponseText, appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -75,9 +76,19 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 });
+
+/**
+ * Provider-executed tools are hidden except web_search, whose row shows
+ * what the provider searched for and which pages it found.
+ */
+export const isHiddenProviderExecutedPart = (
+	part: TypesGen.ChatToolCallPart | TypesGen.ChatToolResultPart,
+): boolean =>
+	Boolean(part.provider_executed) && part.tool_name !== "web_search";
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
@@ -213,6 +224,8 @@ export const mergeTools = (
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
 			startedAt: call.startedAt,
+			providerExecuted: call.providerExecuted,
+			foundPages: call.foundPages,
 		});
 	}
 
@@ -245,9 +258,8 @@ export const parseMessageContent = (
 		switch (part.type) {
 			case "text": {
 				parsed.markdown = appendText(parsed.markdown, part.text);
-				parsed.blocks = appendTextBlock(
+				parsed.blocks = appendResponseText(
 					parsed.blocks,
-					"response",
 					part.text,
 					part.narration,
 				);
@@ -259,11 +271,8 @@ export const parseMessageContent = (
 				break;
 			}
 			case "tool-call": {
-				// Provider-executed tool calls (e.g. web_search) are
-				// handled by the provider itself — hide them from the
-				// tool card UI and let the sources component render
-				// their results.
-				if (part.provider_executed) {
+				// Hidden provider-executed calls render no block.
+				if (isHiddenProviderExecutedPart(part)) {
 					parsed.blocks = markTextBeforeProviderTool(parsed.blocks);
 					break;
 				}
@@ -276,6 +285,7 @@ export const parseMessageContent = (
 					mcpServerConfigId: part.mcp_server_config_id,
 					hookRewritten: part.hook_rewritten,
 					startedAt: part.created_at,
+					providerExecuted: part.provider_executed,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -285,8 +295,7 @@ export const parseMessageContent = (
 				break;
 			}
 			case "tool-result": {
-				// Skip synthetic results for provider-executed tools.
-				if (part.provider_executed) {
+				if (isHiddenProviderExecutedPart(part)) {
 					break;
 				}
 				const id = part.tool_call_id || `tool-result-${index}`;
@@ -309,7 +318,17 @@ export const parseMessageContent = (
 				break;
 			}
 			case "source": {
-				if (part.url) {
+				// A tagged page whose call is not in this message falls
+				// through to the source row instead of being dropped.
+				const call = part.tool_call_id
+					? parsed.toolCalls.find(({ id }) => id === part.tool_call_id)
+					: undefined;
+				if (call && part.url) {
+					call.foundPages ??= [];
+					if (!call.foundPages.some(({ url }) => url === part.url)) {
+						call.foundPages.push({ url: part.url, title: part.title ?? "" });
+					}
+				} else if (part.url) {
 					const source = { url: part.url, title: part.title || part.url };
 					// Still populate the flat list for backward compat.
 					if (!parsed.sources.some((s) => s.url === part.url)) {
@@ -353,11 +372,16 @@ export const parseMessageContent = (
 				parsed.blocks.push(part);
 				break;
 			}
+			case "skill-invocation": {
+				parsed.blocks.push(part);
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
 			}
 		}
+		parsed.partBlockIndices.push(parsed.blocks.length - 1);
 	}
 	return parsed;
 };
@@ -378,6 +402,8 @@ export const getEditableUserMessagePayload = (
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+	/** Restores skill chips in place; undefined when there are none. */
+	editorState: string | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
 	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
@@ -391,6 +417,11 @@ export const getEditableUserMessagePayload = (
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
+		editorState: parsed.blocks.some(
+			(block) => block.type === "skill-invocation",
+		)
+			? serializeMessageDraft(message.content ?? [])
+			: undefined,
 	};
 };
 
