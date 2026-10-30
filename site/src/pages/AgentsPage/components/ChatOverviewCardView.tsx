@@ -22,6 +22,7 @@ import {
 	getPRIconConfig,
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
+import type { DiffStats } from "./GitPanel/gitViews";
 
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
@@ -36,12 +37,7 @@ export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
 
 type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
 
-type OverviewRepo = {
-	root: string;
-	branch: string;
-	additions: number;
-	deletions: number;
-};
+type OverviewRepo = DiffStats & { root: string; branch: string };
 
 /** What the overview card shows. */
 export type ChatOverview = {
@@ -251,13 +247,11 @@ const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 	return parts.length > 0 ? parts.join(" · ") : undefined;
 };
 
-type RepoChanges = Pick<OverviewRepo, "additions" | "deletions">;
-
-const hasChanges = ({ additions, deletions }: RepoChanges) =>
+const hasChanges = ({ additions, deletions }: DiffStats) =>
 	additions > 0 || deletions > 0;
 
 /** A clean repository shows +0 −0, where the shared badge shows nothing. */
-const RepoDiffStat: React.FC<RepoChanges> = (changes) =>
+const RepoDiffStat: React.FC<DiffStats> = (changes) =>
 	hasChanges(changes) ? (
 		<DiffStatBadge {...changes} />
 	) : (
