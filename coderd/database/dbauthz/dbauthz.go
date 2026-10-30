@@ -6116,6 +6116,14 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
+func (q *querier) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]database.WorkspaceBuildParameter, error) {
+	// Batch lookup across workspaces, used by telemetry.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, buildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
 	// Fetching the provisioner state requires Update permission on the template.
 	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetWorkspaceBuildProvisionerStateByID)(ctx, buildID)

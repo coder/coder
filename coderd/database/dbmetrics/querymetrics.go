@@ -4072,6 +4072,14 @@ func (m queryMetricsStore) GetWorkspaceBuildParameters(ctx context.Context, work
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]database.WorkspaceBuildParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParametersByBuildIDsAndNamePrefix").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildParametersByBuildIDsAndNamePrefix").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuildID)

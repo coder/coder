@@ -14,3 +14,14 @@ FROM
     workspace_build_parameters
 WHERE
     workspace_build_id = $1;
+
+-- name: GetWorkspaceBuildParametersByBuildIDsAndNamePrefix :many
+-- starts_with is used instead of LIKE so an underscore in the prefix is
+-- matched literally rather than as a wildcard.
+SELECT
+    *
+FROM
+    workspace_build_parameters
+WHERE
+    workspace_build_id = ANY(@workspace_build_ids :: uuid[])
+    AND starts_with(name, @name_prefix :: text);

@@ -5394,6 +5394,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceBuildsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetWorkspaceBuildParametersByBuildIDsAndNamePrefix", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams{
+			WorkspaceBuildIds: []uuid.UUID{uuid.New()},
+			NamePrefix:        "agent_relay_",
+		}
+		dbm.EXPECT().GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(gomock.Any(), arg).Return([]database.WorkspaceBuildParameter{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceAgentsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceAgent{}, nil).AnyTimes()

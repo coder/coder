@@ -589,9 +589,30 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get workspace builds: %w", err)
 		}
+		buildIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+		for _, build := range workspaceBuilds {
+			buildIDs = append(buildIDs, build.ID)
+		}
+		var relayParams []database.WorkspaceBuildParameter
+		if len(buildIDs) > 0 {
+			relayParams, err = r.options.Database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams{
+				WorkspaceBuildIds: buildIDs,
+				NamePrefix:        agentRelayParameterPrefix,
+			})
+			if err != nil {
+				return xerrors.Errorf("get agent relay workspace build parameters: %w", err)
+			}
+		}
+		paramsByBuild := make(map[uuid.UUID]map[string]string)
+		for _, param := range relayParams {
+			if paramsByBuild[param.WorkspaceBuildID] == nil {
+				paramsByBuild[param.WorkspaceBuildID] = make(map[string]string)
+			}
+			paramsByBuild[param.WorkspaceBuildID][param.Name] = param.Value
+		}
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
-			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build))
+			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build, paramsByBuild[build.ID]))
 		}
 		return nil
 	})
@@ -1098,8 +1119,10 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 	}
 }
 
-// ConvertWorkspaceBuild anonymizes a workspace build.
-func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
+// ConvertWorkspaceBuild anonymizes a workspace build. parameters holds the
+// build's rich parameter values by name; only Agent Relay parameters are
+// read, and only to fill AgentRelay.
+func ConvertWorkspaceBuild(build database.WorkspaceBuild, parameters map[string]string) WorkspaceBuild {
 	wb := WorkspaceBuild{
 		ID:                build.ID,
 		CreatedAt:         build.CreatedAt,
@@ -1108,8 +1131,66 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		TemplateVersionID: build.TemplateVersionID,
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
+		AgentRelay:  convertWorkspaceBuildAgentRelay(parameters),
 	}
 	return wb
+}
+
+// Rich parameter names stamped by Agent Relay (github.com/coder/agent-relay)
+// on every build it dispatches. The names are a contract owned by
+// agent-relay's template contract and the agent-relay registry modules.
+// Renaming one there silently drops it from telemetry here.
+const (
+	agentRelayParameterPrefix           = "agent_relay_"
+	agentRelayParameterSessionID        = "agent_relay_session_id"
+	agentRelayParameterPool             = "agent_relay_pool"
+	agentRelayParameterAttempt          = "agent_relay_attempt"
+	agentRelayParameterClientPlatform   = "agent_relay_client_platform"
+	agentRelayParameterClaudeCodePrefix = "agent_relay_claude_code_"
+	agentRelayParameterCursorPrefix     = "agent_relay_cursor_"
+)
+
+// Agent Relay providers reported in WorkspaceBuildAgentRelay.Provider.
+const (
+	AgentRelayProviderClaudeCode = "claude_code"
+	AgentRelayProviderCursor     = "cursor"
+	AgentRelayProviderUnknown    = "unknown"
+)
+
+// convertWorkspaceBuildAgentRelay returns nil unless the parameters mark the
+// build as dispatched by Agent Relay. Session ID and pool are hashed because
+// the pool name is user content and the session ID only needs to be counted.
+func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBuildAgentRelay {
+	sessionID, ok := parameters[agentRelayParameterSessionID]
+	if !ok || sessionID == "" {
+		return nil
+	}
+	relay := &WorkspaceBuildAgentRelay{
+		Provider:       AgentRelayProviderUnknown,
+		ClientPlatform: parameters[agentRelayParameterClientPlatform],
+		SessionIDHash:  fmt.Sprintf("%x", sha256.Sum256([]byte(sessionID))),
+	}
+	if pool := parameters[agentRelayParameterPool]; pool != "" {
+		relay.PoolHash = fmt.Sprintf("%x", sha256.Sum256([]byte(pool)))
+	}
+	if attempt, err := strconv.Atoi(parameters[agentRelayParameterAttempt]); err == nil {
+		relay.Attempt = attempt
+	}
+	for name := range parameters {
+		switch {
+		case strings.HasPrefix(name, agentRelayParameterCursorPrefix):
+			relay.Provider = AgentRelayProviderCursor
+		case strings.HasPrefix(name, agentRelayParameterClaudeCodePrefix):
+			relay.Provider = AgentRelayProviderClaudeCode
+		}
+	}
+	// Only the Claude Code provider stamps a client platform. Its
+	// provider-specific parameter is ephemeral, so stop and restart builds
+	// lack it; the platform still identifies the provider there.
+	if relay.Provider == AgentRelayProviderUnknown && relay.ClientPlatform != "" {
+		relay.Provider = AgentRelayProviderClaudeCode
+	}
+	return relay
 }
 
 // ConvertProvisionerJob anonymizes a provisioner job.
@@ -1732,6 +1813,26 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
+	// AgentRelay is set when Agent Relay dispatched the build. Omitted for
+	// other builds and by older Coder versions.
+	AgentRelay *WorkspaceBuildAgentRelay `json:"agent_relay,omitempty"`
+}
+
+// WorkspaceBuildAgentRelay describes a build dispatched by Agent Relay,
+// derived from the agent_relay_* rich parameters it stamps on the build.
+type WorkspaceBuildAgentRelay struct {
+	// Provider is claude_code, cursor, or unknown.
+	Provider string `json:"provider"`
+	// ClientPlatform is the surface that started the session, such as
+	// claude_in_slack. Only the Claude Code provider reports it.
+	ClientPlatform string `json:"client_platform,omitempty"`
+	// SessionIDHash is the SHA-256 of the relay session ID. Builds of the
+	// same session share it.
+	SessionIDHash string `json:"session_id_hash"`
+	// PoolHash is the SHA-256 of the relay pool name.
+	PoolHash string `json:"pool_hash,omitempty"`
+	// Attempt is the dispatch attempt number, 0 when not reported.
+	Attempt int `json:"attempt,omitempty"`
 }
 
 type Workspace struct {

@@ -885,9 +885,16 @@ func createWorkspace(
 
 	auditReq.New = workspace.WorkspaceTable()
 
+	// The requested values stand in for the stored build parameters to
+	// avoid a query here; the periodic snapshot re-reports the build from
+	// the stored parameters.
+	requestedParameters := make(map[string]string, len(req.RichParameterValues))
+	for _, param := range req.RichParameterValues {
+		requestedParameters[param.Name] = param.Value
+	}
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
-		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild)},
+		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild, requestedParameters)},
 	})
 
 	apiBuild, err := api.convertWorkspaceBuild(

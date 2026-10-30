@@ -1133,6 +1133,9 @@ type sqlcQuerier interface {
 	// Also checks if all agents are ready and returns the worst status.
 	GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
+	// starts_with is used instead of LIKE so an underscore in the prefix is
+	// matched literally rather than as a wildcard.
+	GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]WorkspaceBuildParameter, error)
 	// Fetches the provisioner state of a workspace build, joined through to the
 	// template so that dbauthz can enforce policy.ActionUpdate on the template.
 	// Provisioner state contains sensitive Terraform state and should only be
