@@ -6,8 +6,10 @@ import { Badge } from "#/components/Badge/Badge";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import {
+	TOOLTIP_DELAY_DURATION,
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
@@ -106,7 +108,10 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	});
 
 	return (
-		<div className="bg-surface-secondary relative">
+		<div
+			className="bg-surface-secondary relative w-full"
+			style={{ width: listProps.width }}
+		>
 			<List
 				{...listProps}
 				ref={mergeListRef}
@@ -218,31 +223,34 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 			</List>
 
 			{overflowed && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Badge
+				<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge
+								asChild
+								className="max-w-fit absolute bottom-3 left-1/2 -translate-x-1/2"
+							>
+								<span>Logs overflowed</span>
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent
 							asChild
-							className="max-w-fit absolute bottom-3 left-1/2 -translate-x-1/2"
+							side="top"
+							className="max-w-prose text-sm text-content-secondary bg-surface-primary leading-relaxed m-0 p-4"
 						>
-							<span>Logs overflowed</span>
-						</Badge>
-					</TooltipTrigger>
-					<TooltipContent
-						asChild
-						className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
-					>
-						<p>
-							Startup logs exceeded the max size of{" "}
-							<span className="tracking-wide font-mono">1MB</span>, and will not
-							continue to be written to the database. Logs will continue to be
-							written to the{" "}
-							<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
-								/tmp/coder-startup-script.log
-							</span>{" "}
-							file in the workspace.
-						</p>
-					</TooltipContent>
-				</Tooltip>
+							<p>
+								Startup logs exceeded the max size of{" "}
+								<span className="tracking-wide font-mono">1MB</span>, and will
+								not continue to be written to the database. Logs will continue
+								to be written to the{" "}
+								<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
+									/tmp/coder-startup-script.log
+								</span>{" "}
+								file in the workspace.
+							</p>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			)}
 		</div>
 	);
