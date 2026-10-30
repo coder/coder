@@ -312,14 +312,14 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 							onFiltersChange({ ...filters, archiveStatus: value });
 						}
 					}}
-					className="mt-2 flex gap-1 rounded-lg bg-surface-secondary p-1"
+					className="mt-2 flex gap-1 rounded-sm bg-surface-secondary"
 				>
 					{["active", "archived"].map((status) => (
 						<DropdownMenuRadioItem
 							key={status}
 							value={status}
 							onSelect={keepMenuOpen}
-							className="flex-1 justify-center rounded-sm px-2 py-1 data-[state=checked]:bg-surface-tertiary focus-visible:ring-2 focus-visible:ring-content-link [&>span]:hidden"
+							className="flex-1 justify-center rounded-sm px-2 py-0.5 data-[state=checked]:bg-surface-tertiary focus-visible:ring-2 focus-visible:ring-content-link [&>span]:hidden"
 						>
 							{status === "active" ? "Active" : "Archived"}
 						</DropdownMenuRadioItem>
