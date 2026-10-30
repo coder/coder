@@ -112,7 +112,7 @@ We will not define the SQL queries that correspond to each transition - it'd tak
 
 Each transaction that applies one or more transitions advances the `snapshot_version` field on the `chats` table by 1 immediately after locking the chat row and before mutating any tables. This lets us version the chat's execution state. The chat worker and the stream loop rely on it to ensure they do not process outdated or out of order notifications.
 
-TODO (tx.Current): `ChatMachine.Update` counts queued messages right after the lock and seeds the transaction with the locked row. Callbacks read it with `tx.Current()` and the first transition validates against it, so neither reads the chat again under the lock. Later transitions in the same transaction and the publication read still go to the database. Describe this here.
+TODO (ChatSnapshot): `ChatMachine.Update` counts queued messages right after the lock and passes the callback a `ChatSnapshot` of the locked row. Callbacks read it, and pass it in a transition input's optional `Snapshot` field so that transition validates against it instead of reading the chat under the lock. The snapshot is not kept up to date, so only the first transition in a callback should receive it; later transitions and the publication read go to the database. Describe this here.
 
 TODO (Update return value): `ChatMachine.Update` returns the row it reads after the callback for publication. Callers that need the post-transition chat use it instead of reading the chat again at the end of the callback; other callers ignore it. Describe this here.
 

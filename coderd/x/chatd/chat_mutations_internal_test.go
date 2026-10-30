@@ -28,8 +28,8 @@ func TestUpdateChat(t *testing.T) {
 		recorder := newRecordingPubsub(fixture.pubsub)
 		return fixture, chat, recorder, &Server{db: fixture.db, pubsub: recorder, logger: slogtest.Make(t, nil)}
 	}
-	requestCompaction := func(tx *chatstate.Tx, _ database.Store, _ *database.Chat) error {
-		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+	requestCompaction := func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{Snapshot: snapshot})
 		return err
 	}
 
@@ -72,9 +72,9 @@ func TestUpdateChat(t *testing.T) {
 		_, chat, recorder, server := setup(t)
 		sentinel := database.Chat{ID: chat.ID, OwnerID: chat.OwnerID, Title: "from transition"}
 
-		updated, err := server.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
+		updated, err := server.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, updated *database.Chat) error {
 			*updated = sentinel
-			return requestCompaction(tx, store, nil)
+			return requestCompaction(tx, store, snapshot, nil)
 		})
 		require.NoError(t, err)
 		require.Equal(t, sentinel, updated)
@@ -89,7 +89,7 @@ func TestUpdateChat(t *testing.T) {
 		fixture, chat, recorder, server := setup(t)
 		wantErr := xerrors.New("transition failed")
 
-		_, err := server.updateChat(ctx, chat.ID, func(*chatstate.Tx, database.Store, *database.Chat) error {
+		_, err := server.updateChat(ctx, chat.ID, func(*chatstate.Tx, database.Store, *chatstate.ChatSnapshot, *database.Chat) error {
 			return wantErr
 		})
 		require.ErrorIs(t, err, wantErr)

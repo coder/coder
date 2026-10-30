@@ -144,7 +144,7 @@ func seedAOrA1(t *testing.T, f *testFixture, queuedExtras int, namePrefix string
 	created := createTestChatWithDynamicTools(t, f, toolName)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 	var step chatstate.CommitStepResult
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		step, err = tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
@@ -156,7 +156,7 @@ func seedAOrA1(t *testing.T, f *testFixture, queuedExtras int, namePrefix string
 	require.NoError(t, err)
 	require.Len(t, step.InsertedMessages, 1)
 	// R0 -> A0.
-	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
 	})
@@ -210,7 +210,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateW:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
 		})
@@ -224,7 +224,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateE0:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{
 					RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -248,7 +248,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 		queued := sendQueuedMessage(t, f, m, queuedBody)
 		require.NotNil(t, queued.QueuedMessage)
 		// R1 -> E1
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{
 					RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -283,7 +283,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateI0:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 				return err
 			}
@@ -322,12 +322,12 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateXW:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
 		})
 		require.NoError(t, err)
-		_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: true})
 			return err
 		})
@@ -341,7 +341,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	case chatstate.StateXE0:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{
 					RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -351,7 +351,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 			return err
 		})
 		require.NoError(t, err)
-		_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: true})
 			return err
 		})
@@ -368,7 +368,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 		queuedBody := "queued-for-XE1"
 		queued := sendQueuedMessage(t, f, m, queuedBody)
 		require.NotNil(t, queued.QueuedMessage)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{
 					RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -378,7 +378,7 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 			return err
 		})
 		require.NoError(t, err)
-		_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: true})
 			return err
 		})
@@ -431,7 +431,7 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 		secondBody := "queued-e1-b"
 		second := sendQueuedMessage(t, f, m, secondBody)
 		require.NotNil(t, second.QueuedMessage)
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{
 					RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -505,7 +505,7 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 	created := createTestChatWithDynamicTools(t, f, toolName)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 	var step chatstate.CommitStepResult
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		step, err = tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
@@ -516,7 +516,7 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 	})
 	require.NoError(t, err)
 	require.Len(t, step.InsertedMessages, 1)
-	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
 	})
@@ -635,7 +635,7 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 		created := createTestChatWithDynamicTools(t, f, toolName)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 		var step chatstate.CommitStepResult
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			var err error
 			step, err = tx.CommitStep(chatstate.CommitStepInput{
 				Messages: []chatstate.Message{
@@ -661,7 +661,7 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 		created := createTestChatWithDynamicTools(t, f, toolName)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 		var step chatstate.CommitStepResult
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 			var err error
 			step, err = tx.CommitStep(chatstate.CommitStepInput{
 				Messages: []chatstate.Message{

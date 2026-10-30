@@ -110,22 +110,18 @@ func SetFamilyArchived(
 		familyChats = make([]database.Chat, 0, len(ids))
 		for _, id := range ids {
 			machine := NewChatMachine(tx, buffer, id)
-			chat, err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
+			chat, err := machine.Update(ctx, func(state *Tx, _ database.Store, snapshot *ChatSnapshot) error {
 				// Classify each member so any invalid execution state
 				// aborts and rolls back the whole family update, even
 				// when that member already has the requested archived
 				// value.
-				current, from, err := state.Current()
-				if err != nil {
-					return err
-				}
-				if from == StateInvalid {
+				if snapshot.State() == StateInvalid {
 					return ErrInvalidState
 				}
-				if current.Archived == input.Archived {
+				if snapshot.Chat.Archived == input.Archived {
 					return nil
 				}
-				_, err = state.SetArchived(SetArchivedInput{Archived: input.Archived})
+				_, err := state.SetArchived(SetArchivedInput{Snapshot: snapshot, Archived: input.Archived})
 				return err
 			})
 			if err != nil {

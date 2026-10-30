@@ -33,7 +33,7 @@ func TestQueuedMessageLinkIdenticalContent(t *testing.T) {
 	promoted := make([]database.ChatMessage, 0, 2)
 	for range 2 {
 		var finish chatstate.FinishTurnResult
-		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			var err error
 			finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
@@ -64,7 +64,7 @@ func TestQueuedMessageLinkEditReplacementUnlinked(t *testing.T) {
 	queued := sendQueuedMessage(t, f, m, "promote then edit")
 	require.NotNil(t, queued.QueuedMessage)
 	var finish chatstate.FinishTurnResult
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
@@ -75,7 +75,7 @@ func TestQueuedMessageLinkEditReplacementUnlinked(t *testing.T) {
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 
 	var edit chatstate.EditMessageResult
-	_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		edit, err = tx.EditMessage(chatstate.EditMessageInput{
 			MessageID: finish.PromotedMessage.ID,
@@ -109,7 +109,7 @@ func TestQueuedMessagePromotionRequiresSingleDelete(t *testing.T) {
 	historyBefore := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
 	guarded := chatstate.NewChatMachine(&queueDeleteCountStore{Store: f.DB}, f.Pub, created.Chat.ID)
-	_, err := guarded.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := guarded.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})

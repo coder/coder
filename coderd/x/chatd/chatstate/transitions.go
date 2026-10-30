@@ -381,6 +381,8 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 
 // SetArchivedInput configures [Tx.SetArchived].
 type SetArchivedInput struct {
+	Snapshot *ChatSnapshot
+
 	Archived bool
 }
 
@@ -389,7 +391,7 @@ type SetArchivedResult struct{}
 
 // SetArchived sets or clears the chat's archived marker.
 func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionSetArchived)
+	chat, from, err := tx.requireFromAllowed(TransitionSetArchived, input.Snapshot)
 	if err != nil {
 		return SetArchivedResult{}, err
 	}
@@ -430,6 +432,8 @@ const (
 
 // SendMessageInput configures [Tx.SendMessage].
 type SendMessageInput struct {
+	Snapshot *ChatSnapshot
+
 	Message      Message
 	BusyBehavior BusyBehavior
 	// MaxQueueSize is the maximum number of messages that can be queued
@@ -452,7 +456,7 @@ type SendMessageResult struct {
 // BusyBehavior, the message lands directly in history, in the queue,
 // or replaces the queue head as part of a running-state promotion.
 func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionSendMessage)
+	chat, from, err := tx.requireFromAllowed(TransitionSendMessage, input.Snapshot)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
@@ -671,6 +675,8 @@ func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, inpu
 
 // EditMessageInput configures [Tx.EditMessage].
 type EditMessageInput struct {
+	Snapshot *ChatSnapshot
+
 	MessageID int64
 	// SuffixMessages are inserted after the replacement message in the
 	// same transaction, so a later edit's suffix truncation cleans them
@@ -694,7 +700,7 @@ type EditMessageResult struct {
 // EditMessage replaces an earlier user message and discards the
 // active-history suffix that followed it.
 func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionEditMessage)
+	chat, from, err := tx.requireFromAllowed(TransitionEditMessage, input.Snapshot)
 	if err != nil {
 		return EditMessageResult{}, err
 	}
@@ -808,7 +814,9 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 // RequestCompactionInput is intentionally empty. The compaction turn
 // derives AI Gateway attribution from the owner's synthetic API key,
 // so the request carries no caller input.
-type RequestCompactionInput struct{}
+type RequestCompactionInput struct {
+	Snapshot *ChatSnapshot
+}
 
 // RequestCompactionResult is returned by [Tx.RequestCompaction].
 type RequestCompactionResult struct {
@@ -825,8 +833,8 @@ type RequestCompactionResult struct {
 // change would grant: a full retry budget regardless of how the
 // previous turn spent its own, and message part episode keys that
 // cannot collide with episodes the failed turn's replica retains.
-func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
-	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
+func (tx *Tx) RequestCompaction(input RequestCompactionInput) (RequestCompactionResult, error) {
+	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction, input.Snapshot)
 	if err != nil {
 		return RequestCompactionResult{}, err
 	}
@@ -854,6 +862,8 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 // the boundary rows built by chatd; chatstate requires a non-empty
 // batch so the insert trigger grants the fresh history epoch.
 type ClearContextInput struct {
+	Snapshot *ChatSnapshot
+
 	Messages []Message
 }
 
@@ -869,7 +879,7 @@ type ClearContextResult struct {
 // worker turn is needed; the message insert trigger advances
 // history_version and resets the retry budget.
 func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
+	chat, from, err := tx.requireFromAllowed(TransitionClearContext, input.Snapshot)
 	if err != nil {
 		return ClearContextResult{}, err
 	}
@@ -899,6 +909,8 @@ func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) 
 
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
+	Snapshot *ChatSnapshot
+
 	QueuedMessageID int64
 }
 
@@ -909,7 +921,7 @@ type DeleteQueuedMessageResult struct {
 
 // DeleteQueuedMessage removes a single queued user message.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
-	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage, input.Snapshot)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -940,6 +952,8 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 
 // PromoteQueuedMessageInput configures [Tx.PromoteQueuedMessage].
 type PromoteQueuedMessageInput struct {
+	Snapshot *ChatSnapshot
+
 	QueuedMessageID int64
 }
 
@@ -955,7 +969,7 @@ type PromoteQueuedMessageResult struct {
 // PromoteQueuedMessage promotes the target queued message to the
 // queue head; from E1/A1 it also pops it into active history.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
+	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage, input.Snapshot)
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
@@ -1044,6 +1058,8 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 
 // InterruptInput configures [Tx.Interrupt].
 type InterruptInput struct {
+	Snapshot *ChatSnapshot
+
 	Reason string
 }
 
@@ -1061,7 +1077,7 @@ type InterruptResult struct {
 // chat. It also finishes the pending interruption of an unowned
 // interrupting chat.
 func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionInterrupt)
+	chat, from, err := tx.requireFromAllowed(TransitionInterrupt, input.Snapshot)
 	reason := input.Reason
 	if reason == "" {
 		reason = "Tool execution interrupted by user"
@@ -1181,6 +1197,8 @@ type ToolResultInput struct {
 
 // CompleteRequiresActionInput configures [Tx.CompleteRequiresAction].
 type CompleteRequiresActionInput struct {
+	Snapshot *ChatSnapshot
+
 	CreatedBy      uuid.UUID
 	ModelConfigID  uuid.UUID
 	Results        []ToolResultInput
@@ -1196,7 +1214,7 @@ type CompleteRequiresActionResult struct {
 // results that satisfy the chat's pending dynamic tool calls, then
 // returns the chat to running.
 func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (CompleteRequiresActionResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionCompleteRequiresAction)
+	chat, from, err := tx.requireFromAllowed(TransitionCompleteRequiresAction, input.Snapshot)
 	if err != nil {
 		return CompleteRequiresActionResult{}, err
 	}
@@ -1268,6 +1286,8 @@ func toolResultTransitionMessage(cause error) string {
 
 // AcquireInput configures [Tx.Acquire].
 type AcquireInput struct {
+	Snapshot *ChatSnapshot
+
 	WorkerID uuid.UUID
 	RunnerID uuid.UUID
 }
@@ -1285,7 +1305,7 @@ type AcquireResult struct{}
 // Callers that need to coordinate takeovers with the previous owner
 // must arrange that out-of-band before calling Acquire.
 func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
-	chat, _, err := tx.loadState()
+	chat, _, err := tx.loadState(input.Snapshot)
 	if err != nil {
 		return AcquireResult{}, err
 	}
@@ -1315,7 +1335,9 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 // AbandonInput is intentionally empty. Ownership-fence checks belong
 // outside the transition in caller code that reads the locked row before
 // invoking Abandon.
-type AbandonInput struct{}
+type AbandonInput struct {
+	Snapshot *ChatSnapshot
+}
 
 // AbandonResult is returned by [Tx.Abandon].
 type AbandonResult struct{}
@@ -1325,8 +1347,8 @@ type AbandonResult struct{}
 // Callers that need to verify their own identity before abandoning should
 // read the locked row through the transactional store and compare values before
 // invoking Abandon.
-func (tx *Tx) Abandon(_ AbandonInput) (AbandonResult, error) {
-	chat, from, err := tx.loadState()
+func (tx *Tx) Abandon(input AbandonInput) (AbandonResult, error) {
+	chat, from, err := tx.loadState(input.Snapshot)
 	if err != nil {
 		return AbandonResult{}, err
 	}
@@ -1348,7 +1370,9 @@ func (tx *Tx) Abandon(_ AbandonInput) (AbandonResult, error) {
 }
 
 // RecordGenerationAttemptInput is intentionally empty.
-type RecordGenerationAttemptInput struct{}
+type RecordGenerationAttemptInput struct {
+	Snapshot *ChatSnapshot
+}
 
 // RecordGenerationAttemptResult is returned by [Tx.RecordGenerationAttempt].
 type RecordGenerationAttemptResult struct {
@@ -1357,8 +1381,8 @@ type RecordGenerationAttemptResult struct {
 
 // RecordGenerationAttempt durably records that the worker is
 // attempting another generation under the current history version.
-func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGenerationAttemptResult, error) {
-	_, _, err := tx.requireFromAllowed(TransitionRecordGenerationAttempt)
+func (tx *Tx) RecordGenerationAttempt(input RecordGenerationAttemptInput) (RecordGenerationAttemptResult, error) {
+	_, _, err := tx.requireFromAllowed(TransitionRecordGenerationAttempt, input.Snapshot)
 	if err != nil {
 		return RecordGenerationAttemptResult{}, err
 	}
@@ -1373,6 +1397,8 @@ func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGen
 
 // RecordRetryStateInput configures [Tx.RecordRetryState].
 type RecordRetryStateInput struct {
+	Snapshot *ChatSnapshot
+
 	RetryState pqtype.NullRawMessage
 }
 
@@ -1384,7 +1410,7 @@ type RecordRetryStateResult struct {
 // RecordRetryState stores the client-visible retry payload for the
 // current generation attempt.
 func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateResult, error) {
-	_, from, err := tx.requireFromAllowed(TransitionRecordRetryState)
+	_, from, err := tx.requireFromAllowed(TransitionRecordRetryState, input.Snapshot)
 	if err != nil {
 		return RecordRetryStateResult{}, err
 	}
@@ -1412,6 +1438,8 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 
 // CommitStepInput configures [Tx.CommitStep].
 type CommitStepInput struct {
+	Snapshot *ChatSnapshot
+
 	Messages []Message
 	// ConsumeCompactionRequest clears the one-shot manual compaction
 	// marker atomically with the committed step. Compaction commits
@@ -1428,7 +1456,7 @@ type CommitStepResult struct {
 // CommitStep stores one durable message suffix while remaining
 // running.
 func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionCommitStep)
+	chat, from, err := tx.requireFromAllowed(TransitionCommitStep, input.Snapshot)
 	if err != nil {
 		return CommitStepResult{}, err
 	}
@@ -1466,7 +1494,9 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 const requiresActionTimeout = 5 * time.Minute
 
 // EnterRequiresActionInput is intentionally empty.
-type EnterRequiresActionInput struct{}
+type EnterRequiresActionInput struct {
+	Snapshot *ChatSnapshot
+}
 
 // EnterRequiresActionResult is returned by [Tx.EnterRequiresAction].
 type EnterRequiresActionResult struct {
@@ -1475,8 +1505,8 @@ type EnterRequiresActionResult struct {
 
 // EnterRequiresAction parks the chat in requires_action with a
 // database-time deadline of now() + requiresActionTimeout.
-func (tx *Tx) EnterRequiresAction(_ EnterRequiresActionInput) (EnterRequiresActionResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionEnterRequiresAction)
+func (tx *Tx) EnterRequiresAction(input EnterRequiresActionInput) (EnterRequiresActionResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionEnterRequiresAction, input.Snapshot)
 	if err != nil {
 		return EnterRequiresActionResult{}, err
 	}
@@ -1512,6 +1542,8 @@ func (tx *Tx) EnterRequiresAction(_ EnterRequiresActionInput) (EnterRequiresActi
 
 // FinishInterruptionInput configures [Tx.FinishInterruption].
 type FinishInterruptionInput struct {
+	Snapshot *ChatSnapshot
+
 	PartialMessages []Message
 }
 
@@ -1527,7 +1559,7 @@ type FinishInterruptionResult struct {
 // and lands the chat in waiting (I0) or running with the next queued
 // message promoted (I1).
 func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterruptionResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption)
+	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption, input.Snapshot)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
@@ -1601,7 +1633,9 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 }
 
 // FinishTurnInput configures [Tx.FinishTurn].
-type FinishTurnInput struct{}
+type FinishTurnInput struct {
+	Snapshot *ChatSnapshot
+}
 
 // FinishTurnResult is returned by [Tx.FinishTurn].
 type FinishTurnResult struct {
@@ -1612,8 +1646,8 @@ type FinishTurnResult struct {
 }
 
 // FinishTurn completes a running turn.
-func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionFinishTurn)
+func (tx *Tx) FinishTurn(input FinishTurnInput) (FinishTurnResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionFinishTurn, input.Snapshot)
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
@@ -1675,6 +1709,8 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 
 // FinishErrorInput configures [Tx.FinishError].
 type FinishErrorInput struct {
+	Snapshot *ChatSnapshot
+
 	LastError pqtype.NullRawMessage
 }
 
@@ -1684,7 +1720,7 @@ type FinishErrorResult struct{}
 // FinishError parks the chat in error with the supplied last_error.
 // It is allowed when an unarchived chat is waiting or running.
 func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
-	chat, _, err := tx.requireFromAllowed(TransitionFinishError)
+	chat, _, err := tx.requireFromAllowed(TransitionFinishError, input.Snapshot)
 	if err != nil {
 		return FinishErrorResult{}, err
 	}
@@ -1703,6 +1739,8 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 
 // CancelRequiresActionInput configures [Tx.CancelRequiresAction].
 type CancelRequiresActionInput struct {
+	Snapshot *ChatSnapshot
+
 	Reason string
 }
 
@@ -1714,7 +1752,7 @@ type CancelRequiresActionResult struct {
 // CancelRequiresAction synthesizes cancellation results for every
 // pending dynamic tool call and returns the chat to running.
 func (tx *Tx) CancelRequiresAction(input CancelRequiresActionInput) (CancelRequiresActionResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionCancelRequiresAction)
+	chat, from, err := tx.requireFromAllowed(TransitionCancelRequiresAction, input.Snapshot)
 	if err != nil {
 		return CancelRequiresActionResult{}, err
 	}
@@ -1753,6 +1791,8 @@ func (tx *Tx) CancelRequiresAction(input CancelRequiresActionInput) (CancelRequi
 
 // ReconcileInvalidStateInput configures [Tx.ReconcileInvalidState].
 type ReconcileInvalidStateInput struct {
+	Snapshot *ChatSnapshot
+
 	LastError          pqtype.NullRawMessage
 	CancellationReason string
 }
@@ -1766,7 +1806,7 @@ type ReconcileInvalidStateResult struct {
 // into a valid error state. Queued messages are preserved; pending
 // dynamic-tool calls are closed with synthetic cancellation results.
 func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (ReconcileInvalidStateResult, error) {
-	chat, from, err := tx.loadState()
+	chat, from, err := tx.loadState(input.Snapshot)
 	if err != nil {
 		return ReconcileInvalidStateResult{}, err
 	}

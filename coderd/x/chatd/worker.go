@@ -261,11 +261,8 @@ func (w *chatWorker) acquireCandidate(
 	runnerID := uuid.New()
 	var takenOver bool
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, state, err := tx.Current()
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
+		chat, state := snapshot.Chat, snapshot.State()
 		if !state.IsRunnable() || chat.Archived {
 			return errSkipAcquire
 		}
@@ -304,7 +301,7 @@ func (w *chatWorker) acquireCandidate(
 				return errSkipAcquire
 			}
 		}
-		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
+		_, err = tx.Acquire(chatstate.AcquireInput{Snapshot: snapshot, WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})
 	if errors.Is(err, errCapacityRefused) {
@@ -351,15 +348,12 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	_, err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store) error {
-		chat, _, err := tx.Current()
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
+	_, err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
+		chat := snapshot.Chat
 		if !chat.WorkerID.Valid || chat.WorkerID.UUID != workerID || !chat.RunnerID.Valid || chat.RunnerID.UUID != runnerID {
 			return errSkipAcquire
 		}
-		_, err = tx.Abandon(chatstate.AbandonInput{})
+		_, err := tx.Abandon(chatstate.AbandonInput{Snapshot: snapshot})
 		return err
 	})
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {

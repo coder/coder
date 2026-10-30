@@ -2707,7 +2707,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{
@@ -2722,7 +2722,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
 	})
@@ -2793,7 +2793,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	deadWorkerID := uuid.New()
 	deadRunnerID := uuid.New()
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: deadWorkerID, RunnerID: deadRunnerID})
 		return err
 	})
@@ -6183,7 +6183,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -6424,7 +6424,7 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 		machine := chatstate.NewChatMachine(db, ps, chat.ID)
-		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
 					Message: "input length exceeds the maximum allowed input length",
@@ -10586,7 +10586,7 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 				// A worker acquires the chat, sees it interrupted, and
 				// abandons it before its runner starts.
 				machine := chatstate.NewChatMachine(db, ps, chat.ID)
-				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					if _, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()}); err != nil {
 						return err
 					}

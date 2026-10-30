@@ -91,7 +91,7 @@ func releaseCapacitySlot(t *testing.T, f *workerTestFixture, chatID uuid.UUID) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func TestAdmission_StopWaitingChatNeedsNoCapacity(t *testing.T) {
 
 	// The user presses stop.
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, waiting.ID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Interrupt(chatstate.InterruptInput{})
 		return err
 	})
@@ -230,7 +230,7 @@ func TestAdmission_RequiresActionTakeoverStaysWithinCapacity(t *testing.T) {
 	worker.Wake()
 	call := starter.waitCall(t, taskKindRequiresActionTimeout, pending.ID)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, pending.ID)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		chat, err := store.GetChatByID(ctx, pending.ID)
 		if err != nil {
 			return err
@@ -274,7 +274,7 @@ func TestRunnerManager_HeartbeatDoesNotReviveStaleLease(t *testing.T) {
 	// A user queues a message on A, which moves A behind B in the
 	// acquisition order (updated_at).
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatA.ID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,

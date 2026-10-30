@@ -38,7 +38,7 @@ func driveChatToWaiting(ctx context.Context, t *testing.T, api *coderd.API, chat
 	t.Helper()
 	chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
-	_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})
@@ -72,7 +72,7 @@ func driveChatToRequiresAction(
 	require.NoError(t, err)
 
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-	_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{{
 				Role:           database.ChatMessageRoleAssistant,
@@ -200,7 +200,7 @@ func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 		// A worker owns the running chat.
 		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-		_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err = machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 			return err
 		})

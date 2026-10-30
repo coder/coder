@@ -147,7 +147,7 @@ func TestStreamSnapshotRetryAfterTurnEnded(t *testing.T) {
 			machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
 			update := func(fn func(tx *chatstate.Tx) error) {
 				t.Helper()
-				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					return fn(tx)
 				})
 				require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestStreamSyncObservesTransitionCommittedDuringRead(t *testing.T) {
 	// A transition commits while the read snapshot is open. It must not
 	// wait for the reader.
 	machine := chatstate.NewChatMachine(db, ps, chat.ID)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})

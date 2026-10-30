@@ -52,26 +52,28 @@ func NewChatMachine(
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
-// the chat ID, and the row returned by the transition lock.
-//
-// The locked row is safe to reuse because the lock blocks every other
-// writer of the chat until commit. Transitions write the chat, so the
-// first loadState consumes the locked row and later reads go to the
-// database. Writes a callback makes through the raw store are not
-// reflected in the locked row.
+// and the chat ID.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
-
-	locked *lockedRow
 }
 
-// lockedRow is the chat row returned by the transition lock plus the
-// queue state read right after it.
-type lockedRow struct {
-	chat      database.Chat
-	hasQueued bool
+// ChatSnapshot is the chat row and queue state at one point in a
+// transaction. A transition given a snapshot in its input's Snapshot
+// field validates against it instead of reading the chat.
+//
+// A snapshot is not kept up to date. It is only valid until the chat
+// is next written, so pass it to at most the first transition in a
+// callback. Writes made through the raw store are not reflected in it.
+type ChatSnapshot struct {
+	Chat      database.Chat
+	HasQueued bool
+}
+
+// State classifies the snapshot's execution state.
+func (s *ChatSnapshot) State() ExecutionState {
+	return ClassifyExecutionState(s.Chat, s.HasQueued, true)
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -94,21 +96,11 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 func (tx *Tx) Store() database.Store { return tx.store }
 
 // loadState returns the chat row and execution state for a transition
-// to validate against. The locked row is returned at most once because
-// the transition that reads it is about to write the chat.
-func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
-	if l := tx.locked; l != nil {
-		tx.locked = nil
-		return l.chat, ClassifyExecutionState(l.chat, l.hasQueued, true), nil
-	}
-	return tx.readState()
-}
-
-// Current returns the chat row and execution state, reusing the locked
-// row without consuming it when no transition has run yet.
-func (tx *Tx) Current() (database.Chat, ExecutionState, error) {
-	if l := tx.locked; l != nil {
-		return l.chat, ClassifyExecutionState(l.chat, l.hasQueued, true), nil
+// to validate against: the snapshot when one is given, otherwise a
+// fresh read.
+func (tx *Tx) loadState(snapshot *ChatSnapshot) (database.Chat, ExecutionState, error) {
+	if snapshot != nil {
+		return snapshot.Chat, snapshot.State(), nil
 	}
 	return tx.readState()
 }
@@ -137,8 +129,8 @@ func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 // on success, [ErrInvalidState] when the chat is in an invalid state
 // and t is not [TransitionReconcileInvalidState], and a typed
 // *TransitionError otherwise.
-func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, error) {
-	chat, from, err := tx.loadState()
+func (tx *Tx) requireFromAllowed(t Transition, snapshot *ChatSnapshot) (database.Chat, ExecutionState, error) {
+	chat, from, err := tx.loadState(snapshot)
 	if err != nil {
 		return chat, from, err
 	}
@@ -155,8 +147,9 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 //
 // Update opens a transaction on the captured store, atomically locks
 // the chat row with FOR UPDATE and increments `snapshot_version`
-// exactly once, then runs fn against a fresh [*Tx] and the active
-// transaction store. It constructs a [PublishBuffer], enqueues
+// exactly once, then runs fn against a fresh [*Tx], the active
+// transaction store, and a [ChatSnapshot] of the locked row. The
+// snapshot is never nil. It constructs a [PublishBuffer], enqueues
 // `chat:update` (and a `chat:ownership` hint
 // when the post-transition state is worker-runnable and ownership is
 // missing or stale) inside the transaction, and flushes the buffer only after
@@ -183,7 +176,7 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // afterwards, so treat it as committed only when err is nil.
 func (m *ChatMachine) Update(
 	ctx context.Context,
-	fn func(*Tx, database.Store) error,
+	fn func(*Tx, database.Store, *ChatSnapshot) error,
 ) (database.Chat, error) {
 	if m.store == nil {
 		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil store")
@@ -212,9 +205,8 @@ func (m *ChatMachine) Update(
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
-			locked: &lockedRow{chat: locked, hasQueued: queued > 0},
 		}
-		if err := fn(tx, store); err != nil {
+		if err := fn(tx, store, &ChatSnapshot{Chat: locked, HasQueued: queued > 0}); err != nil {
 			return err
 		}
 		// The callback may have written the chat, so publish a fresh read.

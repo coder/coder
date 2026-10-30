@@ -34,7 +34,7 @@ func TestSubagentSpawnUnderArchivedRoot(t *testing.T) {
 	// The turn ends (another owner finished it) and the user archives
 	// the family.
 	_, err := chatstate.NewChatMachine(db, ps, root.ID).Update(ctx,
-		func(tx *chatstate.Tx, _ database.Store) error {
+		func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 			return err
 		})

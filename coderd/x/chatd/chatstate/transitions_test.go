@@ -218,7 +218,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 		queued := sendQueuedMessage(t, f, machine, "queued without default")
 		require.NotNil(t, queued.QueuedMessage)
-		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
 			})
@@ -226,7 +226,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 				QueuedMessageID: queued.QueuedMessage.ID,
 			})
@@ -244,7 +244,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 		queued := sendQueuedMessage(t, f, machine, "queued database error")
 		require.NotNil(t, queued.QueuedMessage)
-		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.FinishError(chatstate.FinishErrorInput{
 				LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
 			})
@@ -255,7 +255,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		queryErr := xerrors.New("model query failed")
 		failingStore := &modelConfigErrorStore{Store: f.DB, err: queryErr}
 		machine = chatstate.NewChatMachine(failingStore, f.Pub, created.Chat.ID)
-		_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 				QueuedMessageID: queued.QueuedMessage.ID,
 			})
@@ -300,7 +300,7 @@ func promoteQueuedMessageWithModel(
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishError(chatstate.FinishErrorInput{
 			LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
 		})
@@ -309,7 +309,7 @@ func promoteQueuedMessageWithModel(
 	require.NoError(t, err)
 
 	var result chatstate.PromoteQueuedMessageResult
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		result, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 			QueuedMessageID: queued.ID,
@@ -385,7 +385,7 @@ func runSetArchivedWrongDirectionCase(t *testing.T, tc setArchivedWrongDirection
 	base := captureBaseline(ctx, t, f, seeded)
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, serr := tx.SetArchived(chatstate.SetArchivedInput{Archived: tc.wantArchive})
 		return serr
 	})
@@ -413,7 +413,7 @@ func runInvalidBusyBehaviorCase(t *testing.T, from chatstate.ExecutionState, bb 
 	base := captureBaseline(ctx, t, f, seeded)
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, serr := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("invalid-bb", f.User.ID, f.Model.ID),
 			BusyBehavior: bb,
@@ -510,7 +510,7 @@ func runCompleteRequiresActionRejectCase(t *testing.T, tc completeRequiresAction
 	base := captureBaseline(ctx, t, f, seeded)
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, cerr := tx.CompleteRequiresAction(chatstate.CompleteRequiresActionInput{
 			CreatedBy:     f.User.ID,
 			ModelConfigID: f.Model.ID,
@@ -536,7 +536,7 @@ func runRecordRetryStateRejectCase(t *testing.T, tc recordRetryStateRejectCase) 
 	base := captureBaseline(ctx, t, f, seeded)
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, rerr := tx.RecordRetryState(chatstate.RecordRetryStateInput{
 			RetryState: tc.retryState,
 		})
@@ -618,7 +618,7 @@ func TestSendMessageQueueCap(t *testing.T) {
 			created := createTestChat(t, f)
 			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 			send := func(ctx context.Context, body string) error {
-				_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 					_, err := tx.SendMessage(chatstate.SendMessageInput{
 						Message:      userTextMessage(body, f.User.ID, f.Model.ID),
 						BusyBehavior: chatstate.BusyBehaviorQueue,
@@ -673,7 +673,7 @@ func TestEditMessageNonUserReturnsSentinel(t *testing.T) {
 	// Insert an assistant message via CommitStep so we have a
 	// non-user message to target.
 	var assistantID int64
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		assistant := userTextMessage("assistant", f.User.ID, f.Model.ID)
 		assistant.Role = database.ChatMessageRoleAssistant
 		step, err := tx.CommitStep(chatstate.CommitStepInput{
@@ -693,7 +693,7 @@ func TestEditMessageNonUserReturnsSentinel(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, editErr := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, editErr := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, eerr := tx.EditMessage(chatstate.EditMessageInput{
 			MessageID: assistantID,
 			CreatedBy: f.User.ID,
@@ -718,7 +718,7 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 	target := userTextMessage("original prompt", f.User.ID, f.Model.ID)
 
 	var targetID int64
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		step, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{target},
 		})
@@ -741,7 +741,7 @@ func TestEditMessageInsertsSuffixMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	var result chatstate.EditMessageResult
-	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		result, err = tx.EditMessage(chatstate.EditMessageInput{
 			MessageID:      targetID,
 			SuffixMessages: []chatstate.Message{firstSuffix, secondSuffix},
@@ -799,7 +799,7 @@ func TestTransitionAbandon_RejectsUnowned(t *testing.T) {
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 	base := captureBaseline(ctx, t, f, seeded)
 
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, aerr := tx.Abandon(chatstate.AbandonInput{})
 		return aerr
 	})
@@ -830,7 +830,7 @@ func TestTransitionAbandon_ClearsOwnership(t *testing.T) {
 	runner := uuid.New()
 
 	// Acquire writes ownership and a fresh heartbeat row.
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: worker, RunnerID: runner})
 		return err
 	})
@@ -846,7 +846,7 @@ func TestTransitionAbandon_ClearsOwnership(t *testing.T) {
 	require.Equal(t, runner, hb.RunnerID)
 
 	// Abandon clears ownership but leaves the heartbeat row intact.
-	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Abandon(chatstate.AbandonInput{})
 		return err
 	})
@@ -877,7 +877,7 @@ func TestTransitionAcquire_OverwritesFreshOwnership(t *testing.T) {
 
 	firstWorker := uuid.New()
 	firstRunner := uuid.New()
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: firstWorker, RunnerID: firstRunner})
 		return err
 	})
@@ -910,7 +910,7 @@ func TestTransitionAcquire_OverwritesFreshOwnership(t *testing.T) {
 
 	secondWorker := uuid.New()
 	secondRunner := uuid.New()
-	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: secondWorker, RunnerID: secondRunner})
 		return err
 	})
@@ -967,7 +967,7 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 				created := createTestChat(t, f)
 				ctx := testutil.Context(t, testutil.WaitShort)
 				m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 					_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 					return err
 				})
@@ -982,7 +982,7 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 				created := createTestChat(t, f)
 				ctx := testutil.Context(t, testutil.WaitShort)
 				m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 					_, err := tx.FinishError(chatstate.FinishErrorInput{
 						LastError: pqtype.NullRawMessage{
 							RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -1002,7 +1002,7 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 				created := createTestChat(t, f)
 				ctx := testutil.Context(t, testutil.WaitShort)
 				m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 					if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 						return err
 					}
@@ -1020,12 +1020,12 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 				created := createTestChat(t, f)
 				ctx := testutil.Context(t, testutil.WaitShort)
 				m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 					_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 					return err
 				})
 				require.NoError(t, err)
-				_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 					_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: true})
 					return err
 				})
@@ -1051,7 +1051,7 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 			worker := uuid.New()
 			runner := uuid.New()
 			m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
-			_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 				_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: worker, RunnerID: runner})
 				return err
 			})
