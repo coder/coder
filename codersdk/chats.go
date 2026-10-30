@@ -1165,6 +1165,23 @@ type ChatAttachmentsResponse struct {
 	Attachments []ChatAttachment `json:"attachments"`
 }
 
+// ChatPreview is an embedded preview that open_preview opened in a chat.
+// Exactly one of Port or PreviewID identifies it on the named agent, and a
+// port preview at another URLPath is a separate preview. Title and Path come
+// from the newest result for that preview.
+type ChatPreview struct {
+	Title     string `json:"title"`
+	AgentName string `json:"agent_name"`
+	Port      int32  `json:"port,omitempty"`
+	PreviewID string `json:"preview_id,omitempty"`
+	// Path is the published workspace file or directory. It is empty for a
+	// preview of an existing server.
+	Path string `json:"path,omitempty"`
+	// URLPath is the path and query a port preview opens at. It is empty for
+	// the server's root.
+	URLPath string `json:"url_path,omitempty"`
+}
+
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
 type ChatModelProviderUnavailableReason string
 
@@ -3492,6 +3509,21 @@ func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UU
 	}
 	var resp ChatDebugRun
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// GetChatPreviews returns the previews opened in the chat's current
+// workspace, in the order they were first opened.
+func (c *ExperimentalClient) GetChatPreviews(ctx context.Context, chatID uuid.UUID) ([]ChatPreview, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/previews", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var previews []ChatPreview
+	return previews, ReadBodyAsJSON(res, &previews)
 }
 
 // GetChat returns a chat by ID.

@@ -154,6 +154,41 @@
 				}
 			}
 		},
+		"/api/experimental/chats/{chat}/previews": {
+			"get": {
+				"description": "Returns one entry per preview endpoint that open_preview\nopened in the chat's current workspace.\nExperimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "List chat previews",
+				"operationId": "list-chat-previews",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.ChatPreview"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/experimental/chats/{chat}/stream/desktop": {
 			"get": {
 				"description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -21348,6 +21383,31 @@
 			"type": "object",
 			"properties": {
 				"plan_mode_instructions": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatPreview": {
+			"type": "object",
+			"properties": {
+				"agent_name": {
+					"type": "string"
+				},
+				"path": {
+					"description": "Path is the published workspace file or directory. It is empty for a\npreview of an existing server.",
+					"type": "string"
+				},
+				"port": {
+					"type": "integer"
+				},
+				"preview_id": {
+					"type": "string"
+				},
+				"title": {
+					"type": "string"
+				},
+				"url_path": {
+					"description": "URLPath is the path and query a port preview opens at. It is empty for\nthe server's root.",
 					"type": "string"
 				}
 			}
