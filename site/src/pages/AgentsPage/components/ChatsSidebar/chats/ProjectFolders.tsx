@@ -312,9 +312,10 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (
-				// pl-[7px] and pr-2 offset ChatTreeNode's -mx-2 bleed: rows span the
-				// folder row's width and an active row's border covers the guide line.
-				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
+				// ml-[15.5px] centers the guide line under the toggle chevron. pl-[7px]
+				// and pr-2 offset ChatTreeNode's -mx-2 bleed so rows start at the guide
+				// line and an active row's border covers it.
+				<div className="ml-[15.5px] flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
 					<ProjectFolderChats
 						projectId={project.id}
 						projectLabel={projectLabel}
