@@ -68,7 +68,6 @@ export const BreadcrumbPage: React.FC<React.ComponentProps<"span">> = ({
 }) => {
 	return (
 		<span
-			aria-current="page"
 			className={cn(
 				"flex items-center gap-2 text-content-secondary",
 				className,
