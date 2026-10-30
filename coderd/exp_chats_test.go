@@ -10575,7 +10575,7 @@ func TestStreamChat(t *testing.T) {
 		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
 		defer resetTrap.Close()
 		// WSWatcher creates its ticker from a goroutine. Starting it before the
-		// first advance keeps its ticks at t=15s, 30s and 45s.
+		// first advance keeps its ticks at multiples of httpapi.HeartbeatInterval.
 		watcherTrap := mClock.Trap().NewTicker("WSWatcher")
 		defer watcherTrap.Close()
 
@@ -10666,22 +10666,22 @@ func TestStreamChat(t *testing.T) {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
 		}
 
-		// With t counted from the ticker's start, an event batch written at
-		// t=25s moves the next keepalive to t=40s, so none is due at t=30s.
-		mClock.Advance(10 * time.Second).MustWait(ctx)
+		// An event batch moves the next keepalive to one interval after the
+		// event, so none is due a third of an interval after it.
+		mClock.Advance(keepaliveInterval * 2 / 3).MustWait(ctx)
 		const first = "stream chat keepalive first"
 		sendMessage(first)
 		_ = readFramesThrough(first)
-		mClock.Advance(5 * time.Second).MustWait(ctx)
+		mClock.Advance(keepaliveInterval / 3).MustWait(ctx)
 		const second = "stream chat keepalive second"
 		sendMessage(second)
 		for _, batch := range readFramesThrough(second) {
-			require.NotEmpty(t, batch, "keepalive written 5s after an event")
+			require.NotEmpty(t, batch, "keepalive written a third of an interval after an event")
 		}
 
 		// Event batches written after the matched frame may have Reset calls
-		// waiting in the trap, so read them before waiting on the advance to
-		// t=45s.
+		// waiting in the trap, so read them before waiting on the advance past
+		// the next keepalive.
 		advance := mClock.Advance(keepaliveInterval)
 		batch := nextFrame()
 		for len(batch) > 0 {
