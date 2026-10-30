@@ -9468,17 +9468,26 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 type mockWebpushDispatcher struct {
 	dispatchCount atomic.Int32
 	mu            sync.Mutex
+	messages      []codersdk.WebpushMessage
 	lastMessage   codersdk.WebpushMessage
 	lastUserID    uuid.UUID
 }
 
 func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
-	m.dispatchCount.Add(1)
 	m.mu.Lock()
+	m.messages = append(m.messages, msg)
 	m.lastMessage = msg
 	m.lastUserID = userID
 	m.mu.Unlock()
+	// Count after recording so a waiter that sees the count also sees the message.
+	m.dispatchCount.Add(1)
 	return nil
+}
+
+func (m *mockWebpushDispatcher) getMessages() []codersdk.WebpushMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.messages)
 }
 
 func (m *mockWebpushDispatcher) getLastMessage() codersdk.WebpushMessage {
@@ -9567,6 +9576,125 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	expectedURL := fmt.Sprintf("/agents/%s", chat.ID)
 	require.Equal(t, expectedURL, capturedMsg.Data["url"],
 		"web push Data should contain the chat navigation URL")
+}
+
+// failFirstToolResultCommitStore fails the first transaction that inserts a
+// tool result, as a database error during the step commit would.
+type failFirstToolResultCommitStore struct {
+	database.Store
+	failed *atomic.Bool
+}
+
+func (s *failFirstToolResultCommitStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&failFirstToolResultCommitStore{Store: tx, failed: s.failed})
+	}, opts)
+}
+
+func (s *failFirstToolResultCommitStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
+	if slices.Contains(arg.Role, database.ChatMessageRoleTool) && s.failed.CompareAndSwap(false, true) {
+		return nil, xerrors.New("injected tool result commit failure")
+	}
+	return s.Store.InsertChatMessages(ctx, arg)
+}
+
+// TestAsyncAskUserQuestionWebPush verifies that in a chat created from the
+// web UI, ask_user_question outside plan mode does not end the turn, and
+// that the owner gets a web push naming the question once its result
+// commits.
+func TestAsyncAskUserQuestionWebPush(t *testing.T) {
+	t.Parallel()
+
+	const questionBody = "Question: Which database should we use?"
+	// runTurn runs a turn whose first step asks a question and waits until
+	// the turn settles in wantStatus after at least wantPushes pushes.
+	runTurn := func(t *testing.T, failResultCommit bool, wantStatus database.ChatStatus, wantPushes int32) (database.Chat, int32, []codersdk.WebpushMessage) {
+		db, ps := dbtestutil.NewDB(t)
+
+		var streamCalls atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if streamCalls.Add(1) == 1 {
+				return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("ask_user_question",
+					`{"questions":[{"header":"Database","question":"Which database should we use?","options":[`+
+						`{"label":"Use Postgres."},{"label":"Use SQLite."}]}]}`,
+				))
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("continuing")...)
+		})
+
+		store := db
+		if failResultCommit {
+			store = &failFirstToolResultCommitStore{Store: db, failed: &atomic.Bool{}}
+		}
+		mockPush := &mockWebpushDispatcher{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := newChatdServer(t, ps, chatd.Config{
+			Logger:                     logger,
+			Database:                   store,
+			ReplicaID:                  uuid.New(),
+			PendingChatAcquireInterval: 10 * time.Millisecond,
+			InFlightChatStaleAfter:     testutil.WaitSuperLong,
+			WebpushDispatcher:          mockPush,
+			AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
+		})
+		server.Start()
+		t.Cleanup(func() {
+			require.NoError(t, server.Close())
+		})
+
+		user, org, model := seedChatDependencies(t, db)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "async-question-push",
+			ModelConfigID:      model.ID,
+			ClientType:         database.ChatClientTypeUi,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		})
+		require.NoError(t, err)
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+			if dbErr != nil {
+				return false
+			}
+			return fromDB.Status == wantStatus && !fromDB.WorkerID.Valid && mockPush.dispatchCount.Load() >= wantPushes
+		}, testutil.IntervalFast)
+		// Close drains in-flight pushes, so the returned pushes are final.
+		require.NoError(t, server.Close())
+		return chat, streamCalls.Load(), mockPush.getMessages()
+	}
+
+	t.Run("AnsweredLater", func(t *testing.T) {
+		t.Parallel()
+
+		// One push for the question and one when the turn finishes.
+		chat, streamCalls, pushes := runTurn(t, false, database.ChatStatusWaiting, 2)
+		require.Equal(t, int32(2), streamCalls,
+			"the model should be called again after an async question")
+		require.Contains(t, pushes, codersdk.WebpushMessage{
+			Title: "async-question-push",
+			Body:  questionBody,
+			Icon:  "/favicon.ico",
+			Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
+		})
+	})
+
+	// The UI cannot offer a question whose result never committed, so
+	// only the error push goes out.
+	t.Run("ResultCommitFails", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, pushes := runTurn(t, true, database.ChatStatusError, 1)
+		require.Len(t, pushes, 1)
+		require.Equal(t, "The chat request failed unexpectedly.", pushes[0].Body)
+	})
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
