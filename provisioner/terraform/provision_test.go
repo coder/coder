@@ -3,14 +3,18 @@
 package terraform_test
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1597,4 +1601,184 @@ func TestProvision_MalformedModules(t *testing.T) {
 
 	log, _ := readProvisionLog(t, sess)
 	require.Contains(t, log, "Invalid block definition")
+}
+
+// TestProvision_LockFileCached verifies that the lock file produced by the
+// import-time init is returned in the module archive, and that a later build
+// which receives that archive lets Terraform reuse the pinned providers rather
+// than resolving them from the registry again.
+func TestProvision_LockFileCached(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  coder = {
+				source  = "coder/coder"
+				version = "0.6.20"
+			  }
+			}
+		}`,
+	}
+	source := testutil.CreateTar(t, files)
+
+	// Install providers from a local mirror so the test does not depend on the
+	// public registry or on a developer's ~/.terraformrc.
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
+	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+
+	// Import: no module archive is available yet, so init must resolve the
+	// provider and write a fresh lock file.
+	importSess := configure(ctx, t, api, &proto.Config{})
+	var importLog strings.Builder
+	importResp := sendInitAndGetResp(t, importSess, source, func(log string) {
+		_, _ = importLog.WriteString(log)
+	})
+	require.Empty(t, importResp.Error)
+	require.NotContains(t, importLog.String(), "Reusing previous version from the dependency lock file")
+	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
+
+	// The lock file is keyed by platform so builds on a different platform
+	// ignore it.
+	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
+	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
+
+	// Build: stream the archive the same way provisionerd does for cached
+	// module files, then confirm Terraform picked the lock file up.
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	buildLog, buildResp := sendBuildInit(t, buildSess, source, importResp.ModuleFiles)
+	require.Empty(t, buildResp.Error)
+	require.Contains(t, buildLog, "Reusing previous version from the dependency lock file")
+}
+
+// TestProvision_LockFileFallback verifies that a build whose provisioner can't
+// install the provider versions pinned at import selects provider versions
+// again, unless the template pins them with its own lock file.
+func TestProvision_LockFileFallback(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  fake = {
+				source = "example.com/coder/fake"
+			  }
+			}
+		}`,
+	}
+	source := testutil.CreateTar(t, files)
+
+	// The import runs on a provisioner whose mirror offers 1.0.0, so the
+	// imported lock file pins 1.0.0.
+	importCtx, importAPI := setupProvisioner(t, &provisionerServeOptions{
+		cliConfigPath: writeFakeProviderMirror(t, "1.0.0"),
+	})
+	importResp := sendInitAndGetResp(t, configure(importCtx, t, importAPI, &proto.Config{}), source)
+	require.Empty(t, importResp.Error)
+	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
+	require.Contains(t, string(lockFile), `version = "1.0.0"`)
+
+	// Builds run on a provisioner whose mirror only offers 1.1.0, as after an
+	// air-gapped image upgrade.
+	buildCtx, buildAPI := setupProvisioner(t, &provisionerServeOptions{
+		cliConfigPath: writeFakeProviderMirror(t, "1.1.0"),
+	})
+	const retryLog = "Retrying terraform init without the provider versions selected"
+
+	t.Run("NoTemplateLockFile", func(t *testing.T) {
+		t.Parallel()
+		sess := configure(buildCtx, t, buildAPI, &proto.Config{})
+		log, resp := sendBuildInit(t, sess, source, importResp.ModuleFiles)
+		require.Empty(t, resp.Error)
+		require.Contains(t, log, retryLog)
+		require.Contains(t, log, "example.com/coder/fake v1.1.0")
+		require.Contains(t, log, "Push a new template version")
+	})
+
+	t.Run("TemplateLockFile", func(t *testing.T) {
+		t.Parallel()
+		// The template pins 1.0.0 itself, so the build fails as it would
+		// without the imported lock file.
+		withLock := map[string]string{
+			"main.tf":             files["main.tf"],
+			".terraform.lock.hcl": string(lockFile),
+		}
+		sess := configure(buildCtx, t, buildAPI, &proto.Config{})
+		log, resp := sendBuildInit(t, sess, testutil.CreateTar(t, withLock), importResp.ModuleFiles)
+		require.NotEmpty(t, resp.Error)
+		require.NotContains(t, log, retryLog)
+	})
+}
+
+// sendBuildInit sends a workspace build's Init request, streaming the module
+// archive the same way provisionerd does for cached module files, and
+// returns the build log and the Init response.
+func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {
+	t.Helper()
+	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
+		TemplateSourceArchive: source,
+		OmitModuleFiles:       true,
+		InitialModuleTarHash:  upload.DataHash,
+	}}})
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+		Type: &proto.FileUpload_DataUpload{DataUpload: upload},
+	}}})
+	require.NoError(t, err)
+	for _, chunk := range chunks {
+		err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+			Type: &proto.FileUpload_ChunkPiece{ChunkPiece: chunk},
+		}}})
+		require.NoError(t, err)
+	}
+
+	log, last := readProvisionLog(t, sess)
+	require.NotNil(t, last.GetInit())
+	return log, last.GetInit()
+}
+
+// writeFakeProviderMirror writes a filesystem mirror that offers
+// example.com/coder/fake at the given versions, and returns the path of a CLI
+// config that installs providers only from that mirror. Init installs
+// provider packages without running them, so each package only needs an
+// executable with the expected name.
+func writeFakeProviderMirror(t *testing.T, versions ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	mirror := filepath.Join(dir, "mirror")
+	for _, version := range versions {
+		pkgDir := filepath.Join(mirror, "example.com", "coder", "fake", version, runtime.GOOS+"_"+runtime.GOARCH)
+		require.NoError(t, os.MkdirAll(pkgDir, 0o755))
+		name := "terraform-provider-fake_v" + version
+		//nolint:gosec // Terraform only installs provider packages with an executable.
+		err := os.WriteFile(filepath.Join(pkgDir, name), []byte("fake provider "+version), 0o755)
+		require.NoError(t, err)
+	}
+	cliConfigPath := filepath.Join(dir, "terraform.rc")
+	cliConfig := fmt.Sprintf("provider_installation {\n  filesystem_mirror {\n    path = %q\n  }\n}\n", filepath.ToSlash(mirror))
+	require.NoError(t, os.WriteFile(cliConfigPath, []byte(cliConfig), 0o600))
+	return cliConfigPath
+}
+
+func readTarFile(t *testing.T, archive []byte, name string) []byte {
+	t.Helper()
+	reader := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		if header.Name != name {
+			continue
+		}
+		content, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		return content
+	}
+	require.Failf(t, "file not found in archive", "%s", name)
+	return nil
 }

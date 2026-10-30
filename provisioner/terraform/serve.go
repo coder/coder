@@ -159,6 +159,29 @@ type server struct {
 	logger               slog.Logger
 	tracer               trace.Tracer
 	exitTimeout          time.Duration
+
+	// versionMu guards cachedVersion. The Terraform binary does not change
+	// for the lifetime of the server, so its version is resolved once and
+	// reused instead of spawning `terraform version` before every stage.
+	versionMu     sync.Mutex
+	cachedVersion *version.Version
+}
+
+// terraformVersion returns the version of the configured Terraform binary,
+// caching the result after the first successful lookup. Failures are not
+// cached so a canceled context does not poison later calls.
+func (s *server) terraformVersion(ctx context.Context) (*version.Version, error) {
+	s.versionMu.Lock()
+	defer s.versionMu.Unlock()
+	if s.cachedVersion != nil {
+		return s.cachedVersion, nil
+	}
+	v, err := versionFromBinaryPath(ctx, s.binaryPath)
+	if err != nil {
+		return nil, err
+	}
+	s.cachedVersion = v
+	return v, nil
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

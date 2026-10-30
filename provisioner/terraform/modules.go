@@ -8,6 +8,9 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -20,6 +23,16 @@ import (
 )
 
 const (
+	// terraformLockFileName is the dependency lock file Terraform writes to the
+	// root of a working directory during `terraform init`.
+	terraformLockFileName = ".terraform.lock.hcl"
+
+	// importedLockFileDir holds the lock files captured during template import,
+	// one per platform. It lives under .terraform, which template source
+	// archives do not normally contain, and provisioners that predate it
+	// extract it without using it.
+	importedLockFileDir = ".terraform/coder/lockfiles"
+
 	// MaximumModuleArchiveSize limits the total size of a module archive.
 	// At some point, the user should take steps to reduce the size of their
 	// template modules, as this can lead to performance issues
@@ -90,24 +103,60 @@ func GetModulesArchive(root fs.FS) ([]byte, []string, error) {
 }
 
 // GetModulesArchiveWithLimit returns the tar archive, the skipped modules, and an error if any.
+//
+// Besides the remote modules fetched by `terraform init`, the archive carries
+// the `.terraform.lock.hcl` that init produced, stored under
+// importedLockFileDir and keyed by this provisioner's platform. Workspace
+// builds on the same platform restore it with restoreImportedLockFile so
+// Terraform can verify cached providers against it instead of fetching
+// provider checksums and signatures on each init.
 func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []string, error) {
-	modulesFileContent, err := fs.ReadFile(root, ".terraform/modules/modules.json")
-	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
-			return []byte{}, []string{}, nil
-		}
-		return nil, []string{}, xerrors.Errorf("failed to read modules.json: %w", err)
+	lockFileContent, err := fs.ReadFile(root, terraformLockFileName)
+	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
+		return nil, []string{}, xerrors.Errorf("failed to read %s: %w", terraformLockFileName, err)
 	}
+
 	var m modulesFile
-	if err := json.Unmarshal(modulesFileContent, &m); err != nil {
-		return nil, []string{}, xerrors.Errorf("failed to parse modules.json: %w", err)
+	modulesFileContent, err := fs.ReadFile(root, ".terraform/modules/modules.json")
+	switch {
+	case err == nil:
+		if err := json.Unmarshal(modulesFileContent, &m); err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to parse modules.json: %w", err)
+		}
+	case !xerrors.Is(err, fs.ErrNotExist):
+		return nil, []string{}, xerrors.Errorf("failed to read modules.json: %w", err)
+	case len(lockFileContent) == 0:
+		return []byte{}, []string{}, nil
 	}
 
 	empty := true
+	// archivedModuleFiles tracks whether any remote module made it into the
+	// archive. modules.json is only useful alongside the modules it describes.
+	archivedModuleFiles := false
 	var b bytes.Buffer
 
 	lw := xio.NewLimitWriter(&b, maxArchiveSize)
 	w := tar.NewWriter(lw)
+
+	// The lock file is written first so it always fits; modules are packed
+	// into whatever budget remains.
+	if len(lockFileContent) > 0 {
+		lockFilePath := importedLockFilePath(terraformPlatform())
+		// Extraction does not create parent directories for regular files,
+		// so the directory entry must precede the file.
+		err = w.WriteHeader(defaultDirHeader(path.Dir(lockFilePath)))
+		if err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", importedLockFileDir, err)
+		}
+		err = w.WriteHeader(defaultFileHeader(lockFilePath, len(lockFileContent)))
+		if err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", terraformLockFileName, err)
+		}
+		if _, err := w.Write(lockFileContent); err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", terraformLockFileName, err)
+		}
+		empty = false
+	}
 
 	sized := make([]*moduleWithEstimatedSize, 0, len(m.Modules))
 	for _, it := range m.Modules {
@@ -173,6 +222,7 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 				return nil
 			}
 			empty = false
+			archivedModuleFiles = true
 			file, err := root.Open(filePath)
 			if err != nil {
 				return xerrors.Errorf("failed to open module file %q while archiving: %w", filePath, err)
@@ -189,12 +239,16 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 		}
 	}
 
-	err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
-	if err != nil {
-		return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
-	}
-	if _, err := w.Write(modulesFileContent); err != nil {
-		return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+	// The directory entries of the archived modules create .terraform/modules
+	// on extraction; without them modules.json would have no parent directory.
+	if archivedModuleFiles {
+		err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
+		if err != nil {
+			return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+		}
+		if _, err := w.Write(modulesFileContent); err != nil {
+			return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+		}
 	}
 
 	if err := w.Close(); err != nil {
@@ -278,4 +332,52 @@ func defaultFileHeader(filePath string, length int) *tar.Header {
 		Uid:  1000,
 		Gid:  1000,
 	}
+}
+
+func defaultDirHeader(dirPath string) *tar.Header {
+	return &tar.Header{
+		Typeflag: tar.TypeDir,
+		Name:     dirPath + "/",
+		Mode:     0o755,
+		Uid:      1000,
+		Gid:      1000,
+	}
+}
+
+// terraformPlatform returns the os_arch pair Terraform uses to pick provider
+// packages, which determines the provider hashes it writes to a lock file.
+// Coder installs Terraform for the provisioner's own platform, so the runtime
+// values match the Terraform binary.
+func terraformPlatform() string {
+	return runtime.GOOS + "_" + runtime.GOARCH
+}
+
+// importedLockFilePath returns the slash-separated path, relative to the
+// working directory, of the lock file captured on platform during import.
+func importedLockFilePath(platform string) string {
+	return path.Join(importedLockFileDir, platform+".lock.hcl")
+}
+
+// restoreImportedLockFile moves the lock file captured during template import
+// over the working directory's lock file when it was produced on this
+// platform, and reports whether it did.
+//
+// A lock file from another platform is ignored: depending on how providers
+// were installed, it may only contain hashes for the import platform, and
+// Terraform refuses cached or mirrored provider packages whose hashes are
+// missing from the lock file. Replacing a lock file the template author
+// committed is safe because the import ran `terraform init` on top of it, so
+// the captured file pins the same versions and adds hashes for this platform.
+// A rename replaces the file atomically, even when the committed copy is
+// read-only, so a failure leaves the original lock file intact.
+func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
+	src := filepath.Join(files.WorkDirectory(), filepath.FromSlash(importedLockFilePath(terraformPlatform())))
+	err := os.Rename(src, files.TerraformLockFile())
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, xerrors.Errorf("move imported lock file into place: %w", err)
+	}
+	return true, nil
 }
