@@ -2,9 +2,23 @@
 # runs Terminal-Bench 2.0 through Harbor with the Coder environment provider
 # (scripts/harbor-coder), and the comparison is posted on the PR.
 #
+# Runs on the self-hosted runner pool: ephemeral KubeVirt microVMs on bare
+# metal, one per job, with Docker inside the VM. The job assumes an IAM role
+# via OIDC and the eval coderd's AI gateway signs requests to Claude Platform
+# on AWS with that role's credentials; no API key and no shared deployment
+# are involved. Repository variables this expects:
+#   EVAL_RUNNER_LABEL             runs-on label of the pool
+#   EVAL_AWS_ROLE_ARN             role to assume; needs bedrock:InvokeModel* on
+#                                 the Claude Platform workspace
+#   EVAL_AWS_REGION               region of the Claude Platform workspace
+#   CLAUDE_PLATFORM_WORKSPACE_ID  Claude Platform workspace id (wrkspc_...)
+#
+# The VM needs Docker and outbound HTTPS. No nested virtualization is
+# required: the qemu-* tasks are excluded.
+#
 # Trigger by commenting `/coder-agents-eval` on a PR (push access required,
-# fork PRs refused since the candidate arm runs the PR's code with the gateway
-# token in scope), or via workflow_dispatch to compare the current ref to main.
+# fork PRs refused since the candidate arm runs the PR's code with the AWS
+# role in scope), or via workflow_dispatch to compare the current ref to main.
 # Trials spend real model tokens, so this never runs automatically.
 
 name: eval/coder-agents
@@ -114,20 +128,16 @@ jobs:
   run:
     name: run (${{ matrix.arm }})
     needs: resolve
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.EVAL_RUNNER_LABEL }}
     timeout-minutes: 360
     permissions:
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         arm: [baseline, candidate]
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
       - name: Checkout arm ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -155,11 +165,19 @@ jobs:
           ./scripts/harbor-coder/install.sh "${RUNNER_TEMP}/harbor-venv"
           echo "${RUNNER_TEMP}/harbor-venv/bin" >> "${GITHUB_PATH}"
 
+      # Exports the role's temporary credentials into the job environment.
+      # coderd's AI gateway picks them up through the default AWS credential
+      # chain when it signs Claude Platform requests.
+      - name: Assume the eval role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.EVAL_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.EVAL_AWS_REGION }}
+          role-duration-seconds: 14400
+
       - name: Build and serve coderd
         env:
-          # A Coder API key for dogfood; the eval's coderd uses dogfood's AI
-          # gateway as its model upstream, so no provider key is involved.
-          HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN }}
+          CLAUDE_PLATFORM_WORKSPACE_ID: ${{ vars.CLAUDE_PLATFORM_WORKSPACE_ID }}
         run: ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env"
 
       - name: Run Harbor
