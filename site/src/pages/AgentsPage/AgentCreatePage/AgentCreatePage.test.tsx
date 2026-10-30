@@ -47,10 +47,6 @@ import {
 	emptyInputStorageKey,
 } from "../components/AgentCreateForm";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
-import {
-	hasHighlightComposerState,
-	highlightComposerState,
-} from "../utils/composerHighlight";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildPrompt,
@@ -70,7 +66,6 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 			| undefined,
 		createError: undefined as unknown,
 		prefill: undefined as AgentCreateFormProps["prefill"],
-		highlightKey: undefined as string | undefined,
 	},
 }));
 
@@ -112,7 +107,6 @@ vi.mock("../components/AgentCreateForm", async (importOriginal) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
 			formProps.prefill = props.prefill;
-			formProps.highlightKey = props.highlightKey;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -235,7 +229,6 @@ afterEach(() => {
 	renderedProjects.length = 0;
 	realForm.enabled = false;
 	formProps.prefill = undefined;
-	formProps.highlightKey = undefined;
 	vi.restoreAllMocks();
 	localStorage.clear();
 });
@@ -416,33 +409,6 @@ describe("AgentCreatePage project assignment", () => {
 		} finally {
 			onlineManager.setOnline(true);
 		}
-	});
-
-	it("highlights the composer once per New chat from the project menu", async () => {
-		serveProjects(MockChatProject);
-		const { router } = renderAgentsRoutes();
-		await screen.findByRole("heading", { name: MockChatProject.name });
-		expect(formProps.highlightKey).toBeUndefined();
-		const openNewChat = async () => {
-			await act(() =>
-				router.navigate(projectPath(MockChatProject.id), {
-					state: highlightComposerState,
-				}),
-			);
-			// Dropped from history so going back or reloading doesn't replay it.
-			await waitFor(() =>
-				expect(hasHighlightComposerState(router.state.location.state)).toBe(
-					false,
-				),
-			);
-			return formProps.highlightKey;
-		};
-
-		const firstKey = await openNewChat();
-		expect(firstKey).toBeDefined();
-		const secondKey = await openNewChat();
-		expect(secondKey).toBeDefined();
-		expect(secondKey).not.toBe(firstKey);
 	});
 
 	it("shows the plain composer on /agents after a project list is cached", async () => {

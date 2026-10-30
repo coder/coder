@@ -198,8 +198,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
-	// After an in-place "New chat", the menu would return focus to its
-	// trigger and pull it out of the composer that was just focused.
+	// Keeps the closing menu from pulling focus back out of the composer.
 	const newChatPickedRef = useRef(false);
 	const handleNewChat = () => {
 		newChatPickedRef.current = true;

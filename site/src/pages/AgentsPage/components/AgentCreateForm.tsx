@@ -310,7 +310,6 @@ type AgentCreateFormProps = {
 	project?: Pick<TypesGen.ChatProject, "id" | "organization_id">;
 	prefill?: AgentCreatePrefill;
 	fillWidth?: boolean;
-	/** Each new value flashes and focuses the composer. */
 	highlightKey?: string;
 };
 

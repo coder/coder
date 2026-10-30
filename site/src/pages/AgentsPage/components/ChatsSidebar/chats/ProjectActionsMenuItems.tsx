@@ -21,10 +21,6 @@ type ProjectActionsMenuItemsProps = {
 	readonly Separator: ProjectActionsMenuSeparator;
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
-	/**
-	 * Pass when projectPath is the current page. The page then won't visibly
-	 * change, so "New chat" asks the composer to flash and calls this first.
-	 */
 	readonly onNewChatInPlace?: () => void;
 	readonly permissions: ChatProjectPermissions;
 	readonly onEdit: () => void;

@@ -171,22 +171,9 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	// A "New chat" link asks to flash the composer. Keep the request in local
-	// state and drop it from history, so back navigation and reloads don't
-	// replay it. The link's state holds nothing else.
-	const [composerHighlightKey, setComposerHighlightKey] = useState<string>();
-	const highlightRequested = hasHighlightComposerState(location.state);
-	if (highlightRequested && composerHighlightKey !== location.key) {
-		setComposerHighlightKey(location.key);
-	}
-	useEffect(() => {
-		if (highlightRequested) {
-			navigate(
-				{ pathname: location.pathname, search: location.search },
-				{ replace: true },
-			);
-		}
-	}, [highlightRequested, location.pathname, location.search, navigate]);
+	const composerHighlightKey = hasHighlightComposerState(location.state)
+		? location.key
+		: undefined;
 
 	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);

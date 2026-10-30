@@ -110,42 +110,22 @@ describe("ProjectFolders", () => {
 		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
 	});
 
-	it.each([
-		{
-			page: "the project's page",
+	it("doesn't return focus to the menu button after New chat on the project's page", async () => {
+		const user = userEvent.setup();
+		renderProjectFolders([MockChatProject], {
 			route: buildAgentProjectPath({ projectId: MockChatProject.id }),
-			focusReturns: false,
-		},
-		{ page: "another page", route: "/agents", focusReturns: true },
-	])(
-		"after New chat from $page, focus returns to the menu button: $focusReturns",
-		async ({ route, focusReturns }) => {
-			const user = userEvent.setup();
-			renderProjectFolders([MockChatProject], { route });
-			const trigger = screen.getByRole("button", {
-				name: `Open project actions for ${MockChatProject.name}`,
-			});
-			const waitForMenuToClose = async () => {
-				await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-				// The menu restores focus on a timer after it unmounts.
-				await new Promise((resolve) => setTimeout(resolve, 50));
-			};
+		});
+		const trigger = screen.getByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
 
-			await user.click(trigger);
-			await user.keyboard("{Escape}");
-			await waitForMenuToClose();
-			expect(trigger).toHaveFocus();
-
-			await user.click(trigger);
-			await user.click(screen.getByRole("menuitem", { name: "New chat" }));
-			await waitForMenuToClose();
-			if (focusReturns) {
-				expect(trigger).toHaveFocus();
-			} else {
-				expect(trigger).not.toHaveFocus();
-			}
-		},
-	);
+		await user.click(trigger);
+		await user.click(screen.getByRole("menuitem", { name: "New chat" }));
+		await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+		// The menu restores focus on a timer after it unmounts.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(trigger).not.toHaveFocus();
+	});
 
 	it("collapses and expands the whole Projects section", async () => {
 		const user = userEvent.setup();

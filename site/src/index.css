@@ -164,7 +164,6 @@
 		}
 	}
 
-	/* Flashes the chat composer's ring, holds it briefly, then fades it out. */
 	@keyframes composer-highlight {
 		0% {
 			opacity: 0;

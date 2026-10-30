@@ -248,8 +248,6 @@ type AgentChatInputProps = {
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
 	fillWidth?: boolean;
-	// Each new value flashes a ring around the composer and focuses the
-	// editor, to show where to type.
 	highlightKey?: string;
 };
 
@@ -1425,7 +1423,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDrop={onAttach ? handleDrop : undefined}
 			>
 				{highlightKey !== undefined && (
-					// Keyed so each new request remounts it and replays the flash.
 					<span
 						key={highlightKey}
 						aria-hidden="true"
