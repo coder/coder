@@ -734,6 +734,9 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 // This is used for the web terminal.
 //
 // @Summary Open PTY to workspace agent
+// @Description Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.
+// @Description Requires permission to SSH to the workspace, and the `reconnect` query parameter must be a UUID that identifies the session so a client can resume it.
+// @Description Optional query parameters are `height` and `width` (both default to `80`), `command`, `container`, `container_user`, and `backend_type`.
 // @ID open-pty-to-workspace-agent
 // @Security CoderSessionToken
 // @Tags Agents

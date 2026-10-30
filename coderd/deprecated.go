@@ -37,15 +37,18 @@ func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Removed: Get logs by workspace agent
+// @Description Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only for backward compatibility.
+// @Description Use `/api/v2/workspaceagents/{workspaceagent}/logs` instead.
+// @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID removed-get-logs-by-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Param before query int false "Before log id"
-// @Param after query int false "After log id"
-// @Param follow query bool false "Follow log stream"
-// @Param no_compression query bool false "Disable compression for WebSocket connection"
+// @Param before query int false "Not used. The route ignores this parameter."
+// @Param after query int false "ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more."
+// @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive."
+// @Param no_compression query bool false "When present, turns off WebSocket compression. It only applies with `follow`."
 // @Success 200 {array} codersdk.WorkspaceAgentLog
 // @Router /api/v2/workspaceagents/{workspaceagent}/startup-logs [get]
 func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Request) {
@@ -53,13 +56,16 @@ func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Removed: Get workspace agent git auth
+// @Description Returns the same response as `/api/v2/workspaceagents/me/external-auth`, and remains only so legacy workspace agents keep working.
+// @Description Use `/api/v2/workspaceagents/me/external-auth` instead.
+// @Description Authenticate with the workspace agent token instead of a session token.
 // @ID removed-get-workspace-agent-git-auth
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param match query string true "Match"
-// @Param id query string true "Provider ID"
-// @Param listen query bool false "Wait for a new token to be issued"
+// @Param match query string true "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
+// @Param id query string true "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
+// @Param listen query bool false "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away."
 // @Success 200 {object} agentsdk.ExternalAuthResponse
 // @Router /api/v2/workspaceagents/me/gitauth [get]
 func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
