@@ -2039,6 +2039,82 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
+// A delegated chat owned by an invoked agent's user stays readable and
+// writable by the person who owns the root chat, on top of the root chat's
+// sharing.
+func TestChildChatOwnedByOtherUserInheritsRootOwner(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	agentUser := dbgen.User(t, db, database.User{IsAgent: true, LoginType: database.LoginTypeNone, Email: ""})
+	viewer := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, agentUser, viewer, outsider} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{IsDefault: true, OrganizationID: org.ID})
+
+	root := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	viewerEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	require.NoError(t, db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       root.ID,
+		UserACL:  database.ChatACL{viewer.ID.String(): viewerEntry},
+		GroupACL: database.ChatACL{},
+	}))
+	parentRef := uuid.NullUUID{UUID: root.ID, Valid: true}
+	delegated := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           agentUser.ID,
+		ParentChatID:      parentRef,
+		RootChatID:        parentRef,
+		LastModelConfigID: modelCfg.ID,
+	})
+	sameOwner := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		ParentChatID:      parentRef,
+		RootChatID:        parentRef,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	write := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}}
+	wantDelegated := database.ChatACL{viewer.ID.String(): viewerEntry, owner.ID.String(): write}
+	require.Equal(t, wantDelegated, delegated.UserACL, "insert returns the inherited sharing")
+	got, err := db.GetChatByID(ctx, delegated.ID)
+	require.NoError(t, err)
+	require.Equal(t, wantDelegated, got.UserACL)
+	updated, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID: delegated.ID, Title: "renamed", TitleSource: database.ChatTitleSourceUser,
+	})
+	require.NoError(t, err)
+	require.Equal(t, wantDelegated, updated.UserACL)
+	got, err = db.GetChatByID(ctx, sameOwner.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatACL{viewer.ID.String(): viewerEntry}, got.UserACL)
+
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), coderdtest.AccessControlStorePointer())
+	as := func(user database.User) context.Context {
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		return dbauthz.As(ctx, subject)
+	}
+	_, err = authzdb.GetChatByID(as(owner), delegated.ID)
+	require.NoError(t, err)
+	_, err = authzdb.GetChatByID(as(viewer), delegated.ID)
+	require.NoError(t, err)
+	_, err = authzdb.GetChatByID(as(outsider), delegated.ID)
+	require.True(t, dbauthz.IsNotAuthorizedError(err), "outsider: %v", err)
+}
+
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

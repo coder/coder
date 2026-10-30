@@ -1743,6 +1743,94 @@ func TestUserAIProviderKeys(t *testing.T) {
 	})
 }
 
+func TestChatProjectTriggerSecrets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	db, crypt, ciphers := setup(t)
+	user := dbgen.User(t, crypt, database.User{})
+	org := dbgen.Organization(t, crypt, database.Organization{})
+	project := dbgen.ChatProject(t, crypt, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	trigger, err := crypt.InsertChatProjectTrigger(ctx, database.InsertChatProjectTriggerParams{
+		ProjectID:    project.ID,
+		Name:         "GitHub",
+		HashedSecret: []byte{1},
+		CreatedBy:    user.ID,
+		Source:       "github",
+		Events:       []string{},
+		Senders:      []string{},
+		BusyBehavior: "queue",
+	})
+	require.NoError(t, err)
+
+	trigger, err = crypt.UpdateChatProjectTriggerGitHubWebhookSecret(ctx, database.UpdateChatProjectTriggerGitHubWebhookSecretParams{
+		ID:                  trigger.ID,
+		GitHubWebhookSecret: "github-secret",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "github-secret", trigger.GitHubWebhookSecret)
+	require.Equal(t, ciphers[0].HexDigest(), trigger.GitHubWebhookSecretKeyID.String)
+	trigger, err = crypt.UpdateChatProjectTriggerSlackSigningSecret(ctx, database.UpdateChatProjectTriggerSlackSigningSecretParams{
+		ID:                 trigger.ID,
+		SlackSigningSecret: "slack-secret",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "github-secret", trigger.GitHubWebhookSecret)
+	require.Equal(t, "slack-secret", trigger.SlackSigningSecret)
+
+	raw, err := db.GetChatProjectTriggerByID(ctx, trigger.ID)
+	require.NoError(t, err)
+	requireEncryptedEquals(t, ciphers[0], raw.GitHubWebhookSecret, "github-secret")
+	requireEncryptedEquals(t, ciphers[0], raw.SlackSigningSecret, "slack-secret")
+	got, err := crypt.GetChatProjectTriggerByID(ctx, trigger.ID)
+	require.NoError(t, err)
+	require.Equal(t, "github-secret", got.GitHubWebhookSecret)
+
+	// An empty secret turns verification off and is stored as is.
+	trigger, err = crypt.UpdateChatProjectTriggerGitHubWebhookSecret(ctx, database.UpdateChatProjectTriggerGitHubWebhookSecretParams{ID: trigger.ID})
+	require.NoError(t, err)
+	require.Empty(t, trigger.GitHubWebhookSecret)
+	require.False(t, trigger.GitHubWebhookSecretKeyID.Valid)
+}
+
+func TestMCPServerGitHubAppCredentials(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const privateKey = "github-app-private-key"
+
+	db, crypt, ciphers := setup(t)
+	user := dbgen.User(t, crypt, database.User{})
+	cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+		AuthType:  "user_api_key",
+		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	cred, err := crypt.UpsertMCPServerGitHubAppCredential(ctx, database.UpsertMCPServerGitHubAppCredentialParams{
+		MCPServerConfigID: cfg.ID,
+		UserID:            user.ID,
+		AppID:             1,
+		InstallationID:    2,
+		PrivateKey:        privateKey,
+		Repositories:      []string{"coder"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, privateKey, cred.PrivateKey)
+	require.Equal(t, ciphers[0].HexDigest(), cred.PrivateKeyKeyID.String)
+
+	arg := database.GetMCPServerGitHubAppCredentialParams{MCPServerConfigID: cfg.ID, UserID: user.ID}
+	raw, err := db.GetMCPServerGitHubAppCredential(ctx, arg)
+	require.NoError(t, err)
+	requireEncryptedEquals(t, ciphers[0], raw.PrivateKey, privateKey)
+
+	got, err := crypt.GetMCPServerGitHubAppCredential(ctx, arg)
+	require.NoError(t, err)
+	require.Equal(t, privateKey, got.PrivateKey)
+	list, err := crypt.GetMCPServerGitHubAppCredentialsByUserID(ctx, user.ID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.Equal(t, privateKey, list[0].PrivateKey)
+}
+
 func TestMCPServerUserTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

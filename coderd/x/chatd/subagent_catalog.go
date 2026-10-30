@@ -40,11 +40,13 @@ var unbilledSubagentToolNames = map[string]bool{
 }
 
 type spawnAgentArgs struct {
-	Type            string `json:"type"`
-	Prompt          string `json:"prompt"`
-	Title           string `json:"title,omitempty"`
-	ModelConfigID   string `json:"model_config_id,omitempty" description:"Optional model config UUID from list_subagent_models. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
-	ReasoningEffort string `json:"reasoning_effort,omitempty" description:"Optional reasoning effort for the child: none, minimal, low, medium, high, xhigh, or max. Clamped to the selected model's supported range. Not supported for type 'computer_use'."`
+	Type             string `json:"type"`
+	Prompt           string `json:"prompt"`
+	Title            string `json:"title,omitempty"`
+	ModelConfigID    string `json:"model_config_id,omitempty" description:"Optional model config UUID from list_subagent_models. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
+	ReasoningEffort  string `json:"reasoning_effort,omitempty" description:"Optional reasoning effort for the child: none, minimal, low, medium, high, xhigh, or max. Clamped to the selected model's supported range. Not supported for type 'computer_use'."`
+	AgentID          string `json:"agent_id,omitempty" description:"Optional ID of an agent this chat's agent may invoke. When set, the child runs as that agent and type is ignored."`
+	InheritWorkspace bool   `json:"inherit_workspace,omitempty" description:"Only with agent_id. Set to true to let the invoked agent work in this chat's current workspace, for example to review or edit files already there. It can then read, write, and run commands in that workspace but cannot create, start, stop, or switch workspaces. Leave unset for the agent to start without a workspace and create its own. Other types already share this chat's workspace."`
 }
 
 type subagentDefinition struct {
@@ -337,6 +339,7 @@ func buildSpawnAgentDescription(
 		"your responsibility: do not abandon one in a working state (running); " +
 		"retrieve its result, redirect it with message_agent, or stop " +
 		"it with interrupt_agent."
+	description += formatSpawnableProjectAgents(p.spawnableProjectAgents(ctx, currentChat))
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
 			"\" is for non-mutating substantial investigation and planning support, " +

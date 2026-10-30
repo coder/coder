@@ -335,6 +335,36 @@ func (a CustomRolePermissions) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
+// ChatProjectTemplateParameterRule limits the values chats in a project may
+// use for one template parameter. The first allowed value is used when a
+// chat does not supply the parameter.
+type ChatProjectTemplateParameterRule struct {
+	TemplateID    uuid.UUID `json:"template_id"`
+	ParameterName string    `json:"parameter_name"`
+	AllowedValues []string  `json:"allowed_values"`
+}
+
+// ChatProjectTemplateParameterRules is the jsonb list stored in
+// chat_projects.template_parameter_rules.
+type ChatProjectTemplateParameterRules []ChatProjectTemplateParameterRule
+
+func (r *ChatProjectTemplateParameterRules) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), r)
+	case []byte:
+		return json.Unmarshal(v, r)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (r ChatProjectTemplateParameterRules) Value() (driver.Value, error) {
+	if r == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(r)
+}
+
 type CustomRolePermission struct {
 	Negate       bool          `json:"negate"`
 	ResourceType string        `json:"resource_type"`

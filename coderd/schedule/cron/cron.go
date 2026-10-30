@@ -71,6 +71,21 @@ func Daily(raw string) (*Schedule, error) {
 	return parse(raw)
 }
 
+// Standard parses a Schedule from a full five-field cron spec: minute, hour,
+// day of month, month, and day of week, with an optional CRON_TZ=<timezone>
+// prefix. Unlike Weekly and Daily, every field may be restricted. A spec
+// without a timezone is in UTC.
+func Standard(raw string) (*Schedule, error) {
+	parts := strings.Fields(raw)
+	if len(parts) > 0 && strings.HasPrefix(parts[0], "CRON_TZ=") {
+		parts = parts[1:]
+	}
+	if len(parts) != 5 {
+		return nil, xerrors.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
+	}
+	return parse(strings.Join(strings.Fields(raw), " "))
+}
+
 // TimeRange parses a Schedule from a cron specification interpreted as a continuous time range.
 //
 // For example, the expression "* 9-18 * * 1-5" represents a continuous time span

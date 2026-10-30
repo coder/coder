@@ -280,7 +280,7 @@ const lockedOrgDenialDescription = (
 	const target = organization
 		? `the ${organization.display_name || organization.name} organization`
 		: "the organization";
-	return `You don't have permission to create chats in ${target}, which this project belongs to. Ask your Coder administrator for access, then refresh this page.`;
+	return `You don't have permission to create chats in ${target}, which this agent belongs to. Ask your Coder administrator for access, then refresh this page.`;
 };
 
 type AgentCreateFormProps = {
@@ -304,7 +304,8 @@ type AgentCreateFormProps = {
 	 * servers chosen here are not saved as the user's defaults. The form
 	 * remounts when the project changes.
 	 */
-	project?: Pick<TypesGen.ChatProject, "id" | "organization_id">;
+	project?: Pick<TypesGen.ChatProject, "id" | "organization_id"> &
+		Partial<Pick<TypesGen.ChatProject, "model_config_id" | "model_status">>;
 	prefill?: AgentCreatePrefill;
 	fillWidth?: boolean;
 };
@@ -539,8 +540,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	} = resolveModelSelector(organizationId, modelsQuery);
 	const modelConfigs = availableModelConfigs;
 	/*
-	 * Model precedence: user click > root override (specific model) > root
-	 * override (chat_default, resolved) > default > first available.
+	 * Model precedence: user click > the agent's model, when it is available
+	 * > root override (specific model) > root override (chat_default,
+	 * resolved) > default > first available.
 	 */
 	const defaultModelID = getUsableDefaultModelIDForOrganization(
 		modelConfigs,
@@ -565,7 +567,14 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
 	const fallbackModelID = defaultModelID || (modelOptions[0]?.id ?? "");
-	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
+	const chatAgent = project ?? selectedProject;
+	const agentModelID =
+		chatAgent?.model_status === "available" &&
+		modelOptions.some((option) => option.id === chatAgent.model_config_id)
+			? (chatAgent.model_config_id ?? "")
+			: "";
+	const preferredModelID =
+		agentModelID || rootOverrideDisplayModelID || fallbackModelID;
 	const [userSelectedModel, setUserSelectedModel] = useState("");
 	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
 	const hasValidUserSelectedModel =
@@ -579,6 +588,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const submittedModel = (() => {
 		if (hasValidUserSelectedModel) {
 			return userSelectedModel;
+		}
+		if (agentModelID) {
+			return agentModelID;
 		}
 		if (rootOverrideModelID) {
 			return rootOverrideModelID;
@@ -688,7 +700,11 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			: []
 		: workspaceOptions;
 
+	// Chats in an agent run as the agent's user, which cannot use the
+	// person's workspaces; the agent creates its own.
+	const isAgentChat = Boolean(project ?? selectedProject);
 	const effectiveWorkspaceId =
+		!isAgentChat &&
 		selectedWorkspaceId !== null &&
 		(isWorkspacesLoading ||
 			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
@@ -698,7 +714,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	// until the list loads; sending then would silently drop the
 	// association, so Send stays disabled instead.
 	const workspaceValidationPending =
-		selectedWorkspaceId !== null && isWorkspacesLoading;
+		!isAgentChat && selectedWorkspaceId !== null && isWorkspacesLoading;
 
 	const {
 		organizationAdopted,
@@ -1084,11 +1100,14 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						}
 					}}
 					onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-					workspaceOptions={filteredWorkspaces}
+					workspaceOptions={isAgentChat ? undefined : filteredWorkspaces}
 					selectedWorkspaceId={effectiveWorkspaceId}
 					// Do not persist a workspace until its organization is authorized.
 					onWorkspaceChange={
-						orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
+						!isAgentChat &&
+						orgSelectionSettled &&
+						!noPermittedOrgs &&
+						!isSubmitPending
 							? setSelectedWorkspaceId
 							: undefined
 					}

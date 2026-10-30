@@ -33,6 +33,9 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, "", false
 	}
+	if project.OwnerID != chat.OwnerID && !p.chatOwnerCanUseProject(ctx, project.ID, chat.OwnerID) {
+		return nil, "", false
+	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true
 }
 

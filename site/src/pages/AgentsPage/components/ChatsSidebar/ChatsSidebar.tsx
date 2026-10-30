@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -8,7 +8,7 @@ import {
 	deleteChatProject,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
-import { userChatProviderConfigs } from "#/api/queries/chats";
+import { mcpServerConfigs, userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { toast } from "#/components/Toaster/toast";
@@ -16,15 +16,18 @@ import {
 	getDefaultOrganizationId,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { detectBuiltInMCPServer } from "#/modules/mcp/mcpPresets";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
+import { deleteAgentInfo } from "../chatProjectCopy";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
+	type QuickAddMCPServer,
 } from "./dialogs/ChatProjectDialog";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
@@ -123,10 +126,20 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const attachMCPServersMutation = useMutation({
+		...updateChatProject(queryClient),
+		onError: (error) =>
+			toast.error(
+				getErrorMessage(
+					error,
+					"The agent was created, but its MCP servers were not added.",
+				),
+			),
+	});
 	const deleteProjectMutation = useMutation({
 		...deleteChatProject(queryClient),
 		// Leaves the deleted project's page before the project list refetches,
-		// so the page never shows "Project not found". A pending mutation picks
+		// so the page never shows "Agent not found". A pending mutation picks
 		// up each render's options, so this reads the current location.
 		onSuccess: (_, project) => {
 			if (viewedProjectId === project.id) {
@@ -150,6 +163,31 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		open: boolean;
 	}>({ project: null, open: false });
 
+	// A new agent can start with the built-in MCP servers its organization has.
+	const quickAddQueries = useQueries({
+		queries: organizations.map((organization) => ({
+			...mcpServerConfigs(organization.id),
+			enabled:
+				isProjectDialogOpen &&
+				projectDialog.mode === "create" &&
+				chatProjectsEnabled,
+		})),
+	});
+	const quickAddMCPServers: Record<string, QuickAddMCPServer[]> = {};
+	organizations.forEach((organization, index) => {
+		const servers = (quickAddQueries[index]?.data ?? []).filter(
+			(server) =>
+				server.enabled && detectBuiltInMCPServer(server) !== undefined,
+		);
+		if (servers.length > 0) {
+			quickAddMCPServers[organization.id] = servers.map((server) => ({
+				id: server.id,
+				label: server.display_name || server.slug,
+				iconURL: server.icon_url,
+			}));
+		}
+	});
+
 	const openProjectDialog = (dialog: ProjectDialogState) => {
 		if (dialog.mode === "create") {
 			createProjectMutation.reset();
@@ -163,6 +201,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 
 	const handleProjectSubmit = ({
 		organizationId,
+		mcpServerIds,
 		...request
 	}: ChatProjectFormValues) => {
 		if (projectDialog.mode === "edit") {
@@ -177,6 +216,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				{ organizationId, request },
 				{
 					onSuccess: (project) => {
+						if (mcpServerIds?.length) {
+							attachMCPServersMutation.mutate({
+								project,
+								request: { mcp_server_ids: mcpServerIds },
+							});
+						}
 						closeProjectDialog();
 						navigate({
 							pathname: buildAgentProjectPath({ projectId: project.id }),
@@ -222,7 +267,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				);
 			},
 			onError: (error) => {
-				toast.error(getErrorMessage(error, "Failed to delete project."));
+				toast.error(getErrorMessage(error, "Failed to delete agent."));
 			},
 		});
 	};
@@ -315,6 +360,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatProjectDialog
 				organizations={organizations}
 				initialOrganizationId={initialOrganizationId}
+				quickAddMCPServers={quickAddMCPServers}
 				project={
 					projectDialog.mode === "edit" ? projectDialog.project : undefined
 				}
@@ -338,7 +384,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isOpen={deleteDialog.open}
 				onConfirm={handleDeleteProject}
 				onCancel={closeDeleteProjectDialog}
-				entity="project"
+				entity="agent"
 				name={deleteDialog.project?.name ?? ""}
 				title={
 					deleteDialog.organizationLabel
@@ -346,7 +392,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info={deleteAgentInfo}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

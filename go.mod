@@ -186,7 +186,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/gen2brain/beeep v0.11.1
 	github.com/gliderlabs/ssh v0.3.8
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.16.0
 	github.com/go-jose/go-jose/v4 v4.1.4
@@ -554,7 +554,9 @@ require (
 	github.com/elazarl/goproxy v1.9.0
 	github.com/elimity-com/scim v0.0.0-20260506142751-830e1caafcc3
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/github/github-mcp-server/v2 v2.0.2
 	github.com/go-git/go-git/v5 v5.19.2
+	github.com/google/go-github/v92 v92.0.0
 	github.com/invopop/jsonschema v0.14.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nats-io/nats-server/v2 v2.15.0
@@ -562,6 +564,7 @@ require (
 	github.com/openai/openai-go/v3 v3.50.0
 	github.com/scim2/filter-parser/v2 v2.3.1
 	github.com/shopspring/decimal v1.5.0
+	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5
@@ -571,7 +574,15 @@ require (
 	mvdan.cc/sh/v3 v3.14.0
 )
 
-require go.opentelemetry.io/otel/log v1.47.0 // indirect
+require (
+	github.com/muesli/cache2go v0.0.0-20221011235721-518229cd8021 // indirect
+	github.com/sagikazarmark/locafero v0.11.0 // indirect
+	github.com/shurcooL/graphql v0.0.0-20240915155400-7ee5256398cf // indirect
+	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
+	github.com/spf13/viper v1.21.0 // indirect
+	github.com/subosito/gotenv v1.6.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+)
 
 require (
 	cel.dev/cel-go v0.32.0

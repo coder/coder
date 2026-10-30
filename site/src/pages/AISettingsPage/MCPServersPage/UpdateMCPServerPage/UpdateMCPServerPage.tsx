@@ -28,7 +28,7 @@ import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const UpdateMCPServerPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, buildInfo } = useDashboard();
 	const { serverId } = useParams<{ serverId: string }>();
 	const [searchParams] = useSearchParams();
 	const organizationPermissionsQuery = useQuery({
@@ -153,6 +153,7 @@ const UpdateMCPServerPage: React.FC = () => {
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}
 								canSelectUserOIDC={permissions.editDeploymentConfig}
+								accessURL={buildInfo.dashboard_url}
 								canShareServer={canShare}
 								onCancel={() => void navigate(listPath)}
 								onUpdateServer={

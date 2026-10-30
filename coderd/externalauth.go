@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -265,6 +266,17 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			apiKey = httpmw.APIKey(r)
 		)
 
+		// A flow started from an agent's settings links the account to
+		// the agent's user rather than the signed-in person.
+		userID := apiKey.UserID
+		if isChatProjectExternalAuthState(state.StateString) {
+			agentUserID, ok := api.chatProjectExternalAuthTarget(rw, r, externalAuthConfig, state.StateString)
+			if !ok {
+				return
+			}
+			userID = agentUserID
+		}
+
 		extra, err := externalAuthConfig.GenerateTokenExtra(state.Token)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -273,59 +285,17 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			})
 			return
 		}
-		_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-			ProviderID: externalAuthConfig.ID,
-			UserID:     apiKey.UserID,
-		})
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to get external auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
-				ProviderID:             externalAuthConfig.ID,
-				UserID:                 apiKey.UserID,
-				CreatedAt:              dbtime.Now(),
-				UpdatedAt:              dbtime.Now(),
-				OAuthAccessToken:       state.Token.AccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will set as required
-				OAuthRefreshToken:      state.Token.RefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
-				OAuthExpiry:            state.Token.Expiry,
-				OAuthExtra:             extra,
+		linkCtx := ctx
+		if userID != apiKey.UserID {
+			//nolint:gocritic // chatProjectExternalAuthTarget authorized writing the agent user's link.
+			linkCtx = dbauthz.AsSystemRestricted(ctx)
+		}
+		if err := upsertExternalAuthLink(linkCtx, api.Database, externalAuthConfig.ID, userID, state.Token, extra); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to save external auth link.",
+				Detail:  err.Error(),
 			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to insert external auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		} else {
-			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-				ProviderID:                externalAuthConfig.ID,
-				UserID:                    apiKey.UserID,
-				UpdatedAt:                 dbtime.Now(),
-				OAuthAccessToken:          state.Token.AccessToken,
-				OAuthAccessTokenKeyID:     sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:         state.Token.RefreshToken,
-				OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:               state.Token.Expiry,
-				OAuthExtra:                extra,
-				OauthRefreshFailureReason: "",
-				RefreshLeaseExpiresAt:     sql.NullTime{},
-			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to update external auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
+			return
 		}
 
 		redirect := state.Redirect

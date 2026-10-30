@@ -81,7 +81,12 @@ func TestMigration000617ConnectionLogsMethod(t *testing.T) {
 
 	db := database.New(sqlDB)
 	org := dbgen.Organization(t, db, database.Organization{})
-	owner := dbgen.User(t, db, database.User{})
+	// Insert the user directly because dbgen targets the latest users schema.
+	owner := database.User{ID: uuid.New()}
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO users (id, email, username, hashed_password, created_at, updated_at) VALUES ($1, 'migration@example.com', 'migration-user', '', now(), now());
+	`, owner.ID)
+	require.NoError(t, err)
 	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
 	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: owner.ID, TemplateID: tpl.ID})
 

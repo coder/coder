@@ -162,3 +162,37 @@ it("clears a stored OAuth2 resource URL on update", async () => {
 		);
 	});
 });
+
+it("creates a GitHub server from the preset with the chosen options", async () => {
+	const user = userEvent.setup();
+	const onCreateServer = vi.fn(async () => undefined);
+	render(
+		<MCPServerForm
+			isSaving={false}
+			canSelectUserOIDC
+			accessURL="https://coder.example.com"
+			onCreateServer={onCreateServer}
+		/>,
+	);
+
+	await user.click(screen.getByRole("radio", { name: /^GitHub/ }));
+	await user.click(screen.getByRole("switch", { name: "Read only" }));
+	await user.click(screen.getByRole("checkbox", { name: "Actions" }));
+	await user.click(screen.getByRole("button", { name: "Add server" }));
+
+	await waitFor(() => {
+		expect(onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				display_name: "GitHub",
+				slug: "github",
+				icon_url: "/icon/github.svg",
+				url: "https://coder.example.com/api/experimental/mcp/builtin/github?toolsets=context,repos,issues,pull_requests,actions&read_only=true",
+				auth_type: "user_api_key",
+				api_key_header: "Authorization",
+				api_key_prefix: "Bearer ",
+				forward_coder_headers: true,
+				signing_secret: expect.stringMatching(/^[0-9a-f]{64}$/),
+			}),
+		);
+	});
+});

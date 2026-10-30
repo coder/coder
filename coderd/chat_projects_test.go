@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -143,8 +144,8 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
 	require.Equal(t, memberProject.ID, projects[0].ID)
-	// Like chats, the list holds only the caller's own projects, even for a
-	// site owner who can read others' projects by ID.
+	// Like chats, the list holds only the caller's own and shared projects,
+	// even for a site owner who can read others' projects by ID.
 	projects, err = client.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
@@ -182,10 +183,8 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	_, err = admin.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Name: &adminName})
 	require.NoError(t, err)
 
-	// The owner may create chats for other users, but binding one to the
-	// owner's project would expose its memory to someone who cannot read
-	// the project, so the chat owner must own the project. The response
-	// matches an unknown project so the check does not reveal existence.
+	// Chats in an agent are owned by the agent's user, so a caller cannot
+	// pick another owner for one.
 	_, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -196,7 +195,9 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 			Text: "reject binding another user's chat",
 		}},
 	})
-	requireChatProjectNotFound(t, err)
+	sdkErr = coderdtest.SDKError(t, err)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Equal(t, "owner_id cannot be set for a chat in an agent. The agent owns its chats.", sdkErr.Message)
 
 	missingProjectID := uuid.New()
 	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -368,4 +369,107 @@ func createChatInProject(t testing.TB, client *codersdk.ExperimentalClient, orga
 	})
 	require.NoError(t, err)
 	return chat
+}
+
+func TestChatProjectModel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _ := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	// Each new model becomes the default, so the last one is the default.
+	agentModel := createChatModel(t, client)
+	otherModel := createChatModel(t, client)
+	defaultModel := createChatModel(t, client)
+
+	newChat := func(project codersdk.ChatProject, modelConfigID *uuid.UUID) codersdk.Chat {
+		t.Helper()
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			ProjectID:      &project.ID,
+			ModelConfigID:  modelConfigID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	// Without a model the agent uses the default.
+	plain := createChatProject(t, client, firstUser.OrganizationID, "Plain")
+	require.Nil(t, plain.ModelConfigID)
+	require.Equal(t, codersdk.ChatProjectModelStatusDefault, plain.ModelStatus)
+	require.Equal(t, defaultModel.ID, newChat(plain, nil).LastModelConfigID)
+
+	unknown := uuid.New()
+	_, err := client.CreateChatProject(ctx, firstUser.OrganizationID, codersdk.CreateChatProjectRequest{
+		Name:          "Unknown model",
+		ModelConfigID: &unknown,
+	})
+	requireChatProjectFieldError(t, err, "model_config_id", "The model was not found or is disabled.")
+
+	project, err := client.CreateChatProject(ctx, firstUser.OrganizationID, codersdk.CreateChatProjectRequest{
+		Name:          "Reviewer",
+		ModelConfigID: &agentModel.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, &agentModel.ID, project.ModelConfigID)
+	require.Equal(t, codersdk.ChatProjectModelStatusAvailable, project.ModelStatus)
+	require.Empty(t, project.ModelStatusReason)
+	require.NotEmpty(t, project.ModelDisplayName)
+
+	// The chat's own model wins over the agent's, which wins over the
+	// default.
+	require.Equal(t, agentModel.ID, newChat(project, nil).LastModelConfigID)
+	require.Equal(t, otherModel.ID, newChat(project, &otherModel.ID).LastModelConfigID)
+
+	_, err = client.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{
+		ModelConfigID: ptr.Ref("not-a-uuid"),
+	})
+	requireChatProjectFieldError(t, err, "model_config_id", "Model must be a model ID, or empty to use the default model.")
+	unknownText := unknown.String()
+	_, err = client.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{
+		ModelConfigID: &unknownText,
+	})
+	requireChatProjectFieldError(t, err, "model_config_id", "The model was not found or is disabled.")
+
+	// A disabled model is reported and skipped.
+	_, err = client.UpdateChatModel(ctx, firstUser.OrganizationID, agentModel.ID, codersdk.UpdateChatModelRequest{
+		Enabled: ptr.Ref(false),
+	})
+	require.NoError(t, err)
+	project, err = client.GetChatProject(ctx, firstUser.OrganizationID, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatProjectModelStatusUnavailable, project.ModelStatus)
+	require.Equal(t, "The model is disabled.", project.ModelStatusReason)
+	require.Equal(t, defaultModel.ID, newChat(project, nil).LastModelConfigID)
+
+	// Saving other settings keeps the unavailable model.
+	project, err = client.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{
+		Description: ptr.Ref("Reviews pull requests."),
+	})
+	require.NoError(t, err)
+	require.Equal(t, &agentModel.ID, project.ModelConfigID)
+
+	// A deleted model keeps its ID so the agent can say what happened.
+	project, err = client.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{
+		ModelConfigID: ptr.Ref(otherModel.ID.String()),
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatProjectModelStatusAvailable, project.ModelStatus)
+	require.NoError(t, client.DeleteChatModel(ctx, firstUser.OrganizationID, otherModel.ID))
+	project, err = client.GetChatProject(ctx, firstUser.OrganizationID, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, &otherModel.ID, project.ModelConfigID)
+	require.Equal(t, codersdk.ChatProjectModelStatusUnavailable, project.ModelStatus)
+	require.Equal(t, "The model was deleted.", project.ModelStatusReason)
+	require.NotEmpty(t, project.ModelDisplayName)
+	require.Equal(t, defaultModel.ID, newChat(project, nil).LastModelConfigID)
+
+	// An empty model clears it.
+	project, err = client.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{
+		ModelConfigID: ptr.Ref(""),
+	})
+	require.NoError(t, err)
+	require.Nil(t, project.ModelConfigID)
+	require.Equal(t, codersdk.ChatProjectModelStatusDefault, project.ModelStatus)
 }

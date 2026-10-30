@@ -22,7 +22,8 @@ RETURNING *;
 -- name: GetChatProjectMemoryByID :one
 SELECT
     sqlc.embed(chat_project_memories),
-    visible_users.username AS created_by_username
+    visible_users.username AS created_by_username,
+    visible_users.name AS created_by_name
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
 WHERE chat_project_memories.id = @id::uuid;
@@ -30,7 +31,8 @@ WHERE chat_project_memories.id = @id::uuid;
 -- name: GetChatProjectMemoryByName :one
 SELECT
     sqlc.embed(chat_project_memories),
-    visible_users.username AS created_by_username
+    visible_users.username AS created_by_username,
+    visible_users.name AS created_by_name
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
 WHERE chat_project_memories.project_id = @project_id::uuid
@@ -39,7 +41,8 @@ WHERE chat_project_memories.project_id = @project_id::uuid
 -- name: GetChatProjectMemoriesByProjectID :many
 SELECT
     sqlc.embed(chat_project_memories),
-    visible_users.username AS created_by_username
+    visible_users.username AS created_by_username,
+    visible_users.name AS created_by_name
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
 WHERE chat_project_memories.project_id = @project_id::uuid

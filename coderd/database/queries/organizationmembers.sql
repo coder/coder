@@ -6,7 +6,7 @@
 SELECT
 	sqlc.embed(organization_members),
 	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
-	users.last_seen_at, users.status, users.login_type, users.is_service_account,
+	users.last_seen_at, users.status, users.login_type, users.is_service_account, users.is_agent,
 	users.created_at as user_created_at, users.updated_at as user_updated_at
 FROM
 	organization_members
@@ -101,7 +101,7 @@ RETURNING *;
 SELECT
 	sqlc.embed(organization_members),
 	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
-	users.last_seen_at, users.status, users.login_type, users.is_service_account,
+	users.last_seen_at, users.status, users.login_type, users.is_service_account, users.is_agent,
 	users.created_at as user_created_at, users.updated_at as user_updated_at,
 	COUNT(*) OVER() AS count
 FROM
@@ -223,6 +223,12 @@ WHERE
 	AND CASE
 		WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
 			users.is_service_account = sqlc.narg('is_service_account') :: boolean
+		ELSE true
+	END
+	-- Filter by agent user.
+	AND CASE
+		WHEN sqlc.narg('is_agent') :: boolean IS NOT NULL THEN
+			users.is_agent = sqlc.narg('is_agent') :: boolean
 		ELSE true
 	END
 	-- End of filters

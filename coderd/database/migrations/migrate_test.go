@@ -1637,9 +1637,7 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	const migrationVersion = 587
 
 	db := database.New(sqlDB)
-	user := dbgen.User(t, db, database.User{
-		RBACRoles: []string{"auditor", "agents-access"},
-	})
+	user := insertMigrationUser(t, sqlDB, database.User{RBACRoles: []string{"auditor", "agents-access"}})
 	org := dbgen.Organization(t, db, database.Organization{
 		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
 	})
@@ -1690,13 +1688,13 @@ func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 		orgIDs[i] = org.ID
 	}
 
-	member := dbgen.User(t, db, database.User{})
+	member := insertMigrationUser(t, sqlDB, database.User{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		OrganizationID: orgIDs[0],
 		UserID:         member.ID,
 		Roles:          []string{"organization-auditor"},
 	})
-	serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	serviceAccount := insertMigrationUser(t, sqlDB, database.User{IsServiceAccount: true})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		OrganizationID: orgIDs[0],
 		UserID:         serviceAccount.ID,
@@ -3222,7 +3220,7 @@ func testMigration000543ChatSearchSchemaBehavior(t *testing.T, sqlDB *sql.DB) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	org := dbgen.Organization(t, db, database.Organization{})
-	owner := dbgen.User(t, db, database.User{})
+	owner := insertMigrationUser(t, sqlDB, database.User{})
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -3389,7 +3387,7 @@ func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	org := dbgen.Organization(t, db, database.Organization{})
-	owner := dbgen.User(t, db, database.User{})
+	owner := insertMigrationUser(t, sqlDB, database.User{})
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -4487,7 +4485,7 @@ func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 	db := database.New(sqlDB)
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
-	user := dbgen.User(t, db, database.User{})
+	user := insertMigrationUser(t, sqlDB, database.User{})
 	// GIVEN: An existing template version and a user-secrets telemetry lock.
 	// (Avoid dbgen.TemplateVersion: its view query expects the new columns.)
 	legacyID := uuid.New()
@@ -4667,4 +4665,21 @@ func TestMigration000627WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+}
+
+// insertMigrationUser inserts a user with SQL that works across schema
+// versions. dbgen.User targets the latest users table.
+func insertMigrationUser(t *testing.T, sqlDB *sql.DB, orig database.User) database.User {
+	t.Helper()
+	user := database.User{ID: uuid.New()}
+	email, loginType := testutil.GetRandomName(t)+"@example.com", "password"
+	if orig.IsServiceAccount {
+		email, loginType = "", "none"
+	}
+	_, err := sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), `
+		INSERT INTO users (id, email, username, hashed_password, created_at, updated_at, rbac_roles, login_type, status, is_service_account)
+		VALUES ($1, $2, $3, '', now(), now(), $4, $5::login_type, 'active', $6)`,
+		user.ID, email, testutil.GetRandomName(t), pq.StringArray(append([]string{}, orig.RBACRoles...)), loginType, orig.IsServiceAccount)
+	require.NoError(t, err, "insert user")
+	return user
 }

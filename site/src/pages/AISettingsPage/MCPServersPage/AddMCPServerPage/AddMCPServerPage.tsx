@@ -20,7 +20,7 @@ import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const AddMCPServerPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, buildInfo } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const organizationPermissionsQuery = useQuery({
 		...organizationsPermissions(
@@ -124,6 +124,7 @@ const AddMCPServerPage: React.FC = () => {
 							isSaving={createMutation.isPending}
 							canCreate={canCreate}
 							canSelectUserOIDC={permissions.editDeploymentConfig}
+							accessURL={buildInfo.dashboard_url}
 							canViewServerList={canOpenAnyServerList}
 							organizations={creatableOrganizations}
 							organization={organization}

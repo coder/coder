@@ -56,6 +56,11 @@ type ModelSelectorProps = {
 	 * clear control.
 	 */
 	unsetLabel?: string;
+	/**
+	 * `pill` is the compact chip of the composer. `field` is a bordered,
+	 * full-width trigger for settings forms.
+	 */
+	variant?: "pill" | "field";
 	emptyMessage?: string;
 	formatProviderLabel?: (provider: string) => string;
 	className?: string;
@@ -105,6 +110,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
+	variant = "pill",
 	emptyMessage = "No models found.",
 	formatProviderLabel = defaultFormatProviderLabel,
 	className,
@@ -170,6 +176,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					variant="subtle"
 					className={cn(
 						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
+						variant === "field" &&
+							"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
@@ -199,6 +207,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
 					"w-72 overflow-hidden border-border p-0",
+					variant === "field" && "min-w-72",
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {

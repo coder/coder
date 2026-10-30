@@ -88,7 +88,15 @@ const (
 	// ConnectOutcomeNoTools means the server connected but no tools
 	// survived allow/deny filtering, so the session was closed.
 	ConnectOutcomeNoTools ConnectOutcome = "no_tools"
+	// ConnectOutcomeMissingToken means the server needs the chat owner's
+	// own token and the owner has none, so it was not contacted.
+	ConnectOutcomeMissingToken ConnectOutcome = "missing_token"
 )
+
+// ErrMissingUserToken is returned for a user_api_key server when the chat
+// owner has not stored a token for it. Such servers are never contacted,
+// and no other user's token is ever used instead.
+var ErrMissingUserToken = xerrors.New("the chat owner has no token for this MCP server")
 
 // ConnectSummary describes one MCP server connect attempt. It is
 // logged and recorded into chat debug runs so slow or failing
@@ -130,7 +138,11 @@ type Server struct {
 	Headers map[string]string
 	// UserAuth selects per-user token auth. Org-only; inline
 	// servers leave it UserAuthNone.
-	UserAuth            UserAuth
+	UserAuth UserAuth
+	// UserTokenHeader and UserTokenPrefix say how UserAuthAPIKey sends
+	// the user's token, such as Authorization and "Bearer ".
+	UserTokenHeader     string
+	UserTokenPrefix     string
 	ForwardCoderHeaders bool
 	// SigningSecret signs forwarded Coder identity headers. Org-only;
 	// inline servers leave it empty.
@@ -161,6 +173,10 @@ const (
 	// UserAuthOIDC forwards the calling user's OIDC access token as an
 	// Authorization bearer header.
 	UserAuthOIDC
+	// UserAuthAPIKey sends the calling user's own stored token in
+	// UserTokenHeader after UserTokenPrefix. Without a token the server
+	// is not contacted.
+	UserAuthAPIKey
 )
 
 // ServerFromConfig converts an org-configured row. It returns an error
@@ -195,6 +211,10 @@ func ServerFromConfig(cfg database.MCPServerConfig) (Server, error) {
 		srv.UserAuth = UserAuthOAuth2
 	case "user_oidc":
 		srv.UserAuth = UserAuthOIDC
+	case "user_api_key":
+		srv.UserAuth = UserAuthAPIKey
+		srv.UserTokenHeader = cmp.Or(cfg.APIKeyHeader, "Authorization")
+		srv.UserTokenPrefix = cfg.APIKeyPrefix
 	case "api_key":
 		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
 			srv.Headers = map[string]string{cfg.APIKeyHeader: cfg.APIKeyValue}
@@ -359,6 +379,8 @@ func connectAllWithHooks(
 				summary.Error = summaryError(opts.kind, redactor, connectErr)
 			}
 			switch {
+			case connectErr != nil && errors.Is(connectErr, ErrMissingUserToken):
+				summary.Outcome = ConnectOutcomeMissingToken
 			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
 				summary.Outcome = ConnectOutcomeTimeout
 			case connectErr != nil:
@@ -369,7 +391,12 @@ func connectAllWithHooks(
 				summary.Outcome = ConnectOutcomeConnected
 			}
 
-			if connectErr != nil {
+			switch {
+			case errors.Is(connectErr, ErrMissingUserToken):
+				logger.Debug(ctx, "skipping MCP server without the chat owner's token",
+					slog.F("server_slug", summary.Slug),
+				)
+			case connectErr != nil:
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", summary.Slug),
@@ -377,7 +404,7 @@ func connectAllWithHooks(
 					slog.F("duration", duration),
 					slog.F("error", summary.Error),
 				)
-			} else if duration >= slowConnectThreshold {
+			case duration >= slowConnectThreshold:
 				logger.Warn(ctx,
 					"slow MCP server connect",
 					slog.F("server_slug", summary.Slug),
@@ -481,6 +508,9 @@ func connectOne(
 	opts connectOptions,
 	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
+	if srv.UserAuth == UserAuthAPIKey && userAPIKeyToken(srv, tokensByConfigID, userID) == "" {
+		return nil, nil, ErrMissingUserToken
+	}
 	headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
@@ -702,6 +732,17 @@ func createTransport(
 	}
 }
 
+// userAPIKeyToken returns the user's own stored token for a user_api_key
+// server, or "" when they have none. Tokens of any other user are never
+// returned, even if one is passed in.
+func userAPIKeyToken(srv Server, tokensByConfigID map[uuid.UUID]database.MCPServerUserToken, userID uuid.UUID) string {
+	tok, ok := tokensByConfigID[srv.ID]
+	if !ok || userID == uuid.Nil || tok.UserID != userID {
+		return ""
+	}
+	return tok.AccessToken
+}
+
 // buildAuthHeaders constructs HTTP headers for authenticating with the
 // MCP server: the static headers on the Server plus any per-user
 // credential selected by UserAuth.
@@ -719,6 +760,10 @@ func buildAuthHeaders(
 	}
 
 	switch srv.UserAuth {
+	case UserAuthAPIKey:
+		if token := userAPIKeyToken(srv, tokensByConfigID, userID); token != "" {
+			headers[srv.UserTokenHeader] = srv.UserTokenPrefix + token
+		}
 	case UserAuthOAuth2:
 		tok, ok := tokensByConfigID[srv.ID]
 		if !ok {

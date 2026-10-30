@@ -27,7 +27,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ChatProjectIcon } from "../ChatProjectIcon";
 
-const noProjectLabel = "No project";
+const noProjectLabel = "No agent";
 
 // Items use IDs as their cmdk values because project names are not unique, so
 // search matches only the names passed as keywords.
@@ -86,7 +86,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 				<button
 					type="button"
 					disabled={disabled}
-					aria-label={`Project: ${label}`}
+					aria-label={`Agent: ${label}`}
 					className={cn(
 						"group flex h-6 w-auto min-w-0 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none whitespace-nowrap transition-colors",
 						"hover:text-content-primary focus:ring-0",
@@ -116,10 +116,10 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 					}
 				}}
 			>
-				<Command loop filter={filterByKeywords} label="Search projects">
+				<Command loop filter={filterByKeywords} label="Search agents">
 					<CommandInput placeholder="Search…" className="text-xs" />
 					<CommandList className="max-h-72">
-						<CommandEmpty className="text-xs">No projects found</CommandEmpty>
+						<CommandEmpty className="text-xs">No agents found</CommandEmpty>
 						<CommandGroup>
 							<CommandItem
 								className="text-xs font-normal"
@@ -143,12 +143,12 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 						{isLoading ? (
 							<div className="flex items-center gap-2 px-4 py-3 text-xs text-content-secondary">
 								<Spinner loading size="sm" />
-								Loading projects…
+								Loading agents…
 							</div>
 						) : error ? (
 							<div className="flex items-center gap-2 px-4 py-2 text-xs text-content-secondary">
 								<span className="min-w-0 flex-1">
-									{getErrorMessage(error, "Failed to load projects.")}
+									{getErrorMessage(error, "Failed to load agents.")}
 								</span>
 								{onRetry && (
 									<Button
@@ -200,7 +200,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 						}}
 					>
 						<PlusIcon />
-						New project
+						New agent
 					</Button>
 				</div>
 			</PopoverContent>

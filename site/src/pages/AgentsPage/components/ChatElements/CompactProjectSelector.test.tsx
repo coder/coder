@@ -36,7 +36,7 @@ const renderSelector = (props: Partial<SelectorProps> = {}) => {
 };
 
 const openSelector = async () => {
-	await userEvent.click(screen.getByRole("button", { name: /^Project:/ }));
+	await userEvent.click(screen.getByRole("button", { name: /^Agent:/ }));
 };
 
 describe("CompactProjectSelector", () => {
@@ -54,7 +54,7 @@ describe("CompactProjectSelector", () => {
 
 		await openSelector();
 		await userEvent.click(
-			await screen.findByRole("option", { name: /No project/ }),
+			await screen.findByRole("option", { name: /No agent/ }),
 		);
 
 		expect(onChange).toHaveBeenCalledWith(null);
@@ -65,7 +65,7 @@ describe("CompactProjectSelector", () => {
 
 		await openSelector();
 		await userEvent.click(
-			await screen.findByRole("button", { name: "New project" }),
+			await screen.findByRole("button", { name: "New agent" }),
 		);
 
 		expect(onCreateProject).toHaveBeenCalledTimes(1);
@@ -78,7 +78,7 @@ describe("CompactProjectSelector", () => {
 		// Both IDs contain "docs", and Launch comes first; only the Docs name
 		// matches.
 		await userEvent.type(
-			await screen.findByRole("combobox", { name: "Search projects" }),
+			await screen.findByRole("combobox", { name: "Search agents" }),
 			"docs{Enter}",
 		);
 

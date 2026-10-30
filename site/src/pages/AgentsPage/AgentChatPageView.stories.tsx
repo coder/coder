@@ -214,6 +214,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onSendAskUserQuestionResponse: fn(),
 		urlTransform: (url: string) => url,
 		initialMessages: [],
+		canDrive: true,
 		...overrides,
 		store,
 		editing: buildEditing(editing),
@@ -318,6 +319,21 @@ export const Archived: Story = {
 	),
 };
 
+/** The viewer can use the agent that owns the chat, so the composer stays enabled. */
+export const AgentOwnedChatDrivable: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{
+				owner_id: "agent-user",
+				owner_username: "agent-launch",
+				owner_name: "Launch",
+				project_id: "chat-project-1",
+			}}
+			canDrive
+		/>
+	),
+};
+
 export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -326,6 +342,7 @@ export const OtherUserChatReadOnly: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 			}}
+			canDrive={false}
 			isInputDisabled
 		/>
 	),
@@ -339,6 +356,7 @@ export const OtherUserChatUsernameFallback: Story = {
 				owner_username: "OtherUser",
 				owner_name: undefined,
 			}}
+			canDrive={false}
 			isInputDisabled
 		/>
 	),
@@ -352,6 +370,7 @@ export const OtherUserChatOwnerFallback: Story = {
 				owner_username: undefined,
 				owner_name: undefined,
 			}}
+			canDrive={false}
 			isInputDisabled
 		/>
 	),
@@ -367,6 +386,7 @@ export const ArchivedOtherUserChat: Story = {
 				owner_username: "OtherUser",
 				owner_name: undefined,
 			}}
+			canDrive={false}
 			isInputDisabled
 		/>
 	),

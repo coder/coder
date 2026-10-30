@@ -107,6 +107,7 @@ func (api *API) chatModelConfigACLAvailable(rw http.ResponseWriter, r *http.Requ
 		ExactEmail:       userFilter.ExactEmail,
 		Status:           userFilter.Status,
 		IsServiceAccount: userFilter.IsServiceAccount,
+		IsAgent:          userFilter.IsAgent,
 		RbacRole:         userFilter.RbacRole,
 		LastSeenBefore:   userFilter.LastSeenBefore,
 		LastSeenAfter:    userFilter.LastSeenAfter,
@@ -398,6 +399,7 @@ func reducedUserFromPaginatedOrganizationMember(member database.PaginatedOrganiz
 		Status:           codersdk.UserStatus(member.Status),
 		LoginType:        codersdk.LoginType(member.LoginType),
 		IsServiceAccount: member.IsServiceAccount,
+		IsAgent:          member.IsAgent,
 	}
 }
 

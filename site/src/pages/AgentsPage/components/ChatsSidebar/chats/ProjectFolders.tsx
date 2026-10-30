@@ -1,5 +1,10 @@
 import { cn } from "cn";
-import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import {
+	ChevronRightIcon,
+	EllipsisVerticalIcon,
+	PlusIcon,
+	UsersIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { NavLink, type To, useLocation } from "react-router";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
@@ -95,7 +100,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	return (
 		<div>
 			<SidebarSectionHeader
-				title="Projects"
+				title="Agents"
 				collapsible={{
 					expanded: isExpanded,
 					onToggle: toggleExpanded,
@@ -106,7 +111,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 							variant="subtle"
 							size="icon"
 							className="size-7"
-							aria-label="New project"
+							aria-label="New agent"
 							onClick={openCreateDialog}
 						>
 							<PlusIcon />
@@ -135,7 +140,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 							</p>
 							<Button variant="outline" size="sm" onClick={openCreateDialog}>
 								<PlusIcon />
-								New project
+								New agent
 							</Button>
 						</div>
 					)}
@@ -145,6 +150,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 								<ProjectFolder
 									key={project.id}
 									project={project}
+									isOwnedByOtherUser={project.owner_id !== currentUserId}
 									organizationLabel={organizationLabels.get(project.id)}
 									chats={chatsByProjectId.get(project.id) ?? []}
 									expanded={Boolean(expandedProjectIds[project.id])}
@@ -165,6 +171,8 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 
 type ProjectFolderProps = {
 	readonly project: ChatProject;
+	/** True when someone else owns the agent. */
+	readonly isOwnedByOtherUser: boolean;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
 	readonly expanded: boolean;
@@ -177,6 +185,7 @@ type ProjectFolderProps = {
 
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
+	isOwnedByOtherUser,
 	organizationLabel,
 	chats,
 	expanded,
@@ -213,7 +222,11 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						</Button>
 						<NavLink
 							to={projectPath}
-							aria-label={projectLabel}
+							aria-label={
+								isOwnedByOtherUser
+									? `${projectLabel}, shared with you`
+									: projectLabel
+							}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
 						>
 							<ChatProjectIcon
@@ -222,6 +235,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								className="size-4"
 							/>
 							<span className="flex-1 truncate">{project.name}</span>
+							{isOwnedByOtherUser && (
+								<UsersIcon
+									aria-hidden
+									className="size-3.5 shrink-0 text-content-secondary"
+								/>
+							)}
 							{organizationLabel && (
 								<span className="max-w-[40%] shrink-0 truncate text-xs text-content-secondary">
 									{organizationLabel}
@@ -234,7 +253,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-									aria-label={`Open project actions for ${projectLabel}`}
+									aria-label={`Open agent actions for ${projectLabel}`}
 									// Keeps a right-click on this button from also
 									// opening the row's context menu.
 									onContextMenuCapture={(e) => {
@@ -270,6 +289,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
 								/>
@@ -282,6 +302,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
 					/>

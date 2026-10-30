@@ -2294,6 +2294,112 @@ CREATE TABLE chat_project_memories (
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
 
+CREATE TABLE chat_project_trigger_conversations (
+    trigger_id uuid NOT NULL,
+    conversation_key text NOT NULL,
+    chat_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_trigger_conversations IS 'The chat a trigger started for each external conversation, so later events in the conversation continue it.';
+
+COMMENT ON COLUMN chat_project_trigger_conversations.conversation_key IS 'Source-specific conversation ID: team/channel/thread_ts for Slack, owner/repo#number for GitHub, or the X-Coder-Conversation-Id header for webhooks.';
+
+CREATE TABLE chat_project_trigger_deliveries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    trigger_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    status text NOT NULL,
+    event text DEFAULT ''::text NOT NULL,
+    message text DEFAULT ''::text NOT NULL,
+    chat_id uuid,
+    CONSTRAINT chat_project_trigger_deliveries_status CHECK ((status = ANY (ARRAY['started'::text, 'continued'::text, 'ignored'::text, 'rejected'::text, 'handshake'::text])))
+);
+
+COMMENT ON TABLE chat_project_trigger_deliveries IS 'Recent authenticated webhook calls to a trigger and what each one did, so people can see why an event did or did not start a chat.';
+
+COMMENT ON COLUMN chat_project_trigger_deliveries.status IS 'started: a chat started. continued: the event was sent to the chat of its conversation. ignored: the event did not match the trigger. rejected: the call failed. handshake: a GitHub ping or Slack URL verification was answered.';
+
+COMMENT ON COLUMN chat_project_trigger_deliveries.event IS 'Event name, such as issue_comment.created or app_mention. Empty for plain webhooks.';
+
+COMMENT ON COLUMN chat_project_trigger_deliveries.message IS 'Why the event was ignored or rejected.';
+
+CREATE TABLE chat_project_trigger_events (
+    trigger_id uuid NOT NULL,
+    event_key text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_project_trigger_events IS 'Recently handled event IDs per trigger, so retried or duplicate deliveries, such as Slack retries, are handled once.';
+
+CREATE TABLE chat_project_triggers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    prompt text DEFAULT ''::text NOT NULL,
+    hashed_secret bytea NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_triggered_at timestamp with time zone,
+    source text DEFAULT 'webhook'::text NOT NULL,
+    events text[] DEFAULT '{}'::text[] NOT NULL,
+    repository text DEFAULT ''::text NOT NULL,
+    channel text DEFAULT ''::text NOT NULL,
+    text_pattern text DEFAULT ''::text NOT NULL,
+    text_pattern_is_regex boolean DEFAULT false NOT NULL,
+    ignore_thread_replies boolean DEFAULT false NOT NULL,
+    senders text[] DEFAULT '{}'::text[] NOT NULL,
+    continue_conversations boolean DEFAULT false NOT NULL,
+    busy_behavior text DEFAULT 'queue'::text NOT NULL,
+    slack_signing_secret text DEFAULT ''::text NOT NULL,
+    slack_signing_secret_key_id text,
+    github_webhook_secret text DEFAULT ''::text NOT NULL,
+    github_webhook_secret_key_id text,
+    schedule text DEFAULT ''::text NOT NULL,
+    next_run_at timestamp with time zone,
+    CONSTRAINT chat_project_triggers_busy_behavior CHECK ((busy_behavior = ANY (ARRAY['queue'::text, 'interrupt'::text]))),
+    CONSTRAINT chat_project_triggers_name_length CHECK ((length(name) <= 64)),
+    CONSTRAINT chat_project_triggers_name_not_blank CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT chat_project_triggers_prompt_length CHECK ((length(prompt) <= 8192)),
+    CONSTRAINT chat_project_triggers_source CHECK ((source = ANY (ARRAY['webhook'::text, 'github'::text, 'slack'::text, 'schedule'::text])))
+);
+
+COMMENT ON TABLE chat_project_triggers IS 'Triggers that start a chat in a project when their webhook is called or their schedule comes due.';
+
+COMMENT ON COLUMN chat_project_triggers.hashed_secret IS 'SHA-256 of the secret embedded in the webhook URL. Random for schedule triggers, which have no webhook URL.';
+
+COMMENT ON COLUMN chat_project_triggers.source IS 'What starts the trigger: webhook (any body), github (GitHub webhooks), slack (Slack Events API and slash commands), or schedule (a cron schedule).';
+
+COMMENT ON COLUMN chat_project_triggers.events IS 'Events that start a chat, such as pull_request.opened for GitHub or app_mention for Slack. Empty matches every event.';
+
+COMMENT ON COLUMN chat_project_triggers.repository IS 'GitHub repository (owner/name) the trigger is limited to. Empty matches every repository.';
+
+COMMENT ON COLUMN chat_project_triggers.channel IS 'Slack channel ID the trigger is limited to. Empty matches every channel.';
+
+COMMENT ON COLUMN chat_project_triggers.text_pattern IS 'Text the event must contain, such as a Slack message or GitHub comment. Empty matches every event.';
+
+COMMENT ON COLUMN chat_project_triggers.text_pattern_is_regex IS 'Whether text_pattern is a regular expression instead of case-insensitive text.';
+
+COMMENT ON COLUMN chat_project_triggers.ignore_thread_replies IS 'Whether Slack replies in threads are ignored.';
+
+COMMENT ON COLUMN chat_project_triggers.senders IS 'Slack user IDs or GitHub logins whose events start chats. Empty matches everyone.';
+
+COMMENT ON COLUMN chat_project_triggers.continue_conversations IS 'Whether events in a conversation the trigger already started a chat for, such as a Slack thread or a GitHub issue, are sent to that chat instead of starting a new one.';
+
+COMMENT ON COLUMN chat_project_triggers.busy_behavior IS 'What a continued chat does with a new event while it is still working: queue waits for the current turn, interrupt stops it.';
+
+COMMENT ON COLUMN chat_project_triggers.slack_signing_secret IS 'Slack app signing secret used to verify X-Slack-Signature. Empty skips the check. Encrypted with dbcrypt when enabled.';
+
+COMMENT ON COLUMN chat_project_triggers.github_webhook_secret IS 'GitHub webhook secret used to verify X-Hub-Signature-256. Empty skips the check. Encrypted with dbcrypt when enabled.';
+
+COMMENT ON COLUMN chat_project_triggers.schedule IS 'Cron expression with five fields and an optional CRON_TZ= prefix for schedule triggers. Empty for other sources.';
+
+COMMENT ON COLUMN chat_project_triggers.next_run_at IS 'When a schedule trigger runs next. NULL when the trigger is disabled or is not a schedule trigger.';
+
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2305,9 +2411,18 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    invokable_agent_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    workspace_tools_enabled boolean DEFAULT true NOT NULL,
+    allowed_template_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    external_auth_provider_ids text[] DEFAULT '{}'::text[] NOT NULL,
+    template_parameter_rules jsonb DEFAULT '[]'::jsonb NOT NULL,
+    agent_user_id uuid,
+    model_config_id uuid,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
+    CONSTRAINT chat_projects_invokable_agents_not_self CHECK ((NOT (id = ANY (invokable_agent_ids)))),
     CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
     CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0)),
     CONSTRAINT chat_projects_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
@@ -2320,6 +2435,22 @@ COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the pro
 COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+COMMENT ON COLUMN chat_projects.invokable_agent_ids IS 'Other agents (chat projects) that chats in this agent may invoke to delegate work.';
+
+COMMENT ON COLUMN chat_projects.workspace_tools_enabled IS 'Whether chats in this agent may create, start, and use workspaces.';
+
+COMMENT ON COLUMN chat_projects.allowed_template_ids IS 'Templates chats in this project may create workspaces from. Empty allows every template the chat owner can use.';
+
+COMMENT ON COLUMN chat_projects.mcp_server_ids IS 'MCP server configs attached to every chat created in this project.';
+
+COMMENT ON COLUMN chat_projects.external_auth_provider_ids IS 'External auth providers workspaces in this project may require. Empty allows every provider.';
+
+COMMENT ON COLUMN chat_projects.template_parameter_rules IS 'Per-template parameter value restrictions for workspaces created by chats in this project. Each entry has template_id, parameter_name, and allowed_values; the first allowed value is the default.';
+
+COMMENT ON COLUMN chat_projects.agent_user_id IS 'Agent user the agent acts as. Chats in the project are owned by this user. NULL until provisioned.';
+
+COMMENT ON COLUMN chat_projects.model_config_id IS 'Model new chats in the agent use when the chat does not pick one. NULL uses the deployment default. A soft-deleted model keeps its ID here and chats fall back to the default.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2486,9 +2617,12 @@ CREATE TABLE users (
     is_system boolean DEFAULT false NOT NULL,
     is_service_account boolean DEFAULT false NOT NULL,
     chat_spend_limit_micros bigint,
+    is_agent boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_agent_login_type CHECK (((is_agent = false) OR (login_type = 'none'::login_type))),
+    CONSTRAINT users_agent_not_service_account CHECK ((NOT (is_agent AND is_service_account))),
     CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
-    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
+    CONSTRAINT users_email_not_empty CHECK ((((is_service_account = true) OR (is_agent = true)) = (email = ''::text))),
     CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
@@ -2506,6 +2640,8 @@ COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-t
 COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
+
+COMMENT ON COLUMN users.is_agent IS 'Determines if a user is the identity of a Coder Agent (chat project). Agent users cannot login.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -2556,7 +2692,11 @@ CREATE VIEW chats_expanded AS
     c.retry_state_version,
     c.runner_id,
     c.requires_action_deadline_at,
-    COALESCE(root.user_acl, c.user_acl) AS user_acl,
+    COALESCE(
+        CASE
+            WHEN (root.owner_id <> c.owner_id) THEN (root.user_acl || jsonb_build_object((root.owner_id)::text, '{"permissions": ["read", "update"]}'::jsonb))
+            ELSE NULL::jsonb
+        END, root.user_acl, c.user_acl) AS user_acl,
     COALESCE(root.group_acl, c.group_acl) AS group_acl,
     owner.username AS owner_username,
     owner.name AS owner_name,
@@ -2757,6 +2897,7 @@ CREATE VIEW group_members_expanded AS
     users.github_com_user_id AS user_github_com_user_id,
     users.is_system AS user_is_system,
     users.is_service_account AS user_is_service_account,
+    users.is_agent AS user_is_agent,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
@@ -2845,12 +2986,38 @@ CREATE TABLE mcp_server_configs (
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
     oauth2_resource text DEFAULT ''::text NOT NULL,
-    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
+    api_key_prefix text DEFAULT ''::text NOT NULL,
+    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text, 'user_api_key'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
+
+COMMENT ON COLUMN mcp_server_configs.api_key_prefix IS 'For user_api_key auth, text sent before each user''s token in api_key_header, such as "Bearer ".';
+
+CREATE TABLE mcp_server_github_app_credentials (
+    mcp_server_config_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    app_id bigint NOT NULL,
+    installation_id bigint NOT NULL,
+    private_key text NOT NULL,
+    private_key_key_id text,
+    repositories text[] DEFAULT '{}'::text[] NOT NULL,
+    use_for_git boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mcp_server_github_app_credentials_app_id_check CHECK ((app_id > 0)),
+    CONSTRAINT mcp_server_github_app_credentials_installation_id_check CHECK ((installation_id > 0))
+);
+
+COMMENT ON TABLE mcp_server_github_app_credentials IS 'GitHub App installations an agent''s user acts as on user_api_key MCP servers, instead of a pasted token. Coder mints short-lived installation tokens from them.';
+
+COMMENT ON COLUMN mcp_server_github_app_credentials.private_key IS 'The GitHub App''s PEM private key, encrypted when database encryption is enabled. Never returned by the API.';
+
+COMMENT ON COLUMN mcp_server_github_app_credentials.repositories IS 'Repository names minted tokens are limited to. Empty means every repository of the installation.';
+
+COMMENT ON COLUMN mcp_server_github_app_credentials.use_for_git IS 'Whether the agent''s workspaces get installation tokens for git through external auth. Tokens cover the listed repositories, or the whole installation when none are listed.';
 
 CREATE TABLE mcp_server_user_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4617,6 +4784,18 @@ ALTER TABLE ONLY chat_project_instructions
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_project_trigger_conversations
+    ADD CONSTRAINT chat_project_trigger_conversations_pkey PRIMARY KEY (trigger_id, conversation_key);
+
+ALTER TABLE ONLY chat_project_trigger_deliveries
+    ADD CONSTRAINT chat_project_trigger_deliveries_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_project_trigger_events
+    ADD CONSTRAINT chat_project_trigger_events_pkey PRIMARY KEY (trigger_id, event_key);
+
+ALTER TABLE ONLY chat_project_triggers
+    ADD CONSTRAINT chat_project_triggers_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
@@ -4697,6 +4876,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY mcp_server_github_app_credentials
+    ADD CONSTRAINT mcp_server_github_app_credentials_pkey PRIMARY KEY (mcp_server_config_id, user_id);
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
@@ -5112,6 +5294,16 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
+CREATE INDEX idx_chat_project_trigger_conversations_chat_id ON chat_project_trigger_conversations USING btree (chat_id);
+
+CREATE INDEX idx_chat_project_trigger_deliveries_trigger_id ON chat_project_trigger_deliveries USING btree (trigger_id, created_at DESC);
+
+CREATE INDEX idx_chat_project_triggers_next_run_at ON chat_project_triggers USING btree (next_run_at) WHERE ((source = 'schedule'::text) AND enabled);
+
+CREATE INDEX idx_chat_project_triggers_project_id ON chat_project_triggers USING btree (project_id);
+
+CREATE UNIQUE INDEX idx_chat_projects_agent_user_id ON chat_projects USING btree (agent_user_id) WHERE (agent_user_id IS NOT NULL);
+
 CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
@@ -5173,6 +5365,8 @@ CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (e
 CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
 
 CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING btree (organization_id);
+
+CREATE INDEX idx_mcp_server_github_app_credentials_user_id ON mcp_server_github_app_credentials USING btree (user_id);
 
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
@@ -5545,6 +5739,42 @@ ALTER TABLE ONLY chat_project_memories
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_project_trigger_conversations
+    ADD CONSTRAINT chat_project_trigger_conversations_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_trigger_conversations
+    ADD CONSTRAINT chat_project_trigger_conversations_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES chat_project_triggers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_trigger_deliveries
+    ADD CONSTRAINT chat_project_trigger_deliveries_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_project_trigger_deliveries
+    ADD CONSTRAINT chat_project_trigger_deliveries_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES chat_project_triggers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_trigger_events
+    ADD CONSTRAINT chat_project_trigger_events_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES chat_project_triggers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_triggers
+    ADD CONSTRAINT chat_project_triggers_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_triggers
+    ADD CONSTRAINT chat_project_triggers_github_webhook_secret_key_id_fkey FOREIGN KEY (github_webhook_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_project_triggers
+    ADD CONSTRAINT chat_project_triggers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_triggers
+    ADD CONSTRAINT chat_project_triggers_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_triggers
+    ADD CONSTRAINT chat_project_triggers_slack_signing_secret_key_id_fkey FOREIGN KEY (slack_signing_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_agent_user_id_fkey FOREIGN KEY (agent_user_id) REFERENCES users(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
@@ -5664,6 +5894,15 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_github_app_credentials
+    ADD CONSTRAINT mcp_server_github_app_credentials_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_github_app_credentials
+    ADD CONSTRAINT mcp_server_github_app_credentials_private_key_key_id_fkey FOREIGN KEY (private_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_github_app_credentials
+    ADD CONSTRAINT mcp_server_github_app_credentials_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_access_token_key_id_fkey FOREIGN KEY (access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

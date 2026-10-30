@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
@@ -12,6 +12,7 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 		isSaving: false,
 		canCreate: true,
 		canSelectUserOIDC: true,
+		accessURL: "https://coder.example.com",
 		canViewServerList: true,
 		organizations: [MockDefaultOrganization],
 		organization: MockDefaultOrganization,
@@ -54,14 +55,13 @@ export const Default: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
 		);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
-		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
+		await userEvent.click(screen.getByRole("option", { name: "OAuth2" }));
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
 		await waitFor(() => {
-			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
+			expect(screen.queryByRole("option", { name: "OAuth2" })).toBeNull();
 		});
 
 		await userEvent.click(addButton);
@@ -85,14 +85,13 @@ export const Default: Story = {
 export const APIKeyAuthentication: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
 		);
 		await userEvent.click(
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
-		await userEvent.click(body.getByRole("option", { name: "API key" }));
+		await userEvent.click(screen.getByRole("option", { name: "API key" }));
 	},
 };
 
@@ -102,7 +101,6 @@ export const UserOIDCRequiresDeploymentPermission: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
 		);
@@ -110,10 +108,55 @@ export const UserOIDCRequiresDeploymentPermission: Story = {
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
 		await expect(
-			body.getByRole("option", { name: "OAuth2" }),
+			screen.getByRole("option", { name: "OAuth2" }),
 		).toBeInTheDocument();
 		expect(
-			body.queryByRole("option", { name: "User OIDC identity" }),
+			screen.queryByRole("option", { name: "User OIDC identity" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const SlackPreset: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("radio", { name: /^Slack/ }));
+		await userEvent.click(
+			canvas.getByRole("switch", {
+				name: "Only reply in the originating thread",
+			}),
+		);
+	},
+};
+
+export const GitHubPreset: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("radio", { name: /^GitHub/ }));
+		await userEvent.click(canvas.getByRole("checkbox", { name: "Actions" }));
+	},
+};
+
+/** Switching presets after typing asks before it replaces the details. */
+export const SwitchPresetAfterTyping: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/display name/i), "Mine");
+		await userEvent.click(canvas.getByRole("radio", { name: /^Slack/ }));
+		await screen.findByRole("dialog");
+	},
+};
+
+export const UserTokenAuthentication: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await userEvent.click(
+			screen.getByRole("option", { name: "Per-user token" }),
+		);
 	},
 };

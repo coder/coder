@@ -133,6 +133,12 @@ WHERE
 			user_is_service_account = sqlc.narg('is_service_account') :: boolean
 		ELSE true
 	END
+	-- Filter by agent user.
+	AND CASE
+		WHEN sqlc.narg('is_agent') :: boolean IS NOT NULL THEN
+			user_is_agent = sqlc.narg('is_agent') :: boolean
+		ELSE true
+	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.

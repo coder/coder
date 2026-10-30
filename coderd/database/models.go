@@ -5497,6 +5497,22 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+	// Other agents (chat projects) that chats in this agent may invoke to delegate work.
+	InvokableAgentIDs []uuid.UUID `db:"invokable_agent_ids" json:"invokable_agent_ids"`
+	// Whether chats in this agent may create, start, and use workspaces.
+	WorkspaceToolsEnabled bool `db:"workspace_tools_enabled" json:"workspace_tools_enabled"`
+	// Templates chats in this project may create workspaces from. Empty allows every template the chat owner can use.
+	AllowedTemplateIDs []uuid.UUID `db:"allowed_template_ids" json:"allowed_template_ids"`
+	// MCP server configs attached to every chat created in this project.
+	MCPServerIDs []uuid.UUID `db:"mcp_server_ids" json:"mcp_server_ids"`
+	// External auth providers workspaces in this project may require. Empty allows every provider.
+	ExternalAuthProviderIDs []string `db:"external_auth_provider_ids" json:"external_auth_provider_ids"`
+	// Per-template parameter value restrictions for workspaces created by chats in this project. Each entry has template_id, parameter_name, and allowed_values; the first allowed value is the default.
+	TemplateParameterRules ChatProjectTemplateParameterRules `db:"template_parameter_rules" json:"template_parameter_rules"`
+	// Agent user the agent acts as. Chats in the project are owned by this user. NULL until provisioned.
+	AgentUserID uuid.NullUUID `db:"agent_user_id" json:"agent_user_id"`
+	// Model new chats in the agent use when the chat does not pick one. NULL uses the deployment default. A soft-deleted model keeps its ID here and chats fall back to the default.
+	ModelConfigID uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5519,6 +5535,83 @@ type ChatProjectMemory struct {
 	Body           string    `db:"body" json:"body"`
 	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+// Triggers that start a chat in a project when their webhook is called or their schedule comes due.
+type ChatProjectTrigger struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Prompt         string    `db:"prompt" json:"prompt"`
+	// SHA-256 of the secret embedded in the webhook URL. Random for schedule triggers, which have no webhook URL.
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	Enabled         bool         `db:"enabled" json:"enabled"`
+	CreatedBy       uuid.UUID    `db:"created_by" json:"created_by"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	LastTriggeredAt sql.NullTime `db:"last_triggered_at" json:"last_triggered_at"`
+	// What starts the trigger: webhook (any body), github (GitHub webhooks), slack (Slack Events API and slash commands), or schedule (a cron schedule).
+	Source string `db:"source" json:"source"`
+	// Events that start a chat, such as pull_request.opened for GitHub or app_mention for Slack. Empty matches every event.
+	Events []string `db:"events" json:"events"`
+	// GitHub repository (owner/name) the trigger is limited to. Empty matches every repository.
+	Repository string `db:"repository" json:"repository"`
+	// Slack channel ID the trigger is limited to. Empty matches every channel.
+	Channel string `db:"channel" json:"channel"`
+	// Text the event must contain, such as a Slack message or GitHub comment. Empty matches every event.
+	TextPattern string `db:"text_pattern" json:"text_pattern"`
+	// Whether text_pattern is a regular expression instead of case-insensitive text.
+	TextPatternIsRegex bool `db:"text_pattern_is_regex" json:"text_pattern_is_regex"`
+	// Whether Slack replies in threads are ignored.
+	IgnoreThreadReplies bool `db:"ignore_thread_replies" json:"ignore_thread_replies"`
+	// Slack user IDs or GitHub logins whose events start chats. Empty matches everyone.
+	Senders []string `db:"senders" json:"senders"`
+	// Whether events in a conversation the trigger already started a chat for, such as a Slack thread or a GitHub issue, are sent to that chat instead of starting a new one.
+	ContinueConversations bool `db:"continue_conversations" json:"continue_conversations"`
+	// What a continued chat does with a new event while it is still working: queue waits for the current turn, interrupt stops it.
+	BusyBehavior string `db:"busy_behavior" json:"busy_behavior"`
+	// Slack app signing secret used to verify X-Slack-Signature. Empty skips the check. Encrypted with dbcrypt when enabled.
+	SlackSigningSecret      string         `db:"slack_signing_secret" json:"slack_signing_secret"`
+	SlackSigningSecretKeyID sql.NullString `db:"slack_signing_secret_key_id" json:"slack_signing_secret_key_id"`
+	// GitHub webhook secret used to verify X-Hub-Signature-256. Empty skips the check. Encrypted with dbcrypt when enabled.
+	GitHubWebhookSecret      string         `db:"github_webhook_secret" json:"github_webhook_secret"`
+	GitHubWebhookSecretKeyID sql.NullString `db:"github_webhook_secret_key_id" json:"github_webhook_secret_key_id"`
+	// Cron expression with five fields and an optional CRON_TZ= prefix for schedule triggers. Empty for other sources.
+	Schedule string `db:"schedule" json:"schedule"`
+	// When a schedule trigger runs next. NULL when the trigger is disabled or is not a schedule trigger.
+	NextRunAt sql.NullTime `db:"next_run_at" json:"next_run_at"`
+}
+
+// The chat a trigger started for each external conversation, so later events in the conversation continue it.
+type ChatProjectTriggerConversation struct {
+	TriggerID uuid.UUID `db:"trigger_id" json:"trigger_id"`
+	// Source-specific conversation ID: team/channel/thread_ts for Slack, owner/repo#number for GitHub, or the X-Coder-Conversation-Id header for webhooks.
+	ConversationKey string    `db:"conversation_key" json:"conversation_key"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Recent authenticated webhook calls to a trigger and what each one did, so people can see why an event did or did not start a chat.
+type ChatProjectTriggerDelivery struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	TriggerID uuid.UUID `db:"trigger_id" json:"trigger_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// started: a chat started. continued: the event was sent to the chat of its conversation. ignored: the event did not match the trigger. rejected: the call failed. handshake: a GitHub ping or Slack URL verification was answered.
+	Status string `db:"status" json:"status"`
+	// Event name, such as issue_comment.created or app_mention. Empty for plain webhooks.
+	Event string `db:"event" json:"event"`
+	// Why the event was ignored or rejected.
+	Message string        `db:"message" json:"message"`
+	ChatID  uuid.NullUUID `db:"chat_id" json:"chat_id"`
+}
+
+// Recently handled event IDs per trigger, so retried or duplicate deliveries, such as Slack retries, are handled once.
+type ChatProjectTriggerEvent struct {
+	TriggerID uuid.UUID `db:"trigger_id" json:"trigger_id"`
+	EventKey  string    `db:"event_key" json:"event_key"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {
@@ -5769,6 +5862,7 @@ type GroupMember struct {
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
 	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
 	UserIsServiceAccount   bool          `db:"user_is_service_account" json:"user_is_service_account"`
+	UserIsAgent            bool          `db:"user_is_agent" json:"user_is_agent"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
@@ -5848,6 +5942,25 @@ type MCPServerConfig struct {
 	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
 	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
 	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
+	// For user_api_key auth, text sent before each user's token in api_key_header, such as "Bearer ".
+	APIKeyPrefix string `db:"api_key_prefix" json:"api_key_prefix"`
+}
+
+// GitHub App installations an agent's user acts as on user_api_key MCP servers, instead of a pasted token. Coder mints short-lived installation tokens from them.
+type MCPServerGitHubAppCredential struct {
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	AppID             int64     `db:"app_id" json:"app_id"`
+	InstallationID    int64     `db:"installation_id" json:"installation_id"`
+	// The GitHub App's PEM private key, encrypted when database encryption is enabled. Never returned by the API.
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
+	// Repository names minted tokens are limited to. Empty means every repository of the installation.
+	Repositories []string `db:"repositories" json:"repositories"`
+	// Whether the agent's workspaces get installation tokens for git through external auth. Tokens cover the listed repositories, or the whole installation when none are listed.
+	UseForGit bool      `db:"use_for_git" json:"use_for_git"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type MCPServerUserToken struct {
@@ -6562,6 +6675,8 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+	// Determines if a user is the identity of a Coder Agent (chat project). Agent users cannot login.
+	IsAgent bool `db:"is_agent" json:"is_agent"`
 }
 
 // Per-user AI spend override that supersedes group budget resolution.

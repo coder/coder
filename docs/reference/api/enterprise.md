@@ -515,6 +515,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
           "email": "user@example.com",
           "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -699,6 +700,7 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_agent": true,
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -741,6 +743,7 @@ Status Code **200**
 | `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» is_agent`                 | boolean                                                | false    |              | Is agent is true for the user that a Coder Agent acts as. Agent users cannot login.                                                                                   |
 | `»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
@@ -802,6 +805,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -864,6 +868,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -945,6 +950,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -1169,6 +1175,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -2068,6 +2075,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_agent": true,
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -2110,6 +2118,7 @@ Status Code **200**
 | `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» is_agent`                 | boolean                                                | false    |              | Is agent is true for the user that a Coder Agent acts as. Agent users cannot login.                                                                                   |
 | `»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
@@ -2183,6 +2192,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -2297,6 +2307,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -2362,6 +2373,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -3923,6 +3935,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -3950,6 +3963,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
       "email": "user@example.com",
       "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -4080,6 +4094,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "created_at": "2019-08-24T14:15:22Z",
             "email": "user@example.com",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "is_agent": true,
             "is_service_account": true,
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
@@ -4105,6 +4120,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_agent": true,
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -4141,6 +4157,7 @@ Status Code **200**
 | `»»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»»» is_agent`                 | boolean                                                | false    |              | Is agent is true for the user that a Coder Agent acts as. Agent users cannot login.                                                                                   |
 | `»»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
@@ -5663,6 +5680,7 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   "email": "user@example.com",
   "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -5755,6 +5773,7 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   "email": "user@example.com",
   "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",

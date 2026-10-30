@@ -28,6 +28,7 @@ import {
 } from "#/modules/users/UserHelpPopovers";
 import { UserMoreActions } from "#/modules/users/UserMoreActions";
 import { UserRoleCell } from "#/modules/users/UserRoleCell";
+import { userListSubtitle, userListTitle } from "#/modules/users/userLabels";
 
 dayjs.extend(relativeTime);
 
@@ -98,8 +99,8 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 		<TableRow key={user.id} data-testid={`user-${user.id}`}>
 			<TableCell>
 				<AvatarData
-					title={user.username}
-					subtitle={user.is_service_account ? "Service Account" : user.email}
+					title={userListTitle(user)}
+					subtitle={userListSubtitle(user)}
 					src={user.avatar_url}
 				/>
 			</TableCell>

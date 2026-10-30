@@ -107,8 +107,12 @@ export const TabsContent = ({ ...props }: TabsContentProps) => {
 // Keeping this for now because of a workaround in WorkspaceBuildPageView.
 export const TAB_PADDING_X = 16;
 
+type LinkTabsVariant = "underline" | "pill";
+
 type LinkTabsContextValue = {
 	active: string;
+	/** `pill` highlights the active link with a filled background. */
+	variant?: LinkTabsVariant;
 };
 
 const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
@@ -120,16 +124,18 @@ type LinkTabsProps = React.ComponentProps<"div"> & LinkTabsContextValue;
 export const LinkTabs = ({
 	className,
 	active,
+	variant = "underline",
 	...htmlProps
 }: LinkTabsProps) => {
 	return (
-		<LinkTabsContext.Provider value={{ active }}>
+		<LinkTabsContext.Provider value={{ active, variant }}>
 			<div
 				data-slot="link-tabs"
 				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
 				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
 				className={cn(
-					"border-0 border-b border-solid border-border",
+					variant === "underline" &&
+						"border-0 border-b border-solid border-border",
 					className,
 				)}
 				{...htmlProps}
@@ -180,6 +186,7 @@ export const LinkTabsList = ({ className, ...props }: LinkTabsListProps) => {
 	// positioned correctly on the first frame. Animate only on
 	// subsequent active-tab changes.
 	const active = tabsContext?.active;
+	const isPill = tabsContext?.variant === "pill";
 	useLayoutEffect(() => {
 		// Re-run whenever the active tab changes.
 		void active;
@@ -198,14 +205,19 @@ export const LinkTabsList = ({ className, ...props }: LinkTabsListProps) => {
 		<div ref={listRef} data-slot="link-tabs-list-root" className="relative">
 			<div
 				data-slot="link-tabs-list"
-				className={cn("flex items-baseline gap-6", className)}
+				className={cn(
+					isPill ? "flex items-center gap-1" : "flex items-baseline gap-6",
+					className,
+				)}
 				{...props}
 			/>
-			<div
-				ref={indicatorRef}
-				data-slot="link-tabs-indicator"
-				className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
-			/>
+			{!isPill && (
+				<div
+					ref={indicatorRef}
+					data-slot="link-tabs-indicator"
+					className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
+				/>
+			)}
 		</div>
 	);
 };
@@ -221,6 +233,7 @@ export const TabLink = ({ value, className, ...linkProps }: TabLinkProps) => {
 	}
 
 	const isActive = tabsContext.active === value;
+	const isPill = tabsContext.variant === "pill";
 
 	return (
 		<Link
@@ -229,10 +242,13 @@ export const TabLink = ({ value, className, ...linkProps }: TabLinkProps) => {
 			aria-current={isActive ? "page" : undefined}
 			{...linkProps}
 			className={cn(
-				"text-sm text-content-secondary no-underline font-medium py-3 px-1 hover:text-content-primary rounded-md",
-				"focus-visible:ring-offset-1 focus-visible:ring-offset-surface-primary",
-				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm",
-				isActive ? "text-content-primary" : "",
+				"text-sm text-content-secondary no-underline font-medium hover:text-content-primary",
+				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+				isPill
+					? "rounded-full px-3 py-1 transition-colors hover:bg-surface-secondary"
+					: "py-3 px-1 rounded-md focus-visible:ring-offset-1 focus-visible:ring-offset-surface-primary focus-visible:rounded-sm",
+				isActive && "text-content-primary",
+				isActive && isPill && "bg-surface-tertiary hover:bg-surface-tertiary",
 				className,
 			)}
 		/>

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -73,6 +74,8 @@ type ReadTemplateOptions struct {
 	// at template import and says so in the response.
 	RenderParameters RenderTemplateParametersFn
 	Logger           slog.Logger
+	// Policy refuses templates the chat's agent may not use.
+	Policy TemplatePolicy
 }
 
 type readTemplateArgs struct {
@@ -122,10 +125,32 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if !template.AgentsAllowed {
 				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
+			if reason := options.Policy.Check(ctx, db, template); reason != "" {
+				return fantasy.NewTextErrorResponse(reason), nil
+			}
 
 			paramList, paramNote := readTemplateParameters(ctx, db, template, options)
 			if paramList == nil {
 				return fantasy.NewTextErrorResponse(paramNote), nil
+			}
+			parameterRules := options.Policy.parameterRules(template.ID)
+			for _, entry := range paramList {
+				name, _ := entry["name"].(string)
+				allowed, ok := parameterRules[name]
+				if !ok || len(allowed) == 0 {
+					continue
+				}
+				entry["allowed_values"] = allowed
+				entry["default"] = allowed[0]
+				if opts, ok := entry["options"].([]map[string]any); ok {
+					entry["options"] = slices.DeleteFunc(opts, func(o map[string]any) bool {
+						v, _ := o["value"].(string)
+						return !slices.Contains(allowed, v)
+					})
+				}
+			}
+			if len(parameterRules) > 0 {
+				paramNote = strings.TrimSpace(paramNote + " Parameters with allowed_values are restricted by this agent: use only those values. Omitted restricted parameters use the first allowed value. Presets that violate the restrictions are hidden.")
 			}
 
 			presets, err := db.GetPresetsByTemplateVersionID(ctx, template.ActiveVersionID)
@@ -171,9 +196,14 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				}
 
 				// Index preset parameters by preset ID for
-				// efficient lookup.
+				// efficient lookup, and note presets that set a
+				// restricted parameter to a disallowed value.
 				paramsByPreset := make(map[uuid.UUID][]map[string]any)
+				disallowedPresets := make(map[uuid.UUID]bool)
 				for _, pp := range presetParams {
+					if allowed, ok := parameterRules[pp.Name]; ok && !slices.Contains(allowed, pp.Value) {
+						disallowedPresets[pp.TemplateVersionPresetID] = true
+					}
 					paramsByPreset[pp.TemplateVersionPresetID] = append(
 						paramsByPreset[pp.TemplateVersionPresetID],
 						map[string]any{
@@ -185,6 +215,9 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 
 				presetList := make([]map[string]any, 0, len(presets))
 				for _, p := range presets {
+					if disallowedPresets[p.ID] {
+						continue
+					}
 					preset := map[string]any{
 						"id":      p.ID.String(),
 						"name":    p.Name,

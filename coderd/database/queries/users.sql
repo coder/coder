@@ -79,6 +79,7 @@ FROM
 WHERE
 	status = 'active'::user_status AND deleted = false
 	AND is_service_account = false
+	AND is_agent = false
 	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
@@ -94,14 +95,16 @@ INSERT INTO
 		rbac_roles,
 		login_type,
 		status,
-		is_service_account
+		is_service_account,
+		is_agent
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
 		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status),
-		@is_service_account::bool
+		@is_service_account::bool,
+		@is_agent::bool
 	) RETURNING *;
 
 -- name: UpdateUserProfile :one
@@ -556,6 +559,12 @@ WHERE
 			is_service_account = sqlc.narg('is_service_account') :: boolean
 		ELSE true
 	END
+	-- Filter by agent user.
+	AND CASE
+		WHEN sqlc.narg('is_agent') :: boolean IS NOT NULL THEN
+			is_agent = sqlc.narg('is_agent') :: boolean
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
@@ -718,7 +727,8 @@ WHERE
 	users.status = 'active'::user_status
 	AND users.deleted = false
 	AND users.is_system = false
-	AND users.is_service_account = false;
+	AND users.is_service_account = false
+	AND users.is_agent = false;
 
 -- name: UpdateUserQuietHoursSchedule :one
 UPDATE
@@ -740,6 +750,8 @@ WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
 		AND NOT is_system
+		-- Agent users never sign in, so inactivity does not apply to them.
+		AND NOT is_agent
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.

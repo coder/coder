@@ -32,7 +32,7 @@ const projectFoldersElement = (
 			onToggle={vi.fn()}
 			onOpenProjectDialog={vi.fn()}
 			onDelete={vi.fn()}
-			emptyMessage="No agents yet"
+			emptyMessage="No chats yet"
 			isLoading={false}
 			error={error}
 			isLoadError={false}
@@ -69,7 +69,7 @@ describe("ProjectFolders", () => {
 					onToggle={onToggle}
 					onOpenProjectDialog={vi.fn()}
 					onDelete={vi.fn()}
-					emptyMessage="No agents yet"
+					emptyMessage="No chats yet"
 					isLoading={false}
 					error={new Error("Projects unavailable")}
 					isLoadError={false}
@@ -87,6 +87,30 @@ describe("ProjectFolders", () => {
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
+	it("offers only the actions the viewer may perform on a shared agent", async () => {
+		const user = userEvent.setup();
+		const shared = {
+			...MockChatProject,
+			owner_id: MockUserMember.id,
+			permissions: {
+				edit: true,
+				share: false,
+				delete: false,
+				manage_triggers: false,
+			},
+		};
+		renderProjectFolders([shared]);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: `Open agent actions for ${shared.name}`,
+			}),
+		);
+
+		expect(screen.getByRole("menuitem", { name: "Edit agent" })).toBeEnabled();
+		expect(screen.queryByRole("menuitem", { name: "Delete agent" })).toBeNull();
+	});
+
 	it("keeps focus on the empty state's button when a refetch fails", async () => {
 		const user = userEvent.setup();
 		const { rerender } = renderProjectFolders([]);
@@ -94,27 +118,27 @@ describe("ProjectFolders", () => {
 		await user.tab();
 		await user.tab();
 		const newProjectButton = screen.getByRole("button", {
-			name: "New project",
+			name: "New agent",
 		});
 		expect(newProjectButton).toHaveFocus();
 
 		rerender(
 			projectFoldersElement([], { error: new Error("Projects unavailable") }),
 		);
-		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
+		expect(screen.getByRole("button", { name: "New agent" })).toHaveFocus();
 	});
 
 	it("collapses and expands the whole Projects section", async () => {
 		const user = userEvent.setup();
 		renderProjectFolders([MockChatProject]);
 
-		const sectionToggle = screen.getByRole("button", { name: "Projects" });
+		const sectionToggle = screen.getByRole("button", { name: "Agents" });
 		await user.click(sectionToggle);
 		expect(sectionToggle).toHaveAttribute("aria-expanded", "false");
 		expect(
 			screen.queryByRole("link", { name: MockChatProject.name }),
 		).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "New agent" })).toBeVisible();
 
 		await user.click(sectionToggle);
 		expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
@@ -127,23 +151,23 @@ describe("ProjectFolders", () => {
 		const user = userEvent.setup();
 		const firstMount = renderProjectFolders([]);
 
-		await user.click(screen.getByRole("button", { name: "Projects" }));
+		await user.click(screen.getByRole("button", { name: "Agents" }));
 		expect(localStorage.getItem(collapsedKey)).toBe("true");
 		firstMount.unmount();
 
 		renderProjectFolders([]);
-		await user.click(screen.getByRole("button", { name: "Projects" }));
+		await user.click(screen.getByRole("button", { name: "Agents" }));
 		expect(localStorage.getItem(collapsedKey)).toBeNull();
 	});
 
 	it("keeps the saved collapse state separate per user", async () => {
 		const user = userEvent.setup();
 		const firstMount = renderProjectFolders([]);
-		await user.click(screen.getByRole("button", { name: "Projects" }));
+		await user.click(screen.getByRole("button", { name: "Agents" }));
 		firstMount.unmount();
 
 		renderProjectFolders([], { currentUserId: MockUserMember.id });
-		await user.click(screen.getByRole("button", { name: "Projects" }));
+		await user.click(screen.getByRole("button", { name: "Agents" }));
 		expect(
 			localStorage.getItem(
 				projectsSectionCollapsedStorageKey(MockUserMember.id),
@@ -171,7 +195,7 @@ describe("ProjectFolders", () => {
 					onToggle={onToggle}
 					onOpenProjectDialog={vi.fn()}
 					onDelete={vi.fn()}
-					emptyMessage="No agents yet"
+					emptyMessage="No chats yet"
 					isLoading={false}
 					error={undefined}
 					isLoadError={false}
@@ -186,7 +210,7 @@ describe("ProjectFolders", () => {
 		expect(screen.getByRole("link", { name: defaultLabel })).toBeVisible();
 		expect(
 			screen.getByRole("button", {
-				name: `Open project actions for ${otherLabel}`,
+				name: `Open agent actions for ${otherLabel}`,
 			}),
 		).toBeInTheDocument();
 

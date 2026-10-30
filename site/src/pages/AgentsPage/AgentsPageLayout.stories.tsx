@@ -1072,7 +1072,7 @@ export const ProjectLoading: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByRole("status", { name: "Loading project" });
+		await canvas.findByRole("status", { name: "Loading agent" });
 	},
 };
 
@@ -1085,7 +1085,7 @@ export const ProjectLoadError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Failed to load project");
+		await canvas.findByText("Failed to load agent");
 	},
 };
 
@@ -1098,7 +1098,7 @@ export const ProjectLoaded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByRole("button", { name: "Project actions" });
+		await canvas.findByRole("button", { name: "Share" });
 	},
 };
 
@@ -1109,7 +1109,7 @@ export const ProjectNotFound: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Project not found");
+		await canvas.findByText("Agent not found");
 	},
 };
 

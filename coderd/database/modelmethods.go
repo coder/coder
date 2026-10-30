@@ -201,8 +201,15 @@ func (p ChatProject) RBACObject() rbac.Object {
 	if rbac.ChatACLDisabled() {
 		return obj
 	}
+	userACL := p.UserACL.RBACACL()
+	// An agent can always read its own configuration.
+	if p.AgentUserID.Valid {
+		if _, ok := userACL[p.AgentUserID.UUID.String()]; !ok {
+			userACL[p.AgentUserID.UUID.String()] = []policy.Action{policy.ActionRead}
+		}
+	}
 	return obj.
-		WithACLUserList(p.UserACL.RBACACL()).
+		WithACLUserList(userACL).
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
@@ -706,6 +713,10 @@ func (u ExternalAuthLink) RBACObject() rbac.Object   { return rbac.ResourceUserO
 func (u UserLink) RBACObject() rbac.Object           { return rbac.ResourceUserObject(u.UserID) }
 func (u MCPServerUserToken) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
 
+func (c MCPServerGitHubAppCredential) RBACObject() rbac.Object {
+	return rbac.ResourceUserObject(c.UserID)
+}
+
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
 		AccessToken:  u.OAuthAccessToken,
@@ -830,6 +841,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 			LastSeenAt:       r.LastSeenAt,
 			IsSystem:         r.IsSystem,
 			IsServiceAccount: r.IsServiceAccount,
+			IsAgent:          r.IsAgent,
 		}
 	}
 

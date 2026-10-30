@@ -962,6 +962,47 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
+const mockSlackUserTokenMCP = buildMCPServer({
+	id: "mcp-slack-token",
+	display_name: "Slack",
+	slug: "slack",
+	icon_url: "/icon/slack.svg",
+	availability: "default_on",
+	auth_type: "user_api_key",
+	auth_connected: false,
+	enabled: true,
+});
+
+/** A server that asks each user for a token shows Add token. */
+export const MCPAddTokenDialog: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [mockSlackUserTokenMCP],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Add token" }),
+		);
+		await screen.findByRole("dialog");
+	},
+};
+
+/** With a token stored, the key button reopens the dialog to replace it. */
+export const MCPReplaceTokenControl: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [{ ...mockSlackUserTokenMCP, auth_connected: true }],
+		selectedMCPServerIds: [mockSlackUserTokenMCP.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
 export const MCPDisconnectControls: Story = {
 	args: {
 		...mcpDefaults,

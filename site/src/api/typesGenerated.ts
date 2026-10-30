@@ -3479,6 +3479,90 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * InvokableAgentIDs are other agents that chats in this agent may
+	 * invoke to delegate work.
+	 */
+	readonly invokable_agent_ids: readonly string[];
+	/**
+	 * WorkspaceToolsEnabled allows chats in this agent to create, start,
+	 * and use workspaces.
+	 */
+	readonly workspace_tools_enabled: boolean;
+	/**
+	 * AllowedTemplateIDs restricts which templates chats in the project may
+	 * create workspaces from. Empty allows every template.
+	 */
+	readonly allowed_template_ids: readonly string[];
+	/**
+	 * MCPServerIDs are attached to every chat created in the project.
+	 */
+	readonly mcp_server_ids: readonly string[];
+	/**
+	 * ExternalAuthProviderIDs restricts which external auth providers a
+	 * template may require. Empty allows every provider.
+	 */
+	readonly external_auth_provider_ids: readonly string[];
+	/**
+	 * TemplateParameterRules limit the values chats in the project may use
+	 * for specific template parameters.
+	 */
+	readonly template_parameter_rules: readonly ChatProjectTemplateParameterRule[];
+	/**
+	 * Permissions describes what the requesting user can do with the project.
+	 */
+	readonly permissions: ChatProjectPermissions;
+	/**
+	 * AgentUser is the service account the agent acts as. Chats in the
+	 * agent are owned by this user. It is unset until the user is
+	 * provisioned.
+	 */
+	readonly agent_user?: MinimalUser;
+	/**
+	 * ModelConfigID is the model new chats in the agent use when the chat
+	 * does not pick one. Unset uses the deployment default.
+	 */
+	readonly model_config_id?: string;
+	/**
+	 * ModelStatus reports whether the agent's chats can use ModelConfigID.
+	 */
+	readonly model_status: ChatProjectModelStatus;
+	/**
+	 * ModelStatusReason explains an unavailable model, for example that it
+	 * was deleted or its provider has no credentials for the agent.
+	 */
+	readonly model_status_reason?: string;
+	/**
+	 * ModelDisplayName is the name of the model in ModelConfigID, including
+	 * a deleted one.
+	 */
+	readonly model_display_name?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectACL lists who a chat project is shared with. The owner is not
+ * listed.
+ */
+export interface ChatProjectACL {
+	readonly users: readonly ChatProjectACLUser[];
+	readonly groups: readonly ChatProjectACLGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectACLGroup is a group a chat project is shared with.
+ */
+export interface ChatProjectACLGroup extends Group {
+	readonly role: ChatProjectRole;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectACLUser is a user a chat project is shared with.
+ */
+export interface ChatProjectACLUser extends MinimalUser {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -3501,6 +3585,35 @@ export interface ChatProjectInstructions {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectMCPServerToken is an MCP server attached to an agent and the
+ * state of the agent user's token for it. Tokens are never returned.
+ */
+export interface ChatProjectMCPServerToken {
+	readonly mcp_server_config_id: string;
+	readonly display_name: string;
+	readonly slug: string;
+	readonly icon_url: string;
+	readonly auth_type: string;
+	/**
+	 * TokenRequired is true for user_api_key servers, whose tools the
+	 * agent can only use once its owner stores a token.
+	 */
+	readonly token_required: boolean;
+	readonly has_token: boolean;
+	readonly token_updated_at?: string;
+	/**
+	 * CredentialKind says what the agent's user authenticates with. It is
+	 * set when HasToken is true.
+	 */
+	readonly credential_kind?: MCPServerCredentialKind;
+	/**
+	 * GitHubApp is set for the github_app kind.
+	 */
+	readonly github_app?: MCPServerGitHubApp;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -3512,7 +3625,306 @@ export interface ChatProjectMemory {
 	readonly body: string;
 	readonly created_by: string;
 	readonly created_by_username: string;
+	/**
+	 * CreatedByName is the display name of the creator, such as an agent's
+	 * name when an agent saved the memory.
+	 */
+	readonly created_by_name?: string;
 	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+export type ChatProjectModelStatus = "available" | "default" | "unavailable";
+
+export const ChatProjectModelStatuses: ChatProjectModelStatus[] = [
+	"available",
+	"default",
+	"unavailable",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectPermissions describes what the requesting user can do with a
+ * chat project beyond reading it.
+ */
+export interface ChatProjectPermissions {
+	/**
+	 * Edit allows changing the project's settings, instructions, and
+	 * permissions.
+	 */
+	readonly edit: boolean;
+	/**
+	 * Share allows changing who the project is shared with.
+	 */
+	readonly share: boolean;
+	/**
+	 * Delete allows deleting the project.
+	 */
+	readonly delete: boolean;
+	/**
+	 * ManageTriggers allows creating and changing webhook triggers. Triggered
+	 * chats run as the agent's user on the owner's behalf, so only the owner
+	 * has it.
+	 */
+	readonly manage_triggers: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatProjectRole = "" | "edit" | "use";
+
+export const ChatProjectRoles: ChatProjectRole[] = ["", "edit", "use"];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectRun is a chat that ran in a project, started by a person, a
+ * trigger, or a parent agent.
+ */
+export interface ChatProjectRun {
+	readonly chat_id: string;
+	readonly title: string;
+	readonly status: ChatStatus;
+	readonly parent_chat_id?: string;
+	readonly root_chat_id?: string;
+	/**
+	 * TriggerID is set when a webhook trigger started the run.
+	 */
+	readonly trigger_id?: string;
+	/**
+	 * LastError is the error message of a failed run.
+	 */
+	readonly last_error?: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTemplateParameterRule limits one template parameter to a fixed
+ * set of values. The first allowed value is used when a chat does not set
+ * the parameter.
+ */
+export interface ChatProjectTemplateParameterRule {
+	readonly template_id: string;
+	readonly parameter_name: string;
+	readonly allowed_values: readonly string[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTrigger starts a chat in a project when its webhook is called
+ * or its schedule comes due.
+ */
+export interface ChatProjectTrigger
+	extends ChatProjectTriggerTextFilter,
+		ChatProjectTriggerConversationOptions {
+	readonly id: string;
+	readonly project_id: string;
+	readonly name: string;
+	readonly prompt: string;
+	readonly enabled: boolean;
+	readonly source: ChatProjectTriggerSource;
+	/**
+	 * Schedule is the cron expression of a schedule trigger: five fields
+	 * (minute, hour, day of month, month, day of week) with an optional
+	 * CRON_TZ= prefix, such as "CRON_TZ=Europe/Berlin 0 9 * * 1-5". Empty
+	 * for other sources.
+	 */
+	readonly schedule?: string;
+	/**
+	 * NextRunAt is when a schedule trigger runs next. Unset when the
+	 * trigger is disabled or is not a schedule trigger.
+	 */
+	readonly next_run_at?: string;
+	/**
+	 * Events that start a chat. Empty matches every event. Plain webhook
+	 * triggers have no events.
+	 */
+	readonly events: readonly string[];
+	/**
+	 * Repository limits a GitHub trigger to one repository, as owner/name.
+	 */
+	readonly repository?: string;
+	/**
+	 * Channel limits a Slack trigger to one channel ID.
+	 */
+	readonly channel?: string;
+	/**
+	 * HasSlackSigningSecret reports whether Slack requests are verified with
+	 * the app's signing secret. The secret itself is never returned.
+	 */
+	readonly has_slack_signing_secret: boolean;
+	/**
+	 * HasGitHubWebhookSecret reports whether GitHub deliveries are verified
+	 * with the webhook's secret. The secret itself is never returned.
+	 */
+	readonly has_github_webhook_secret: boolean;
+	readonly created_by: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly last_triggered_at?: string;
+	/**
+	 * LastDelivery is the most recent call to the trigger's webhook. It is
+	 * only set when listing triggers.
+	 */
+	readonly last_delivery?: ChatProjectTriggerDelivery;
+}
+
+// From codersdk/chats.go
+export type ChatProjectTriggerBusyBehavior = "interrupt" | "queue";
+
+export const ChatProjectTriggerBusyBehaviors: ChatProjectTriggerBusyBehavior[] =
+	["interrupt", "queue"];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTriggerConversationHeader is the request header a plain webhook
+ * sets to continue the chat of an earlier call with the same value.
+ */
+export const ChatProjectTriggerConversationHeader = "X-Coder-Conversation-Id";
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTriggerConversationOptions control whether events in the same
+ * conversation share one chat. A conversation is a Slack thread, a GitHub
+ * issue or pull request, or, for plain webhooks, calls with the same
+ * X-Coder-Conversation-Id header.
+ */
+export interface ChatProjectTriggerConversationOptions {
+	/**
+	 * ContinueConversations sends events in a conversation the trigger
+	 * already started a chat for to that chat instead of starting a new
+	 * one. An archived chat is replaced by a new one.
+	 */
+	readonly continue_conversations: boolean;
+	/**
+	 * BusyBehavior is what a continued chat does with a new event while it
+	 * is still working.
+	 */
+	readonly busy_behavior: ChatProjectTriggerBusyBehavior;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTriggerDelivery is one recent call to a trigger's webhook.
+ */
+export interface ChatProjectTriggerDelivery {
+	readonly id: string;
+	readonly trigger_id: string;
+	readonly created_at: string;
+	readonly status: ChatProjectTriggerDeliveryStatus;
+	/**
+	 * Event is the event name, such as issue_comment.created. Empty for
+	 * plain webhooks.
+	 */
+	readonly event?: string;
+	/**
+	 * Message explains why the event was ignored or rejected.
+	 */
+	readonly message?: string;
+	/**
+	 * ChatID is the chat the call started or continued.
+	 */
+	readonly chat_id?: string;
+}
+
+// From codersdk/chats.go
+export type ChatProjectTriggerDeliveryStatus =
+	| "continued"
+	| "handshake"
+	| "ignored"
+	| "rejected"
+	| "started";
+
+export const ChatProjectTriggerDeliveryStatuses: ChatProjectTriggerDeliveryStatus[] =
+	["continued", "handshake", "ignored", "rejected", "started"];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTriggerLabel is the chat label key that records which trigger
+ * started a chat.
+ */
+export const ChatProjectTriggerLabel = "coder.trigger_id";
+
+// From codersdk/chats.go
+/**
+ * Slack trigger events. GitHub events use GitHub's names: the event in the
+ * X-GitHub-Event header, optionally followed by a dot and the payload's
+ * action, such as "pull_request.opened" or "push".
+ */
+export const ChatProjectTriggerSlackEventAppMention = "app_mention";
+
+// From codersdk/chats.go
+/**
+ * Slack trigger events. GitHub events use GitHub's names: the event in the
+ * X-GitHub-Event header, optionally followed by a dot and the payload's
+ * action, such as "pull_request.opened" or "push".
+ */
+export const ChatProjectTriggerSlackEventMessage = "message";
+
+// From codersdk/chats.go
+/**
+ * Slack trigger events. GitHub events use GitHub's names: the event in the
+ * X-GitHub-Event header, optionally followed by a dot and the payload's
+ * action, such as "pull_request.opened" or "push".
+ */
+export const ChatProjectTriggerSlackEventSlashCommand = "slash_command";
+
+// From codersdk/chats.go
+export type ChatProjectTriggerSource =
+	| "github"
+	| "schedule"
+	| "slack"
+	| "webhook";
+
+export const ChatProjectTriggerSources: ChatProjectTriggerSource[] = [
+	"github",
+	"schedule",
+	"slack",
+	"webhook",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTriggerTextFilter limits which events start a chat by their
+ * text and sender.
+ */
+export interface ChatProjectTriggerTextFilter {
+	/**
+	 * TextPattern is text the event must contain: a Slack message, a GitHub
+	 * comment, review, issue or pull request, or a plain webhook body.
+	 * Empty matches every event.
+	 */
+	readonly text_pattern?: string;
+	/**
+	 * TextPatternIsRegex treats TextPattern as a regular expression (RE2)
+	 * instead of case-insensitive text.
+	 */
+	readonly text_pattern_is_regex?: boolean;
+	/**
+	 * IgnoreThreadReplies keeps Slack thread replies from starting new
+	 * chats. Replies in a thread the trigger already started a chat for
+	 * still continue that chat when ContinueConversations is set.
+	 */
+	readonly ignore_thread_replies?: boolean;
+	/**
+	 * Senders limits GitHub triggers to these logins and Slack triggers to
+	 * these user IDs. Empty matches everyone.
+	 */
+	readonly senders?: readonly string[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectTriggerWebhookResponse reports the chat a webhook call or a
+ * schedule trigger run started or continued.
+ */
+export interface ChatProjectTriggerWebhookResponse {
+	readonly chat_id: string;
+	/**
+	 * Continued is true when the call was sent to the chat of an earlier
+	 * call in the same conversation.
+	 */
+	readonly continued: boolean;
 }
 
 // From codersdk/chats.go
@@ -3625,9 +4037,9 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatRole = "" | "read";
+export type ChatRole = "" | "read" | "write";
 
-export const ChatRoles: ChatRole[] = ["", "read"];
+export const ChatRoles: ChatRole[] = ["", "read", "write"];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {
@@ -3996,6 +4408,27 @@ export interface ClusterConfig {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/chats.go
+/**
+ * ConnectChatProjectExternalAuthRequest starts linking an external auth
+ * provider to an agent's user.
+ */
+export interface ConnectChatProjectExternalAuthRequest {
+	/**
+	 * Redirect is the Coder path to return to after the provider flow.
+	 */
+	readonly redirect?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ConnectChatProjectExternalAuthResponse holds the URL that continues the
+ * provider flow. The browser must navigate to it.
+ */
+export interface ConnectChatProjectExternalAuthResponse {
+	readonly url: string;
+}
+
 // From codersdk/disconnect.go
 export type ConnectionDirection =
 	| "agent_to_client"
@@ -4280,6 +4713,68 @@ export interface CreateChatProjectRequest {
 	readonly name: string;
 	readonly description: string;
 	readonly icon?: string;
+	/**
+	 * ModelConfigID sets the model new chats in the agent use when the chat
+	 * does not pick one. Unset uses the deployment default.
+	 */
+	readonly model_config_id?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatProjectTriggerRequest creates a webhook trigger.
+ */
+export interface CreateChatProjectTriggerRequest
+	extends ChatProjectTriggerTextFilter {
+	readonly name: string;
+	/**
+	 * Prompt is sent to the new chat ahead of the webhook payload.
+	 */
+	readonly prompt: string;
+	/**
+	 * Source defaults to ChatProjectTriggerSourceWebhook.
+	 */
+	readonly source?: ChatProjectTriggerSource;
+	/**
+	 * Schedule is required for schedule triggers and rejected for others.
+	 * See ChatProjectTrigger.Schedule.
+	 */
+	readonly schedule?: string;
+	readonly events?: readonly string[];
+	readonly repository?: string;
+	readonly channel?: string;
+	/**
+	 * ContinueConversations defaults to true for Slack triggers and false
+	 * otherwise.
+	 */
+	readonly continue_conversations?: boolean;
+	/**
+	 * BusyBehavior defaults to queue.
+	 */
+	readonly busy_behavior?: ChatProjectTriggerBusyBehavior;
+	/**
+	 * SlackSigningSecret is the Slack app's signing secret. When set,
+	 * requests must carry a valid X-Slack-Signature. Only Slack triggers
+	 * accept it, and it is never returned.
+	 */
+	readonly slack_signing_secret?: string;
+	/**
+	 * GitHubWebhookSecret is the secret configured on the GitHub webhook.
+	 * When set, deliveries must carry a valid X-Hub-Signature-256. Only
+	 * GitHub triggers accept it, and it is never returned.
+	 */
+	readonly github_webhook_secret?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatProjectTriggerResponse is returned once, when a trigger is
+ * created. WebhookURL embeds the secret and cannot be retrieved again. It is
+ * empty for schedule triggers, which have no webhook.
+ */
+export interface CreateChatProjectTriggerResponse {
+	readonly trigger: ChatProjectTrigger;
+	readonly webhook_url: string;
 }
 
 // From codersdk/chats.go
@@ -4409,6 +4904,12 @@ export interface CreateMCPServerConfigRequest {
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
+	/**
+	 * APIKeyPrefix is sent before each user's token for user_api_key
+	 * servers. It defaults to "Bearer "; send "" for a bare token.
+	 * APIKeyHeader defaults to Authorization for user_api_key servers.
+	 */
+	readonly api_key_prefix?: string;
 	readonly custom_headers?: Record<string, string>;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
@@ -6597,6 +7098,16 @@ export const MCPEndpoint = "/api/experimental/mcp/http";
 
 // From codersdk/mcp.go
 /**
+ * MCPServerAuthTypeUserAPIKey is the auth type where every user stores
+ * their own token for the server. Chats send only their owner's token, in
+ * APIKeyHeader after APIKeyPrefix.
+ *
+ *nolint:gosec // An auth type name, not a credential.
+ */
+export const MCPServerAuthTypeUserAPIKey = "user_api_key";
+
+// From codersdk/mcp.go
+/**
  * MCPServerConfig represents an admin-configured MCP server.
  */
 export interface MCPServerConfig {
@@ -6608,7 +7119,7 @@ export interface MCPServerConfig {
 	readonly icon_url: string;
 	readonly transport: string; // "streamable_http" or "sse"
 	readonly url: string;
-	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc", "user_api_key"
 	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
@@ -6620,10 +7131,17 @@ export interface MCPServerConfig {
 	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	/**
-	 * API key fields (only populated for admins).
+	 * API key fields (only populated for admins, except that user_api_key
+	 * servers show every reader the header and prefix their token is sent
+	 * with).
 	 */
 	readonly api_key_header?: string;
 	readonly has_api_key: boolean;
+	/**
+	 * APIKeyPrefix is sent before each user's token for user_api_key
+	 * servers, such as "Bearer ".
+	 */
+	readonly api_key_prefix?: string;
 	readonly has_custom_headers: boolean;
 	/**
 	 * Tool governance.
@@ -6649,7 +7167,9 @@ export interface MCPServerConfig {
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
-	 * Per-user state (populated for non-admin requests).
+	 * Per-user state (populated for non-admin requests). For oauth2 it
+	 * reports a usable token; for user_api_key it reports whether the
+	 * caller has stored a token.
 	 */
 	readonly auth_connected: boolean;
 }
@@ -6686,6 +7206,63 @@ export interface MCPServerConfigUser extends MinimalUser {
 }
 
 // From codersdk/mcp.go
+export type MCPServerCredentialKind = "github_app" | "token";
+
+export const MCPServerCredentialKinds: MCPServerCredentialKind[] = [
+	"github_app",
+	"token",
+];
+
+// From codersdk/mcp.go
+/**
+ * MCPServerGitHubApp is the public part of a stored GitHub App
+ * credential. The private key is never returned.
+ */
+export interface MCPServerGitHubApp {
+	readonly app_id: number;
+	readonly installation_id: number;
+	readonly repositories: readonly string[];
+	/**
+	 * UseForGit is true when git in the agent's workspaces signs in as
+	 * the app.
+	 */
+	readonly use_for_git: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerGitHubAppCredentialRequest identifies a GitHub App
+ * installation. Coder checks it by minting a token before saving it.
+ */
+export interface MCPServerGitHubAppCredentialRequest {
+	/**
+	 * AppID is the numeric app ID from the app's settings page.
+	 */
+	readonly app_id: number;
+	/**
+	 * InstallationID is the number at the end of the installation's
+	 * settings URL.
+	 */
+	readonly installation_id: number;
+	/**
+	 * PrivateKey is the app's PEM private key. It is never returned. Leave
+	 * it empty to keep the stored key when only other fields change.
+	 */
+	readonly private_key?: string;
+	/**
+	 * Repositories limits tokens to these repository names. Empty means
+	 * every repository the installation can access.
+	 */
+	readonly repositories?: readonly string[];
+	/**
+	 * UseForGit also gives the app's identity to git in the agent's
+	 * workspaces, such as git clone and git push. Git reaches the same
+	 * repositories as the app's other tokens.
+	 */
+	readonly use_for_git?: boolean;
+}
+
+// From codersdk/mcp.go
 /**
  * MCPServerOAuth2DisconnectResponse reports whether the removed token
  * was also revoked at the OAuth provider.
@@ -6693,6 +7270,24 @@ export interface MCPServerConfigUser extends MinimalUser {
 export interface MCPServerOAuth2DisconnectResponse {
 	readonly token_revoked: boolean;
 	readonly token_revocation_error?: string;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerUserTokenStatus reports whether a user has a token for a
+ * user_api_key MCP server. The token itself is never returned.
+ */
+export interface MCPServerUserTokenStatus {
+	readonly has_token: boolean;
+	readonly updated_at?: string;
+	/**
+	 * CredentialKind is set when HasToken is true.
+	 */
+	readonly credential_kind?: MCPServerCredentialKind;
+	/**
+	 * GitHubApp is set for the github_app kind.
+	 */
+	readonly github_app?: MCPServerGitHubApp;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -7939,6 +8534,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly user_created_at: string;
 	readonly user_updated_at: string;
 	readonly is_service_account?: boolean;
+	readonly is_agent?: boolean;
 	readonly global_roles: readonly SlimRole[];
 	/**
 	 * HasAISeat intentionally omits omitempty so the API always includes the
@@ -8987,6 +9583,11 @@ export interface ReducedUser extends MinimalUser {
 	readonly status: UserStatus;
 	readonly login_type: LoginType;
 	readonly is_service_account?: boolean;
+	/**
+	 * IsAgent is true for the user that a Coder Agent acts as. Agent users
+	 * cannot login.
+	 */
+	readonly is_agent?: boolean;
 	/**
 	 * @deprecated this value should be retrieved from
 	 * `codersdk.UserPreferenceSettings` instead.
@@ -10722,6 +11323,16 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatProjectACLRequest is a sparse update of a chat project ACL. Only
+ * listed principals change; ChatProjectRoleDeleted removes one.
+ */
+export interface UpdateChatProjectACLRequest {
+	readonly user_roles?: Record<string, ChatProjectRole>;
+	readonly group_roles?: Record<string, ChatProjectRole>;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatProjectInstructionsRequest sets a project's instructions. Use
  * DeleteChatProjectInstructions to clear them.
  */
@@ -10737,6 +11348,63 @@ export interface UpdateChatProjectRequest {
 	readonly name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	readonly allowed_template_ids?: string[];
+	readonly mcp_server_ids?: string[];
+	readonly external_auth_provider_ids?: string[];
+	/**
+	 * TemplateParameterRules replaces the project's parameter rules.
+	 */
+	readonly template_parameter_rules?: ChatProjectTemplateParameterRule[];
+	/**
+	 * InvokableAgentIDs replaces the agents this agent may invoke. Each
+	 * must be another agent in the same organization that the caller can
+	 * read.
+	 */
+	readonly invokable_agent_ids?: string[];
+	readonly workspace_tools_enabled?: boolean;
+	/**
+	 * ModelConfigID sets the agent's model. An empty string clears it, so
+	 * chats use the deployment default. Unset leaves it unchanged.
+	 */
+	readonly model_config_id?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectTriggerRequest updates a webhook trigger. The source
+ * cannot change because the webhook is configured in the sending service.
+ */
+export interface UpdateChatProjectTriggerRequest {
+	readonly name?: string;
+	readonly prompt?: string;
+	readonly enabled?: boolean;
+	readonly events?: string[];
+	readonly repository?: string;
+	readonly channel?: string;
+	readonly text_pattern?: string;
+	readonly text_pattern_is_regex?: boolean;
+	readonly ignore_thread_replies?: boolean;
+	readonly senders?: string[];
+	/**
+	 * ContinueConversations and BusyBehavior: see
+	 * ChatProjectTriggerConversationOptions.
+	 */
+	readonly continue_conversations?: boolean;
+	readonly busy_behavior?: ChatProjectTriggerBusyBehavior;
+	/**
+	 * SlackSigningSecret replaces the Slack signing secret. An empty string
+	 * removes it and turns signature verification off.
+	 */
+	readonly slack_signing_secret?: string;
+	/**
+	 * GitHubWebhookSecret replaces the GitHub webhook secret. An empty
+	 * string removes it and turns signature verification off.
+	 */
+	readonly github_webhook_secret?: string;
+	/**
+	 * Schedule replaces a schedule trigger's cron expression.
+	 */
+	readonly schedule?: string;
 }
 
 // From codersdk/chats.go
@@ -10890,6 +11558,10 @@ export interface UpdateMCPServerConfigRequest {
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
+	/**
+	 * APIKeyPrefix: see CreateMCPServerConfigRequest.
+	 */
+	readonly api_key_prefix?: string;
 	readonly custom_headers?: Record<string, string>;
 	readonly tool_allow_list?: string[];
 	readonly tool_deny_list?: string[];
@@ -10907,6 +11579,28 @@ export interface UpdateMCPServerConfigRequest {
 	 * an empty string clears it. It is never returned.
 	 */
 	readonly signing_secret?: string;
+}
+
+// From codersdk/mcp.go
+/**
+ * UpdateMCPServerUserTokenRequest stores the caller's own token for a
+ * user_api_key MCP server. An agent's owner can instead store a GitHub App
+ * credential for the agent.
+ */
+export interface UpdateMCPServerUserTokenRequest {
+	/**
+	 * CredentialKind defaults to github_app when GitHubApp is set and to
+	 * token otherwise. github_app is only accepted for an agent.
+	 */
+	readonly credential_kind?: MCPServerCredentialKind;
+	/**
+	 * Token is required for the token kind.
+	 */
+	readonly token?: string;
+	/**
+	 * GitHubApp is required for the github_app kind.
+	 */
+	readonly github_app?: MCPServerGitHubAppCredentialRequest;
 }
 
 // From codersdk/notifications.go

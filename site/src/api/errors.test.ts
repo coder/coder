@@ -1,6 +1,7 @@
 import { mockApiError } from "#/testHelpers/entities";
 import {
 	getErrorMessage,
+	getErrorMessageWithValidations,
 	getValidationErrorMessage,
 	isApiError,
 	isWorkspaceNotFound,
@@ -42,6 +43,32 @@ describe("mapApiErrorToFieldErrors", () => {
 		).toEqual({
 			username: "Username is already in use",
 		});
+	});
+});
+
+describe("getErrorMessageWithValidations", () => {
+	it("appends the validation messages to the message", () => {
+		expect(
+			getErrorMessageWithValidations(
+				mockApiError({
+					message: "Invalid trigger.",
+					validations: [{ field: "repository", detail: "Use owner/name." }],
+				}),
+				"Failed to save.",
+			),
+		).toEqual("Invalid trigger. Use owner/name.");
+	});
+
+	it("leaves out a validation message that repeats the message", () => {
+		expect(
+			getErrorMessageWithValidations(
+				mockApiError({
+					message: "Use owner/name.",
+					validations: [{ field: "repository", detail: "Use owner/name." }],
+				}),
+				"Failed to save.",
+			),
+		).toEqual("Use owner/name.");
 	});
 });
 

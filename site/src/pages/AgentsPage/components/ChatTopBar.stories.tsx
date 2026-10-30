@@ -4,10 +4,13 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
+	MockChatProject,
+	MockChatSecurityAgent,
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
@@ -134,6 +137,45 @@ export const WithParentChat: Story = {
 			{
 				key: chatEntityKey(mockParentChat.id),
 				data: mockParentChat,
+			},
+		],
+	},
+};
+
+const mockSecurityAgentWithIcon = {
+	...MockChatSecurityAgent,
+	icon: "/icon/github.svg",
+};
+
+export const WithAgent: Story = {
+	args: { chat: { ...MockChat, project_id: MockChatProject.id } },
+	parameters: {
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockSecurityAgentWithIcon],
+			},
+		],
+	},
+};
+
+export const WithAgentAndParentChat: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			project_id: MockChatSecurityAgent.id,
+			parent_chat_id: mockParentChat.id,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockSecurityAgentWithIcon],
+			},
+			{
+				key: chatEntityKey(mockParentChat.id),
+				data: { ...mockParentChat, project_id: MockChatProject.id },
 			},
 		],
 	},
@@ -452,7 +494,7 @@ export const RenameChatItem: Story = {
 			expect(
 				body.getByRole("menuitem", { name: "Rename chat" }),
 			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive chat")).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
@@ -538,7 +580,7 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive chat")).toBeInTheDocument();
 			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
 	},

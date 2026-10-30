@@ -2080,9 +2080,9 @@ export const WithOrganizationAndProjectPickers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /^Project:/ }),
+			await canvas.findByRole("button", { name: /^Agent:/ }),
 		);
-		await screen.findByRole("button", { name: "New project" });
+		await screen.findByRole("button", { name: "New agent" });
 	},
 };
 

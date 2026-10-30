@@ -47,6 +47,7 @@ import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { aiBudgetRangeError, maxAIBudgetDollars } from "#/modules/groups";
+import { userListSubtitle, userListTitle } from "#/modules/users/userLabels";
 import {
 	dollarsToMicros,
 	formatBudgetUSD,
@@ -159,8 +160,8 @@ export const UserAIBudgetOverrideDialog: React.FC<
 								src={user.avatar_url}
 							/>
 						}
-						title={user.username}
-						subtitle={user.is_service_account ? "Service Account" : user.email}
+						title={userListTitle(user)}
+						subtitle={userListSubtitle(user)}
 					/>
 				</div>
 

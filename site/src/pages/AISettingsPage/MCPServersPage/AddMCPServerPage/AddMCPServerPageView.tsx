@@ -10,6 +10,8 @@ type AddMCPServerPageViewProps = {
 	canCreate: boolean;
 	canViewServerList: boolean;
 	canSelectUserOIDC: boolean;
+	/** The deployment URL that built-in servers are served from. */
+	accessURL: string;
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
@@ -24,6 +26,7 @@ const AddMCPServerPageView: React.FC<AddMCPServerPageViewProps> = ({
 	canCreate,
 	canViewServerList,
 	canSelectUserOIDC,
+	accessURL,
 	organizations,
 	organization,
 	onSelectOrganization,
@@ -35,6 +38,7 @@ const AddMCPServerPageView: React.FC<AddMCPServerPageViewProps> = ({
 			<title>{pageTitle("Add server", "AI Settings")}</title>
 			{canCreate ? (
 				<MCPServerForm
+					accessURL={accessURL}
 					listPath={
 						canViewServerList ? mcpServersPath(organization) : undefined
 					}

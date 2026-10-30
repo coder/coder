@@ -1185,6 +1185,20 @@ func (api *API) normalizeRequestedChatMCPServerIDs(ctx context.Context, chat dat
 	if requested == nil {
 		return nil, 0, nil
 	}
+	agentServerIDs, isAgentChat, err := api.agentChatMCPServerIDs(ctx, chat.OwnerID)
+	if err != nil {
+		return nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to validate MCP server IDs.",
+			Detail:  err.Error(),
+		}
+	}
+	if isAgentChat {
+		// The agent decides its tools. A selection can only narrow them.
+		limited := slices.DeleteFunc(slices.Clone(*requested), func(id uuid.UUID) bool {
+			return !slices.Contains(agentServerIDs, id)
+		})
+		requested = &limited
+	}
 	normalized, invalid, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *requested)
 	if err != nil {
 		return nil, http.StatusInternalServerError, &codersdk.Response{
@@ -1270,6 +1284,45 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 		ownerID = *req.OwnerID
 	}
+	// A chat in an agent is owned by the agent's user and runs with the
+	// agent's credentials. Anyone who can use the agent may start one and
+	// gets the chat shared back to them. Lookup failures fall through to
+	// the project checks below, which report them.
+	var agentCtx context.Context
+	if req.ProjectID != nil && api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
+		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+		if err == nil && project.OrganizationID == req.OrganizationID {
+			accessible, err := chatProjectAccessibleByUser(ctx, api.Database, project, apiKey.UserID)
+			if err != nil {
+				httpapi.InternalServerError(rw, xerrors.Errorf("check chat project access: %w", err))
+				return
+			}
+			if accessible {
+				if ownerID != apiKey.UserID {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "owner_id cannot be set for a chat in an agent. The agent owns its chats.",
+					})
+					return
+				}
+				// The caller still needs to be allowed chats of their own.
+				if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+					httpapi.Forbidden(rw)
+					return
+				}
+				project, agentCtx, err = api.chatProjectAgentContext(ctx, project)
+				if err != nil {
+					var agentErr *chatProjectAgentError
+					if errors.As(err, &agentErr) {
+						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: agentErr.message})
+						return
+					}
+					httpapi.InternalServerError(rw, err)
+					return
+				}
+				ownerID = project.AgentUserID.UUID
+			}
+		}
+	}
 	if ownerID == apiKey.UserID {
 		// Validate organization membership.
 		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
@@ -1292,7 +1345,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// to the correct org. The request body is bounded by the ReadLimit above,
 	// limiting the cost of parsing before rejection.
 	chatObject := rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)
-	if !api.Authorize(r, policy.ActionCreate, chatObject) {
+	if agentCtx == nil && !api.Authorize(r, policy.ActionCreate, chatObject) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1300,9 +1353,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// OIDC and provider tokens), so creating a chat for another user is
 	// acting as that user. Org-scoped chat permissions are not enough:
 	// require the same authority the token endpoint demands to mint a
-	// session for that user.
+	// session for that user. Agent chats were authorized above through
+	// the agent.
 	ownerCtx := ctx
-	if ownerID != apiKey.UserID {
+	if agentCtx != nil {
+		ownerCtx = agentCtx
+	} else if ownerID != apiKey.UserID {
 		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
 			httpapi.Forbidden(rw)
 			return
@@ -1356,6 +1412,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := uuid.NullUUID{}
+	var projectMCPServerIDs []uuid.UUID
+	var projectModelConfigID uuid.NullUUID
 	if req.ProjectID != nil {
 		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
 		if err != nil {
@@ -1369,11 +1427,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// Projects are private to their owner, and a chat in a project reads
-		// and writes its memory, so the chat's owner must own the project.
-		// This matches the unreadable-project response so callers creating
-		// chats for other users cannot probe for project IDs.
-		if project.OwnerID != ownerID {
+		// A chat in a project reads and writes its memory, so the chat's
+		// owner must own the project or have it shared with them. This
+		// matches the unreadable-project response so callers creating chats
+		// for other users cannot probe for project IDs.
+		accessible, err := chatProjectAccessibleByUser(ctx, api.Database, project, ownerID)
+		if err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("check chat project access: %w", err))
+			return
+		}
+		if !accessible {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}
@@ -1382,6 +1445,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+		projectMCPServerIDs = project.MCPServerIDs
+		projectModelConfigID = project.ModelConfigID
 	}
 
 	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1408,7 +1473,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		titleSource = database.ChatTitleSourceUser
 	}
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ownerCtx, ownerID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ownerCtx, ownerID, req, projectModelConfigID)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1421,6 +1486,24 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// An agent's MCP servers attach to every chat created in it. Servers
+	// that were disabled or deleted since are skipped rather than failing.
+	// A chat the agent owns runs with the agent's credentials, so it only
+	// gets the agent's servers, whatever the request lists.
+	if agentCtx != nil {
+		req.MCPServerIDs = nil
+	}
+	if len(projectMCPServerIDs) > 0 {
+		projectServers, unavailable, err := validateChatMCPServerIDs(ownerCtx, api.Database, req.OrganizationID, projectMCPServerIDs)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		projectServers = slices.DeleteFunc(projectServers, func(id uuid.UUID) bool {
+			return slices.Contains(unavailable, id)
+		})
+		req.MCPServerIDs = append(slices.Clone(req.MCPServerIDs), projectServers...)
+	}
 	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ownerCtx, api.Database, req.OrganizationID, req.MCPServerIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1598,6 +1681,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			Message: "Developer error: ParentChatID got set somehow in api.postChats. This should never happen.",
 		})
 		return
+	}
+
+	if agentCtx != nil {
+		if err := shareChatProjectAgentChat(ownerCtx, api.Database, chat.ID, apiKey.UserID); err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	chat, err = api.Database.GetChatByID(ownerCtx, chat.ID)
@@ -2855,11 +2945,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// processing forwards the *owner's* credentials (OIDC tokens,
 	// provider API keys) to external services. Allowing a
 	// non-owner to trigger processing would leak the owner's
-	// tokens to MCP servers the caller controls.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may send messages.",
-		})
+	// tokens to MCP servers the caller controls. Chats owned by an
+	// agent's user carry the agent's credentials, which are meant for
+	// everyone who can use the agent; see canDriveChat.
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may send messages.") {
 		return
 	}
 
@@ -3109,10 +3198,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may edit messages. See postChatMessages
 	// for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may edit messages.",
-		})
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may edit messages.") {
 		return
 	}
 
@@ -3326,10 +3412,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	// Only the chat owner may promote messages. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may promote queued messages.",
-		})
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may promote queued messages.") {
 		return
 	}
 
@@ -3660,10 +3743,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	// Only the chat owner may trigger compaction. Org admins pass the
 	// RBAC check above (org-level ActionUpdate), but compaction runs
 	// inference with the owner's delegated credentials.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may compact the chat.",
-		})
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may compact the chat.") {
 		return
 	}
 
@@ -3729,10 +3809,7 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 	// Only the chat owner may clear the context, matching the
 	// compaction endpoint so the two context operations share
 	// authorization semantics.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may clear the chat context.",
-		})
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may clear the chat context.") {
 		return
 	}
 
@@ -3840,10 +3917,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may propose titles. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may propose a title.",
-		})
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may propose a title.") {
 		return
 	}
 
@@ -4620,10 +4694,16 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	return selection, 0, nil
 }
 
+// resolveCreateChatModelConfigID picks the model of a new chat: the one the
+// request names, then the model of the agent the chat is in, then the
+// owner's personal override, then the organization default. An agent model
+// the owner cannot use, for example because it was deleted or disabled, is
+// skipped so the chat still starts.
 func (api *API) resolveCreateChatModelConfigID(
 	ctx context.Context,
 	userID uuid.UUID,
 	req codersdk.CreateChatRequest,
+	agentModelConfigID uuid.NullUUID,
 ) (uuid.UUID, *string, int, *codersdk.Response) {
 	if req.ModelConfigID != nil {
 		if *req.ModelConfigID == uuid.Nil {
@@ -4635,6 +4715,24 @@ func (api *API) resolveCreateChatModelConfigID(
 			return uuid.Nil, nil, status, resp
 		}
 		return *req.ModelConfigID, nil, 0, nil
+	}
+
+	if agentModelConfigID.Valid {
+		_, reason, err := api.userCanUseChatModelConfig(ctx, userID, req.OrganizationID, agentModelConfigID.UUID)
+		if err != nil {
+			return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
+				Message: "Failed to resolve chat model config.",
+				Detail:  err.Error(),
+			}
+		}
+		if reason == chatModelConfigAvailable {
+			return agentModelConfigID.UUID, nil, 0, nil
+		}
+		api.Logger.Warn(ctx, "agent model is unavailable, using the default model",
+			slog.F("user_id", userID),
+			slog.F("model_config_id", agentModelConfigID.UUID),
+			slog.F("reason", reason),
+		)
 	}
 
 	overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, userID, req.OrganizationID)
@@ -7036,10 +7134,7 @@ func (api *API) chatWorkspaceUploadMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if apiKey.UserID != chat.OwnerID {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: chatWorkspaceUploadOwnerOnlyMessage,
-			})
+		if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, chatWorkspaceUploadOwnerOnlyMessage) {
 			return
 		}
 
@@ -9128,10 +9223,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may submit tool results. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may submit tool results.",
-		})
+	if !api.requireDriveChat(ctx, rw, apiKey.UserID, chat, "Only the chat owner may submit tool results.") {
 		return
 	}
 

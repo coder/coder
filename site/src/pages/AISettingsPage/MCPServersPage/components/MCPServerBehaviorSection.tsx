@@ -1,5 +1,4 @@
 import type { FormikContextType } from "formik";
-import { InfoIcon } from "lucide-react";
 import { Input } from "#/components/Input/Input";
 import {
 	Select,
@@ -8,14 +7,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { Switch } from "#/components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { SecretInput } from "./MCPServerAuthSection";
-import { Field } from "./MCPServerFormFieldPrimitives";
+import { Field, SwitchField } from "./MCPServerFormFieldPrimitives";
 import {
 	AVAILABILITY_OPTIONS,
 	type MCPServerFormValues,
@@ -30,6 +23,7 @@ type MCPServerBehaviorSectionProps = {
 export const MCPServerBehaviorSection: React.FC<
 	MCPServerBehaviorSectionProps
 > = ({ form, formId, disabled }) => {
+	const isBuiltIn = form.values.preset !== "custom";
 	return (
 		<>
 			<Field
@@ -86,8 +80,15 @@ export const MCPServerBehaviorSection: React.FC<
 					onCheckedChange={(checked) =>
 						void form.setFieldValue("forwardCoderHeaders", checked)
 					}
-					disabled={disabled}
+					// Built-in servers verify who is calling, so they cannot run
+					// without the headers.
+					disabled={disabled || (isBuiltIn && form.values.forwardCoderHeaders)}
 					tooltip="Only enable for first-party or trusted MCP servers."
+					description={
+						isBuiltIn
+							? "Built-in servers need the identity headers and a signing secret, so this setting stays on."
+							: undefined
+					}
 				/>
 			</div>
 			{form.values.forwardCoderHeaders && (
@@ -144,29 +145,3 @@ export const MCPServerBehaviorSection: React.FC<
 		</>
 	);
 };
-
-const SwitchField: React.FC<{
-	label: string;
-	checked: boolean;
-	onCheckedChange: (checked: boolean) => void;
-	disabled: boolean;
-	tooltip: string;
-}> = ({ label, checked, onCheckedChange, disabled, tooltip }) => (
-	<div className="flex items-center gap-3">
-		<Switch
-			checked={checked}
-			onCheckedChange={onCheckedChange}
-			disabled={disabled}
-			aria-label={label}
-		/>
-		<span className="text-sm text-content-primary">{label}</span>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<InfoIcon className="size-3 text-content-secondary" />
-			</TooltipTrigger>
-			<TooltipContent side="top" className="max-w-[260px]">
-				{tooltip}
-			</TooltipContent>
-		</Tooltip>
-	</div>
-);

@@ -18,3 +18,7 @@ var ChatRenderTemplateParameters = (*API).chatRenderTemplateParameters
 
 // NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
 var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
+
+// RunDueChatProjectScheduleTriggers exposes runDueChatProjectScheduleTriggers
+// so tests can run schedule triggers at a chosen time.
+var RunDueChatProjectScheduleTriggers = (*API).runDueChatProjectScheduleTriggers

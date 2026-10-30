@@ -2,6 +2,7 @@ package loggermw
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -101,6 +102,34 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 
 	// Check value of the status code
 	require.Equal(t, fieldsMap["status_code"], http.StatusOK)
+}
+
+func TestLoggerMiddleware_RedactsWebhookSecret(t *testing.T) {
+	t.Parallel()
+
+	const secret = "s3cr3t-webhook-value"
+	sink := testutil.NewFakeSink(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	router := chi.NewRouter()
+	router.Use(Logger(sink.Logger(), nil))
+	router.Post("/api/experimental/chat-triggers/{trigger}/webhook/{secret}", func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusAccepted)
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/api/experimental/chat-triggers/abc/webhook/"+secret, nil)
+	require.NoError(t, err)
+	router.ServeHTTP(&tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}, req)
+
+	entries := sink.Entries()
+	require.Len(t, entries, 1)
+	fields := make(map[string]any)
+	for _, field := range entries[0].Fields {
+		fields[field.Name] = field.Value
+		require.NotContains(t, fmt.Sprint(field.Value), secret, "field %q leaks the secret", field.Name)
+	}
+	require.Equal(t, "/api/experimental/chat-triggers/abc/webhook/REDACTED", fields["path"])
+	require.Equal(t, "REDACTED", fields["params_secret"])
+	require.Equal(t, "abc", fields["params_trigger"])
 }
 
 func TestLoggerMiddleware_HostFields(t *testing.T) {

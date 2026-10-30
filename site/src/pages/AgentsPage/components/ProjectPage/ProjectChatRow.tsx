@@ -90,7 +90,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		...pinOptions,
 		onError: (error, chatId, context) => {
 			pinOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to pin agent."));
+			toast.error(getErrorMessage(error, "Failed to pin chat."));
 		},
 	});
 	const unpinOptions = unpinChat(queryClient);
@@ -98,7 +98,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		...unpinOptions,
 		onError: (error, chatId, context) => {
 			unpinOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+			toast.error(getErrorMessage(error, "Failed to unpin chat."));
 		},
 	});
 	const archiveOptions = archiveChat(queryClient);
@@ -113,7 +113,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		},
 		onError: (error, chatId, context) => {
 			archiveOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
+			toast.error(getErrorMessage(error, "Failed to archive chat."));
 		},
 	});
 	const unarchiveOptions = unarchiveChat(queryClient);
@@ -122,7 +122,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		mutationKey,
 		onError: (error, chatId, context) => {
 			unarchiveOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+			toast.error(getErrorMessage(error, "Failed to unarchive chat."));
 		},
 	});
 

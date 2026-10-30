@@ -8,6 +8,7 @@ import {
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	chatDiffContentsKey,
 	chatEntityKey,
@@ -36,6 +37,7 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
+	MockChatProject,
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
 	MockUserPreferenceSettings,
@@ -1829,7 +1831,7 @@ export const CompletedWithDiffPanel: Story = {
 
 		// Workspace items moved to the workspace pill popover.
 		const body = within(document.body);
-		await body.findByText("Archive agent");
+		await body.findByText("Archive chat");
 	},
 };
 
@@ -3394,6 +3396,55 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+/**
+ * A chat in an agent drops MCP servers the agent does not have, so the
+ * composer shows only the agent's servers.
+ */
+export const AgentChatShowsOnlyAgentMCPServers: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Agent chat MCP servers",
+					status: "waiting",
+					project_id: MockChatProject.id,
+					mcp_server_ids: [MockMCPServerConfig.id, "mcp-not-in-agent"],
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{
+					diffUrl: undefined,
+					mcpServers: [
+						MockMCPServerConfig,
+						{
+							...MockMCPServerConfig,
+							id: "mcp-not-in-agent",
+							display_name: "Not in the agent",
+						},
+					],
+				},
+			),
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						mcp_server_ids: [MockMCPServerConfig.id],
+					},
+				],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Remove MCP Server" });
 	},
 };
 

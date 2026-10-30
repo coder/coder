@@ -20,8 +20,8 @@ export const ArchiveAndDeleteWorkspaceDialog: React.FC<
 		onCancel={onCancel}
 		entity="workspace"
 		name={workspace?.name ?? ""}
-		title="Archive agent & delete workspace"
+		title="Archive chat & delete workspace"
 		verb="Archiving and deleting"
-		info="This will archive the agent and permanently delete the associated workspace and all its resources."
+		info="This will archive the chat and permanently delete the associated workspace and all its resources."
 	/>
 );

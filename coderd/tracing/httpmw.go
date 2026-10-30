@@ -87,7 +87,7 @@ func Middleware(
 			// excludes the query string because span names are exported to
 			// tracing backends at span start and some endpoints accept
 			// bearer credentials as query parameters.
-			r, span := StartHTTPSpan(tracer, rw, r, fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+			r, span := StartHTTPSpan(tracer, rw, r, fmt.Sprintf("%s %s", r.Method, RedactURLPath(r.URL.Path)))
 			defer span.End()
 
 			if sessionID != "" {

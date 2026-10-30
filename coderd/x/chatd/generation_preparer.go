@@ -3,6 +3,7 @@ package chatd
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -187,6 +188,7 @@ func (server *Server) prepareGeneration(
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
 	isRootChat := !chat.ParentChatID.Valid
+	workspaceToolsEnabled := server.chatWorkspaceToolsEnabled(ctx, chat)
 
 	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
 		mcpConfigs,
@@ -467,11 +469,22 @@ func (server *Server) prepareGeneration(
 			if err != nil {
 				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
+			agentServers, err := server.agentAttachedMCPServers(ctx, chat.OwnerID)
+			if err != nil {
+				return err
+			}
+			mcpTokens = onlyAttachedMCPTokens(agentServers, mcpTokens)
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			var githubAppFailures map[uuid.UUID]mcpclient.ConnectSummary
+			mcpTokens, githubAppFailures = server.githubAppMCPTokens(ctx, logger, chat.OwnerID, agentServers, mcpConnectConfigs, mcpTokens)
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
 			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
 				if !cfg.Enabled {
+					continue
+				}
+				if failure, ok := githubAppFailures[cfg.ID]; ok {
+					invalidConfigs = append(invalidConfigs, failure)
 					continue
 				}
 				srv, err := mcpclient.ServerFromConfig(cfg)
@@ -521,7 +534,7 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
+	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent && workspaceToolsEnabled {
 		g2.Go(func() error {
 			var err error
 			workspaceMCPTools, err = server.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
@@ -597,6 +610,12 @@ func (server *Server) prepareGeneration(
 	if advisorRuntime != nil {
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
+	if !workspaceToolsEnabled {
+		prompt = chatprompt.InsertSystem(prompt, workspaceToolsDisabledInstruction)
+	}
+	if hint := missingMCPTokenInstruction(mcpConnectConfigs, mcpSummaries); hint != "" {
+		prompt = chatprompt.InsertSystem(prompt, hint)
+	}
 	prompt = renderPlanPathPrompt(prompt, planPathBlock)
 	compactionPromptMessages := prompt
 	pendingUserRows := promptRows[pendingRowsStart:]
@@ -636,6 +655,9 @@ func (server *Server) prepareGeneration(
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 	}
+	if !workspaceToolsEnabled {
+		tools = nil
+	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
@@ -648,6 +670,18 @@ func (server *Server) prepareGeneration(
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
+			workspaceTools:  workspaceToolsEnabled,
+		})
+	} else if chat.ProjectID.Valid && !isExploreSubagent && workspaceToolsEnabled && !server.chatBorrowsWorkspace(ctx, chat) {
+		// A delegated chat bound to an invoked agent starts without the
+		// parent's workspace and manages its own, limited to the invoked
+		// agent's allowed templates. One that inherited the root chat's
+		// workspace only works in it.
+		tools = server.appendWorkspaceLifecycleTools(ctx, tools, rootChatToolsOptions{
+			chat:          chat,
+			modelConfigID: modelConfig.ID,
+			workspaceCtx:  &workspaceCtx,
+			workspaceMu:   &workspaceMu,
 		})
 	}
 
@@ -723,10 +757,10 @@ func (server *Server) prepareGeneration(
 		planMode:              currentPlanMode,
 		parentChatID:          chat.ParentChatID,
 		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
-		includeWorkspaceTools: !isExploreSubagent,
+		includeWorkspaceTools: !isExploreSubagent && workspaceToolsEnabled,
 	})
 	tools = append(tools, mcpTools...)
-	if !isExploreSubagent {
+	if !isExploreSubagent && workspaceToolsEnabled {
 		tools = append(tools, workspaceMCPTools...)
 	}
 	// Inline tools join after every trusted source so a name
@@ -963,6 +997,34 @@ func (server *Server) prepareGeneration(
 }
 
 // mcpConnectOutcome returns an error only when no server connected.
+// missingMCPTokenInstruction tells the model which attached MCP servers it
+// cannot use because the chat owner has not stored their own token, so it
+// can ask for one instead of guessing why tools are missing. It returns ""
+// when every server had a token.
+func missingMCPTokenInstruction(configs []database.MCPServerConfig, summaries []mcpclient.ConnectSummary) string {
+	names := make(map[uuid.UUID]string, len(configs))
+	for _, cfg := range configs {
+		names[cfg.ID] = cmp.Or(cfg.DisplayName, cfg.Slug)
+	}
+	var missing []string
+	for _, summary := range summaries {
+		if summary.Outcome != mcpclient.ConnectOutcomeMissingToken {
+			continue
+		}
+		missing = append(missing, fmt.Sprintf("%s (%s)", cmp.Or(names[summary.ConfigID], summary.Slug), summary.Slug))
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	slices.Sort(missing)
+	return "These MCP servers are attached to this chat, but their tools are " +
+		"unavailable because the chat's owner has not added a personal token " +
+		"for them: " + strings.Join(missing, ", ") + ". If the task needs one " +
+		"of them, tell the user to add a token for it: in their MCP server " +
+		"settings for their own chats, or, for an agent's chats, on the " +
+		"agent's connected accounts, which only the agent's owner can change."
+}
+
 func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed int, err error) {
 	var failures []string
 	for _, summary := range summaries {

@@ -13,6 +13,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import {
@@ -22,6 +23,14 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { getFormHelpers } from "#/utils/formUtils";
+import {
+	chatProjectDescriptionMaxChars,
+	chatProjectFieldsSchema,
+	chatProjectIconMaxChars,
+	chatProjectNameMaxChars,
+	measureLength,
+} from "../../chatProjectFields";
+import { OptionCheckbox } from "../../ProjectPage/OptionCheckbox";
 
 /** @public */
 export type ChatProjectFormValues = {
@@ -30,33 +39,24 @@ export type ChatProjectFormValues = {
 	name: string;
 	description: string;
 	icon: string;
+	/** MCP servers to attach to a new agent. Set only to a non-empty list. */
+	mcpServerIds?: string[];
 };
 
-// Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
-const chatProjectNameMaxChars = 64;
-const chatProjectDescriptionMaxChars = 1024;
-const chatProjectIconMaxChars = 256;
+/** The form's own values: the MCP servers are always a list, maybe empty. */
+type ChatProjectDialogFormValues = Omit<
+	ChatProjectFormValues,
+	"mcpServerIds"
+> & {
+	mcpServerIds: string[];
+};
 
-// Counts code points of the value as submitted, as the server does. Yup's
-// max() and native maxLength count UTF-16 units.
-const measureLength = (value: string) => [...value.trim()].length;
-
-const maxCharacters = (label: string, max: number) =>
-	Yup.string()
-		.trim()
-		.test(
-			"max-characters",
-			`${label} cannot be longer than ${max} characters.`,
-			(value = "") => measureLength(value) <= max,
-		);
-
-const validationSchema = Yup.object({
-	name: maxCharacters("Name", chatProjectNameMaxChars).required(
-		"Name is required.",
-	),
-	description: maxCharacters("Description", chatProjectDescriptionMaxChars),
-	icon: maxCharacters("Icon", chatProjectIconMaxChars),
-});
+/** A built-in MCP server of an organization that a new agent can start with. */
+export type QuickAddMCPServer = {
+	readonly id: string;
+	readonly label: string;
+	readonly iconURL: string;
+};
 
 const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
 	name: values.name.trim(),
@@ -85,6 +85,13 @@ type ChatProjectDialogProps = {
 	readonly project?: ChatProject;
 	readonly organizations?: readonly Organization[];
 	readonly initialOrganizationId?: Organization["id"];
+	/**
+	 * Built-in MCP servers each organization has, by organization ID. A new
+	 * agent can start with any of them.
+	 */
+	readonly quickAddMCPServers?: Readonly<
+		Record<string, readonly QuickAddMCPServer[]>
+	>;
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly isSubmitting: boolean;
@@ -107,6 +114,7 @@ export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 	project,
 	organizations = [],
 	initialOrganizationId,
+	quickAddMCPServers = {},
 	open,
 	onOpenChange,
 	isSubmitting,
@@ -135,6 +143,7 @@ export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 					project={project}
 					organizations={organizations}
 					initialOrganizationId={initialOrganizationId}
+					quickAddMCPServers={quickAddMCPServers}
 					isSubmitting={isPending}
 					error={error}
 					onCancel={() => handleOpenChange(false)}
@@ -149,6 +158,9 @@ type ChatProjectFormProps = {
 	readonly project?: ChatProject;
 	readonly organizations: readonly Organization[];
 	readonly initialOrganizationId?: Organization["id"];
+	readonly quickAddMCPServers: NonNullable<
+		ChatProjectDialogProps["quickAddMCPServers"]
+	>;
 	readonly isSubmitting: boolean;
 	readonly error: unknown;
 	readonly onCancel: () => void;
@@ -159,22 +171,24 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	project,
 	organizations,
 	initialOrganizationId,
+	quickAddMCPServers,
 	isSubmitting,
 	error,
 	onCancel,
 	onSubmit,
 }) => {
-	const form = useFormik<ChatProjectFormValues>({
+	const form = useFormik<ChatProjectDialogFormValues>({
 		initialValues: {
 			organizationId: project?.organization_id ?? initialOrganizationId ?? "",
 			name: project?.name ?? "",
 			description: project?.description ?? "",
 			icon: project?.icon ?? "",
+			mcpServerIds: [],
 		},
 		validateOnMount: true,
 		validationSchema: project
-			? validationSchema
-			: validationSchema.shape({
+			? chatProjectFieldsSchema
+			: chatProjectFieldsSchema.shape({
 					organizationId: Yup.string()
 						.required("Organization is required.")
 						.oneOf(
@@ -190,6 +204,10 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 			const submitted = {
 				...(!project && { organizationId: values.organizationId }),
 				...trimValues(values),
+				...(!project &&
+					values.mcpServerIds.length > 0 && {
+						mcpServerIds: values.mcpServerIds,
+					}),
 			};
 			try {
 				await onSubmit(submitted);
@@ -215,6 +233,8 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	const selectedOrganization = organizations.find(
 		(organization) => organization.id === form.values.organizationId,
 	);
+	const quickAddOptions =
+		quickAddMCPServers[form.values.organizationId ?? ""] ?? [];
 	const isUnchanged = isUnchangedEdit(project, form.values, form.initialValues);
 	const isSaving = isSubmitting || form.isSubmitting;
 	const canCreate = form.dirty && selectedOrganization !== undefined;
@@ -234,14 +254,12 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	return (
 		<>
 			<DialogHeader>
-				<DialogTitle>
-					{project ? "Edit project" : "Create a project"}
-				</DialogTitle>
+				<DialogTitle>{project ? "Edit agent" : "Create an agent"}</DialogTitle>
 			</DialogHeader>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
 				<FormField
 					field={nameField}
-					label={project ? "Name" : "Project name"}
+					label={project ? "Name" : "Agent name"}
 					required
 					disabled={isSubmitting}
 					autoFocus
@@ -268,7 +286,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 						required
 						description={
 							organizations.length === 0
-								? "No organizations are available. You need access to an organization to create a project."
+								? "No organizations are available. You need access to an organization to create an agent."
 								: !selectedOrganization && form.values.organizationId
 									? "The selected organization is no longer available. Select another organization."
 									: undefined
@@ -283,14 +301,53 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 								}
 								value={selectedOrganization ?? null}
 								options={organizations}
-								onChange={(organization) =>
-									form.setFieldValue("organizationId", organization?.id ?? "")
-								}
+								onChange={(organization) => {
+									// The servers belong to the previous organization.
+									void form.setFieldValue("mcpServerIds", []);
+									return form.setFieldValue(
+										"organizationId",
+										organization?.id ?? "",
+									);
+								}}
 								required
 								disabled={isSubmitting}
 							/>
 						)}
 					/>
+				)}
+				{!project && quickAddOptions.length > 0 && (
+					<fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+						<legend className="mb-1 p-0 text-sm font-medium text-content-primary">
+							Start with MCP servers
+						</legend>
+						{quickAddOptions.map((server) => (
+							<OptionCheckbox
+								key={server.id}
+								label={server.label}
+								icon={
+									server.iconURL ? (
+										<ExternalImage
+											src={server.iconURL}
+											alt=""
+											className="size-4 shrink-0 object-contain"
+										/>
+									) : undefined
+								}
+								checked={form.values.mcpServerIds.includes(server.id)}
+								disabled={isSubmitting}
+								onCheckedChange={(checked) =>
+									void form.setFieldValue(
+										"mcpServerIds",
+										checked
+											? [...form.values.mcpServerIds, server.id]
+											: form.values.mcpServerIds.filter(
+													(id) => id !== server.id,
+												),
+									)
+								}
+							/>
+						))}
+					</fieldset>
 				)}
 				<IconField
 					{...iconField}
@@ -313,7 +370,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					</Button>
 					<Button type="submit" disabled={!canSave}>
 						<Spinner loading={isSaving} />
-						{project ? "Save" : "Create project"}
+						{project ? "Save" : "Create agent"}
 					</Button>
 				</DialogFooter>
 			</form>

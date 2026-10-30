@@ -10,10 +10,13 @@ import {
 	TabsTrigger,
 } from "./Tabs";
 
-const renderLinkTabs = (active = "overview") => {
+const renderLinkTabs = (
+	active = "overview",
+	variant?: "underline" | "pill",
+) => {
 	render(
 		<MemoryRouter>
-			<LinkTabs active={active}>
+			<LinkTabs active={active} variant={variant}>
 				<LinkTabsList>
 					<TabLink to="/overview" value="overview">
 						Overview
@@ -42,6 +45,20 @@ describe("LinkTabs", () => {
 			"page",
 		);
 		expect(screen.getByRole("link", { name: "Settings" })).not.toHaveAttribute(
+			"aria-current",
+		);
+	});
+});
+
+describe("LinkTabs pill variant", () => {
+	it("marks only the active link as the current page", () => {
+		renderLinkTabs("settings", "pill");
+
+		expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+		expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute(
 			"aria-current",
 		);
 	});

@@ -66,7 +66,12 @@ export const IconField: React.FC<IconFieldProps> = ({
 					disabled={disabled}
 					aria-invalid={error}
 					aria-describedby={
-						helperText ? (error ? errorId : helperId) : undefined
+						[
+							inputProps["aria-describedby"],
+							helperText ? (error ? errorId : helperId) : undefined,
+						]
+							.filter(Boolean)
+							.join(" ") || undefined
 					}
 					className={cn("min-w-0 placeholder:text-content-disabled", className)}
 					spellCheck={false}

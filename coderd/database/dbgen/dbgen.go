@@ -91,8 +91,37 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Icon:           seed.Icon,
+		AgentUserID:    seed.AgentUserID,
+		ModelConfigID:  seed.ModelConfigID,
 	})
 	require.NoError(t, err, "insert chat project")
+	if len(seed.AllowedTemplateIDs) > 0 || len(seed.MCPServerIDs) > 0 || len(seed.ExternalAuthProviderIDs) > 0 || len(seed.TemplateParameterRules) > 0 || len(seed.InvokableAgentIDs) > 0 {
+		project, err = db.UpdateChatProjectByID(genCtx, database.UpdateChatProjectByIDParams{
+			ID:                      project.ID,
+			Name:                    project.Name,
+			Description:             project.Description,
+			Icon:                    project.Icon,
+			AllowedTemplateIDs:      takeFirstSlice(seed.AllowedTemplateIDs, []uuid.UUID{}),
+			MCPServerIDs:            takeFirstSlice(seed.MCPServerIDs, []uuid.UUID{}),
+			ExternalAuthProviderIDs: takeFirstSlice(seed.ExternalAuthProviderIDs, []string{}),
+			TemplateParameterRules:  seed.TemplateParameterRules,
+			InvokableAgentIDs:       takeFirstSlice(seed.InvokableAgentIDs, []uuid.UUID{}),
+			WorkspaceToolsEnabled:   project.WorkspaceToolsEnabled,
+			ModelConfigID:           project.ModelConfigID,
+		})
+		require.NoError(t, err, "update chat project restrictions")
+	}
+	if len(seed.UserACL) > 0 || len(seed.GroupACL) > 0 {
+		project.UserACL, project.GroupACL = database.ChatACL{}, database.ChatACL{}
+		maps.Copy(project.UserACL, seed.UserACL)
+		maps.Copy(project.GroupACL, seed.GroupACL)
+		err = db.UpdateChatProjectACLByID(genCtx, database.UpdateChatProjectACLByIDParams{
+			ID:       project.ID,
+			UserACL:  project.UserACL,
+			GroupACL: project.GroupACL,
+		})
+		require.NoError(t, err, "update chat project ACL")
+	}
 	return project
 }
 
@@ -427,6 +456,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2Resource:          seed.OAuth2Resource,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
+		APIKeyPrefix:            seed.APIKeyPrefix,
 		APIKeyValue:             seed.APIKeyValue,
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
 		CustomHeaders:           seed.CustomHeaders,
@@ -1094,7 +1124,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	email := takeFirst(orig.Email, testutil.GetRandomName(t))
 	// A DB constraint requires login_type = 'none' and email = '' for service
 	// accounts.
-	if orig.IsServiceAccount {
+	if orig.IsServiceAccount || orig.IsAgent {
 		loginType = database.LoginTypeNone
 		email = ""
 	}
@@ -1111,6 +1141,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		LoginType:        loginType,
 		Status:           string(takeFirst(orig.Status, database.UserStatusDormant)),
 		IsServiceAccount: orig.IsServiceAccount,
+		IsAgent:          orig.IsAgent,
 	})
 	require.NoError(t, err, "insert user")
 

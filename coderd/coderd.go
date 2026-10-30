@@ -106,7 +106,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/githubapp"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/mcpbuiltin"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -706,7 +708,10 @@ func New(options *Options) *API {
 		ID:            uuid.New(),
 		Options:       options,
 		mcpHTTPClient: mcpHTTPClient,
-		RootHandler:   r,
+		// One cache per replica, shared by token checks, chats, and
+		// workspace git credentials.
+		githubAppTokens: githubapp.NewMinter(mcpHTTPClient, options.Clock),
+		RootHandler:     r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -730,6 +735,7 @@ func New(options *Options) *API {
 		ProfileCollector:            defaultProfileCollector{},
 		AISeatTracker:               aiseats.Noop{},
 	}
+	api.builtinMCP = api.newBuiltinMCPHandler()
 
 	api.ExperimentEvaluator, err = experimentrules.New(
 		options.Logger.Named("experiments"),
@@ -966,7 +972,8 @@ func New(options *Options) *API {
 				TracerProvider:                 options.TracerProvider,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
-				MCPHTTPClient:                  api.mcpHTTPClient,
+				MCPHTTPClient:                  api.chatMCPHTTPClient(),
+				GitHubAppTokens:                api.githubAppTokens,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 				Limits:                         api.chatLimits,
@@ -1102,6 +1109,8 @@ func New(options *Options) *API {
 		Clock:             quartz.NewReal(),
 	})
 	api.workspaceBuildOrchestrator.Start(api.ctx)
+	go api.backfillChatProjectAgentUsers(api.ctx)
+	go api.runChatProjectScheduleTriggers(api.ctx)
 
 	// The OAuth2 provider is opt-in. The flag is read once at startup, here
 	// and in the build info response and the AI bridge config, so a runtime
@@ -1407,6 +1416,9 @@ func New(options *Options) *API {
 		})
 
 		r.Route("/mcp", func(r chi.Router) {
+			// Built-in MCP servers authenticate with the caller's upstream
+			// API token, not a Coder session.
+			r.With(api.builtinMCPExperimentGate()).Mount("/builtin", api.builtinMCP)
 			// Providers pin the redirect URI when a session is established,
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
@@ -1497,6 +1509,8 @@ func New(options *Options) *API {
 			// Disconnect stays outside organization routes so former organization
 			// members can delete their stored token after losing config read access.
 			r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+			r.Put("/servers/{mcpServer}/user-token", api.putMCPServerUserToken)
+			r.Delete("/servers/{mcpServer}/user-token", api.deleteMCPServerUserToken)
 		})
 
 		r.Get("/updatecheck", api.updateCheck)
@@ -2242,6 +2256,11 @@ type API struct {
 
 	*Options
 	mcpHTTPClient *http.Client
+	// githubAppTokens mints GitHub App installation tokens for agents.
+	githubAppTokens *githubapp.Minter
+	// builtinMCP serves the built-in MCP servers, both publicly and
+	// in-process for chatd.
+	builtinMCP *mcpbuiltin.Handler
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a

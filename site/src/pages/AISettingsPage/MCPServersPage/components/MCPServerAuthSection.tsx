@@ -73,6 +73,9 @@ export const MCPServerAuthSection: React.FC<MCPServerAuthSectionProps> = ({
 			{form.values.authType === "custom_headers" && (
 				<CustomHeadersFields form={form} formId={formId} disabled={disabled} />
 			)}
+			{form.values.authType === "user_api_key" && (
+				<UserAPIKeyFields form={form} formId={formId} disabled={disabled} />
+			)}
 			{form.values.authType === "user_oidc" && (
 				<p className="m-0 text-sm text-content-secondary">
 					Coder will forward the user's OIDC identity to this MCP server.
@@ -201,6 +204,43 @@ const APIKeyFields: React.FC<MCPServerAuthFieldsProps> = ({
 						void form.setFieldValue("apiKeyValue", value)
 					}
 					onReset={() => void form.setFieldValue("apiKeyTouched", false)}
+					disabled={disabled}
+				/>
+			</Field>
+		</div>
+	</div>
+);
+
+const UserAPIKeyFields: React.FC<MCPServerAuthFieldsProps> = ({
+	form,
+	formId,
+	disabled,
+}) => (
+	<div className="space-y-3">
+		<p className="m-0 text-sm text-content-secondary">
+			No shared secret is stored. Each user adds their own token, and Coder
+			sends it in this header, after the prefix, for their chats only.
+		</p>
+		<div className="grid items-start gap-4 sm:grid-cols-2">
+			<Field label="Header name" htmlFor={`${formId}-user-key-header`} required>
+				<Input
+					id={`${formId}-user-key-header`}
+					className="shadow-none"
+					{...form.getFieldProps("apiKeyHeader")}
+					placeholder="Authorization"
+					disabled={disabled}
+				/>
+			</Field>
+			<Field
+				label="Value prefix"
+				htmlFor={`${formId}-user-key-prefix`}
+				description="Sent before the token, such as Bearer followed by a space."
+			>
+				<Input
+					id={`${formId}-user-key-prefix`}
+					className="shadow-none"
+					{...form.getFieldProps("apiKeyPrefix")}
+					placeholder="Bearer "
 					disabled={disabled}
 				/>
 			</Field>

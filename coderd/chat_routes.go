@@ -109,6 +109,12 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 // registerExperimentalChatRoutes mounts the chat routes that were not
 // promoted to /api/v2 on r, the /api/experimental root router.
 func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
+	// Webhook callers authenticate with the secret in the path, not a
+	// Coder session.
+	r.Route("/chat-triggers/{trigger}/webhook/{secret}", func(r chi.Router) {
+		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
+		r.Post("/", api.postChatProjectTriggerWebhook)
+	})
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
 		r.Route("/projects", func(r chi.Router) {
@@ -150,10 +156,41 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 			r.Get("/", api.getChatProject)
 			r.Patch("/", api.patchChatProject)
 			r.Delete("/", api.deleteChatProject)
+			r.Route("/acl", func(r chi.Router) {
+				r.Get("/", api.chatProjectACL)
+				r.Patch("/", api.patchChatProjectACL)
+				r.Get("/available", api.chatProjectACLAvailable)
+			})
+			r.Route("/external-auth", func(r chi.Router) {
+				r.Get("/", api.chatProjectExternalAuth)
+				r.Route("/{externalauth}", func(r chi.Router) {
+					r.Use(httpmw.ExtractExternalAuthParam(api.ExternalAuthConfigs))
+					r.Delete("/", api.deleteChatProjectExternalAuth)
+					r.Post("/connect", api.postChatProjectExternalAuthConnect)
+					r.Post("/device", api.postChatProjectExternalAuthDevice)
+				})
+			})
+			r.Route("/mcp-servers", func(r chi.Router) {
+				r.Get("/", api.listChatProjectMCPServerTokens)
+				r.Put("/{mcpServer}/token", api.putChatProjectMCPServerToken)
+				r.Delete("/{mcpServer}/token", api.deleteChatProjectMCPServerToken)
+			})
 			r.Route("/instructions", func(r chi.Router) {
 				r.Get("/", api.getChatProjectInstructions)
 				r.Put("/", api.putChatProjectInstructions)
 				r.Delete("/", api.deleteChatProjectInstructions)
+			})
+			r.Get("/runs", api.listChatProjectRuns)
+			r.Route("/triggers", func(r chi.Router) {
+				r.Get("/", api.listChatProjectTriggers)
+				r.Post("/", api.postChatProjectTrigger)
+				r.Route("/{trigger}", func(r chi.Router) {
+					r.Patch("/", api.patchChatProjectTrigger)
+					r.Delete("/", api.deleteChatProjectTrigger)
+					r.Post("/webhook-url", api.postChatProjectTriggerWebhookURL)
+					r.Post("/run", api.postChatProjectTriggerRun)
+					r.Get("/deliveries", api.listChatProjectTriggerDeliveries)
+				})
 			})
 			r.Route("/memories", func(r chi.Router) {
 				r.Get("/", api.listChatProjectMemories)

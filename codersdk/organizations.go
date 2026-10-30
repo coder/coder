@@ -87,6 +87,7 @@ type OrganizationMemberWithUserData struct {
 	UserCreatedAt    time.Time  `table:"user created at" json:"user_created_at" format:"date-time"`
 	UserUpdatedAt    time.Time  `table:"user updated at" json:"user_updated_at" format:"date-time"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
+	IsAgent          bool       `json:"is_agent,omitempty"`
 	GlobalRoles      []SlimRole `json:"global_roles"`
 	// HasAISeat intentionally omits omitempty so the API always includes the
 	// field, even when false.

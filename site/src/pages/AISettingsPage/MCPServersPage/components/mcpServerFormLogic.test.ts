@@ -43,6 +43,21 @@ describe("mcpServerFormLogic", () => {
 		expect(canSubmitMCPServerForm(validValues(), true)).toBe(false);
 	});
 
+	it("needs identity headers and a signing secret for a built-in server", () => {
+		const builtIn = buildInitialMCPServerFormValues(undefined, {
+			id: "slack",
+			accessURL: "https://coder.example.com",
+		});
+
+		expect(canSubmitMCPServerForm(builtIn, false)).toBe(true);
+		expect(
+			canSubmitMCPServerForm({ ...builtIn, forwardCoderHeaders: false }, false),
+		).toBe(false);
+		expect(
+			canSubmitMCPServerForm({ ...builtIn, signingSecret: "" }, false),
+		).toBe(false);
+	});
+
 	it("does not send placeholder OAuth2 secrets unless the value changes", () => {
 		const unchanged = buildCreateMCPServerConfigRequest(
 			validValues({

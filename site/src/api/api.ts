@@ -358,6 +358,8 @@ const chatModelPath = (organizationId: string, modelId: string) =>
 	`${chatModelsPath(organizationId)}/${encodeURIComponent(modelId)}`;
 const chatModelACLPath = (organizationId: string, modelId: string) =>
 	`${chatModelPath(organizationId, modelId)}/acl`;
+const chatProjectPath = (organizationId: string, projectId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/projects/${encodeURIComponent(projectId)}`;
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
@@ -382,6 +384,8 @@ export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
 	`${mcpServerConfigPath(organization, id)}/oauth2/connect`;
 const mcpServerOAuth2DisconnectPath = (id: string) =>
 	`/api/v2/mcp/servers/${encodeURIComponent(id)}/oauth2/disconnect`;
+const mcpServerUserTokenPath = (id: string) =>
+	`/api/v2/mcp/servers/${encodeURIComponent(id)}/user-token`;
 
 // Headers for chat file upload endpoints that stream the raw File as
 // the request body. The filename travels in Content-Disposition using
@@ -3334,6 +3338,219 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`${chatProjectPath(organizationId, projectId)}/acl`,
+		);
+		return response.data;
+	};
+
+	getChatProjectACLAvailable = async (
+		organizationId: string,
+		projectId: string,
+		options: TypesGen.UsersRequest,
+	): Promise<TypesGen.ACLAvailable> => {
+		const response = await this.axios.get<TypesGen.ACLAvailable>(
+			getURLWithSearchParams(
+				`${chatProjectPath(organizationId, projectId)}/acl/available`,
+				options,
+			),
+		);
+		return response.data;
+	};
+
+	updateChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectACLRequest,
+	): Promise<void> => {
+		await this.axios.patch(
+			`${chatProjectPath(organizationId, projectId)}/acl`,
+			req,
+		);
+	};
+
+	getChatProjectMCPServerTokens = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectMCPServerToken[]> => {
+		const response = await this.axios.get<TypesGen.ChatProjectMCPServerToken[]>(
+			`${chatProjectPath(organizationId, projectId)}/mcp-servers`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectMCPServerToken = async (
+		organizationId: string,
+		projectId: string,
+		mcpServerId: string,
+		req: TypesGen.UpdateMCPServerUserTokenRequest,
+	): Promise<TypesGen.MCPServerUserTokenStatus> => {
+		const response = await this.axios.put<TypesGen.MCPServerUserTokenStatus>(
+			`${chatProjectPath(organizationId, projectId)}/mcp-servers/${encodeURIComponent(mcpServerId)}/token`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProjectMCPServerToken = async (
+		organizationId: string,
+		projectId: string,
+		mcpServerId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`${chatProjectPath(organizationId, projectId)}/mcp-servers/${encodeURIComponent(mcpServerId)}/token`,
+		);
+	};
+
+	getChatProjectExternalAuth = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ListUserExternalAuthResponse> => {
+		const response =
+			await this.axios.get<TypesGen.ListUserExternalAuthResponse>(
+				`${chatProjectPath(organizationId, projectId)}/external-auth`,
+			);
+		return response.data;
+	};
+
+	connectChatProjectExternalAuth = async (
+		organizationId: string,
+		projectId: string,
+		provider: string,
+		req: TypesGen.ConnectChatProjectExternalAuthRequest,
+	): Promise<TypesGen.ConnectChatProjectExternalAuthResponse> => {
+		const response =
+			await this.axios.post<TypesGen.ConnectChatProjectExternalAuthResponse>(
+				`${chatProjectPath(organizationId, projectId)}/external-auth/${encodeURIComponent(provider)}/connect`,
+				req,
+			);
+		return response.data;
+	};
+
+	exchangeChatProjectExternalAuthDevice = async (
+		organizationId: string,
+		projectId: string,
+		provider: string,
+		req: TypesGen.ExternalAuthDeviceExchange,
+	): Promise<void> => {
+		await this.axios.post(
+			`${chatProjectPath(organizationId, projectId)}/external-auth/${encodeURIComponent(provider)}/device`,
+			req,
+		);
+	};
+
+	deleteChatProjectExternalAuth = async (
+		organizationId: string,
+		projectId: string,
+		provider: string,
+	): Promise<TypesGen.DeleteExternalAuthByIDResponse> => {
+		const response =
+			await this.axios.delete<TypesGen.DeleteExternalAuthByIDResponse>(
+				`${chatProjectPath(organizationId, projectId)}/external-auth/${encodeURIComponent(provider)}`,
+			);
+		return response.data;
+	};
+
+	getChatProjectRuns = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectRun[]> => {
+		const response = await this.axios.get<TypesGen.ChatProjectRun[]>(
+			`${chatProjectPath(organizationId, projectId)}/runs`,
+		);
+		return response.data;
+	};
+
+	getChatProjectTriggers = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectTrigger[]> => {
+		const response = await this.axios.get<TypesGen.ChatProjectTrigger[]>(
+			`${chatProjectPath(organizationId, projectId)}/triggers`,
+		);
+		return response.data;
+	};
+
+	createChatProjectTrigger = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.CreateChatProjectTriggerRequest,
+	): Promise<TypesGen.CreateChatProjectTriggerResponse> => {
+		const response =
+			await this.axios.post<TypesGen.CreateChatProjectTriggerResponse>(
+				`${chatProjectPath(organizationId, projectId)}/triggers`,
+				req,
+			);
+		return response.data;
+	};
+
+	updateChatProjectTrigger = async (
+		organizationId: string,
+		projectId: string,
+		triggerId: string,
+		req: TypesGen.UpdateChatProjectTriggerRequest,
+	): Promise<TypesGen.ChatProjectTrigger> => {
+		const response = await this.axios.patch<TypesGen.ChatProjectTrigger>(
+			`${chatProjectPath(organizationId, projectId)}/triggers/${encodeURIComponent(triggerId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProjectTrigger = async (
+		organizationId: string,
+		projectId: string,
+		triggerId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`${chatProjectPath(organizationId, projectId)}/triggers/${encodeURIComponent(triggerId)}`,
+		);
+	};
+
+	/** Replaces the trigger's secret. The previous webhook URL stops working. */
+	regenerateChatProjectTriggerWebhookURL = async (
+		organizationId: string,
+		projectId: string,
+		triggerId: string,
+	): Promise<TypesGen.CreateChatProjectTriggerResponse> => {
+		const response =
+			await this.axios.post<TypesGen.CreateChatProjectTriggerResponse>(
+				`${chatProjectPath(organizationId, projectId)}/triggers/${encodeURIComponent(triggerId)}/webhook-url`,
+			);
+		return response.data;
+	};
+
+	/** The trigger's recent webhook calls, newest first. */
+	getChatProjectTriggerDeliveries = async (
+		organizationId: string,
+		projectId: string,
+		triggerId: string,
+	): Promise<TypesGen.ChatProjectTriggerDelivery[]> => {
+		const response = await this.axios.get<
+			TypesGen.ChatProjectTriggerDelivery[]
+		>(
+			`${chatProjectPath(organizationId, projectId)}/triggers/${encodeURIComponent(triggerId)}/deliveries`,
+		);
+		return response.data;
+	};
+
+	/** Runs a schedule trigger now. Its next scheduled run stays the same. */
+	runChatProjectTrigger = async (
+		organizationId: string,
+		projectId: string,
+		triggerId: string,
+	): Promise<TypesGen.ChatProjectTriggerWebhookResponse> => {
+		const response =
+			await this.axios.post<TypesGen.ChatProjectTriggerWebhookResponse>(
+				`${chatProjectPath(organizationId, projectId)}/triggers/${encodeURIComponent(triggerId)}/run`,
+			);
+		return response.data;
+	};
+
 	getChatProjectInstructions = async (
 		organizationId: string,
 		projectId: string,
@@ -4201,6 +4418,21 @@ class ExperimentalApiMethods {
 		id: string,
 	): Promise<void> => {
 		await this.axios.delete(mcpServerConfigPath(organization, id));
+	};
+
+	updateMCPServerUserToken = async (
+		id: string,
+		req: TypesGen.UpdateMCPServerUserTokenRequest,
+	): Promise<TypesGen.MCPServerUserTokenStatus> => {
+		const response = await this.axios.put<TypesGen.MCPServerUserTokenStatus>(
+			mcpServerUserTokenPath(id),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteMCPServerUserToken = async (id: string): Promise<void> => {
+		await this.axios.delete(mcpServerUserTokenPath(id));
 	};
 
 	disconnectMCPServerOAuth2 = async (

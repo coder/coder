@@ -87,7 +87,7 @@ func Logger(log slog.Logger, hostResolver func(*http.Request) string) func(next 
 				slog.F("user_agent", r.Header.Get("User-Agent")),
 				slog.F("host", host),
 				slog.F("received_host", r.Host),
-				slog.F("path", r.URL.Path),
+				slog.F("path", tracing.RedactURLPath(r.URL.Path)),
 				slog.F("proto", r.Proto),
 				slog.F("remote_addr", r.RemoteAddr),
 				// Include the start timestamp in the log so that we have the
@@ -164,7 +164,7 @@ func (c *SlogRequestLogger) WriteLog(ctx context.Context, status int) {
 
 		for k, v := range urlParams.Keys {
 			if urlParams.Values[k] != "" {
-				routeParamsFields = append(routeParamsFields, slog.F("params_"+v, urlParams.Values[k]))
+				routeParamsFields = append(routeParamsFields, slog.F("params_"+v, tracing.RedactRouteParam(v, urlParams.Values[k])))
 			}
 		}
 

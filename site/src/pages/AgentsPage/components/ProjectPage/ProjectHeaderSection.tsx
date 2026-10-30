@@ -1,135 +1,144 @@
-import { EllipsisVerticalIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useLocation, useNavigate } from "react-router";
-import { getErrorMessage } from "#/api/errors";
 import {
-	deleteChatProject,
-	updateChatProject,
-} from "#/api/queries/chatProjects";
-import type { ChatProject } from "#/api/typesGenerated";
+	type UseQueryResult,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
+import { chatProjectACL, updateChatProject } from "#/api/queries/chatProjects";
+import { user as userQuery } from "#/api/queries/users";
+import type { ChatProject, ChatProjectACL } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { toast } from "#/components/Toaster/toast";
-import { draftStorageKeys } from "../AgentCreateForm";
-import { ProjectActionsMenuItems } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
-import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
-import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { AvatarGroup } from "./AvatarGroup";
+import { ProjectActionsMenu } from "./ProjectActionsMenu";
 import { ProjectPageHeader } from "./ProjectPageHeader";
+import { ProjectSharingDialog } from "./ProjectSharingDialog";
 
 type ProjectHeaderSectionProps = {
 	readonly project: ChatProject;
 };
 
-/** The project page header with its edit and delete actions. */
+/** The agent page header, wired to the owner, sharing, and name edits. */
 export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	project,
 }) => {
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
-	const location = useLocation();
-
-	const updateMutation = useMutation(updateChatProject(queryClient));
-	// The project list refetch after a delete unmounts this page, so the
-	// toast and navigation run on the mutation itself rather than per call.
-	const deleteMutation = useMutation({
-		...deleteChatProject(queryClient),
-		onSuccess: (_data, deletedProject) => {
-			// Nothing can open the deleted project's composer again.
-			const draftKeys = draftStorageKeys(deletedProject.id);
-			localStorage.removeItem(draftKeys.text);
-			localStorage.removeItem(draftKeys.attachments);
-			toast.success("Project deleted");
-			// Keeps the sidebar filters, which live in the query string.
-			navigate(
-				{
-					pathname: "/agents",
-					search: normalizeLocationSearch(location.search),
-				},
-				{ replace: true },
-			);
-		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to delete project."));
-		},
+	const { user: me } = useAuthenticated();
+	const { organizations, showOrganizations } = useDashboard();
+	const isOwner = project.owner_id === me.id;
+	const ownerQuery = useQuery({
+		...userQuery(project.owner_id),
+		enabled: !isOwner,
 	});
-
-	const [isEditOpen, setIsEditOpen] = useState(false);
-	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-	// Menu items unmount on select, so the dialogs return focus to the menu
-	// trigger instead.
-	const actionsButtonRef = useRef<HTMLButtonElement>(null);
-	const restoreFocus = () => {
-		requestAnimationFrame(() => actionsButtonRef.current?.focus());
-	};
-	const closeEditDialog = () => {
-		setIsEditOpen(false);
-		restoreFocus();
-	};
-	const closeDeleteDialog = () => {
-		setIsDeleteOpen(false);
-		restoreFocus();
-	};
+	const owner = isOwner ? me : ownerQuery.data;
+	let ownerLabel: string | undefined;
+	if (owner) {
+		ownerLabel = owner.name || owner.username;
+	} else if (ownerQuery.isError) {
+		ownerLabel = "Unknown";
+	}
+	const organization = organizations.find(
+		(org) => org.id === project.organization_id,
+	);
+	let organizationLabel: string | undefined;
+	if (showOrganizations) {
+		organizationLabel = organization
+			? organization.display_name || organization.name
+			: "Unknown";
+	}
+	const updateMutation = useMutation(updateChatProject(queryClient));
 
 	return (
+		<ProjectPageHeader
+			project={project}
+			ownerLabel={ownerLabel}
+			organizationLabel={organizationLabel}
+			isOwnedByOtherUser={!isOwner}
+			onSaveName={
+				project.permissions.edit
+					? (name) => updateMutation.mutateAsync({ project, request: { name } })
+					: undefined
+			}
+			sharing={project.permissions.share && <ShareControl project={project} />}
+			actions={<ProjectActionsMenu project={project} />}
+		/>
+	);
+};
+
+const ShareControl: React.FC<ProjectHeaderSectionProps> = ({ project }) => {
+	const aclQuery = useQuery(chatProjectACL(project));
+	const [isShareOpen, setIsShareOpen] = useState(false);
+	const shareButtonRef = useRef<HTMLButtonElement>(null);
+	return (
 		<>
-			<ProjectPageHeader
-				project={project}
-				actions={
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								ref={actionsButtonRef}
-								variant="subtle"
-								size="icon"
-								aria-label="Project actions"
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<ProjectActionsMenuItems
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-								onEdit={() => {
-									updateMutation.reset();
-									setIsEditOpen(true);
-								}}
-								onDelete={() => setIsDeleteOpen(true)}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				}
-			/>
-			<ChatProjectDialog
-				project={project}
-				open={isEditOpen}
-				onOpenChange={(open) => {
-					if (!open) closeEditDialog();
-				}}
-				isSubmitting={updateMutation.isPending}
-				error={updateMutation.error}
-				onSubmit={async (request) => {
-					await updateMutation.mutateAsync({ project, request });
-					closeEditDialog();
-				}}
-			/>
-			<DeleteDialog
-				isOpen={isDeleteOpen}
-				onConfirm={() => deleteMutation.mutate(project)}
-				onCancel={closeDeleteDialog}
-				entity="project"
-				name={project.name}
-				confirmLoading={deleteMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
-			/>
+			<div className="flex items-center gap-3">
+				<SharedWithAvatars aclQuery={aclQuery} />
+				<Button
+					ref={shareButtonRef}
+					variant="outline"
+					size="sm"
+					onClick={() => setIsShareOpen(true)}
+				>
+					<PlusIcon />
+					Share
+				</Button>
+			</div>
+			{isShareOpen && (
+				<ProjectSharingDialog
+					project={project}
+					onClose={() => {
+						setIsShareOpen(false);
+						requestAnimationFrame(() => shareButtonRef.current?.focus());
+					}}
+				/>
+			)}
 		</>
+	);
+};
+
+type SharedWithAvatarsProps = {
+	readonly aclQuery: UseQueryResult<ChatProjectACL>;
+};
+
+/**
+ * Shows who the agent is shared with. A failed refetch keeps the avatars
+ * already loaded; the failure notice only replaces them when there are none.
+ */
+const SharedWithAvatars: React.FC<SharedWithAvatarsProps> = ({ aclQuery }) => {
+	const acl = aclQuery.data;
+	if (!acl) {
+		return aclQuery.isError ? (
+			<span className="text-xs text-content-secondary">
+				Sharing unavailable
+			</span>
+		) : (
+			<Skeleton className="h-6 w-16" />
+		);
+	}
+	const sharedWith = [
+		...acl.groups.map((group) => ({
+			id: group.id,
+			name: group.display_name || group.name,
+			src: group.avatar_url,
+		})),
+		...acl.users.map((user) => ({
+			id: user.id,
+			name: user.name || user.username,
+			src: user.avatar_url,
+		})),
+	];
+	if (sharedWith.length === 0) {
+		return null;
+	}
+	const noun = sharedWith.length === 1 ? "user or group" : "users and groups";
+	return (
+		<AvatarGroup
+			items={sharedWith}
+			label={`Shared with ${sharedWith.length} ${noun}`}
+		/>
 	);
 };

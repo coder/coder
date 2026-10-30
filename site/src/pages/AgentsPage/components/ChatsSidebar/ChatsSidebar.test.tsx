@@ -187,12 +187,10 @@ describe("ChatsSidebar projects", () => {
 		const deleteProject = async (name: string) => {
 			await user.click(
 				await screen.findByRole("button", {
-					name: `Open project actions for ${name}`,
+					name: `Open agent actions for ${name}`,
 				}),
 			);
-			await user.click(
-				screen.getByRole("menuitem", { name: "Delete project" }),
-			);
+			await user.click(screen.getByRole("menuitem", { name: "Delete agent" }));
 			await user.type(await screen.findByRole("textbox"), name);
 		};
 
@@ -249,11 +247,11 @@ describe("ChatsSidebar projects", () => {
 
 		// The chat's project is still loading, so its chat may yet be unfiled.
 		await waitFor(() => expect(projectsRequested).toBe(true));
-		expect(screen.queryByText("No agents yet")).toBeNull();
+		expect(screen.queryByText("No chats yet")).toBeNull();
 
 		resolveProjects();
 		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.getByText("No chats yet")).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
@@ -329,14 +327,14 @@ describe("ChatsSidebar projects", () => {
 			);
 
 			await user.click(
-				await screen.findByRole("button", { name: "New project" }),
+				await screen.findByRole("button", { name: "New agent" }),
 			);
 			const dialog = await screen.findByRole("dialog", {
-				name: "Create a project",
+				name: "Create an agent",
 			});
 			await user.type(
-				within(dialog).getByRole("textbox", { name: /Project name/ }),
-				"New project name",
+				within(dialog).getByRole("textbox", { name: /Agent name/ }),
+				"New agent name",
 			);
 			await user.type(
 				within(dialog).getByRole("textbox", { name: "Description" }),
@@ -352,7 +350,7 @@ describe("ChatsSidebar projects", () => {
 					}),
 				);
 			}
-			await user.click(screen.getByRole("button", { name: "Create project" }));
+			await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 			await waitFor(() => {
 				expect(requestOrganizationID).toBe(
@@ -361,7 +359,7 @@ describe("ChatsSidebar projects", () => {
 						: MockDefaultOrganization.id,
 				);
 				expect(requestBody).toEqual({
-					name: "New project name",
+					name: "New agent name",
 					description: "Project description",
 					icon: "",
 				});
@@ -405,17 +403,15 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "New project" }),
-		);
+		await user.click(await screen.findByRole("button", { name: "New agent" }));
 		const dialog = await screen.findByRole("dialog", {
-			name: "Create a project",
+			name: "Create an agent",
 		});
 		await user.type(
-			within(dialog).getByRole("textbox", { name: /Project name/ }),
+			within(dialog).getByRole("textbox", { name: /Agent name/ }),
 			"Accessible project",
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		await waitFor(() => {
 			expect(requestOrganizationID).toBe(MockOrganization2.id);
@@ -480,12 +476,12 @@ describe("ChatsSidebar projects", () => {
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Open project actions for ${MockChatProject.name}`,
+				name: `Open agent actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete agent" }));
 		await user.type(
-			screen.getByLabelText("Name of the project to delete"),
+			screen.getByLabelText("Name of the agent to delete"),
 			MockChatProject.name,
 		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
@@ -526,12 +522,12 @@ describe("ChatsSidebar projects", () => {
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Open project actions for ${MockChatProject.name}`,
+				name: `Open agent actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete agent" }));
 		await user.type(
-			screen.getByLabelText("Name of the project to delete"),
+			screen.getByLabelText("Name of the agent to delete"),
 			MockChatProject.name,
 		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
@@ -565,10 +561,10 @@ describe("ChatsSidebar projects", () => {
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
+				name: `Open agent actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete agent" }));
 
 		expect(
 			await screen.findByRole("dialog", {
@@ -912,7 +908,7 @@ describe("ChatsSidebar pinned reordering", () => {
 type MenuUser = ReturnType<typeof userEvent.setup>;
 
 const openFilterMenu = async (user: MenuUser) => {
-	await user.click(screen.getByRole("button", { name: "Filter agents" }));
+	await user.click(screen.getByRole("button", { name: "Filter chats" }));
 };
 
 // Every element reports a zero-size rect in jsdom, so Radix's pointer grace
@@ -959,7 +955,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("button", { name: "Filter chats" }));
 		await user.click(
 			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
 		);
@@ -994,10 +990,10 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		expect(
-			screen.getByRole("button", { name: "Filter agents" }),
+			screen.getByRole("button", { name: "Filter chats" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText("No agents match these filters"),
+			screen.getByText("No chats match these filters"),
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -1098,7 +1094,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("button", { name: "Filter chats" }));
 		await user.click(
 			await screen.findByRole("menuitemcheckbox", { name: "Unread" }),
 		);
@@ -1128,7 +1124,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("button", { name: "Filter chats" }));
 		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({

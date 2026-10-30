@@ -158,6 +158,17 @@ export default defineConfig({
 						target: process.env.CODER_HOST || "http://localhost:3000",
 						secure: process.env.NODE_ENV === "production",
 					},
+					// Workspace agents download their binary and connect to DERP
+					// through the access URL, which may point at this server.
+					"/bin": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
+					"/derp": {
+						ws: true,
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
 					"/serviceWorker.js": {
 						target: process.env.CODER_HOST || "http://localhost:3000",
 						secure: process.env.NODE_ENV === "production",

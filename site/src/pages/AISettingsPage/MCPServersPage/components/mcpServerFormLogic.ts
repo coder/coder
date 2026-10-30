@@ -1,4 +1,14 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	type BuiltInMCPServerId,
+	buildPresetURL,
+	builtInMCPPresets,
+	defaultMCPPresetOptions,
+	type MCPPresetOptions,
+	type MCPServerPresetId,
+	parsePresetURL,
+} from "#/modules/mcp/mcpPresets";
+import { generateRandomHexString } from "#/utils/random";
 
 export const SECRET_PLACEHOLDER = "••••••••••••••••";
 
@@ -13,6 +23,7 @@ export const AUTH_TYPE_OPTIONS = [
 	{ value: "api_key", label: "API key" },
 	{ value: "custom_headers", label: "Custom headers" },
 	{ value: "user_oidc", label: "User OIDC identity" },
+	{ value: "user_api_key", label: "Per-user token" },
 ] as const;
 
 export const AUTH_TYPE_LABELS = Object.fromEntries(
@@ -61,6 +72,8 @@ export type MCPServerFormValues = {
 	apiKeyHeader: string;
 	apiKeyValue: string;
 	apiKeyTouched: boolean;
+	/** Sent before each user's own token for `user_api_key` servers. */
+	apiKeyPrefix: string;
 	hasSavedAPIKey: boolean;
 	availability: string;
 	enabled: boolean;
@@ -73,6 +86,17 @@ export type MCPServerFormValues = {
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
 	customHeadersTouched: boolean;
+	/** Which built-in server the URL points at, or `custom`. */
+	preset: MCPServerPresetId;
+	/** The deployment URL a built-in server's URL is built from. */
+	presetOrigin: string;
+	presetOptions: MCPPresetOptions;
+};
+
+/** Starts a new server from a built-in preset on the deployment at `accessURL`. */
+type NewMCPServerPreset = {
+	readonly id: BuiltInMCPServerId;
+	readonly accessURL: string;
 };
 
 export const slugify = (value: string): string =>
@@ -84,39 +108,71 @@ export const slugify = (value: string): string =>
 
 export const buildInitialMCPServerFormValues = (
 	server?: TypesGen.MCPServerConfig,
-): MCPServerFormValues => ({
-	displayName: server?.display_name ?? "",
-	slug: server?.slug ?? "",
-	slugTouched: Boolean(server),
-	description: server?.description ?? "",
-	iconURL: server?.icon_url ?? "",
-	url: server?.url ?? "",
-	transport: server?.transport ?? "streamable_http",
-	authType: server?.auth_type ?? "none",
-	oauth2ClientID: server?.oauth2_client_id ?? "",
-	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
-	oauth2SecretTouched: false,
-	oauth2AuthURL: server?.oauth2_auth_url ?? "",
-	oauth2TokenURL: server?.oauth2_token_url ?? "",
-	oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
-	oauth2Resource: server?.oauth2_resource ?? "",
-	oauth2Scopes: server?.oauth2_scopes ?? "",
-	apiKeyHeader: server?.api_key_header || "Authorization",
-	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
-	apiKeyTouched: false,
-	hasSavedAPIKey: server?.has_api_key ?? false,
-	availability: server?.availability ?? "default_off",
-	enabled: server?.enabled ?? true,
-	modelIntent: server?.model_intent ?? false,
-	allowInPlanMode: server?.allow_in_plan_mode ?? false,
-	forwardCoderHeaders: server?.forward_coder_headers ?? false,
-	signingSecret: server?.has_signing_secret ? SECRET_PLACEHOLDER : "",
-	signingSecretTouched: false,
-	toolAllowList: server?.tool_allow_list.join(", ") ?? "",
-	toolDenyList: server?.tool_deny_list.join(", ") ?? "",
-	customHeaders: [],
-	customHeadersTouched: false,
-});
+	newPreset?: NewMCPServerPreset,
+): MCPServerFormValues => {
+	const parsed = server ? parsePresetURL(server.url) : undefined;
+	const base: MCPServerFormValues = {
+		displayName: server?.display_name ?? "",
+		slug: server?.slug ?? "",
+		slugTouched: Boolean(server),
+		description: server?.description ?? "",
+		iconURL: server?.icon_url ?? "",
+		url: server?.url ?? "",
+		transport: server?.transport ?? "streamable_http",
+		authType: server?.auth_type ?? "none",
+		oauth2ClientID: server?.oauth2_client_id ?? "",
+		oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
+		oauth2SecretTouched: false,
+		oauth2AuthURL: server?.oauth2_auth_url ?? "",
+		oauth2TokenURL: server?.oauth2_token_url ?? "",
+		oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
+		oauth2Resource: server?.oauth2_resource ?? "",
+		oauth2Scopes: server?.oauth2_scopes ?? "",
+		apiKeyHeader: server?.api_key_header || "Authorization",
+		apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
+		apiKeyTouched: false,
+		apiKeyPrefix: server?.api_key_prefix ?? "",
+		hasSavedAPIKey: server?.has_api_key ?? false,
+		availability: server?.availability ?? "default_off",
+		enabled: server?.enabled ?? true,
+		modelIntent: server?.model_intent ?? false,
+		allowInPlanMode: server?.allow_in_plan_mode ?? false,
+		forwardCoderHeaders: server?.forward_coder_headers ?? false,
+		signingSecret: server?.has_signing_secret ? SECRET_PLACEHOLDER : "",
+		signingSecretTouched: false,
+		toolAllowList: server?.tool_allow_list.join(", ") ?? "",
+		toolDenyList: server?.tool_deny_list.join(", ") ?? "",
+		customHeaders: [],
+		customHeadersTouched: false,
+		preset: parsed?.preset ?? "custom",
+		presetOrigin: parsed?.origin ?? "",
+		presetOptions: parsed?.options ?? defaultMCPPresetOptions,
+	};
+	if (!newPreset) {
+		return base;
+	}
+	const preset = builtInMCPPresets[newPreset.id];
+	return {
+		...base,
+		displayName: preset.title,
+		slug: preset.slug,
+		slugTouched: true,
+		description: preset.description,
+		iconURL: preset.iconURL,
+		url: buildPresetURL(
+			newPreset.id,
+			newPreset.accessURL,
+			defaultMCPPresetOptions,
+		),
+		authType: "user_api_key",
+		apiKeyPrefix: "Bearer ",
+		forwardCoderHeaders: true,
+		signingSecret: generateRandomHexString(32),
+		signingSecretTouched: true,
+		preset: newPreset.id,
+		presetOrigin: newPreset.accessURL,
+	};
+};
 
 // An untouched placeholder counts only when the server already stores a key,
 // because the secret input also restores it when a new value is cleared.
@@ -138,7 +194,12 @@ export const canSubmitMCPServerForm = (
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
 	values.url.trim() !== "" &&
-	(values.authType !== "api_key" || hasAPIKeyCredentials(values));
+	(values.authType !== "api_key" || hasAPIKeyCredentials(values)) &&
+	(values.authType !== "user_api_key" || values.apiKeyHeader.trim() !== "") &&
+	// A built-in server rejects a request without identity headers and a
+	// signing secret.
+	(values.preset === "custom" ||
+		(values.forwardCoderHeaders && values.signingSecret !== ""));
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
@@ -205,6 +266,15 @@ export const buildCreateMCPServerConfigRequest = (
 			...request,
 			api_key_header: values.apiKeyHeader.trim() || undefined,
 			api_key_value: apiKeyValue,
+		};
+	}
+
+	if (values.authType === "user_api_key") {
+		return {
+			...request,
+			api_key_header: values.apiKeyHeader.trim() || undefined,
+			// Sent even when empty: an omitted field keeps the stored value.
+			api_key_prefix: values.apiKeyPrefix,
 		};
 	}
 

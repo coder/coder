@@ -547,6 +547,13 @@ export const MockUserOwner: TypesGen.User = {
 	name: "",
 };
 
+export const MockChatProjectAgentUser: TypesGen.MinimalUser = {
+	id: "chat-project-agent-user-1",
+	username: "agent-launch",
+	name: "Launch",
+	avatar_url: "",
+};
+
 export const MockChatProject: TypesGen.ChatProject = {
 	id: "chat-project-1",
 	organization_id: MockDefaultOrganization.id,
@@ -556,7 +563,196 @@ export const MockChatProject: TypesGen.ChatProject = {
 	icon: "",
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
+	allowed_template_ids: [],
+	mcp_server_ids: [],
+	external_auth_provider_ids: [],
+	template_parameter_rules: [],
+	invokable_agent_ids: [],
+	workspace_tools_enabled: true,
+	permissions: { edit: true, share: true, delete: true, manage_triggers: true },
+	agent_user: MockChatProjectAgentUser,
+	model_status: "default",
 };
+
+export const MockChatSecurityAgent: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "chat-project-security",
+	name: "Security",
+	description: "Reviews changes for vulnerabilities and leaked secrets.",
+	agent_user: {
+		...MockChatProjectAgentUser,
+		id: "chat-project-agent-user-security",
+		username: "agent-security",
+		name: "Security",
+	},
+};
+
+export const MockChatProjectTriggerDeliveries: TypesGen.ChatProjectTriggerDelivery[] =
+	[
+		{
+			id: "chat-project-trigger-delivery-1",
+			trigger_id: "chat-project-trigger-1",
+			created_at: "2026-09-04T12:00:00Z",
+			status: "started",
+			event: "pull_request.opened",
+			chat_id: "run-1",
+		},
+		{
+			id: "chat-project-trigger-delivery-continued",
+			trigger_id: "chat-project-trigger-1",
+			created_at: "2026-09-04T11:45:00Z",
+			status: "continued",
+			event: "issue_comment.created",
+			chat_id: "run-1",
+		},
+		{
+			id: "chat-project-trigger-delivery-2",
+			trigger_id: "chat-project-trigger-1",
+			created_at: "2026-09-04T11:30:00Z",
+			status: "ignored",
+			event: "pull_request.opened",
+			message: "The trigger only listens to coder/coder.",
+		},
+		{
+			id: "chat-project-trigger-delivery-3",
+			trigger_id: "chat-project-trigger-1",
+			created_at: "2026-09-04T11:00:00Z",
+			status: "rejected",
+			message:
+				"Webhook payload is not in the format this trigger expects. missing X-GitHub-Event header: configure this URL as a GitHub webhook",
+		},
+		{
+			id: "chat-project-trigger-delivery-4",
+			trigger_id: "chat-project-trigger-1",
+			created_at: "2026-09-04T10:00:00Z",
+			status: "handshake",
+			event: "ping",
+			message: "GitHub checked the webhook URL.",
+		},
+	];
+
+export const MockChatProjectMCPServerToken: TypesGen.ChatProjectMCPServerToken =
+	{
+		mcp_server_config_id: "mcp-slack",
+		display_name: "Slack",
+		slug: "slack",
+		icon_url: "/icon/slack.svg",
+		auth_type: "user_api_key",
+		token_required: true,
+		has_token: false,
+	};
+
+export const MockChatProjectGitHubMCPServerToken: TypesGen.ChatProjectMCPServerToken =
+	{
+		...MockChatProjectMCPServerToken,
+		mcp_server_config_id: "mcp-github",
+		display_name: "GitHub",
+		slug: "github",
+		icon_url: "/icon/github.svg",
+	};
+
+export const MockChatProjectTrigger: TypesGen.ChatProjectTrigger = {
+	id: "chat-project-trigger-1",
+	project_id: MockChatProject.id,
+	name: "GitHub pull request opened",
+	prompt: "Review the pull request in the payload.",
+	enabled: true,
+	source: "github",
+	events: ["pull_request.opened"],
+	repository: "coder/coder",
+	continue_conversations: false,
+	busy_behavior: "queue",
+	has_slack_signing_secret: false,
+	has_github_webhook_secret: false,
+	created_by: MockUserOwner.id,
+	created_at: "2026-09-03T12:00:00Z",
+	updated_at: "2026-09-03T12:00:00Z",
+	last_triggered_at: "2026-09-04T12:00:00Z",
+	last_delivery: MockChatProjectTriggerDeliveries[0],
+};
+
+export const MockChatProjectTriggerDisabled: TypesGen.ChatProjectTrigger = {
+	...MockChatProjectTrigger,
+	id: "chat-project-trigger-2",
+	name: "Nightly scan",
+	enabled: false,
+	source: "webhook",
+	events: [],
+	repository: undefined,
+	last_triggered_at: undefined,
+	last_delivery: undefined,
+};
+
+export const MockChatProjectSlackTrigger: TypesGen.ChatProjectTrigger = {
+	...MockChatProjectTrigger,
+	id: "chat-project-trigger-slack",
+	name: "Answer support questions",
+	source: "slack",
+	events: ["app_mention", "slash_command"],
+	repository: undefined,
+	channel: "C0123456789",
+	text_pattern: "deploy",
+	ignore_thread_replies: true,
+	continue_conversations: true,
+	has_slack_signing_secret: true,
+	last_delivery: {
+		id: "chat-project-trigger-delivery-slack",
+		trigger_id: "chat-project-trigger-slack",
+		created_at: "2026-09-04T12:30:00Z",
+		status: "ignored",
+		event: "app_mention",
+		message: "The event text does not match the trigger's filter.",
+	},
+};
+
+export const MockChatProjectScheduleTrigger: TypesGen.ChatProjectTrigger = {
+	...MockChatProjectTrigger,
+	id: "chat-project-trigger-schedule",
+	name: "Every weekday at 9:00 AM",
+	prompt: "Summarize the pull requests merged since the last run.",
+	source: "schedule",
+	schedule: "CRON_TZ=UTC 0 9 * * 1-5",
+	next_run_at: "2026-09-07T09:00:00Z",
+	events: [],
+	repository: undefined,
+	last_triggered_at: "2026-09-04T09:00:00Z",
+	last_delivery: {
+		id: "chat-project-trigger-delivery-schedule",
+		trigger_id: "chat-project-trigger-schedule",
+		created_at: "2026-09-04T09:00:00Z",
+		status: "started",
+		event: "schedule",
+		chat_id: "run-1",
+	},
+};
+
+export const MockChatProjectRuns: TypesGen.ChatProjectRun[] = [
+	{
+		chat_id: "run-1",
+		title: "Review PR #42",
+		status: "waiting",
+		trigger_id: MockChatProjectTrigger.id,
+		created_at: "2026-09-04T12:00:00Z",
+		updated_at: "2026-09-04T12:05:00Z",
+	},
+	{
+		chat_id: "run-2",
+		title: "Scan dependencies",
+		status: "error",
+		last_error: "Workspace build failed.",
+		parent_chat_id: "parent-chat",
+		root_chat_id: "parent-chat",
+		created_at: "2026-09-04T11:00:00Z",
+		updated_at: "2026-09-04T11:02:00Z",
+	},
+	{
+		chat_id: "run-3",
+		title: "Investigate login bug",
+		status: "running",
+		created_at: "2026-09-04T10:00:00Z",
+		updated_at: "2026-09-04T10:01:00Z",
+	},
+];
 
 export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
 	project_id: MockChatProject.id,
@@ -593,6 +789,30 @@ export const MockUserMember: TypesGen.User = {
 	login_type: "oidc",
 	has_ai_seat: false,
 	name: "Mock User The Second",
+};
+
+/** The user that an agent acts as, which shows its display name. */
+export const MockAgentUser: TypesGen.User = {
+	...MockUserMember,
+	id: "test-agent-user",
+	username: "agent-launch",
+	email: "agent-launch@coder.invalid",
+	name: "Launch",
+	login_type: "none",
+	is_agent: true,
+};
+
+export const MockChatProjectSharedUse: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "chat-project-shared",
+	owner_id: MockUserMember.id,
+	name: "Shared launch",
+	permissions: {
+		edit: false,
+		share: false,
+		delete: false,
+		manage_triggers: false,
+	},
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -747,6 +967,17 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		global_roles: MockUserMember.roles,
 		has_ai_seat: false,
 		roles: [],
+	};
+
+export const MockAgentOrganizationMember: TypesGen.OrganizationMemberWithUserData =
+	{
+		...MockOrganizationMember2,
+		user_id: MockAgentUser.id,
+		username: MockAgentUser.username,
+		email: MockAgentUser.email,
+		name: MockAgentUser.name,
+		login_type: MockAgentUser.login_type,
+		is_agent: true,
 	};
 
 export const MockProvisionerKey: TypesGen.ProvisionerKey = {
@@ -3424,6 +3655,30 @@ export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
 	],
 };
 
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	users: [{ ...MockUserMember, role: "edit" }],
+	groups: [{ ...MockGroup, role: "use" }],
+};
+
+export const MockRegionParameter: TypesGen.TemplateVersionParameter = {
+	...MockTemplateVersionParameter1,
+	name: "region",
+	display_name: "Region",
+	default_value: "us-east",
+	options: [
+		{ name: "US East", value: "us-east", description: "", icon: "" },
+		{ name: "EU West", value: "eu-west", description: "", icon: "" },
+		{ name: "AP South", value: "ap-south", description: "", icon: "" },
+	],
+};
+
+export const MockRepoParameter: TypesGen.TemplateVersionParameter = {
+	...MockTemplateVersionParameter1,
+	name: "repo",
+	display_name: "Repository",
+	default_value: "",
+};
+
 export const MockChatModelACLAvailable: TypesGen.ACLAvailable = {
 	users: [MockUserOwner, MockUserMember],
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
@@ -5096,6 +5351,22 @@ export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
 	authenticated: true,
 	validate_error: "",
 };
+
+export const MockChatProjectExternalAuth: TypesGen.ListUserExternalAuthResponse =
+	{
+		providers: [
+			MockGithubExternalProvider,
+			{
+				...MockGithubExternalProvider,
+				id: "gitlab",
+				type: "gitlab",
+				device: true,
+				display_name: "GitLab",
+				display_icon: "/icon/gitlab.svg",
+			},
+		],
+		links: [MockGithubAuthLink],
+	};
 
 export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{

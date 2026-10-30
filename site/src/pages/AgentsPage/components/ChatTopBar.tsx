@@ -21,6 +21,7 @@ import {
 import { Link, useLocation, useOutletContext } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	chatArchiveMutationKey,
@@ -50,6 +51,7 @@ import {
 	chatFamilyAllowsArchive,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatProjectIcon } from "./ChatProjectIcon";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -156,7 +158,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		...pinOptions,
 		onError: (error, chatId, context) => {
 			pinOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to pin agent."));
+			toast.error(getErrorMessage(error, "Failed to pin chat."));
 		},
 	});
 	const unpinOptions = unpinChat(queryClient);
@@ -164,7 +166,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		...unpinOptions,
 		onError: (error, chatId, context) => {
 			unpinOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+			toast.error(getErrorMessage(error, "Failed to unpin chat."));
 		},
 	});
 
@@ -180,7 +182,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		},
 		onError: (error, chatId, context) => {
 			archiveOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
+			toast.error(getErrorMessage(error, "Failed to archive chat."));
 		},
 	});
 	const unarchiveOptions = unarchiveChat(queryClient);
@@ -189,7 +191,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		mutationKey,
 		onError: (error, chatId, context) => {
 			unarchiveOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+			toast.error(getErrorMessage(error, "Failed to unarchive chat."));
 		},
 	});
 
@@ -269,12 +271,14 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 											search: location.search,
 										}}
 									>
+										<ChatAgentIcon projectId={parentChat.project_id} />
 										<span className="truncate">{parentChat.title}</span>
 									</Link>
 								</Button>
 								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
+						<ChatAgentIcon projectId={chat?.project_id} />
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
@@ -383,6 +387,31 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
+	);
+};
+
+type ChatAgentIconProps = {
+	readonly projectId: string | undefined;
+};
+
+/** The icon of the agent a chat belongs to, or nothing for a chat without one. */
+const ChatAgentIcon: React.FC<ChatAgentIconProps> = ({ projectId }) => {
+	const { data: agent } = useQuery({
+		...chatProject(projectId),
+		enabled: projectId !== undefined,
+	});
+	if (projectId === undefined) {
+		return null;
+	}
+	return (
+		<span
+			role="img"
+			aria-label={agent ? `Agent: ${agent.name}` : "Agent"}
+			title={agent?.name}
+			className="flex shrink-0 items-center text-content-secondary"
+		>
+			<ChatProjectIcon project={agent ?? { icon: "" }} className="size-4" />
+		</span>
 	);
 };
 

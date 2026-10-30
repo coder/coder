@@ -345,7 +345,7 @@ describe("AgentsPageLayout archive state", () => {
 				}),
 			);
 			await user.click(
-				await screen.findByRole("menuitem", { name: "Archive agent" }),
+				await screen.findByRole("menuitem", { name: "Archive chat" }),
 			);
 			await waitFor(() => {
 				expect(update).toHaveBeenCalledWith(MockChat.id, { archived: true });
@@ -357,8 +357,8 @@ describe("AgentsPageLayout archive state", () => {
 	);
 
 	it.each([
-		{ action: "Archive agent", archived: false },
-		{ action: "Unarchive agent", archived: true },
+		{ action: "Archive chat", archived: false },
+		{ action: "Unarchive chat", archived: true },
 	])("$action does not block another chat", async ({ action, archived }) => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
@@ -464,7 +464,7 @@ describe("AgentsPageLayout archive and delete", () => {
 					});
 				}
 				await user.click(
-					await screen.findByRole("menuitem", { name: "Archive agent" }),
+					await screen.findByRole("menuitem", { name: "Archive chat" }),
 				);
 				expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
 				await user.keyboard("{Escape}");

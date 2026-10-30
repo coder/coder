@@ -65,7 +65,7 @@ type MCPServerConfig struct {
 	Transport string `json:"transport"` // "streamable_http" or "sse"
 	URL       string `json:"url"`
 
-	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
+	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc", "user_api_key"
 
 	// OAuth2 fields (only populated for admins).
 	OAuth2ClientID      string `json:"oauth2_client_id,omitempty"`
@@ -76,9 +76,14 @@ type MCPServerConfig struct {
 	OAuth2Resource      string `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
 
-	// API key fields (only populated for admins).
+	// API key fields (only populated for admins, except that user_api_key
+	// servers show every reader the header and prefix their token is sent
+	// with).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
 	HasAPIKey    bool   `json:"has_api_key"`
+	// APIKeyPrefix is sent before each user's token for user_api_key
+	// servers, such as "Bearer ".
+	APIKeyPrefix string `json:"api_key_prefix,omitempty"`
 
 	HasCustomHeaders bool `json:"has_custom_headers"`
 
@@ -103,8 +108,115 @@ type MCPServerConfig struct {
 	CreatedAt           time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 
-	// Per-user state (populated for non-admin requests).
+	// Per-user state (populated for non-admin requests). For oauth2 it
+	// reports a usable token; for user_api_key it reports whether the
+	// caller has stored a token.
 	AuthConnected bool `json:"auth_connected"`
+}
+
+// MCPServerAuthTypeUserAPIKey is the auth type where every user stores
+// their own token for the server. Chats send only their owner's token, in
+// APIKeyHeader after APIKeyPrefix.
+//
+//nolint:gosec // An auth type name, not a credential.
+const MCPServerAuthTypeUserAPIKey = "user_api_key"
+
+// MCPServerCredentialKind is how a user, usually an agent's user,
+// authenticates to a user_api_key MCP server.
+type MCPServerCredentialKind string
+
+const (
+	// MCPServerCredentialKindToken is a pasted token.
+	MCPServerCredentialKindToken MCPServerCredentialKind = "token"
+	// MCPServerCredentialKindGitHubApp is a GitHub App installation.
+	// Coder mints a short-lived installation token for every chat turn,
+	// so the agent acts as the app's bot account.
+	//nolint:gosec // A credential kind name, not a credential.
+	MCPServerCredentialKindGitHubApp MCPServerCredentialKind = "github_app"
+)
+
+// UpdateMCPServerUserTokenRequest stores the caller's own token for a
+// user_api_key MCP server. An agent's owner can instead store a GitHub App
+// credential for the agent.
+type UpdateMCPServerUserTokenRequest struct {
+	// CredentialKind defaults to github_app when GitHubApp is set and to
+	// token otherwise. github_app is only accepted for an agent.
+	CredentialKind MCPServerCredentialKind `json:"credential_kind,omitempty" enums:"token,github_app"`
+	// Token is required for the token kind.
+	Token string `json:"token,omitempty"`
+	// GitHubApp is required for the github_app kind.
+	GitHubApp *MCPServerGitHubAppCredentialRequest `json:"github_app,omitempty"`
+}
+
+// MCPServerGitHubAppCredentialRequest identifies a GitHub App
+// installation. Coder checks it by minting a token before saving it.
+type MCPServerGitHubAppCredentialRequest struct {
+	// AppID is the numeric app ID from the app's settings page.
+	AppID int64 `json:"app_id"`
+	// InstallationID is the number at the end of the installation's
+	// settings URL.
+	InstallationID int64 `json:"installation_id"`
+	// PrivateKey is the app's PEM private key. It is never returned. Leave
+	// it empty to keep the stored key when only other fields change.
+	PrivateKey string `json:"private_key,omitempty"`
+	// Repositories limits tokens to these repository names. Empty means
+	// every repository the installation can access.
+	Repositories []string `json:"repositories,omitempty"`
+	// UseForGit also gives the app's identity to git in the agent's
+	// workspaces, such as git clone and git push. Git reaches the same
+	// repositories as the app's other tokens.
+	UseForGit bool `json:"use_for_git,omitempty"`
+}
+
+// MCPServerGitHubApp is the public part of a stored GitHub App
+// credential. The private key is never returned.
+type MCPServerGitHubApp struct {
+	AppID          int64    `json:"app_id"`
+	InstallationID int64    `json:"installation_id"`
+	Repositories   []string `json:"repositories"`
+	// UseForGit is true when git in the agent's workspaces signs in as
+	// the app.
+	UseForGit bool `json:"use_for_git"`
+}
+
+// MCPServerUserTokenStatus reports whether a user has a token for a
+// user_api_key MCP server. The token itself is never returned.
+type MCPServerUserTokenStatus struct {
+	HasToken  bool       `json:"has_token"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty" format:"date-time"`
+	// CredentialKind is set when HasToken is true.
+	CredentialKind MCPServerCredentialKind `json:"credential_kind,omitempty" enums:"token,github_app"`
+	// GitHubApp is set for the github_app kind.
+	GitHubApp *MCPServerGitHubApp `json:"github_app,omitempty"`
+}
+
+// SetMCPServerUserToken stores the caller's token for a user_api_key MCP
+// server, replacing any previous one.
+func (c *Client) SetMCPServerUserToken(ctx context.Context, id uuid.UUID, req UpdateMCPServerUserTokenRequest) (MCPServerUserTokenStatus, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/mcp/servers/%s/user-token", id), req)
+	if err != nil {
+		return MCPServerUserTokenStatus{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerUserTokenStatus{}, ReadBodyAsError(res)
+	}
+	var status MCPServerUserTokenStatus
+	return status, ReadBodyAsJSON(res, &status)
+}
+
+// DeleteMCPServerUserToken removes the caller's token for a user_api_key
+// MCP server.
+func (c *Client) DeleteMCPServerUserToken(ctx context.Context, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/mcp/servers/%s/user-token", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // MCPServerConfigRole is a role a user or group holds in an MCP server
@@ -155,7 +267,7 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
+	AuthType           string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc user_api_key"`
 	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
@@ -165,11 +277,15 @@ type CreateMCPServerConfigRequest struct {
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
 	// OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
 	// requests when set. Auto-discovery fills it if empty.
-	OAuth2Resource string            `json:"oauth2_resource,omitempty"`
-	OAuth2Scopes   string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader   string            `json:"api_key_header,omitempty"`
-	APIKeyValue    string            `json:"api_key_value,omitempty"`
-	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
+	OAuth2Resource string `json:"oauth2_resource,omitempty"`
+	OAuth2Scopes   string `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader   string `json:"api_key_header,omitempty"`
+	APIKeyValue    string `json:"api_key_value,omitempty"`
+	// APIKeyPrefix is sent before each user's token for user_api_key
+	// servers. It defaults to "Bearer "; send "" for a bare token.
+	// APIKeyHeader defaults to Authorization for user_api_key servers.
+	APIKeyPrefix  *string           `json:"api_key_prefix,omitempty"`
+	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -197,7 +313,7 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
+	AuthType           *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc user_api_key"`
 	OAuth2ClientID     *string `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret *string `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
@@ -207,11 +323,13 @@ type UpdateMCPServerConfigRequest struct {
 	OAuth2RevocationURL *string `json:"oauth2_revocation_url,omitempty"`
 	// OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
 	// the stored value; send "" to clear it.
-	OAuth2Resource *string            `json:"oauth2_resource,omitempty"`
-	OAuth2Scopes   *string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader   *string            `json:"api_key_header,omitempty"`
-	APIKeyValue    *string            `json:"api_key_value,omitempty"`
-	CustomHeaders  *map[string]string `json:"custom_headers,omitempty"`
+	OAuth2Resource *string `json:"oauth2_resource,omitempty"`
+	OAuth2Scopes   *string `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader   *string `json:"api_key_header,omitempty"`
+	APIKeyValue    *string `json:"api_key_value,omitempty"`
+	// APIKeyPrefix: see CreateMCPServerConfigRequest.
+	APIKeyPrefix  *string            `json:"api_key_prefix,omitempty"`
+	CustomHeaders *map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`

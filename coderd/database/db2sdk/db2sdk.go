@@ -279,6 +279,7 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 		Status:           codersdk.UserStatus(user.Status),
 		LoginType:        codersdk.LoginType(user.LoginType),
 		IsServiceAccount: user.IsServiceAccount,
+		IsAgent:          user.IsAgent,
 	}
 }
 
@@ -300,6 +301,7 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
 		IsServiceAccount:   member.UserIsServiceAccount,
+		IsAgent:            member.UserIsAgent,
 	}
 }
 
@@ -329,6 +331,7 @@ func UserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
 		IsServiceAccount:   member.UserIsServiceAccount,
+		IsAgent:            member.UserIsAgent,
 	}
 }
 
@@ -1022,10 +1025,14 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 }
 
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
-	if role == codersdk.ChatRoleRead {
+	switch role {
+	case codersdk.ChatRoleRead:
 		return []policy.Action{policy.ActionRead}
+	case codersdk.ChatRoleWrite:
+		return []policy.Action{policy.ActionRead, policy.ActionUpdate}
+	default:
+		return []policy.Action{}
 	}
-	return []policy.Action{}
 }
 
 // ConnectionLogType returns the deprecated ConnectionLog.Type. The legacy
@@ -1875,15 +1882,124 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 
 func ChatProject(project database.ChatProject) codersdk.ChatProject {
 	return codersdk.ChatProject{
-		ID:             project.ID,
-		OrganizationID: project.OrganizationID,
-		OwnerID:        project.OwnerID,
-		Name:           project.Name,
-		Description:    project.Description,
-		Icon:           project.Icon,
-		CreatedAt:      project.CreatedAt,
-		UpdatedAt:      project.UpdatedAt,
+		ID:                      project.ID,
+		OrganizationID:          project.OrganizationID,
+		OwnerID:                 project.OwnerID,
+		Name:                    project.Name,
+		Description:             project.Description,
+		Icon:                    project.Icon,
+		CreatedAt:               project.CreatedAt,
+		UpdatedAt:               project.UpdatedAt,
+		InvokableAgentIDs:       nonNilSlice(project.InvokableAgentIDs),
+		WorkspaceToolsEnabled:   project.WorkspaceToolsEnabled,
+		AllowedTemplateIDs:      nonNilSlice(project.AllowedTemplateIDs),
+		MCPServerIDs:            nonNilSlice(project.MCPServerIDs),
+		ExternalAuthProviderIDs: nonNilSlice(project.ExternalAuthProviderIDs),
+		TemplateParameterRules:  ChatProjectTemplateParameterRules(project.TemplateParameterRules),
+		ModelConfigID:           nullUUIDPtr(project.ModelConfigID),
+		// Callers that know whether the agent's user can use the model
+		// replace this.
+		ModelStatus: codersdk.ChatProjectModelStatusDefault,
 	}
+}
+
+// ChatProjectTemplateParameterRules converts stored parameter rules.
+func ChatProjectTemplateParameterRules(rules database.ChatProjectTemplateParameterRules) []codersdk.ChatProjectTemplateParameterRule {
+	out := make([]codersdk.ChatProjectTemplateParameterRule, 0, len(rules))
+	for _, rule := range rules {
+		out = append(out, codersdk.ChatProjectTemplateParameterRule{
+			TemplateID:    rule.TemplateID,
+			ParameterName: rule.ParameterName,
+			AllowedValues: nonNilSlice(rule.AllowedValues),
+		})
+	}
+	return out
+}
+
+// ChatProjectTriggerDelivery converts a recorded webhook call.
+func ChatProjectTriggerDelivery(delivery database.ChatProjectTriggerDelivery) codersdk.ChatProjectTriggerDelivery {
+	var chatID *uuid.UUID
+	if delivery.ChatID.Valid {
+		chatID = &delivery.ChatID.UUID
+	}
+	return codersdk.ChatProjectTriggerDelivery{
+		ID:        delivery.ID,
+		TriggerID: delivery.TriggerID,
+		CreatedAt: delivery.CreatedAt,
+		Status:    codersdk.ChatProjectTriggerDeliveryStatus(delivery.Status),
+		Event:     delivery.Event,
+		Message:   delivery.Message,
+		ChatID:    chatID,
+	}
+}
+
+// ChatProjectTrigger converts a project trigger.
+func ChatProjectTrigger(trigger database.ChatProjectTrigger) codersdk.ChatProjectTrigger {
+	var lastTriggeredAt, nextRunAt *time.Time
+	if trigger.LastTriggeredAt.Valid {
+		lastTriggeredAt = &trigger.LastTriggeredAt.Time
+	}
+	if trigger.NextRunAt.Valid {
+		nextRunAt = &trigger.NextRunAt.Time
+	}
+	return codersdk.ChatProjectTrigger{
+		ID:         trigger.ID,
+		ProjectID:  trigger.ProjectID,
+		Name:       trigger.Name,
+		Prompt:     trigger.Prompt,
+		Enabled:    trigger.Enabled,
+		Source:     codersdk.ChatProjectTriggerSource(trigger.Source),
+		Schedule:   trigger.Schedule,
+		NextRunAt:  nextRunAt,
+		Events:     append([]string{}, trigger.Events...),
+		Repository: trigger.Repository,
+		Channel:    trigger.Channel,
+		ChatProjectTriggerTextFilter: codersdk.ChatProjectTriggerTextFilter{
+			TextPattern:         trigger.TextPattern,
+			TextPatternIsRegex:  trigger.TextPatternIsRegex,
+			IgnoreThreadReplies: trigger.IgnoreThreadReplies,
+			Senders:             append([]string{}, trigger.Senders...),
+		},
+		ChatProjectTriggerConversationOptions: codersdk.ChatProjectTriggerConversationOptions{
+			ContinueConversations: trigger.ContinueConversations,
+			BusyBehavior:          codersdk.ChatProjectTriggerBusyBehavior(trigger.BusyBehavior),
+		},
+		HasSlackSigningSecret:  trigger.SlackSigningSecret != "",
+		HasGitHubWebhookSecret: trigger.GitHubWebhookSecret != "",
+		CreatedBy:              trigger.CreatedBy,
+		CreatedAt:              trigger.CreatedAt,
+		UpdatedAt:              trigger.UpdatedAt,
+		LastTriggeredAt:        lastTriggeredAt,
+	}
+}
+
+// ChatProjectRun converts a chat into a project run summary.
+func ChatProjectRun(chat database.Chat) codersdk.ChatProjectRun {
+	run := codersdk.ChatProjectRun{
+		ChatID:       chat.ID,
+		Title:        chat.Title,
+		Status:       codersdk.ChatStatus(chat.Status),
+		ParentChatID: nullUUIDPtr(chat.ParentChatID),
+		RootChatID:   nullUUIDPtr(chat.RootChatID),
+		CreatedAt:    chat.CreatedAt,
+		UpdatedAt:    chat.UpdatedAt,
+	}
+	if chat.Status == database.ChatStatusError {
+		if chatErr := decodeChatLastError(chat.LastError); chatErr != nil {
+			run.LastError = chatErr.Message
+		}
+	}
+	if id, err := uuid.Parse(chat.Labels[codersdk.ChatProjectTriggerLabel]); err == nil {
+		run.TriggerID = &id
+	}
+	return run
+}
+
+func nonNilSlice[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }
 
 // ChatProjectInstructions converts a project's stored instructions.
@@ -1906,18 +2022,18 @@ func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDR
 }
 
 func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
-	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername, row.CreatedByName)
 }
 
 func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
 	memories := make([]codersdk.ChatProjectMemory, len(rows))
 	for i, row := range rows {
-		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername, row.CreatedByName)
 	}
 	return memories
 }
 
-func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
+func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername, createdByName string) codersdk.ChatProjectMemory {
 	return codersdk.ChatProjectMemory{
 		ID:                memory.ID,
 		ProjectID:         memory.ProjectID,
@@ -1927,6 +2043,7 @@ func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUserna
 		Body:              memory.Body,
 		CreatedBy:         memory.CreatedBy,
 		CreatedByUsername: createdByUsername,
+		CreatedByName:     createdByName,
 		CreatedAt:         memory.CreatedAt,
 	}
 }

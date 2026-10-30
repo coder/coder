@@ -372,6 +372,9 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead
 	}
+	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleWrite)) {
+		return codersdk.ChatRoleWrite
+	}
 
 	return codersdk.ChatRoleDeleted
 }

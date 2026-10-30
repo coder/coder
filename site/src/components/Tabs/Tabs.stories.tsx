@@ -37,6 +37,14 @@ export const LinkNavigation: Story = {
 	render: (args) => <LinkTabs {...args} />,
 };
 
+export const LinkNavigationPill: Story = {
+	args: {
+		...LinkNavigation.args,
+		variant: "pill",
+	},
+	render: LinkNavigation.render,
+};
+
 export const RadixInsideBox: StoryObj = {
 	render: () => (
 		<Tabs defaultValue="a">

@@ -437,7 +437,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
 			{isProjectMissing ? (
 				<div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-content-secondary">
-					<p className="m-0">Project not found</p>
+					<p className="m-0">Agent not found</p>
 					<Link asChild showExternalIcon={false}>
 						<RouterLink to="/agents">Start a new chat</RouterLink>
 					</Link>
@@ -459,18 +459,18 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 						</Button>
 					}
 				>
-					<AlertTitle>Failed to load project</AlertTitle>
+					<AlertTitle>Failed to load agent</AlertTitle>
 					<AlertDescription>
 						{getErrorMessage(
 							projectLookupError,
-							"The project could not be loaded.",
+							"The agent could not be loaded.",
 						)}
 					</AlertDescription>
 				</Alert>
 			) : projectId !== undefined && !project ? (
 				// Without the project, the form would show the plain composer and
 				// the user's own organization.
-				<Loader className="flex-1" label="Loading project" />
+				<Loader className="flex-1" label="Loading agent" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : project ? (

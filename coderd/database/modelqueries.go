@@ -492,6 +492,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
 		arg.IsServiceAccount,
+		arg.IsAgent,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -523,6 +524,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
+			&i.IsAgent,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -1342,6 +1344,7 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
 			&i.OAuth2Resource,
+			&i.APIKeyPrefix,
 		); err != nil {
 			return nil, err
 		}

@@ -2272,6 +2272,19 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 	}
 
+	// An agent that acts as a GitHub App on its MCP servers uses the same
+	// bot identity for git, so it needs no OAuth link.
+	if appResp, ok, err := api.githubAppExternalAuthResponse(ctx, externalAuthConfig, workspace.OwnerID); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get a GitHub App installation token for the agent.",
+			Detail:  err.Error(),
+		})
+		return
+	} else if ok {
+		httpapi.Write(ctx, rw, http.StatusOK, appResp)
+		return
+	}
+
 	var previousToken *database.ExternalAuthLink
 	// handleRetrying will attempt to continually check for a new token
 	// if listen is true. This is useful if an error is encountered in the

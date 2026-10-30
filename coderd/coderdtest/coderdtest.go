@@ -137,7 +137,10 @@ type Options struct {
 	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
 	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
 	// tests can serve mock MCP and authorization servers via httptest.
-	MCPAllowedPrivateCIDRs         []netip.Prefix
+	MCPAllowedPrivateCIDRs []netip.Prefix
+	// HTTPClient is the base client coderd uses for outbound requests,
+	// for example to trust an httptest TLS server.
+	HTTPClient                     *http.Client
 	RefreshEntitlements            func(ctx context.Context) error
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
@@ -630,6 +633,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
+			HTTPClient:                     options.HTTPClient,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,

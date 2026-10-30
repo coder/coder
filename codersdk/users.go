@@ -86,6 +86,9 @@ type ReducedUser struct {
 	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
 	LoginType        LoginType  `json:"login_type"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
+	// IsAgent is true for the user that a Coder Agent acts as. Agent users
+	// cannot login.
+	IsAgent bool `json:"is_agent,omitempty"`
 	// Deprecated: this value should be retrieved from
 	// `codersdk.UserPreferenceSettings` instead.
 	ThemePreference string `json:"theme_preference,omitempty"`

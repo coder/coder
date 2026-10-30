@@ -32,6 +32,8 @@ type StartWorkspaceOptions struct {
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
 	Logger        slog.Logger
+	// Policy refuses parameter values the chat's agent may not use.
+	Policy TemplatePolicy
 }
 
 type startWorkspaceArgs struct {
@@ -136,6 +138,10 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			default:
 				// Failed, canceled, etc — try starting anyway.
+			}
+
+			if reason := options.Policy.CheckParameterValues(ws.TemplateID, args.Parameters); reason != "" {
+				return fantasy.NewTextErrorResponse(reason), nil
 			}
 
 			// Set up dbauthz context for the start call.

@@ -52,7 +52,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import { canManageChat } from "../../ChatActionsMenuItems";
+import { canDriveChat, canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -188,16 +188,20 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// Pin order is the owner's sidebar preference and the server ranks it
 	// per owner, so another user's chat stays out of the sortable Pinned
 	// section regardless of its pin_order.
+	// Chats owned by an agent's user belong in the viewer's own lists when
+	// they can use that agent, and are filed under it by project.
 	const ownedChats = visibleRootChats.filter((chat) =>
-		canManageChat(chat, currentUserId),
+		canDriveChat(chat, currentUserId, projects),
 	);
+	const isPinned = (chat: Chat) =>
+		canManageChat(chat, currentUserId) && chat.pin_order > 0;
 	const pinnedChats = ownedChats
-		.filter((chat) => chat.pin_order > 0)
+		.filter(isPinned)
 		.sort((a, b) => a.pin_order - b.pin_order);
 	const sharedWithYouChats = visibleRootChats.filter(
-		(chat) => !canManageChat(chat, currentUserId),
+		(chat) => !canDriveChat(chat, currentUserId, projects),
 	);
-	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
+	const unpinnedOwnedChats = ownedChats.filter((chat) => !isPinned(chat));
 	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
 		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
@@ -219,7 +223,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const reorderMutation = useMutation({
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+			toast.error(getErrorMessage(error, "Failed to reorder pinned chats."));
 		},
 	});
 
@@ -424,10 +428,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
-		? "No agents match these filters"
+		? "No chats match these filters"
 		: isViewingArchived
-			? "No archived agents"
-			: "No agents yet";
+			? "No archived chats"
+			: "No chats yet";
 	// Without projects the header stays pinned above the scrolling list, as
 	// before; with projects it scrolls below the folders.
 	const chatsHeader = (

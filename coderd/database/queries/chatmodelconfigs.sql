@@ -7,6 +7,16 @@ WHERE
     id = @id::uuid
     AND deleted = FALSE;
 
+-- name: GetChatModelConfigByIDIncludingDeleted :one
+-- Returns soft-deleted configs too, so an agent can report that the model
+-- it was set to use was deleted.
+SELECT
+    *
+FROM
+    chat_model_configs
+WHERE
+    id = @id::uuid;
+
 -- name: GetDefaultChatModelConfig :one
 SELECT
     *

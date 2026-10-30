@@ -154,6 +154,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chat-triggers/{trigger}/webhook/{secret}": {
+            "post": {
+                "description": "Starts a chat in the trigger's project. The request body is\npassed to the chat as the webhook payload. The secret in the\npath authenticates the caller.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Run a chat project trigger",
+                "operationId": "run-chat-project-trigger",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Trigger ID",
+                        "name": "trigger",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Trigger secret",
+                        "name": "secret",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerWebhookResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -630,6 +674,396 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project ACL",
+                "operationId": "get-chat-project-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project ACL",
+                "operationId": "update-chat-project-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Sparse chat project ACL update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/acl/available": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get available chat project ACL users and groups",
+                "operationId": "get-available-chat-project-acl-users-and-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User search query; free-text search also applies to groups",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User after ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit for users and groups, if 0 returns all candidates",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ACLAvailable"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/external-auth": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project external auth",
+                "operationId": "list-chat-project-external-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ListUserExternalAuthResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/external-auth/{externalauth}": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Disconnect chat project external auth",
+                "operationId": "disconnect-chat-project-external-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "External auth provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeleteExternalAuthByIDResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/external-auth/{externalauth}/connect": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Connect chat project external auth",
+                "operationId": "connect-chat-project-external-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "External auth provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Connect request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConnectChatProjectExternalAuthRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConnectChatProjectExternalAuthResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/external-auth/{externalauth}/device": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Exchange chat project external auth device code",
+                "operationId": "exchange-chat-project-external-auth-device-code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "External auth provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Device code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthDeviceExchange"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chats/projects/{project}/instructions": {
             "get": {
                 "produces": [
@@ -751,6 +1185,169 @@ const docTemplate = `{
                         "format": "uuid",
                         "description": "Chat project ID",
                         "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/mcp-servers": {
+            "get": {
+                "description": "Lists the agent's MCP servers, which of them need a personal\ntoken, and whether the agent's user has one. Tokens are never\nreturned.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project MCP server tokens",
+                "operationId": "list-chat-project-mcp-server-tokens",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectMCPServerToken"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/mcp-servers/{mcpServer}/token": {
+            "put": {
+                "description": "Stores the token the agent's user sends to a user_api_key MCP\nserver. Only the agent owner may set it, and it is never\nreturned.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Set chat project MCP server token",
+                "operationId": "set-chat-project-mcp-server-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerUserTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerUserTokenStatus"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project MCP server token",
+                "operationId": "delete-chat-project-mcp-server-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
                         "in": "path",
                         "required": true
                     }
@@ -963,6 +1560,446 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/runs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project runs",
+                "operationId": "list-chat-project-runs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of runs",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectRun"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/triggers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project triggers",
+                "operationId": "list-chat-project-triggers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectTrigger"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project trigger",
+                "operationId": "create-chat-project-trigger",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create trigger request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectTriggerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectTriggerResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/triggers/{trigger}": {
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project trigger",
+                "operationId": "delete-chat-project-trigger",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Trigger ID",
+                        "name": "trigger",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project trigger",
+                "operationId": "update-chat-project-trigger",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Trigger ID",
+                        "name": "trigger",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update trigger request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectTriggerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectTrigger"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/triggers/{trigger}/deliveries": {
+            "get": {
+                "description": "Lists the trigger's recent webhook calls, newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project trigger deliveries",
+                "operationId": "list-chat-project-trigger-deliveries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Trigger ID",
+                        "name": "trigger",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectTriggerDelivery"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/triggers/{trigger}/run": {
+            "post": {
+                "description": "Starts a run of a schedule trigger outside its schedule. The\nrun does not change when the trigger runs next.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Run a schedule trigger now",
+                "operationId": "run-chat-project-schedule-trigger",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Trigger ID",
+                        "name": "trigger",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerWebhookResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/triggers/{trigger}/webhook-url": {
+            "post": {
+                "description": "Replaces the trigger's secret. The previous webhook URL stops\nworking.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Regenerate chat project trigger webhook URL",
+                "operationId": "regenerate-chat-project-trigger-webhook-url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Trigger ID",
+                        "name": "trigger",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectTriggerResponse"
+                        }
                     }
                 },
                 "security": [
@@ -6444,6 +7481,87 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.MCPServerOAuth2DisconnectResponse"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/mcp/servers/{mcpServer}/user-token": {
+            "put": {
+                "description": "Stores the caller's own token for a user_api_key MCP server.\nThe token is never returned.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Set MCP server user token",
+                "operationId": "set-mcp-server-user-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerUserTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerUserTokenStatus"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Delete MCP server user token",
+                "operationId": "delete-mcp-server-user-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -21676,7 +22794,8 @@ const docTemplate = `{
                 },
                 "role": {
                     "enum": [
-                        "read"
+                        "read",
+                        "write"
                     ],
                     "allOf": [
                         {
@@ -22733,12 +23852,35 @@ const docTemplate = `{
         "codersdk.ChatProject": {
             "type": "object",
             "properties": {
+                "agent_user": {
+                    "description": "AgentUser is the service account the agent acts as. Chats in the\nagent are owned by this user. It is unset until the user is\nprovisioned.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
+                "allowed_template_ids": {
+                    "description": "AllowedTemplateIDs restricts which templates chats in the project may\ncreate workspaces from. Empty allows every template.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "description": {
                     "type": "string"
+                },
+                "external_auth_provider_ids": {
+                    "description": "ExternalAuthProviderIDs restricts which external auth providers a\ntemplate may require. Empty allows every provider.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "icon": {
                     "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
@@ -22747,6 +23889,48 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "invokable_agent_ids": {
+                    "description": "InvokableAgentIDs are other agents that chats in this agent may\ninvoke to delegate work.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "mcp_server_ids": {
+                    "description": "MCPServerIDs are attached to every chat created in the project.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID is the model new chats in the agent use when the chat\ndoes not pick one. Unset uses the deployment default.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "model_display_name": {
+                    "description": "ModelDisplayName is the name of the model in ModelConfigID, including\na deleted one.",
+                    "type": "string"
+                },
+                "model_status": {
+                    "description": "ModelStatus reports whether the agent's chats can use ModelConfigID.",
+                    "enum": [
+                        "default",
+                        "available",
+                        "unavailable"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectModelStatus"
+                        }
+                    ]
+                },
+                "model_status_reason": {
+                    "description": "ModelStatusReason explains an unavailable model, for example that it\nwas deleted or its provider has no credentials for the agent.",
+                    "type": "string"
                 },
                 "name": {
                     "description": "Name is a display label and is not unique; ID identifies the project.",
@@ -22760,9 +23944,135 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "permissions": {
+                    "description": "Permissions describes what the requesting user can do with the project.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectPermissions"
+                        }
+                    ]
+                },
+                "template_parameter_rules": {
+                    "description": "TemplateParameterRules limit the values chats in the project may use\nfor specific template parameters.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectTemplateParameterRule"
+                    }
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "workspace_tools_enabled": {
+                    "description": "WorkspaceToolsEnabled allows chats in this agent to create, start,\nand use workspaces.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatProjectACL": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectACLGroup"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectACLUser"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatProjectACLGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "role": {
+                    "enum": [
+                        "use",
+                        "edit"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectRole"
+                        }
+                    ]
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatProjectACLUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "use",
+                        "edit"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectRole"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -22790,6 +24100,58 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProjectMCPServerToken": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string"
+                },
+                "credential_kind": {
+                    "description": "CredentialKind says what the agent's user authenticates with. It is\nset when HasToken is true.",
+                    "enum": [
+                        "token",
+                        "github_app"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerCredentialKind"
+                        }
+                    ]
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "github_app": {
+                    "description": "GitHubApp is set for the github_app kind.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerGitHubApp"
+                        }
+                    ]
+                },
+                "has_token": {
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "mcp_server_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "token_required": {
+                    "description": "TokenRequired is true for user_api_key servers, whose tools the\nagent can only use once its owner stores a token.",
+                    "type": "boolean"
+                },
+                "token_updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.ChatProjectMemory": {
             "type": "object",
             "properties": {
@@ -22803,6 +24165,10 @@ const docTemplate = `{
                 "created_by": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "created_by_name": {
+                    "description": "CreatedByName is the display name of the creator, such as an agent's\nname when an agent saved the memory.",
+                    "type": "string"
                 },
                 "created_by_username": {
                     "type": "string"
@@ -22824,6 +24190,337 @@ const docTemplate = `{
                 "project_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatProjectModelStatus": {
+            "type": "string",
+            "enum": [
+                "default",
+                "available",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "ChatProjectModelStatusDefault",
+                "ChatProjectModelStatusAvailable",
+                "ChatProjectModelStatusUnavailable"
+            ]
+        },
+        "codersdk.ChatProjectPermissions": {
+            "type": "object",
+            "properties": {
+                "delete": {
+                    "description": "Delete allows deleting the project.",
+                    "type": "boolean"
+                },
+                "edit": {
+                    "description": "Edit allows changing the project's settings, instructions, and\npermissions.",
+                    "type": "boolean"
+                },
+                "manage_triggers": {
+                    "description": "ManageTriggers allows creating and changing webhook triggers. Triggered\nchats run as the agent's user on the owner's behalf, so only the owner\nhas it.",
+                    "type": "boolean"
+                },
+                "share": {
+                    "description": "Share allows changing who the project is shared with.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatProjectRole": {
+            "type": "string",
+            "enum": [
+                "use",
+                "edit",
+                ""
+            ],
+            "x-enum-varnames": [
+                "ChatProjectRoleUse",
+                "ChatProjectRoleEdit",
+                "ChatProjectRoleDeleted"
+            ]
+        },
+        "codersdk.ChatProjectRun": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "last_error": {
+                    "description": "LastError is the error message of a failed run.",
+                    "type": "string"
+                },
+                "parent_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "trigger_id": {
+                    "description": "TriggerID is set when a webhook trigger started the run.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectTemplateParameterRule": {
+            "type": "object",
+            "properties": {
+                "allowed_values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "parameter_name": {
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatProjectTrigger": {
+            "type": "object",
+            "properties": {
+                "busy_behavior": {
+                    "description": "BusyBehavior is what a continued chat does with a new event while it\nis still working.",
+                    "enum": [
+                        "queue",
+                        "interrupt"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerBusyBehavior"
+                        }
+                    ]
+                },
+                "channel": {
+                    "description": "Channel limits a Slack trigger to one channel ID.",
+                    "type": "string"
+                },
+                "continue_conversations": {
+                    "description": "ContinueConversations sends events in a conversation the trigger\nalready started a chat for to that chat instead of starting a new\none. An archived chat is replaced by a new one.",
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "events": {
+                    "description": "Events that start a chat. Empty matches every event. Plain webhook\ntriggers have no events.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "has_github_webhook_secret": {
+                    "description": "HasGitHubWebhookSecret reports whether GitHub deliveries are verified\nwith the webhook's secret. The secret itself is never returned.",
+                    "type": "boolean"
+                },
+                "has_slack_signing_secret": {
+                    "description": "HasSlackSigningSecret reports whether Slack requests are verified with\nthe app's signing secret. The secret itself is never returned.",
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ignore_thread_replies": {
+                    "description": "IgnoreThreadReplies keeps Slack thread replies from starting new\nchats. Replies in a thread the trigger already started a chat for\nstill continue that chat when ContinueConversations is set.",
+                    "type": "boolean"
+                },
+                "last_delivery": {
+                    "description": "LastDelivery is the most recent call to the trigger's webhook. It is\nonly set when listing triggers.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerDelivery"
+                        }
+                    ]
+                },
+                "last_triggered_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "next_run_at": {
+                    "description": "NextRunAt is when a schedule trigger runs next. Unset when the\ntrigger is disabled or is not a schedule trigger.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "repository": {
+                    "description": "Repository limits a GitHub trigger to one repository, as owner/name.",
+                    "type": "string"
+                },
+                "schedule": {
+                    "description": "Schedule is the cron expression of a schedule trigger: five fields\n(minute, hour, day of month, month, day of week) with an optional\nCRON_TZ= prefix, such as \"CRON_TZ=Europe/Berlin 0 9 * * 1-5\". Empty\nfor other sources.",
+                    "type": "string"
+                },
+                "senders": {
+                    "description": "Senders limits GitHub triggers to these logins and Slack triggers to\nthese user IDs. Empty matches everyone.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "source": {
+                    "enum": [
+                        "webhook",
+                        "github",
+                        "slack",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerSource"
+                        }
+                    ]
+                },
+                "text_pattern": {
+                    "description": "TextPattern is text the event must contain: a Slack message, a GitHub\ncomment, review, issue or pull request, or a plain webhook body.\nEmpty matches every event.",
+                    "type": "string"
+                },
+                "text_pattern_is_regex": {
+                    "description": "TextPatternIsRegex treats TextPattern as a regular expression (RE2)\ninstead of case-insensitive text.",
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectTriggerBusyBehavior": {
+            "type": "string",
+            "enum": [
+                "queue",
+                "interrupt"
+            ],
+            "x-enum-varnames": [
+                "ChatProjectTriggerBusyBehaviorQueue",
+                "ChatProjectTriggerBusyBehaviorInterrupt"
+            ]
+        },
+        "codersdk.ChatProjectTriggerDelivery": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "description": "ChatID is the chat the call started or continued.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "event": {
+                    "description": "Event is the event name, such as issue_comment.created. Empty for\nplain webhooks.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "message": {
+                    "description": "Message explains why the event was ignored or rejected.",
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "started",
+                        "continued",
+                        "ignored",
+                        "rejected",
+                        "handshake"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerDeliveryStatus"
+                        }
+                    ]
+                },
+                "trigger_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatProjectTriggerDeliveryStatus": {
+            "type": "string",
+            "enum": [
+                "started",
+                "continued",
+                "ignored",
+                "rejected",
+                "handshake"
+            ],
+            "x-enum-varnames": [
+                "ChatProjectTriggerDeliveryStatusStarted",
+                "ChatProjectTriggerDeliveryStatusContinued",
+                "ChatProjectTriggerDeliveryStatusIgnored",
+                "ChatProjectTriggerDeliveryStatusRejected",
+                "ChatProjectTriggerDeliveryStatusHandshake"
+            ]
+        },
+        "codersdk.ChatProjectTriggerSource": {
+            "type": "string",
+            "enum": [
+                "webhook",
+                "github",
+                "slack",
+                "schedule"
+            ],
+            "x-enum-varnames": [
+                "ChatProjectTriggerSourceWebhook",
+                "ChatProjectTriggerSourceGitHub",
+                "ChatProjectTriggerSourceSlack",
+                "ChatProjectTriggerSourceSchedule"
+            ]
+        },
+        "codersdk.ChatProjectTriggerWebhookResponse": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "continued": {
+                    "description": "Continued is true when the call was sent to the chat of an earlier\ncall in the same conversation.",
+                    "type": "boolean"
                 }
             }
         },
@@ -22887,10 +24584,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "read",
+                "write",
                 ""
             ],
             "x-enum-varnames": [
                 "ChatRoleRead",
+                "ChatRoleWrite",
                 "ChatRoleDeleted"
             ]
         },
@@ -23122,7 +24821,8 @@ const docTemplate = `{
                 },
                 "role": {
                     "enum": [
-                        "read"
+                        "read",
+                        "write"
                     ],
                     "allOf": [
                         {
@@ -23198,6 +24898,23 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "host": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ConnectChatProjectExternalAuthRequest": {
+            "type": "object",
+            "properties": {
+                "redirect": {
+                    "description": "Redirect is the Coder path to return to after the provider flow.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ConnectChatProjectExternalAuthResponse": {
+            "type": "object",
+            "properties": {
+                "url": {
                     "type": "string"
                 }
             }
@@ -23585,7 +25302,111 @@ const docTemplate = `{
                 "icon": {
                     "type": "string"
                 },
+                "model_config_id": {
+                    "description": "ModelConfigID sets the model new chats in the agent use when the chat\ndoes not pick one. Unset uses the deployment default.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateChatProjectTriggerRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "busy_behavior": {
+                    "description": "BusyBehavior defaults to queue.",
+                    "enum": [
+                        "queue",
+                        "interrupt"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerBusyBehavior"
+                        }
+                    ]
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "continue_conversations": {
+                    "description": "ContinueConversations defaults to true for Slack triggers and false\notherwise.",
+                    "type": "boolean"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "github_webhook_secret": {
+                    "description": "GitHubWebhookSecret is the secret configured on the GitHub webhook.\nWhen set, deliveries must carry a valid X-Hub-Signature-256. Only\nGitHub triggers accept it, and it is never returned.",
+                    "type": "string"
+                },
+                "ignore_thread_replies": {
+                    "description": "IgnoreThreadReplies keeps Slack thread replies from starting new\nchats. Replies in a thread the trigger already started a chat for\nstill continue that chat when ContinueConversations is set.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "description": "Prompt is sent to the new chat ahead of the webhook payload.",
+                    "type": "string"
+                },
+                "repository": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "description": "Schedule is required for schedule triggers and rejected for others.\nSee ChatProjectTrigger.Schedule.",
+                    "type": "string"
+                },
+                "senders": {
+                    "description": "Senders limits GitHub triggers to these logins and Slack triggers to\nthese user IDs. Empty matches everyone.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "slack_signing_secret": {
+                    "description": "SlackSigningSecret is the Slack app's signing secret. When set,\nrequests must carry a valid X-Slack-Signature. Only Slack triggers\naccept it, and it is never returned.",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source defaults to ChatProjectTriggerSourceWebhook.",
+                    "enum": [
+                        "webhook",
+                        "github",
+                        "slack",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerSource"
+                        }
+                    ]
+                },
+                "text_pattern": {
+                    "description": "TextPattern is text the event must contain: a Slack message, a GitHub\ncomment, review, issue or pull request, or a plain webhook body.\nEmpty matches every event.",
+                    "type": "string"
+                },
+                "text_pattern_is_regex": {
+                    "description": "TextPatternIsRegex treats TextPattern as a regular expression (RE2)\ninstead of case-insensitive text.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.CreateChatProjectTriggerResponse": {
+            "type": "object",
+            "properties": {
+                "trigger": {
+                    "$ref": "#/definitions/codersdk.ChatProjectTrigger"
+                },
+                "webhook_url": {
                     "type": "string"
                 }
             }
@@ -23784,6 +25605,10 @@ const docTemplate = `{
                 "api_key_header": {
                     "type": "string"
                 },
+                "api_key_prefix": {
+                    "description": "APIKeyPrefix is sent before each user's token for user_api_key\nservers. It defaults to \"Bearer \"; send \"\" for a bare token.\nAPIKeyHeader defaults to Authorization for user_api_key servers.",
+                    "type": "string"
+                },
                 "api_key_value": {
                     "type": "string"
                 },
@@ -23794,7 +25619,8 @@ const docTemplate = `{
                         "oauth2",
                         "api_key",
                         "custom_headers",
-                        "user_oidc"
+                        "user_oidc",
+                        "user_api_key"
                     ]
                 },
                 "availability": {
@@ -25664,6 +27490,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ExternalAuthDeviceExchange": {
+            "type": "object",
+            "properties": {
+                "device_code": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ExternalAuthLink": {
             "type": "object",
             "properties": {
@@ -25689,6 +27523,41 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "validate_error": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ExternalAuthLinkProvider": {
+            "type": "object",
+            "properties": {
+                "allow_refresh": {
+                    "type": "boolean"
+                },
+                "allow_validate": {
+                    "type": "boolean"
+                },
+                "code_challenge_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "device": {
+                    "type": "boolean"
+                },
+                "display_icon": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "supports_revocation": {
+                    "type": "boolean"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -26390,6 +28259,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ListUserExternalAuthResponse": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "description": "Links are all the authenticated links for the user.\nIf a link has a provider ID that does not exist, then that provider\nis no longer configured, rendering it unusable. It is still valuable\nto include these links so that the user can unlink them.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExternalAuthLink"
+                    }
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExternalAuthLinkProvider"
+                    }
+                }
+            }
+        },
         "codersdk.LogLevel": {
             "type": "string",
             "enum": [
@@ -26491,15 +28378,19 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "api_key_header": {
-                    "description": "API key fields (only populated for admins).",
+                    "description": "API key fields (only populated for admins, except that user_api_key\nservers show every reader the header and prefix their token is sent\nwith).",
+                    "type": "string"
+                },
+                "api_key_prefix": {
+                    "description": "APIKeyPrefix is sent before each user's token for user_api_key\nservers, such as \"Bearer \".",
                     "type": "string"
                 },
                 "auth_connected": {
-                    "description": "Per-user state (populated for non-admin requests).",
+                    "description": "Per-user state (populated for non-admin requests). For oauth2 it\nreports a usable token; for user_api_key it reports whether the\ncaller has stored a token.",
                     "type": "boolean"
                 },
                 "auth_type": {
-                    "description": "\"none\", \"oauth2\", \"api_key\", \"custom_headers\", \"user_oidc\"",
+                    "description": "\"none\", \"oauth2\", \"api_key\", \"custom_headers\", \"user_oidc\", \"user_api_key\"",
                     "type": "string"
                 },
                 "availability": {
@@ -26713,6 +28604,66 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MCPServerCredentialKind": {
+            "type": "string",
+            "enum": [
+                "token",
+                "github_app"
+            ],
+            "x-enum-varnames": [
+                "MCPServerCredentialKindToken",
+                "MCPServerCredentialKindGitHubApp"
+            ]
+        },
+        "codersdk.MCPServerGitHubApp": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "type": "integer"
+                },
+                "installation_id": {
+                    "type": "integer"
+                },
+                "repositories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "use_for_git": {
+                    "description": "UseForGit is true when git in the agent's workspaces signs in as\nthe app.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.MCPServerGitHubAppCredentialRequest": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "description": "AppID is the numeric app ID from the app's settings page.",
+                    "type": "integer"
+                },
+                "installation_id": {
+                    "description": "InstallationID is the number at the end of the installation's\nsettings URL.",
+                    "type": "integer"
+                },
+                "private_key": {
+                    "description": "PrivateKey is the app's PEM private key. It is never returned. Leave\nit empty to keep the stored key when only other fields change.",
+                    "type": "string"
+                },
+                "repositories": {
+                    "description": "Repositories limits tokens to these repository names. Empty means\nevery repository the installation can access.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "use_for_git": {
+                    "description": "UseForGit also gives the app's identity to git in the agent's\nworkspaces, such as git clone and git push. Git reaches the same\nrepositories as the app's other tokens.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.MCPServerOAuth2DisconnectResponse": {
             "type": "object",
             "properties": {
@@ -26721,6 +28672,38 @@ const docTemplate = `{
                 },
                 "token_revoked": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.MCPServerUserTokenStatus": {
+            "type": "object",
+            "properties": {
+                "credential_kind": {
+                    "description": "CredentialKind is set when HasToken is true.",
+                    "enum": [
+                        "token",
+                        "github_app"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerCredentialKind"
+                        }
+                    ]
+                },
+                "github_app": {
+                    "description": "GitHubApp is set for the github_app kind.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerGitHubApp"
+                        }
+                    ]
+                },
+                "has_token": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -28093,6 +30076,9 @@ const docTemplate = `{
                 },
                 "has_ai_seat": {
                     "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
+                "is_agent": {
                     "type": "boolean"
                 },
                 "is_service_account": {
@@ -29720,6 +31706,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "is_agent": {
+                    "description": "IsAgent is true for the user that a Coder Agent acts as. Agent users\ncannot login.",
+                    "type": "boolean"
+                },
                 "is_service_account": {
                     "type": "boolean"
                 },
@@ -31274,6 +33264,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "is_agent": {
+                    "description": "IsAgent is true for the user that a Coder Agent acts as. Agent users\ncannot login.",
+                    "type": "boolean"
+                },
                 "is_service_account": {
                     "type": "boolean"
                 },
@@ -31869,6 +33863,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatProjectACLRequest": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatProjectRole"
+                    }
+                },
+                "user_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatProjectRole"
+                    }
+                }
+            }
+        },
         "codersdk.UpdateChatProjectInstructionsRequest": {
             "type": "object",
             "properties": {
@@ -31880,14 +33891,124 @@ const docTemplate = `{
         "codersdk.UpdateChatProjectRequest": {
             "type": "object",
             "properties": {
+                "allowed_template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
                 "description": {
                     "type": "string"
+                },
+                "external_auth_provider_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "icon": {
                     "type": "string"
                 },
+                "invokable_agent_ids": {
+                    "description": "InvokableAgentIDs replaces the agents this agent may invoke. Each\nmust be another agent in the same organization that the caller can\nread.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "mcp_server_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID sets the agent's model. An empty string clears it, so\nchats use the deployment default. Unset leaves it unchanged.",
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
+                },
+                "template_parameter_rules": {
+                    "description": "TemplateParameterRules replaces the project's parameter rules.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectTemplateParameterRule"
+                    }
+                },
+                "workspace_tools_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateChatProjectTriggerRequest": {
+            "type": "object",
+            "properties": {
+                "busy_behavior": {
+                    "enum": [
+                        "queue",
+                        "interrupt"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTriggerBusyBehavior"
+                        }
+                    ]
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "continue_conversations": {
+                    "description": "ContinueConversations and BusyBehavior: see\nChatProjectTriggerConversationOptions.",
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "github_webhook_secret": {
+                    "description": "GitHubWebhookSecret replaces the GitHub webhook secret. An empty\nstring removes it and turns signature verification off.",
+                    "type": "string"
+                },
+                "ignore_thread_replies": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "repository": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "description": "Schedule replaces a schedule trigger's cron expression.",
+                    "type": "string"
+                },
+                "senders": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "slack_signing_secret": {
+                    "description": "SlackSigningSecret replaces the Slack signing secret. An empty string\nremoves it and turns signature verification off.",
+                    "type": "string"
+                },
+                "text_pattern": {
+                    "type": "string"
+                },
+                "text_pattern_is_regex": {
+                    "type": "boolean"
                 }
             }
         },
@@ -32000,6 +34121,10 @@ const docTemplate = `{
                 "api_key_header": {
                     "type": "string"
                 },
+                "api_key_prefix": {
+                    "description": "APIKeyPrefix: see CreateMCPServerConfigRequest.",
+                    "type": "string"
+                },
                 "api_key_value": {
                     "type": "string"
                 },
@@ -32010,7 +34135,8 @@ const docTemplate = `{
                         "oauth2",
                         "api_key",
                         "custom_headers",
-                        "user_oidc"
+                        "user_oidc",
+                        "user_api_key"
                     ]
                 },
                 "availability": {
@@ -32096,6 +34222,35 @@ const docTemplate = `{
                     ]
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateMCPServerUserTokenRequest": {
+            "type": "object",
+            "properties": {
+                "credential_kind": {
+                    "description": "CredentialKind defaults to github_app when GitHubApp is set and to\ntoken otherwise. github_app is only accepted for an agent.",
+                    "enum": [
+                        "token",
+                        "github_app"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerCredentialKind"
+                        }
+                    ]
+                },
+                "github_app": {
+                    "description": "GitHubApp is required for the github_app kind.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerGitHubAppCredentialRequest"
+                        }
+                    ]
+                },
+                "token": {
+                    "description": "Token is required for the token kind.",
                     "type": "string"
                 }
             }
@@ -32758,6 +34913,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "is_agent": {
+                    "description": "IsAgent is true for the user that a Coder Agent acts as. Agent users\ncannot login.",
+                    "type": "boolean"
                 },
                 "is_service_account": {
                     "type": "boolean"

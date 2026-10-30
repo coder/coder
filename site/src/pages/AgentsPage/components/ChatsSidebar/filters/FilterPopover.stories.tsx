@@ -36,7 +36,7 @@ export const Closed: Story = {};
 const openFilterMenu = async (canvasElement: HTMLElement) => {
 	const user = userEvent.setup();
 	await user.click(
-		within(canvasElement).getByRole("button", { name: "Filter agents" }),
+		within(canvasElement).getByRole("button", { name: "Filter chats" }),
 	);
 	return user;
 };

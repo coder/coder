@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
+	"github.com/coder/coder/v2/coderd/x/githubapp"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -185,6 +186,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	githubAppTokens                *githubapp.Minter
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -2000,6 +2002,10 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// GitHubAppTokens mints installation tokens for chat owners, usually
+	// agents' users, that authenticate to a user_api_key MCP server as a
+	// GitHub App. Nil disables GitHub App credentials.
+	GitHubAppTokens *githubapp.Minter
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -2097,6 +2103,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		githubAppTokens:                cfg.GitHubAppTokens,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -2763,6 +2770,9 @@ type rootChatToolsOptions struct {
 	resolvePlanPath func(context.Context) (string, string, error)
 	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
+	// workspaceTools adds the workspace lifecycle tools. The chat's agent
+	// can turn them off.
+	workspaceTools bool
 }
 
 func (p *Server) loadPlanModeInstructions(
@@ -2952,49 +2962,9 @@ func (p *Server) appendRootChatTools(
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
 ) []fantasy.AgentTool {
-	onChatUpdated := func(updatedChat database.Chat) {
-		opts.workspaceCtx.selectWorkspace(updatedChat)
-		// Notify the frontend immediately so it can start streaming
-		// build logs before the tool completes.
-		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if opts.workspaceTools {
+		tools = p.appendWorkspaceLifecycleTools(ctx, tools, opts)
 	}
-
-	tools = append(tools,
-		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
-			OwnerID: opts.chat.OwnerID,
-			Logger:  p.logger,
-			Clock:   p.clock,
-		}),
-		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID:          opts.chat.OwnerID,
-			RenderParameters: p.renderTemplateParametersFn,
-			Logger:           p.logger,
-		}),
-		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
-			OwnerID:                        opts.chat.OwnerID,
-			CreateFn:                       p.createWorkspaceFn,
-			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-			WorkspaceMu:                    opts.workspaceMu,
-			OnChatUpdated:                  onChatUpdated,
-			Logger:                         p.logger,
-		}),
-		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
-		}),
-		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StopFn:        p.stopWorkspaceFn,
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
-		}),
-	)
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,
@@ -3007,6 +2977,64 @@ func (p *Server) appendRootChatTools(
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
 	}, opts.modelConfigID)...)
+}
+
+// appendWorkspaceLifecycleTools adds the tools that pick a template and
+// create, start, or stop the chat's workspace, restricted to the templates
+// the chat's agent allows.
+func (p *Server) appendWorkspaceLifecycleTools(
+	ctx context.Context,
+	tools []fantasy.AgentTool,
+	opts rootChatToolsOptions,
+) []fantasy.AgentTool {
+	policy := p.chatTemplatePolicy(ctx, opts.chat)
+	onChatUpdated := func(updatedChat database.Chat) {
+		opts.workspaceCtx.selectWorkspace(updatedChat)
+		// Notify the frontend immediately so it can start streaming
+		// build logs before the tool completes.
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+
+	return append(tools,
+		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
+			OwnerID: opts.chat.OwnerID,
+			Logger:  p.logger,
+			Clock:   p.clock,
+			Policy:  policy,
+		}),
+		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
+			OwnerID:          opts.chat.OwnerID,
+			RenderParameters: p.renderTemplateParametersFn,
+			Logger:           p.logger,
+			Policy:           policy,
+		}),
+		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
+			OwnerID:                        opts.chat.OwnerID,
+			CreateFn:                       p.createWorkspaceFn,
+			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+			WorkspaceMu:                    opts.workspaceMu,
+			OnChatUpdated:                  onChatUpdated,
+			Logger:                         p.logger,
+			Policy:                         policy,
+		}),
+		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
+			OwnerID:       opts.chat.OwnerID,
+			StartFn:       p.startWorkspaceFn,
+			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:   opts.workspaceMu,
+			OnChatUpdated: onChatUpdated,
+			Logger:        p.logger,
+			Policy:        policy,
+		}),
+		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
+			OwnerID:       opts.chat.OwnerID,
+			StopFn:        p.stopWorkspaceFn,
+			WorkspaceMu:   opts.workspaceMu,
+			OnChatUpdated: onChatUpdated,
+			Logger:        p.logger,
+		}),
+	)
 }
 
 func appendDynamicTools(

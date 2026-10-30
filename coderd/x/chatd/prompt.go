@@ -28,6 +28,11 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`
 
+// workspaceInheritedAwareness is for an invoked agent spawned with
+// inherit_workspace. It works in the parent chat's workspace but has no
+// workspace lifecycle tools there.
+const workspaceInheritedAwareness = "This chat shares the parent chat's workspace. You can use workspace tools like execute, read_file, write_file, etc. in it. You cannot create, start, stop, or switch workspaces. If the workspace is stopped or unavailable, report that to the parent agent instead of working around it."
+
 // DefaultSystemPrompt is used for new chats when no deployment override is
 // configured.
 const DefaultSystemPrompt = `You are the Coder agent, helping users with software-engineering tasks inside the Coder product.

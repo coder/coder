@@ -461,6 +461,17 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
+				var projectAgent *database.ChatProject
+				if strings.TrimSpace(args.AgentID) != "" {
+					agent, err := p.resolveSpawnableProjectAgent(ctx, parent, args.AgentID)
+					if err != nil {
+						return fantasy.NewTextErrorResponse(err.Error()), nil
+					}
+					projectAgent = &agent
+					// Configured sub-agents run as general children.
+					args.Type = subagentTypeGeneral
+				}
+
 				definition, err := resolveSubagentDefinition(
 					ctx,
 					p,
@@ -489,6 +500,13 @@ func (p *Server) subagentTools(
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
+				// An invoked agent's own model applies unless the call
+				// names one.
+				if projectAgent != nil && explicitModelConfigID == nil {
+					if id, ok := p.projectAgentModelConfigID(ctx, *projectAgent); ok {
+						explicitModelConfigID = &id
+					}
+				}
 
 				turnParent := currentChatSnapshot
 				if turnParent.ID == uuid.Nil {
@@ -511,6 +529,8 @@ func (p *Server) subagentTools(
 				if explicitReasoningEffort != nil {
 					options.reasoningEffortOverride = explicitReasoningEffort
 				}
+				options.projectAgent = projectAgent
+				options.inheritWorkspace = projectAgent != nil && args.InheritWorkspace
 
 				childChat, err := p.createChildSubagentChatWithOptions(
 					ctx,
@@ -956,6 +976,15 @@ type childSubagentChatOptions struct {
 	reasoningEffortOverride *string
 	planModeOverride        *database.NullChatPlanMode
 	inheritedMCPServerIDs   []uuid.UUID
+	// projectAgent, when set, binds the child to a configured sub-agent.
+	// The child gets the sub-agent's MCP servers instead of the parent's
+	// and starts without the parent's workspace, so it can only use
+	// workspaces from the sub-agent's allowed templates.
+	projectAgent *database.ChatProject
+	// inheritWorkspace binds a projectAgent child to the parent chat's
+	// workspace instead of starting it without one. See
+	// inheritedWorkspaceBinding.
+	inheritWorkspace bool
 }
 
 // resolveExploreToolSnapshot computes the child chat's inherited MCP
@@ -1045,6 +1074,31 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if isExploreSubagentMode(opts.chatMode) {
 		mcpServerIDs = slices.Clone(opts.inheritedMCPServerIDs)
 	}
+	projectID := uuid.NullUUID{}
+	workspaceID, buildID, agentID := parent.WorkspaceID, parent.BuildID, parent.AgentID
+	// A child in an invoked agent is owned by that agent's user, like the
+	// agent's other chats, so it runs with the agent's credentials. It is
+	// shared back with the parent chat's owner below.
+	childOwnerID := parent.OwnerID
+	if opts.projectAgent != nil {
+		var err error
+		childOwnerID, err = p.projectAgentChildOwner(ctx, *opts.projectAgent, modelConfigID)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		projectID = uuid.NullUUID{UUID: opts.projectAgent.ID, Valid: true}
+		workspaceID, buildID, agentID = uuid.NullUUID{}, uuid.NullUUID{}, uuid.NullUUID{}
+		if opts.inheritWorkspace {
+			workspaceID, buildID, agentID, err = p.inheritedWorkspaceBinding(ctx, parent, *opts.projectAgent)
+			if err != nil {
+				return database.Chat{}, err
+			}
+		}
+		mcpServerIDs, err = p.projectAgentMCPServerIDs(ctx, parent.OrganizationID, childOwnerID, *opts.projectAgent)
+		if err != nil {
+			return database.Chat{}, err
+		}
+	}
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
@@ -1080,8 +1134,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 		}
 		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
-			OwnerID:      parent.OwnerID,
-			WorkspaceID:  parent.WorkspaceID,
+			OwnerID:      childOwnerID,
+			WorkspaceID:  workspaceID,
 			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
 			TurnID:       &mintedTurnID,
@@ -1105,7 +1159,12 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
-	if parent.WorkspaceID.Valid {
+	switch {
+	case opts.projectAgent != nil && workspaceID.Valid:
+		workspaceAwareness = workspaceInheritedAwareness
+	case opts.projectAgent != nil:
+		workspaceAwareness = workspaceDetachedAwareness
+	case parent.WorkspaceID.Valid:
 		workspaceAwareness = workspaceAttachedAwareness
 	}
 	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -1163,10 +1222,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, chatstate.CreateChatInput{
 		OrganizationID:    parent.OrganizationID,
-		OwnerID:           parent.OwnerID,
-		WorkspaceID:       parent.WorkspaceID,
-		BuildID:           parent.BuildID,
-		AgentID:           parent.AgentID,
+		OwnerID:           childOwnerID,
+		ProjectID:         projectID,
+		WorkspaceID:       workspaceID,
+		BuildID:           buildID,
+		AgentID:           agentID,
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
 		LastModelConfigID: modelConfigID,
@@ -1191,6 +1251,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
+	// A child owned by an invoked agent's user stays visible to the root
+	// chat's owner: child chats inherit the root chat's sharing, and
+	// chats_expanded adds the root owner when the owners differ.
 	child := result.Chat
 
 	// Pin the child to its agent's latest context snapshot, mirroring the

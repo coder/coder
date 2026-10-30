@@ -3245,6 +3245,8 @@ export const createMCPServerConfig = (
 	queryClient: QueryClient,
 	organization: string,
 ) => ({
+	// The request can carry secrets, so it does not linger.
+	gcTime: 0,
 	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
 		API.experimental.createMCPServerConfig(organization, req),
 	onSuccess: async () => {
@@ -3261,6 +3263,8 @@ export const updateMCPServerConfig = (
 	queryClient: QueryClient,
 	organization: string,
 ) => ({
+	// The request can carry secrets, so it does not linger.
+	gcTime: 0,
 	mutationFn: ({ id, req }: UpdateMCPServerConfigMutationArgs) =>
 		API.experimental.updateMCPServerConfig(organization, id, req),
 	onSuccess: async () => {
@@ -3327,6 +3331,23 @@ export const updateMCPServerConfigACL = (queryClient: QueryClient) => ({
 
 export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const updateMCPServerUserToken = (queryClient: QueryClient) => ({
+	// The variables hold the token, so they do not linger.
+	gcTime: 0,
+	mutationFn: ({ id, token }: { id: string; token: string }) =>
+		API.experimental.updateMCPServerUserToken(id, { token }),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const deleteMCPServerUserToken = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.deleteMCPServerUserToken(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

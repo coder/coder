@@ -42,6 +42,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       }
     ],
     "has_ai_seat": true,
+    "is_agent": true,
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
@@ -85,6 +86,7 @@ Status Code **200**
 | `»» name`              | string                                               | false    |              |                                                                                                  |
 | `»» organization_id`   | string                                               | false    |              |                                                                                                  |
 | `» has_ai_seat`        | boolean                                              | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `» is_agent`           | boolean                                              | false    |              |                                                                                                  |
 | `» is_service_account` | boolean                                              | false    |              |                                                                                                  |
 | `» last_seen_at`       | string(date-time)                                    | false    |              |                                                                                                  |
 | `» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |                                                                                                  |
@@ -603,6 +605,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
     }
   ],
   "has_ai_seat": true,
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -811,6 +814,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
           }
         ],
         "has_ai_seat": true,
+        "is_agent": true,
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -858,6 +862,7 @@ Status Code **200**
 | `»»» name`              | string                                               | false    |              |                                                                                                  |
 | `»»» organization_id`   | string                                               | false    |              |                                                                                                  |
 | `»» has_ai_seat`        | boolean                                              | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `»» is_agent`           | boolean                                              | false    |              |                                                                                                  |
 | `»» is_service_account` | boolean                                              | false    |              |                                                                                                  |
 | `»» last_seen_at`       | string(date-time)                                    | false    |              |                                                                                                  |
 | `»» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |                                                                                                  |

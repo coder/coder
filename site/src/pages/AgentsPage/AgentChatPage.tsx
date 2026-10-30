@@ -9,6 +9,7 @@ import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import { chatProjects } from "#/api/queries/chatProjects";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -55,6 +56,10 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import {
+	canDriveChat,
+	isAgentOwnedChat,
+} from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
@@ -236,8 +241,28 @@ const AgentChatPage: React.FC = () => {
 
 	const chat = chatQuery.data;
 	const isArchived = Boolean(chat?.archived);
-	const isViewerNotOwner =
-		chat !== undefined && currentUser.id !== chat.owner_id;
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		enabled: chat?.project_id !== undefined,
+	});
+	const projects = projectsQuery.data ?? [];
+	// The server drops extra MCP servers picked in a chat of an agent, so the
+	// composer offers only the agent's servers and the ones forced on.
+	const chatProject = projects.find(
+		(project) => project.id === chat?.project_id,
+	);
+	const selectableMCPServers =
+		chat?.project_id === undefined
+			? mcpServers
+			: mcpServers.filter(
+					(server) =>
+						server.availability === "force_on" ||
+						chatProject?.mcp_server_ids.includes(server.id),
+				);
+	const canDrive =
+		chat === undefined || canDriveChat(chat, currentUser.id, projects);
+	// An agent's user cannot use the viewer's workspaces.
+	const isAgentOwned = chat !== undefined && isAgentOwnedChat(chat, projects);
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -253,7 +278,7 @@ const AgentChatPage: React.FC = () => {
 		const saved = chatOrganizationId
 			? getSavedMCPSelection(
 					chatOrganizationId,
-					mcpServers,
+					selectableMCPServers,
 					isDefaultChatOrganization,
 				)
 			: null;
@@ -261,7 +286,7 @@ const AgentChatPage: React.FC = () => {
 			return saved;
 		}
 		// Otherwise, compute defaults from server availability.
-		return getDefaultMCPSelection(mcpServers);
+		return getDefaultMCPSelection(selectableMCPServers);
 	})();
 
 	// Flatten paginated messages into chronological order.
@@ -498,9 +523,9 @@ const AgentChatPage: React.FC = () => {
 		!hasModelOptions ||
 		isArchived ||
 		isChatSettingsPending ||
-		isViewerNotOwner ||
+		!canDrive ||
 		aiGatewayDisabled;
-	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
+	const canUpdateChatWorkspace = !isArchived && canDrive && !isAgentOwned;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 	const handlePlanModeToggle = (enabled: boolean) => {
 		if (enabled === planModeEnabled) {
@@ -753,6 +778,7 @@ const AgentChatPage: React.FC = () => {
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
+					canDrive={canDrive}
 					persistedError={persistedError}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
@@ -806,7 +832,7 @@ const AgentChatPage: React.FC = () => {
 					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 					desktopChatId={desktopEnabled ? agentId : undefined}
-					mcpServers={mcpServers}
+					mcpServers={selectableMCPServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}

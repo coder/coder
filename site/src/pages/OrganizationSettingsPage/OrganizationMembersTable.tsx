@@ -31,6 +31,7 @@ import {
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
 import { UserRoleCell } from "#/modules/users/UserRoleCell";
+import { userListSubtitle } from "#/modules/users/userLabels";
 
 export type OrganizationMembersTableProps = {
 	// State
@@ -119,7 +120,7 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 								/>
 							}
 							title={member.name || member.username}
-							subtitle={member.email}
+							subtitle={userListSubtitle(member)}
 						/>
 					</TableCell>
 					<UserRoleCell

@@ -34,6 +34,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 	t.Run("Project", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
+		allowProjectAccess(db)
 		projectID := uuid.New()
 		db.EXPECT().GetChatProjectInstructionsByProjectID(gomock.Any(), projectID).
 			Return(instructionsRow(projectID, "Reply\u200b in French.\n"), nil)
@@ -43,6 +44,18 @@ func TestResolveProjectInstructions(t *testing.T) {
 			ProjectID: uuid.NullUUID{UUID: projectID, Valid: true},
 		})
 		require.Contains(t, block, "<project-instructions>\nReply in French.\n</project-instructions>")
+	})
+
+	t.Run("RevokedAccess", func(t *testing.T) {
+		t.Parallel()
+		// A chat whose owner lost access to the project gets no instructions.
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), gomock.Any()).Return(false, nil)
+		server := newServer(t, db)
+		require.Empty(t, server.resolveProjectInstructions(t.Context(), server.logger, database.Chat{
+			ID:        uuid.New(),
+			ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}))
 	})
 
 	t.Run("OutsideProject", func(t *testing.T) {
@@ -55,6 +68,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 	t.Run("Unset", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
+		allowProjectAccess(db)
 		projectID := uuid.New()
 		db.EXPECT().GetChatProjectInstructionsByProjectID(gomock.Any(), projectID).
 			Return(database.GetChatProjectInstructionsByProjectIDRow{}, sql.ErrNoRows)
@@ -68,6 +82,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 	t.Run("SubagentInheritsRootProject", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
+		allowProjectAccess(db)
 		projectID := uuid.New()
 		rootID := uuid.New()
 		db.EXPECT().GetChatByID(gomock.Any(), rootID).
@@ -86,6 +101,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 	t.Run("LookupFailureFailsOpen", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
+		allowProjectAccess(db)
 		projectID := uuid.New()
 		db.EXPECT().GetChatProjectInstructionsByProjectID(gomock.Any(), projectID).
 			Return(database.GetChatProjectInstructionsByProjectIDRow{}, xerrors.New("connection reset"))
@@ -105,4 +121,8 @@ func TestResolveProjectInstructions(t *testing.T) {
 			ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		}))
 	})
+}
+
+func allowProjectAccess(db *dbmock.MockStore) {
+	db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 }

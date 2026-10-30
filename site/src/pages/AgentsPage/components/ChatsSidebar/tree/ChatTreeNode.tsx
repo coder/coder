@@ -142,7 +142,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		...pinOptions,
 		onError: (error, chatId, context) => {
 			pinOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to pin agent."));
+			toast.error(getErrorMessage(error, "Failed to pin chat."));
 		},
 	});
 	const unpinOptions = unpinChat(queryClient);
@@ -150,7 +150,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		...unpinOptions,
 		onError: (error, chatId, context) => {
 			unpinOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+			toast.error(getErrorMessage(error, "Failed to unpin chat."));
 		},
 	});
 	const readStateMutationKey = chatReadStateMutationKey(chat.id);
@@ -160,7 +160,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		mutationKey: readStateMutationKey,
 		onError: (error, chatId, context) => {
 			markReadOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+			toast.error(getErrorMessage(error, "Failed to mark chat as read."));
 		},
 	});
 	const markUnreadOptions = markChatUnread(queryClient);
@@ -169,7 +169,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		mutationKey: readStateMutationKey,
 		onError: (error, chatId, context) => {
 			markUnreadOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+			toast.error(getErrorMessage(error, "Failed to mark chat as unread."));
 		},
 	});
 	const isUpdatingReadState =
@@ -186,7 +186,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		},
 		onError: (error, chatId, context) => {
 			archiveOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
+			toast.error(getErrorMessage(error, "Failed to archive chat."));
 		},
 	});
 	const unarchiveOptions = unarchiveChat(queryClient);
@@ -195,7 +195,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		mutationKey,
 		onError: (error, chatId, context) => {
 			unarchiveOptions.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+			toast.error(getErrorMessage(error, "Failed to unarchive chat."));
 		},
 	});
 	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;

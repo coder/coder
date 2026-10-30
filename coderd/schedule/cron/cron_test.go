@@ -281,3 +281,57 @@ func mustLocation(t *testing.T, s string) *time.Location {
 	require.NoError(t, err)
 	return loc
 }
+
+func TestStandard(t *testing.T) {
+	t.Parallel()
+
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name         string
+		spec         string
+		at           time.Time
+		expectedNext time.Time
+		expectedErr  string
+	}{
+		{
+			name:         "MonthAndDayOfMonth",
+			spec:         "0 9 1 */3 *",
+			at:           time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			expectedNext: time.Date(2024, 4, 1, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name:         "Timezone",
+			spec:         "CRON_TZ=Europe/Berlin 30 8 * * 1-5",
+			at:           time.Date(2024, 1, 5, 12, 0, 0, 0, time.UTC),
+			expectedNext: time.Date(2024, 1, 8, 8, 30, 0, 0, berlin),
+		},
+		{
+			name:        "TooFewFields",
+			spec:        "0 9 * *",
+			expectedErr: "expected schedule to consist of 5 fields",
+		},
+		{
+			name:        "TooManyFields",
+			spec:        "CRON_TZ=UTC 0 0 9 * * *",
+			expectedErr: "expected schedule to consist of 5 fields",
+		},
+		{
+			name:        "UnknownTimezone",
+			spec:        "CRON_TZ=Mars/Olympus 0 9 * * *",
+			expectedErr: "provided bad location",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard(tc.spec)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, tc.expectedNext.Equal(sched.Next(tc.at)), "next run %s", sched.Next(tc.at))
+		})
+	}
+}

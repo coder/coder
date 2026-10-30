@@ -13,7 +13,7 @@ import (
 
 // Role is the set of ACL role types Validate accepts.
 type Role interface {
-	codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole | codersdk.OrganizationSkillRole
+	codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole | codersdk.OrganizationSkillRole | codersdk.ChatProjectRole
 }
 
 type UpdateValidator[R Role] interface {

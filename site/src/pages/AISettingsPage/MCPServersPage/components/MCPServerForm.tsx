@@ -1,10 +1,13 @@
 import { useFormik } from "formik";
 import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import type { MCPServerPresetId } from "#/modules/mcp/mcpPresets";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
 import { MCPServerFormFields } from "./MCPServerFormFields";
 import { MCPServerFormHeader } from "./MCPServerFormHeader";
+import { MCPServerPresetPicker } from "./MCPServerPresetPicker";
 import { MCPServerSharingDialog } from "./MCPServerSharingDialog";
 import {
 	buildCreateMCPServerConfigRequest,
@@ -16,6 +19,11 @@ import {
 
 type MCPServerFormCreateProps = {
 	server?: undefined;
+	/**
+	 * The deployment's access URL. Set it to let the person pick a preset at
+	 * the top of the form. Built-in servers must be served from it.
+	 */
+	accessURL?: string;
 	// Create-only callers cannot open the server list, so the back link and
 	// cancel action are omitted rather than pointing at a denied page.
 	listPath?: string;
@@ -35,6 +43,8 @@ type MCPServerFormCreateProps = {
 
 type MCPServerFormEditProps = {
 	server: TypesGen.MCPServerConfig;
+	/** The deployment's access URL, which built-in servers must be served from. */
+	accessURL?: string;
 	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
@@ -55,6 +65,7 @@ type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 
 export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 	server,
+	accessURL,
 	listPath,
 	isSaving,
 	isDeleting = false,
@@ -74,6 +85,7 @@ export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 	const [showBehavior, setShowBehavior] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [sharingOpen, setSharingOpen] = useState(false);
+	const [pendingPreset, setPendingPreset] = useState<MCPServerPresetId>();
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialMCPServerFormValues(server),
@@ -94,6 +106,15 @@ export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 			}
 		},
 	});
+
+	const applyPreset = (id: MCPServerPresetId) => {
+		form.resetForm({
+			values: buildInitialMCPServerFormValues(
+				undefined,
+				id === "custom" ? undefined : { id, accessURL: accessURL ?? "" },
+			),
+		});
+	};
 
 	const isDisabled = isSaving || isDeleting;
 	const areFieldsDisabled =
@@ -125,6 +146,24 @@ export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 				onToggleEnabled={onToggleEnabled}
 			/>
 			<div className="flex flex-col gap-6 pt-6">
+				{!isEditing && accessURL !== undefined && (
+					<MCPServerPresetPicker
+						value={form.values.preset}
+						onChange={(next) => {
+							if (next === form.values.preset) {
+								return;
+							}
+							// Switching starts the form over, so ask first when
+							// there is something to lose.
+							if (form.dirty) {
+								setPendingPreset(next);
+							} else {
+								applyPreset(next);
+							}
+						}}
+						disabled={isDisabled}
+					/>
+				)}
 				<MCPServerFormFields
 					form={form}
 					isSaving={isSaving}
@@ -132,6 +171,7 @@ export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					canSelectUserOIDC={canSelectUserOIDC}
+					accessURL={accessURL}
 					organizationPicker={organizationPicker}
 					onCancel={onCancel}
 					showDetails={showDetails}
@@ -151,6 +191,19 @@ export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 					serverName={server.display_name || server.slug}
 				/>
 			)}
+			<ConfirmDialog
+				open={pendingPreset !== undefined}
+				title="Start over?"
+				description="Switching to another server replaces the details you entered with its defaults."
+				confirmText="Switch"
+				onClose={() => setPendingPreset(undefined)}
+				onConfirm={() => {
+					if (pendingPreset !== undefined) {
+						applyPreset(pendingPreset);
+					}
+					setPendingPreset(undefined);
+				}}
+			/>
 			<MCPServerFormDialogs
 				server={server}
 				confirmingDelete={confirmingDelete}

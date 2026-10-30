@@ -256,7 +256,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		} else {
 			sdkConfig = convertMCPServerConfigRedacted(config)
 		}
-		if config.AuthType == "oauth2" {
+		if config.AuthType == "oauth2" || config.AuthType == codersdk.MCPServerAuthTypeUserAPIKey {
 			sdkConfig.AuthConnected = tokenMap[config.ID]
 		}
 		resp = append(resp, sdkConfig)
@@ -448,6 +448,19 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	apiKeyHeader := strings.TrimSpace(req.APIKeyHeader)
+	apiKeyValue := strings.TrimSpace(req.APIKeyValue)
+	apiKeyPrefix := ""
+	if req.AuthType == codersdk.MCPServerAuthTypeUserAPIKey {
+		// Each user stores their own token, so the config never holds one.
+		apiKeyValue = ""
+		apiKeyHeader, apiKeyPrefix = defaultMCPUserAPIKeyAuth(apiKeyHeader, req.APIKeyPrefix)
+		if msg := validateMCPUserAPIKeyAuth(apiKeyHeader, apiKeyPrefix); msg != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: msg})
+			return
+		}
+	}
+
 	customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -475,9 +488,10 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		OAuth2RevocationURL:     strings.TrimSpace(req.OAuth2RevocationURL),
 		OAuth2Resource:          strings.TrimSpace(req.OAuth2Resource),
 		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
-		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
-		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
+		APIKeyHeader:            apiKeyHeader,
+		APIKeyValue:             apiKeyValue,
 		APIKeyValueKeyID:        sql.NullString{},
+		APIKeyPrefix:            apiKeyPrefix,
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
 		SigningSecret:           strings.TrimSpace(req.SigningSecret),
@@ -564,7 +578,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	// Refresh readable token state so AuthConnected reflects the current
 	// OAuth status.
-	if config.AuthType == "oauth2" {
+	if config.AuthType == "oauth2" || config.AuthType == codersdk.MCPServerAuthTypeUserAPIKey {
 		tok, err := api.Database.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: config.ID,
 			UserID:            apiKey.UserID,
@@ -792,6 +806,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			apiKeyHeader = strings.TrimSpace(*req.APIKeyHeader)
 		}
 
+		apiKeyPrefix := existing.APIKeyPrefix
+		if req.APIKeyPrefix != nil {
+			apiKeyPrefix = *req.APIKeyPrefix
+		}
+
 		apiKeyValue := existing.APIKeyValue
 		apiKeyValueKeyID := existing.APIKeyValueKeyID
 		if req.APIKeyValue != nil {
@@ -897,6 +916,24 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				apiKeyHeader = ""
 				apiKeyValue = ""
 				apiKeyValueKeyID = sql.NullString{}
+			case codersdk.MCPServerAuthTypeUserAPIKey:
+				// Each user stores their own token, so no shared secret is
+				// kept on the row.
+				oauth2ClientID = ""
+				oauth2ClientSecret = ""
+				oauth2ClientSecretKeyID = sql.NullString{}
+				oauth2AuthURL = ""
+				oauth2TokenURL = ""
+				oauth2RevocationURL = ""
+				oauth2Resource = ""
+				oauth2Scopes = ""
+				customHeaders = "{}"
+				customHeadersKeyID = sql.NullString{}
+				var prefix *string
+				if req.APIKeyPrefix != nil {
+					prefix = &apiKeyPrefix
+				}
+				apiKeyHeader, apiKeyPrefix = defaultMCPUserAPIKeyAuth(apiKeyHeader, prefix)
 			case "user_oidc":
 				// user_oidc forwards the calling user's OIDC access token
 				// from user_links at request time, so no admin-configured
@@ -920,6 +957,16 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
 			return errAPIKeyAuthRequiresHeaderAndValue
 		}
+		if authType == codersdk.MCPServerAuthTypeUserAPIKey {
+			// A shared value would be sent for users without a token.
+			apiKeyValue = ""
+			apiKeyValueKeyID = sql.NullString{}
+			if msg := validateMCPUserAPIKeyAuth(apiKeyHeader, apiKeyPrefix); msg != "" {
+				return mcpUserAPIKeyAuthError(msg)
+			}
+		} else {
+			apiKeyPrefix = ""
+		}
 
 		// User grants are bound to the destination, auth flow, token and revocation
 		// endpoints, OAuth client, and resource indicator. Invalidate them when any
@@ -930,6 +977,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			oauth2ClientID != existing.OAuth2ClientID || oauth2Resource != existing.OAuth2Resource {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
+			}
+			// GitHub App tokens are minted from the API the URL selects, so
+			// a new URL must not receive the app's signed requests.
+			if err := tx.DeleteMCPServerGitHubAppCredentialsByConfigID(ctx, existing.ID); err != nil {
+				return xerrors.Errorf("invalidate MCP server GitHub App credentials: %w", err)
 			}
 		}
 
@@ -952,6 +1004,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			APIKeyHeader:            apiKeyHeader,
 			APIKeyValue:             apiKeyValue,
 			APIKeyValueKeyID:        apiKeyValueKeyID,
+			APIKeyPrefix:            apiKeyPrefix,
 			CustomHeaders:           customHeaders,
 			CustomHeadersKeyID:      customHeadersKeyID,
 			SigningSecret:           signingSecret,
@@ -983,6 +1036,9 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
+			return
+		case errors.As(err, new(mcpUserAPIKeyAuthError)):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: err.Error()})
 			return
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
@@ -1680,7 +1736,7 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 // SDK type. Secrets are never returned; only has_* booleans are set.
 // Admin-only fields (OAuth2 client ID, auth URLs, etc.) are included.
 func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerConfig {
-	return codersdk.MCPServerConfig{
+	sdk := codersdk.MCPServerConfig{
 		ID:             config.ID,
 		OrganizationID: config.OrganizationID,
 		DisplayName:    config.DisplayName,
@@ -1720,8 +1776,12 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 
 		// Default per-user auth state. Handlers that know the
 		// calling user's token state (list/get) overwrite this.
-		AuthConnected: config.AuthType != "oauth2",
+		AuthConnected: config.AuthType != "oauth2" && config.AuthType != codersdk.MCPServerAuthTypeUserAPIKey,
 	}
+	if config.AuthType == codersdk.MCPServerAuthTypeUserAPIKey {
+		sdk.APIKeyPrefix = config.APIKeyPrefix
+	}
+	return sdk
 }
 
 // convertMCPServerConfigRedacted is the same as convertMCPServerConfig
@@ -1737,7 +1797,11 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2RevocationURL = ""
 	c.OAuth2Resource = ""
 	c.OAuth2Scopes = ""
-	c.APIKeyHeader = ""
+	if config.AuthType != codersdk.MCPServerAuthTypeUserAPIKey {
+		// Users of a user_api_key server need to know how their token is
+		// sent. Neither value is secret.
+		c.APIKeyHeader = ""
+	}
 	return c
 }
 

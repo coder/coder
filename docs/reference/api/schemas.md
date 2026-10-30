@@ -271,6 +271,7 @@ title: Schemas
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -296,6 +297,7 @@ title: Schemas
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -1842,6 +1844,7 @@ None
     "email": "user@example.com",
     "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_agent": true,
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
@@ -1934,6 +1937,7 @@ None
         "email": "user@example.com",
         "has_ai_seat": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_agent": true,
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -2631,6 +2635,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -3106,6 +3111,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -3146,9 +3152,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Property | Value(s) |
-|----------|----------|
-| `role`   | `read`   |
+| Property | Value(s)        |
+|----------|-----------------|
+| `role`   | `read`, `write` |
 
 ## codersdk.ChatInputPart
 
@@ -3848,6 +3854,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -4847,29 +4854,226 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "agent_user": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "allowed_template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "external_auth_provider_ids": [
+    "string"
+  ],
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "invokable_agent_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "model_display_name": "string",
+  "model_status": "default",
+  "model_status_reason": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "permissions": {
+    "delete": true,
+    "edit": true,
+    "manage_triggers": true,
+    "share": true
+  },
+  "template_parameter_rules": [
+    {
+      "allowed_values": [
+        "string"
+      ],
+      "parameter_name": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+    }
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_tools_enabled": true
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                   |
-|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string | false    |              |                                                                                               |
-| `description`     | string | false    |              |                                                                                               |
-| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string | false    |              |                                                                                               |
-| `name`            | string | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string | false    |              |                                                                                               |
-| `owner_id`        | string | false    |              |                                                                                               |
-| `updated_at`      | string | false    |              |                                                                                               |
+| Name                         | Type                                                                                            | Required | Restrictions | Description                                                                                                                                |
+|------------------------------|-------------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_user`                 | [codersdk.MinimalUser](#codersdkminimaluser)                                                    | false    |              | Agent user is the service account the agent acts as. Chats in the agent are owned by this user. It is unset until the user is provisioned. |
+| `allowed_template_ids`       | array of string                                                                                 | false    |              | Allowed template ids restricts which templates chats in the project may create workspaces from. Empty allows every template.               |
+| `created_at`                 | string                                                                                          | false    |              |                                                                                                                                            |
+| `description`                | string                                                                                          | false    |              |                                                                                                                                            |
+| `external_auth_provider_ids` | array of string                                                                                 | false    |              | External auth provider ids restricts which external auth providers a template may require. Empty allows every provider.                    |
+| `icon`                       | string                                                                                          | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.                                              |
+| `id`                         | string                                                                                          | false    |              |                                                                                                                                            |
+| `invokable_agent_ids`        | array of string                                                                                 | false    |              | Invokable agent ids are other agents that chats in this agent may invoke to delegate work.                                                 |
+| `mcp_server_ids`             | array of string                                                                                 | false    |              | Mcp server ids are attached to every chat created in the project.                                                                          |
+| `model_config_id`            | string                                                                                          | false    |              | Model config ID is the model new chats in the agent use when the chat does not pick one. Unset uses the deployment default.                |
+| `model_display_name`         | string                                                                                          | false    |              | Model display name is the name of the model in ModelConfigID, including a deleted one.                                                     |
+| `model_status`               | [codersdk.ChatProjectModelStatus](#codersdkchatprojectmodelstatus)                              | false    |              | Model status reports whether the agent's chats can use ModelConfigID.                                                                      |
+| `model_status_reason`        | string                                                                                          | false    |              | Model status reason explains an unavailable model, for example that it was deleted or its provider has no credentials for the agent.       |
+| `name`                       | string                                                                                          | false    |              | Name is a display label and is not unique; ID identifies the project.                                                                      |
+| `organization_id`            | string                                                                                          | false    |              |                                                                                                                                            |
+| `owner_id`                   | string                                                                                          | false    |              |                                                                                                                                            |
+| `permissions`                | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions)                              | false    |              | Permissions describes what the requesting user can do with the project.                                                                    |
+| `template_parameter_rules`   | array of [codersdk.ChatProjectTemplateParameterRule](#codersdkchatprojecttemplateparameterrule) | false    |              | Template parameter rules limit the values chats in the project may use for specific template parameters.                                   |
+| `updated_at`                 | string                                                                                          | false    |              |                                                                                                                                            |
+| `workspace_tools_enabled`    | boolean                                                                                         | false    |              | Workspace tools enabled allows chats in this agent to create, start, and use workspaces.                                                   |
+
+#### Enumerated Values
+
+| Property       | Value(s)                              |
+|----------------|---------------------------------------|
+| `model_status` | `available`, `default`, `unavailable` |
+
+## codersdk.ChatProjectACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "use",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "use",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                  | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatProjectACLGroup](#codersdkchatprojectaclgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatProjectACLUser](#codersdkchatprojectacluser)   | false    |              |             |
+
+## codersdk.ChatProjectACLGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "use",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatProjectRole](#codersdkchatprojectrole)  | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s)      |
+|----------|---------------|
+| `role`   | `edit`, `use` |
+
+## codersdk.ChatProjectACLUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "use",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                 | Required | Restrictions | Description |
+|--------------|------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                               | false    |              |             |
+| `id`         | string                                               | true     |              |             |
+| `name`       | string                                               | false    |              |             |
+| `role`       | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `username`   | string                                               | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)      |
+|----------|---------------|
+| `role`   | `edit`, `use` |
 
 ## codersdk.ChatProjectInstructions
 
@@ -4896,6 +5100,51 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `updated_at`   | string                                       | false    |              |                                                                                                                              |
 | `updated_by`   | [codersdk.MinimalUser](#codersdkminimaluser) | false    |              | Updated by is the user who last changed the instructions. It is nil when the instructions are unset or the user was deleted. |
 
+## codersdk.ChatProjectMCPServerToken
+
+```json
+{
+  "auth_type": "string",
+  "credential_kind": "token",
+  "display_name": "string",
+  "github_app": {
+    "app_id": 0,
+    "installation_id": 0,
+    "repositories": [
+      "string"
+    ],
+    "use_for_git": true
+  },
+  "has_token": true,
+  "icon_url": "string",
+  "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
+  "slug": "string",
+  "token_required": true,
+  "token_updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                 | Required | Restrictions | Description                                                                                                        |
+|------------------------|----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------|
+| `auth_type`            | string                                                               | false    |              |                                                                                                                    |
+| `credential_kind`      | [codersdk.MCPServerCredentialKind](#codersdkmcpservercredentialkind) | false    |              | Credential kind says what the agent's user authenticates with. It is set when HasToken is true.                    |
+| `display_name`         | string                                                               | false    |              |                                                                                                                    |
+| `github_app`           | [codersdk.MCPServerGitHubApp](#codersdkmcpservergithubapp)           | false    |              | Github app is set for the github_app kind.                                                                         |
+| `has_token`            | boolean                                                              | false    |              |                                                                                                                    |
+| `icon_url`             | string                                                               | false    |              |                                                                                                                    |
+| `mcp_server_config_id` | string                                                               | false    |              |                                                                                                                    |
+| `slug`                 | string                                                               | false    |              |                                                                                                                    |
+| `token_required`       | boolean                                                              | false    |              | Token required is true for user_api_key servers, whose tools the agent can only use once its owner stores a token. |
+| `token_updated_at`     | string                                                               | false    |              |                                                                                                                    |
+
+#### Enumerated Values
+
+| Property          | Value(s)              |
+|-------------------|-----------------------|
+| `credential_kind` | `github_app`, `token` |
+
 ## codersdk.ChatProjectMemory
 
 ```json
@@ -4903,6 +5152,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "body": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "created_by_name": "string",
   "created_by_username": "string",
   "description": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -4914,17 +5164,285 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                  | Type   | Required | Restrictions | Description |
-|-----------------------|--------|----------|--------------|-------------|
-| `body`                | string | false    |              |             |
-| `created_at`          | string | false    |              |             |
-| `created_by`          | string | false    |              |             |
-| `created_by_username` | string | false    |              |             |
-| `description`         | string | false    |              |             |
-| `id`                  | string | false    |              |             |
-| `name`                | string | false    |              |             |
-| `organization_id`     | string | false    |              |             |
-| `project_id`          | string | false    |              |             |
+| Name                  | Type   | Required | Restrictions | Description                                                                                                 |
+|-----------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------|
+| `body`                | string | false    |              |                                                                                                             |
+| `created_at`          | string | false    |              |                                                                                                             |
+| `created_by`          | string | false    |              |                                                                                                             |
+| `created_by_name`     | string | false    |              | Created by name is the display name of the creator, such as an agent's name when an agent saved the memory. |
+| `created_by_username` | string | false    |              |                                                                                                             |
+| `description`         | string | false    |              |                                                                                                             |
+| `id`                  | string | false    |              |                                                                                                             |
+| `name`                | string | false    |              |                                                                                                             |
+| `organization_id`     | string | false    |              |                                                                                                             |
+| `project_id`          | string | false    |              |                                                                                                             |
+
+## codersdk.ChatProjectModelStatus
+
+```json
+"default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                              |
+|---------------------------------------|
+| `available`, `default`, `unavailable` |
+
+## codersdk.ChatProjectPermissions
+
+```json
+{
+  "delete": true,
+  "edit": true,
+  "manage_triggers": true,
+  "share": true
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                             |
+|-------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `delete`          | boolean | false    |              | Delete allows deleting the project.                                                                                                                     |
+| `edit`            | boolean | false    |              | Edit allows changing the project's settings, instructions, and permissions.                                                                             |
+| `manage_triggers` | boolean | false    |              | Manage triggers allows creating and changing webhook triggers. Triggered chats run as the agent's user on the owner's behalf, so only the owner has it. |
+| `share`           | boolean | false    |              | Share allows changing who the project is shared with.                                                                                                   |
+
+## codersdk.ChatProjectRole
+
+```json
+"use"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)          |
+|-------------------|
+| ``, `edit`, `use` |
+
+## codersdk.ChatProjectRun
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "created_at": "2019-08-24T14:15:22Z",
+  "last_error": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "status": "waiting",
+  "title": "string",
+  "trigger_id": "5727dbbb-3b26-4abe-aec6-181eabbdb21c",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name             | Type                                       | Required | Restrictions | Description                                               |
+|------------------|--------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `chat_id`        | string                                     | false    |              |                                                           |
+| `created_at`     | string                                     | false    |              |                                                           |
+| `last_error`     | string                                     | false    |              | Last error is the error message of a failed run.          |
+| `parent_chat_id` | string                                     | false    |              |                                                           |
+| `root_chat_id`   | string                                     | false    |              |                                                           |
+| `status`         | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |                                                           |
+| `title`          | string                                     | false    |              |                                                           |
+| `trigger_id`     | string                                     | false    |              | Trigger ID is set when a webhook trigger started the run. |
+| `updated_at`     | string                                     | false    |              |                                                           |
+
+## codersdk.ChatProjectTemplateParameterRule
+
+```json
+{
+  "allowed_values": [
+    "string"
+  ],
+  "parameter_name": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name             | Type            | Required | Restrictions | Description |
+|------------------|-----------------|----------|--------------|-------------|
+| `allowed_values` | array of string | false    |              |             |
+| `parameter_name` | string          | false    |              |             |
+| `template_id`    | string          | false    |              |             |
+
+## codersdk.ChatProjectTrigger
+
+```json
+{
+  "busy_behavior": "queue",
+  "channel": "string",
+  "continue_conversations": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "enabled": true,
+  "events": [
+    "string"
+  ],
+  "has_github_webhook_secret": true,
+  "has_slack_signing_secret": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "ignore_thread_replies": true,
+  "last_delivery": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "created_at": "2019-08-24T14:15:22Z",
+    "event": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message": "string",
+    "status": "started",
+    "trigger_id": "5727dbbb-3b26-4abe-aec6-181eabbdb21c"
+  },
+  "last_triggered_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "next_run_at": "2019-08-24T14:15:22Z",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "prompt": "string",
+  "repository": "string",
+  "schedule": "string",
+  "senders": [
+    "string"
+  ],
+  "source": "webhook",
+  "text_pattern": "string",
+  "text_pattern_is_regex": true,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                               | Required | Restrictions | Description                                                                                                                                                                                                                |
+|-----------------------------|------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`             | [codersdk.ChatProjectTriggerBusyBehavior](#codersdkchatprojecttriggerbusybehavior) | false    |              | Busy behavior is what a continued chat does with a new event while it is still working.                                                                                                                                    |
+| `channel`                   | string                                                                             | false    |              | Channel limits a Slack trigger to one channel ID.                                                                                                                                                                          |
+| `continue_conversations`    | boolean                                                                            | false    |              | Continue conversations sends events in a conversation the trigger already started a chat for to that chat instead of starting a new one. An archived chat is replaced by a new one.                                        |
+| `created_at`                | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `created_by`                | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `enabled`                   | boolean                                                                            | false    |              |                                                                                                                                                                                                                            |
+| `events`                    | array of string                                                                    | false    |              | Events that start a chat. Empty matches every event. Plain webhook triggers have no events.                                                                                                                                |
+| `has_github_webhook_secret` | boolean                                                                            | false    |              | Has github webhook secret reports whether GitHub deliveries are verified with the webhook's secret. The secret itself is never returned.                                                                                   |
+| `has_slack_signing_secret`  | boolean                                                                            | false    |              | Has slack signing secret reports whether Slack requests are verified with the app's signing secret. The secret itself is never returned.                                                                                   |
+| `id`                        | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `ignore_thread_replies`     | boolean                                                                            | false    |              | Ignore thread replies keeps Slack thread replies from starting new chats. Replies in a thread the trigger already started a chat for still continue that chat when ContinueConversations is set.                           |
+| `last_delivery`             | [codersdk.ChatProjectTriggerDelivery](#codersdkchatprojecttriggerdelivery)         | false    |              | Last delivery is the most recent call to the trigger's webhook. It is only set when listing triggers.                                                                                                                      |
+| `last_triggered_at`         | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `name`                      | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `next_run_at`               | string                                                                             | false    |              | Next run at is when a schedule trigger runs next. Unset when the trigger is disabled or is not a schedule trigger.                                                                                                         |
+| `project_id`                | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `prompt`                    | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+| `repository`                | string                                                                             | false    |              | Repository limits a GitHub trigger to one repository, as owner/name.                                                                                                                                                       |
+| `schedule`                  | string                                                                             | false    |              | Schedule is the cron expression of a schedule trigger: five fields (minute, hour, day of month, month, day of week) with an optional CRON_TZ= prefix, such as "CRON_TZ=Europe/Berlin 0 9 ** 1-5". Empty for other sources. |
+| `senders`                   | array of string                                                                    | false    |              | Senders limits GitHub triggers to these logins and Slack triggers to these user IDs. Empty matches everyone.                                                                                                               |
+| `source`                    | [codersdk.ChatProjectTriggerSource](#codersdkchatprojecttriggersource)             | false    |              |                                                                                                                                                                                                                            |
+| `text_pattern`              | string                                                                             | false    |              | Text pattern is text the event must contain: a Slack message, a GitHub comment, review, issue or pull request, or a plain webhook body. Empty matches every event.                                                         |
+| `text_pattern_is_regex`     | boolean                                                                            | false    |              | Text pattern is regex treats TextPattern as a regular expression (RE2) instead of case-insensitive text.                                                                                                                   |
+| `updated_at`                | string                                                                             | false    |              |                                                                                                                                                                                                                            |
+
+#### Enumerated Values
+
+| Property        | Value(s)                                 |
+|-----------------|------------------------------------------|
+| `busy_behavior` | `interrupt`, `queue`                     |
+| `source`        | `github`, `schedule`, `slack`, `webhook` |
+
+## codersdk.ChatProjectTriggerBusyBehavior
+
+```json
+"queue"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| `interrupt`, `queue` |
+
+## codersdk.ChatProjectTriggerDelivery
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "created_at": "2019-08-24T14:15:22Z",
+  "event": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "message": "string",
+  "status": "started",
+  "trigger_id": "5727dbbb-3b26-4abe-aec6-181eabbdb21c"
+}
+```
+
+### Properties
+
+| Name         | Type                                                                                   | Required | Restrictions | Description                                                                       |
+|--------------|----------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `chat_id`    | string                                                                                 | false    |              | Chat ID is the chat the call started or continued.                                |
+| `created_at` | string                                                                                 | false    |              |                                                                                   |
+| `event`      | string                                                                                 | false    |              | Event is the event name, such as issue_comment.created. Empty for plain webhooks. |
+| `id`         | string                                                                                 | false    |              |                                                                                   |
+| `message`    | string                                                                                 | false    |              | Message explains why the event was ignored or rejected.                           |
+| `status`     | [codersdk.ChatProjectTriggerDeliveryStatus](#codersdkchatprojecttriggerdeliverystatus) | false    |              |                                                                                   |
+| `trigger_id` | string                                                                                 | false    |              |                                                                                   |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                   |
+|----------|------------------------------------------------------------|
+| `status` | `continued`, `handshake`, `ignored`, `rejected`, `started` |
+
+## codersdk.ChatProjectTriggerDeliveryStatus
+
+```json
+"started"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                   |
+|------------------------------------------------------------|
+| `continued`, `handshake`, `ignored`, `rejected`, `started` |
+
+## codersdk.ChatProjectTriggerSource
+
+```json
+"webhook"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                 |
+|------------------------------------------|
+| `github`, `schedule`, `slack`, `webhook` |
+
+## codersdk.ChatProjectTriggerWebhookResponse
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "continued": true
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                       |
+|-------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `chat_id`   | string  | false    |              |                                                                                                   |
+| `continued` | boolean | false    |              | Continued is true when the call was sent to the chat of an earlier call in the same conversation. |
 
 ## codersdk.ChatPrompt
 
@@ -5068,9 +5586,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)   |
-|------------|
-| ``, `read` |
+| Value(s)            |
+|---------------------|
+| ``, `read`, `write` |
 
 ## codersdk.ChatStatus
 
@@ -5599,9 +6117,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Property | Value(s) |
-|----------|----------|
-| `role`   | `read`   |
+| Property | Value(s)        |
+|----------|-----------------|
+| `role`   | `read`, `write` |
 
 ## codersdk.ChatWatchEvent
 
@@ -5848,6 +6366,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------|--------|----------|--------------|-------------|
 | `host` | string | false    |              |             |
 
+## codersdk.ConnectChatProjectExternalAuthRequest
+
+```json
+{
+  "redirect": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description                                                      |
+|------------|--------|----------|--------------|------------------------------------------------------------------|
+| `redirect` | string | false    |              | Redirect is the Coder path to return to after the provider flow. |
+
+## codersdk.ConnectChatProjectExternalAuthResponse
+
+```json
+{
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+|-------|--------|----------|--------------|-------------|
+| `url` | string | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -5897,6 +6443,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -5994,6 +6541,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "email": "user@example.com",
           "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -6066,6 +6614,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "email": "user@example.com",
     "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_agent": true,
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
@@ -6703,17 +7252,125 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "description": "string",
   "icon": "string",
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | true     |              |             |
+| Name              | Type   | Required | Restrictions | Description                                                                                                                   |
+|-------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `description`     | string | false    |              |                                                                                                                               |
+| `icon`            | string | false    |              |                                                                                                                               |
+| `model_config_id` | string | false    |              | Model config ID sets the model new chats in the agent use when the chat does not pick one. Unset uses the deployment default. |
+| `name`            | string | true     |              |                                                                                                                               |
+
+## codersdk.CreateChatProjectTriggerRequest
+
+```json
+{
+  "busy_behavior": "queue",
+  "channel": "string",
+  "continue_conversations": true,
+  "events": [
+    "string"
+  ],
+  "github_webhook_secret": "string",
+  "ignore_thread_replies": true,
+  "name": "string",
+  "prompt": "string",
+  "repository": "string",
+  "schedule": "string",
+  "senders": [
+    "string"
+  ],
+  "slack_signing_secret": "string",
+  "source": "webhook",
+  "text_pattern": "string",
+  "text_pattern_is_regex": true
+}
+```
+
+### Properties
+
+| Name                     | Type                                                                               | Required | Restrictions | Description                                                                                                                                                                                      |
+|--------------------------|------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`          | [codersdk.ChatProjectTriggerBusyBehavior](#codersdkchatprojecttriggerbusybehavior) | false    |              | Busy behavior defaults to queue.                                                                                                                                                                 |
+| `channel`                | string                                                                             | false    |              |                                                                                                                                                                                                  |
+| `continue_conversations` | boolean                                                                            | false    |              | Continue conversations defaults to true for Slack triggers and false otherwise.                                                                                                                  |
+| `events`                 | array of string                                                                    | false    |              |                                                                                                                                                                                                  |
+| `github_webhook_secret`  | string                                                                             | false    |              | Github webhook secret is the secret configured on the GitHub webhook. When set, deliveries must carry a valid X-Hub-Signature-256. Only GitHub triggers accept it, and it is never returned.     |
+| `ignore_thread_replies`  | boolean                                                                            | false    |              | Ignore thread replies keeps Slack thread replies from starting new chats. Replies in a thread the trigger already started a chat for still continue that chat when ContinueConversations is set. |
+| `name`                   | string                                                                             | true     |              |                                                                                                                                                                                                  |
+| `prompt`                 | string                                                                             | false    |              | Prompt is sent to the new chat ahead of the webhook payload.                                                                                                                                     |
+| `repository`             | string                                                                             | false    |              |                                                                                                                                                                                                  |
+| `schedule`               | string                                                                             | false    |              | Schedule is required for schedule triggers and rejected for others. See ChatProjectTrigger.Schedule.                                                                                             |
+| `senders`                | array of string                                                                    | false    |              | Senders limits GitHub triggers to these logins and Slack triggers to these user IDs. Empty matches everyone.                                                                                     |
+| `slack_signing_secret`   | string                                                                             | false    |              | Slack signing secret is the Slack app's signing secret. When set, requests must carry a valid X-Slack-Signature. Only Slack triggers accept it, and it is never returned.                        |
+| `source`                 | [codersdk.ChatProjectTriggerSource](#codersdkchatprojecttriggersource)             | false    |              | Source defaults to ChatProjectTriggerSourceWebhook.                                                                                                                                              |
+| `text_pattern`           | string                                                                             | false    |              | Text pattern is text the event must contain: a Slack message, a GitHub comment, review, issue or pull request, or a plain webhook body. Empty matches every event.                               |
+| `text_pattern_is_regex`  | boolean                                                                            | false    |              | Text pattern is regex treats TextPattern as a regular expression (RE2) instead of case-insensitive text.                                                                                         |
+
+#### Enumerated Values
+
+| Property        | Value(s)                                 |
+|-----------------|------------------------------------------|
+| `busy_behavior` | `interrupt`, `queue`                     |
+| `source`        | `github`, `schedule`, `slack`, `webhook` |
+
+## codersdk.CreateChatProjectTriggerResponse
+
+```json
+{
+  "trigger": {
+    "busy_behavior": "queue",
+    "channel": "string",
+    "continue_conversations": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "enabled": true,
+    "events": [
+      "string"
+    ],
+    "has_github_webhook_secret": true,
+    "has_slack_signing_secret": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "ignore_thread_replies": true,
+    "last_delivery": {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "created_at": "2019-08-24T14:15:22Z",
+      "event": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "message": "string",
+      "status": "started",
+      "trigger_id": "5727dbbb-3b26-4abe-aec6-181eabbdb21c"
+    },
+    "last_triggered_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "next_run_at": "2019-08-24T14:15:22Z",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+    "prompt": "string",
+    "repository": "string",
+    "schedule": "string",
+    "senders": [
+      "string"
+    ],
+    "source": "webhook",
+    "text_pattern": "string",
+    "text_pattern_is_regex": true,
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
+  "webhook_url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                       | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------|----------|--------------|-------------|
+| `trigger`     | [codersdk.ChatProjectTrigger](#codersdkchatprojecttrigger) | false    |              |             |
+| `webhook_url` | string                                                     | false    |              |             |
 
 ## codersdk.CreateChatRequest
 
@@ -6924,6 +7581,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "allow_in_plan_mode": true,
   "api_key_header": "string",
+  "api_key_prefix": "string",
   "api_key_value": "string",
   "auth_type": "none",
   "availability": "force_on",
@@ -6959,42 +7617,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
-|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
-| `icon_url`              | string          | false    |              |                                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
-| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                 |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
-| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
-| `slug`                  | string          | true     |              |                                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                                        |
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                                                    |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                                                |
+| `api_key_header`        | string          | false    |              |                                                                                                                                                                                                |
+| `api_key_prefix`        | string          | false    |              | Api key prefix is sent before each user's token for user_api_key servers. It defaults to "Bearer "; send "" for a bare token. APIKeyHeader defaults to Authorization for user_api_key servers. |
+| `api_key_value`         | string          | false    |              |                                                                                                                                                                                                |
+| `auth_type`             | string          | true     |              |                                                                                                                                                                                                |
+| `availability`          | string          | true     |              |                                                                                                                                                                                                |
+| `custom_headers`        | object          | false    |              |                                                                                                                                                                                                |
+| » `[any property]`      | string          | false    |              |                                                                                                                                                                                                |
+| `description`           | string          | false    |              |                                                                                                                                                                                                |
+| `display_name`          | string          | true     |              |                                                                                                                                                                                                |
+| `enabled`               | boolean         | false    |              |                                                                                                                                                                                                |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                                                                           |
+| `icon_url`              | string          | false    |              |                                                                                                                                                                                                |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                                                                                                |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                                                                                |
+| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                                                                         |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                                                                         |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                |
+| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned.                                                         |
+| `slug`                  | string          | true     |              |                                                                                                                                                                                                |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                                                                                                |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                                                |
+| `transport`             | string          | true     |              |                                                                                                                                                                                                |
+| `url`                   | string          | true     |              |                                                                                                                                                                                                |
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                   |
-|----------------|------------------------------------------------------------|
-| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
-| `availability` | `default_off`, `default_on`, `force_on`                    |
-| `transport`    | `sse`, `streamable_http`                                   |
+| Property       | Value(s)                                                                   |
+|----------------|----------------------------------------------------------------------------|
+| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_api_key`, `user_oidc` |
+| `availability` | `default_off`, `default_on`, `force_on`                                    |
+| `transport`    | `sse`, `streamable_http`                                                   |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -9873,6 +10532,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_code`        | string  | false    |              |             |
 | `verification_uri` | string  | false    |              |             |
 
+## codersdk.ExternalAuthDeviceExchange
+
+```json
+{
+  "device_code": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `device_code` | string | false    |              |             |
+
 ## codersdk.ExternalAuthLink
 
 ```json
@@ -9898,6 +10571,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `provider_id`       | string  | false    |              |             |
 | `updated_at`        | string  | false    |              |             |
 | `validate_error`    | string  | false    |              |             |
+
+## codersdk.ExternalAuthLinkProvider
+
+```json
+{
+  "allow_refresh": true,
+  "allow_validate": true,
+  "code_challenge_methods_supported": [
+    "string"
+  ],
+  "device": true,
+  "display_icon": "string",
+  "display_name": "string",
+  "id": "string",
+  "supports_revocation": true,
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name                               | Type            | Required | Restrictions | Description |
+|------------------------------------|-----------------|----------|--------------|-------------|
+| `allow_refresh`                    | boolean         | false    |              |             |
+| `allow_validate`                   | boolean         | false    |              |             |
+| `code_challenge_methods_supported` | array of string | false    |              |             |
+| `device`                           | boolean         | false    |              |             |
+| `display_icon`                     | string          | false    |              |             |
+| `display_name`                     | string          | false    |              |             |
+| `id`                               | string          | false    |              |             |
+| `supports_revocation`              | boolean         | false    |              |             |
+| `type`                             | string          | false    |              |             |
 
 ## codersdk.ExternalAuthUser
 
@@ -10063,6 +10768,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "email": "user@example.com",
       "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -10142,6 +10848,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -10293,6 +11000,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -10733,6 +11441,46 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `notifications` | array of [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
 | `unread_count`  | integer                                                           | false    |              |             |
 
+## codersdk.ListUserExternalAuthResponse
+
+```json
+{
+  "links": [
+    {
+      "authenticated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "expires": "2019-08-24T14:15:22Z",
+      "has_refresh_token": true,
+      "provider_id": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "validate_error": "string"
+    }
+  ],
+  "providers": [
+    {
+      "allow_refresh": true,
+      "allow_validate": true,
+      "code_challenge_methods_supported": [
+        "string"
+      ],
+      "device": true,
+      "display_icon": "string",
+      "display_name": "string",
+      "id": "string",
+      "supports_revocation": true,
+      "type": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+|-------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `links`     | array of [codersdk.ExternalAuthLink](#codersdkexternalauthlink)                 | false    |              | Links are all the authenticated links for the user. If a link has a provider ID that does not exist, then that provider is no longer configured, rendering it unusable. It is still valuable to include these links so that the user can unlink them. |
+| `providers` | array of [codersdk.ExternalAuthLinkProvider](#codersdkexternalauthlinkprovider) | false    |              |                                                                                                                                                                                                                                                       |
+
 ## codersdk.LogLevel
 
 ```json
@@ -10833,6 +11581,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "allow_in_plan_mode": true,
   "api_key_header": "string",
+  "api_key_prefix": "string",
   "auth_connected": true,
   "auth_type": "string",
   "availability": "string",
@@ -10873,9 +11622,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name                    | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
 |-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `api_key_header`        | string          | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
-| `auth_connected`        | boolean         | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
-| `auth_type`             | string          | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
+| `api_key_header`        | string          | false    |              | Api key header key fields (only populated for admins, except that user_api_key servers show every reader the header and prefix their token is sent with).                                                                                                                                            |
+| `api_key_prefix`        | string          | false    |              | Api key prefix is sent before each user's token for user_api_key servers, such as "Bearer ".                                                                                                                                                                                                         |
+| `auth_connected`        | boolean         | false    |              | Per-user state (populated for non-admin requests). For oauth2 it reports a usable token; for user_api_key it reports whether the caller has stored a token.                                                                                                                                          |
+| `auth_type`             | string          | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc", "user_api_key"                                                                                                                                                                                                                           |
 | `availability`          | string          | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
 | `created_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `description`           | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -10918,6 +11668,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -10970,6 +11721,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -11056,6 +11808,66 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|----------|
 | `role`   | `read`   |
 
+## codersdk.MCPServerCredentialKind
+
+```json
+"token"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `github_app`, `token` |
+
+## codersdk.MCPServerGitHubApp
+
+```json
+{
+  "app_id": 0,
+  "installation_id": 0,
+  "repositories": [
+    "string"
+  ],
+  "use_for_git": true
+}
+```
+
+### Properties
+
+| Name              | Type            | Required | Restrictions | Description                                                                 |
+|-------------------|-----------------|----------|--------------|-----------------------------------------------------------------------------|
+| `app_id`          | integer         | false    |              |                                                                             |
+| `installation_id` | integer         | false    |              |                                                                             |
+| `repositories`    | array of string | false    |              |                                                                             |
+| `use_for_git`     | boolean         | false    |              | Use for git is true when git in the agent's workspaces signs in as the app. |
+
+## codersdk.MCPServerGitHubAppCredentialRequest
+
+```json
+{
+  "app_id": 0,
+  "installation_id": 0,
+  "private_key": "string",
+  "repositories": [
+    "string"
+  ],
+  "use_for_git": true
+}
+```
+
+### Properties
+
+| Name              | Type            | Required | Restrictions | Description                                                                                                                                                              |
+|-------------------|-----------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `app_id`          | integer         | false    |              | App ID is the numeric app ID from the app's settings page.                                                                                                               |
+| `installation_id` | integer         | false    |              | Installation ID is the number at the end of the installation's settings URL.                                                                                             |
+| `private_key`     | string          | false    |              | Private key is the app's PEM private key. It is never returned. Leave it empty to keep the stored key when only other fields change.                                     |
+| `repositories`    | array of string | false    |              | Repositories limits tokens to these repository names. Empty means every repository the installation can access.                                                          |
+| `use_for_git`     | boolean         | false    |              | Use for git also gives the app's identity to git in the agent's workspaces, such as git clone and git push. Git reaches the same repositories as the app's other tokens. |
+
 ## codersdk.MCPServerOAuth2DisconnectResponse
 
 ```json
@@ -11071,6 +11883,39 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |--------------------------|---------|----------|--------------|-------------|
 | `token_revocation_error` | string  | false    |              |             |
 | `token_revoked`          | boolean | false    |              |             |
+
+## codersdk.MCPServerUserTokenStatus
+
+```json
+{
+  "credential_kind": "token",
+  "github_app": {
+    "app_id": 0,
+    "installation_id": 0,
+    "repositories": [
+      "string"
+    ],
+    "use_for_git": true
+  },
+  "has_token": true,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                 | Required | Restrictions | Description                                   |
+|-------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------|
+| `credential_kind` | [codersdk.MCPServerCredentialKind](#codersdkmcpservercredentialkind) | false    |              | Credential kind is set when HasToken is true. |
+| `github_app`      | [codersdk.MCPServerGitHubApp](#codersdkmcpservergithubapp)           | false    |              | Github app is set for the github_app kind.    |
+| `has_token`       | boolean                                                              | false    |              |                                               |
+| `updated_at`      | string                                                               | false    |              |                                               |
+
+#### Enumerated Values
+
+| Property          | Value(s)              |
+|-------------------|-----------------------|
+| `credential_kind` | `github_app`, `token` |
 
 ## codersdk.MatchedProvisioners
 
@@ -12604,6 +13449,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     }
   ],
   "has_ai_seat": true,
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -12634,6 +13480,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `email`              | string                                          | false    |              |                                                                                                  |
 | `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
 | `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `is_agent`           | boolean                                         | false    |              |                                                                                                  |
 | `is_service_account` | boolean                                         | false    |              |                                                                                                  |
 | `last_seen_at`       | string                                          | false    |              |                                                                                                  |
 | `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
@@ -12668,6 +13515,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -12720,6 +13568,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -12911,6 +13760,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         }
       ],
       "has_ai_seat": true,
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -14170,6 +15020,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -14189,6 +15040,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `created_at`         | string                                     | true     |              |                                                                                            |
 | `email`              | string                                     | true     |              |                                                                                            |
 | `id`                 | string                                     | true     |              |                                                                                            |
+| `is_agent`           | boolean                                    | false    |              | Is agent is true for the user that a Coder Agent acts as. Agent users cannot login.        |
 | `is_service_account` | boolean                                    | false    |              |                                                                                            |
 | `last_seen_at`       | string                                     | false    |              |                                                                                            |
 | `login_type`         | [codersdk.LoginType](#codersdklogintype)   | false    |              |                                                                                            |
@@ -15052,6 +15904,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -15079,6 +15932,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "email": "user@example.com",
       "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -15716,6 +16570,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -15996,6 +16851,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "email": "user@example.com",
   "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -16027,6 +16883,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `email`              | string                                          | true     |              |                                                                                                  |
 | `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
 | `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_agent`           | boolean                                         | false    |              | Is agent is true for the user that a Coder Agent acts as. Agent users cannot login.              |
 | `is_service_account` | boolean                                         | false    |              |                                                                                                  |
 | `last_seen_at`       | string                                          | false    |              |                                                                                                  |
 | `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
@@ -16807,6 +17664,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
 
+## codersdk.UpdateChatProjectACLRequest
+
+```json
+{
+  "group_roles": {
+    "property1": "use",
+    "property2": "use"
+  },
+  "user_roles": {
+    "property1": "use",
+    "property2": "use"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                 | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `user_roles`       | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+
 ## codersdk.UpdateChatProjectInstructionsRequest
 
 ```json
@@ -16825,19 +17706,101 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "allowed_template_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "description": "string",
+  "external_auth_provider_ids": [
+    "string"
+  ],
   "icon": "string",
-  "name": "string"
+  "invokable_agent_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "string",
+  "name": "string",
+  "template_parameter_rules": [
+    {
+      "allowed_values": [
+        "string"
+      ],
+      "parameter_name": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+    }
+  ],
+  "workspace_tools_enabled": true
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `name`        | string | false    |              |             |
+| Name                         | Type                                                                                            | Required | Restrictions | Description                                                                                                                                  |
+|------------------------------|-------------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `allowed_template_ids`       | array of string                                                                                 | false    |              |                                                                                                                                              |
+| `description`                | string                                                                                          | false    |              |                                                                                                                                              |
+| `external_auth_provider_ids` | array of string                                                                                 | false    |              |                                                                                                                                              |
+| `icon`                       | string                                                                                          | false    |              |                                                                                                                                              |
+| `invokable_agent_ids`        | array of string                                                                                 | false    |              | Invokable agent ids replaces the agents this agent may invoke. Each must be another agent in the same organization that the caller can read. |
+| `mcp_server_ids`             | array of string                                                                                 | false    |              |                                                                                                                                              |
+| `model_config_id`            | string                                                                                          | false    |              | Model config ID sets the agent's model. An empty string clears it, so chats use the deployment default. Unset leaves it unchanged.           |
+| `name`                       | string                                                                                          | false    |              |                                                                                                                                              |
+| `template_parameter_rules`   | array of [codersdk.ChatProjectTemplateParameterRule](#codersdkchatprojecttemplateparameterrule) | false    |              | Template parameter rules replaces the project's parameter rules.                                                                             |
+| `workspace_tools_enabled`    | boolean                                                                                         | false    |              |                                                                                                                                              |
+
+## codersdk.UpdateChatProjectTriggerRequest
+
+```json
+{
+  "busy_behavior": "queue",
+  "channel": "string",
+  "continue_conversations": true,
+  "enabled": true,
+  "events": [
+    "string"
+  ],
+  "github_webhook_secret": "string",
+  "ignore_thread_replies": true,
+  "name": "string",
+  "prompt": "string",
+  "repository": "string",
+  "schedule": "string",
+  "senders": [
+    "string"
+  ],
+  "slack_signing_secret": "string",
+  "text_pattern": "string",
+  "text_pattern_is_regex": true
+}
+```
+
+### Properties
+
+| Name                     | Type                                                                               | Required | Restrictions | Description                                                                                                                |
+|--------------------------|------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`          | [codersdk.ChatProjectTriggerBusyBehavior](#codersdkchatprojecttriggerbusybehavior) | false    |              |                                                                                                                            |
+| `channel`                | string                                                                             | false    |              |                                                                                                                            |
+| `continue_conversations` | boolean                                                                            | false    |              | Continue conversations and BusyBehavior: see ChatProjectTriggerConversationOptions.                                        |
+| `enabled`                | boolean                                                                            | false    |              |                                                                                                                            |
+| `events`                 | array of string                                                                    | false    |              |                                                                                                                            |
+| `github_webhook_secret`  | string                                                                             | false    |              | Github webhook secret replaces the GitHub webhook secret. An empty string removes it and turns signature verification off. |
+| `ignore_thread_replies`  | boolean                                                                            | false    |              |                                                                                                                            |
+| `name`                   | string                                                                             | false    |              |                                                                                                                            |
+| `prompt`                 | string                                                                             | false    |              |                                                                                                                            |
+| `repository`             | string                                                                             | false    |              |                                                                                                                            |
+| `schedule`               | string                                                                             | false    |              | Schedule replaces a schedule trigger's cron expression.                                                                    |
+| `senders`                | array of string                                                                    | false    |              |                                                                                                                            |
+| `slack_signing_secret`   | string                                                                             | false    |              | Slack signing secret replaces the Slack signing secret. An empty string removes it and turns signature verification off.   |
+| `text_pattern`           | string                                                                             | false    |              |                                                                                                                            |
+| `text_pattern_is_regex`  | boolean                                                                            | false    |              |                                                                                                                            |
+
+#### Enumerated Values
+
+| Property        | Value(s)             |
+|-----------------|----------------------|
+| `busy_behavior` | `interrupt`, `queue` |
 
 ## codersdk.UpdateChatRequest
 
@@ -16962,6 +17925,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 {
   "allow_in_plan_mode": true,
   "api_key_header": "string",
+  "api_key_prefix": "string",
   "api_key_value": "string",
   "auth_type": "none",
   "availability": "force_on",
@@ -17001,6 +17965,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 |-------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
 | `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                         |
 | `api_key_header`        | string          | false    |              |                                                                                                                         |
+| `api_key_prefix`        | string          | false    |              | Api key prefix see CreateMCPServerConfigRequest.                                                                        |
 | `api_key_value`         | string          | false    |              |                                                                                                                         |
 | `auth_type`             | string          | false    |              |                                                                                                                         |
 | `availability`          | string          | false    |              |                                                                                                                         |
@@ -17028,11 +17993,43 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                   |
-|----------------|------------------------------------------------------------|
-| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
-| `availability` | `default_off`, `default_on`, `force_on`                    |
-| `transport`    | `sse`, `streamable_http`                                   |
+| Property       | Value(s)                                                                   |
+|----------------|----------------------------------------------------------------------------|
+| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_api_key`, `user_oidc` |
+| `availability` | `default_off`, `default_on`, `force_on`                                    |
+| `transport`    | `sse`, `streamable_http`                                                   |
+
+## codersdk.UpdateMCPServerUserTokenRequest
+
+```json
+{
+  "credential_kind": "token",
+  "github_app": {
+    "app_id": 0,
+    "installation_id": 0,
+    "private_key": "string",
+    "repositories": [
+      "string"
+    ],
+    "use_for_git": true
+  },
+  "token": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                                         | Required | Restrictions | Description                                                                                                                    |
+|-------------------|----------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `credential_kind` | [codersdk.MCPServerCredentialKind](#codersdkmcpservercredentialkind)                         | false    |              | Credential kind defaults to github_app when GitHubApp is set and to token otherwise. github_app is only accepted for an agent. |
+| `github_app`      | [codersdk.MCPServerGitHubAppCredentialRequest](#codersdkmcpservergithubappcredentialrequest) | false    |              | Github app is required for the github_app kind.                                                                                |
+| `token`           | string                                                                                       | false    |              | Token is required for the token kind.                                                                                          |
+
+#### Enumerated Values
+
+| Property          | Value(s)              |
+|-------------------|-----------------------|
+| `credential_kind` | `github_app`, `token` |
 
 ## codersdk.UpdateOrganizationChatSystemPromptRequest
 
@@ -17732,6 +18729,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "email": "user@example.com",
   "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_agent": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -17762,6 +18760,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `email`              | string                                          | true     |              |                                                                                                  |
 | `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
 | `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_agent`           | boolean                                         | false    |              | Is agent is true for the user that a Coder Agent acts as. Agent users cannot login.              |
 | `is_service_account` | boolean                                         | false    |              |                                                                                                  |
 | `last_seen_at`       | string                                          | false    |              |                                                                                                  |
 | `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
@@ -18772,6 +19771,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_agent": true,
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -20242,6 +21242,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_agent": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",

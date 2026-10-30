@@ -778,9 +778,7 @@ export const SidebarFilterMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Filter agents" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filter chats" }));
 	},
 };
 
@@ -1517,7 +1515,7 @@ export const ArchivingShowsSpinnerOnly: Story = {
 		);
 		await userEvent.click(
 			await within(document.body).findByRole("menuitem", {
-				name: "Archive agent",
+				name: "Archive chat",
 			}),
 		);
 	},
@@ -2081,7 +2079,7 @@ export const ArchivedAgentUnarchiveOption: Story = {
 			"Open actions for Archived agent with unarchive",
 		);
 		await userEvent.click(trigger);
-		await within(document.body).findByText("Unarchive agent");
+		await within(document.body).findByText("Unarchive chat");
 	},
 };
 
@@ -2192,7 +2190,7 @@ export const ArchiveActionsFollowChatStatus: Story = {
 		);
 		let body = within(document.body);
 		expect(
-			await body.findByRole("menuitem", { name: "Archive agent" }),
+			await body.findByRole("menuitem", { name: "Archive chat" }),
 		).toHaveAttribute("aria-disabled", "true");
 		expect(
 			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
@@ -2207,7 +2205,7 @@ export const ArchiveActionsFollowChatStatus: Story = {
 		);
 		body = within(document.body);
 		expect(
-			await body.findByRole("menuitem", { name: "Archive agent" }),
+			await body.findByRole("menuitem", { name: "Archive chat" }),
 		).toHaveAttribute("aria-disabled", "true");
 		expect(
 			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
@@ -2220,7 +2218,7 @@ export const ArchiveActionsFollowChatStatus: Story = {
 		await userEvent.click(canvas.getByLabelText("Open actions for Idle agent"));
 		body = within(document.body);
 		expect(
-			await body.findByRole("menuitem", { name: "Archive agent" }),
+			await body.findByRole("menuitem", { name: "Archive chat" }),
 		).not.toHaveAttribute("aria-disabled", "true");
 		expect(
 			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
@@ -2237,7 +2235,7 @@ export const ArchiveActionsFollowChatStatus: Story = {
 		);
 		body = within(document.body);
 		const parentArchiveItem = await body.findByRole("menuitem", {
-			name: "Archive agent",
+			name: "Archive chat",
 		});
 		expect(parentArchiveItem).toHaveAttribute("aria-disabled", "true");
 		expect(
@@ -2989,7 +2987,7 @@ export const ProjectsLoadError: Story = {
 	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
-			mockApiError({ message: "Failed to load projects." }),
+			mockApiError({ message: "Failed to load agents." }),
 		);
 	},
 	play: async ({ canvasElement }) => {

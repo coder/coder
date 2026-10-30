@@ -139,8 +139,8 @@ describe("ChatTopBar pin state", () => {
 
 describe("ChatTopBar archive state", () => {
 	it.each([
-		{ action: "Archive agent", archived: false },
-		{ action: "Unarchive agent", archived: true },
+		{ action: "Archive chat", archived: false },
+		{ action: "Unarchive chat", archived: true },
 	])("$action uses its own mutation", async ({ action, archived }) => {
 		const user = userEvent.setup();
 		mockArchiveAndDeleteApi(chat.created_at);
@@ -191,7 +191,7 @@ describe("ChatTopBar archive state", () => {
 				await screen.findByRole("button", { name: "Open agent actions" }),
 			);
 			await user.click(
-				await screen.findByRole("menuitem", { name: "Archive agent" }),
+				await screen.findByRole("menuitem", { name: "Archive chat" }),
 			);
 			await waitFor(() =>
 				expect(API.experimental.updateChat).toHaveBeenCalled(),
@@ -205,8 +205,8 @@ describe("ChatTopBar archive state", () => {
 	});
 
 	it.each([
-		{ action: "Archive agent", archived: false },
-		{ action: "Unarchive agent", archived: true },
+		{ action: "Archive chat", archived: false },
+		{ action: "Unarchive chat", archived: true },
 	])(
 		"$action restores state and reports failure",
 		async ({ action, archived }) => {
@@ -247,7 +247,7 @@ describe("ChatTopBar archive state", () => {
 			await screen.findByRole("button", { name: "Open agent actions" }),
 		);
 		await user.click(
-			await screen.findByRole("menuitem", { name: "Archive agent" }),
+			await screen.findByRole("menuitem", { name: "Archive chat" }),
 		);
 
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
@@ -285,7 +285,7 @@ describe("ChatTopBar archive state", () => {
 					await screen.findByRole("button", { name: "Open agent actions" }),
 				);
 				await user.click(
-					await screen.findByRole("menuitem", { name: "Archive agent" }),
+					await screen.findByRole("menuitem", { name: "Archive chat" }),
 				);
 				await waitFor(() => {
 					expect(API.experimental.updateChat).toHaveBeenCalledWith(id, {
@@ -298,7 +298,7 @@ describe("ChatTopBar archive state", () => {
 				await screen.findByRole("button", { name: "Open agent actions" }),
 			);
 			await user.click(
-				await screen.findByRole("menuitem", { name: "Archive agent" }),
+				await screen.findByRole("menuitem", { name: "Archive chat" }),
 			);
 			expect(API.experimental.updateChat).toHaveBeenCalledTimes(2);
 			await user.keyboard("{Escape}");

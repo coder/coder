@@ -61,9 +61,10 @@ type MemberRowMenuProps = {
 	onRemove: () => void;
 };
 
-const ReadRoleBadge: React.FC = () => (
+/** Write is granted by the system, for example to whoever started a chat in an agent. */
+const RoleBadge: React.FC<{ role: TypesGen.ChatRole }> = ({ role }) => (
 	<span className="inline-block shrink-0 rounded-md bg-surface-secondary px-2 py-0.5 text-xs leading-5">
-		Read
+		{role === "write" ? "Can chat" : "Read"}
 	</span>
 );
 
@@ -183,12 +184,14 @@ const CopyChatLinkButton: React.FC<CopyChatLinkButtonProps> = ({ chatId }) => {
 };
 
 type MobileMemberRowProps = {
+	role: TypesGen.ChatRole;
 	children: React.ReactNode;
 	disabled: boolean;
 	onRemove: () => void;
 };
 
 const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
+	role,
 	children,
 	disabled,
 	onRemove,
@@ -196,7 +199,7 @@ const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 	<div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-border last:border-b-0 px-1 py-3">
 		<div className="min-w-0 flex-1">{children}</div>
 		<div className="flex shrink-0 items-center gap-2">
-			<ReadRoleBadge />
+			<RoleBadge role={role} />
 			<MemberRowMenu disabled={disabled} onRemove={onRemove} />
 		</div>
 	</div>
@@ -359,6 +362,7 @@ export const ChatSharingPopoverContent: React.FC<
 								{groups.map((group) => (
 									<MobileMemberRow
 										key={group.id}
+										role={group.role}
 										disabled={isMutating}
 										onRemove={() => handleRemoveGroup(group)}
 									>
@@ -368,6 +372,7 @@ export const ChatSharingPopoverContent: React.FC<
 								{users.map((user) => (
 									<MobileMemberRow
 										key={user.id}
+										role={user.role}
 										disabled={isMutating}
 										onRemove={() => handleRemoveUser(user)}
 									>
@@ -401,7 +406,7 @@ export const ChatSharingPopoverContent: React.FC<
 													<MemberIdentity kind="group" group={group} />
 												</TableCell>
 												<TableCell className="py-2 w-[40%]">
-													<ReadRoleBadge />
+													<RoleBadge role={group.role} />
 												</TableCell>
 												<TableCell className="py-2 w-[10%]">
 													<MemberRowMenu
@@ -417,7 +422,7 @@ export const ChatSharingPopoverContent: React.FC<
 													<MemberIdentity kind="user" user={user} />
 												</TableCell>
 												<TableCell className="py-2 w-[40%]">
-													<ReadRoleBadge />
+													<RoleBadge role={user.role} />
 												</TableCell>
 												<TableCell className="py-2 w-[10%]">
 													<MemberRowMenu

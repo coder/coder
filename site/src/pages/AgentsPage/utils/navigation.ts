@@ -11,10 +11,14 @@ export const buildAgentChatPath = ({
 
 export const buildAgentProjectPath = ({
 	projectId,
+	tab,
 }: Readonly<{
 	projectId: string;
+	/** Omit for the default Chats tab. */
+	tab?: string;
 }>): string => {
-	return `/agents/projects/${encodeURIComponent(projectId)}`;
+	const path = `/agents/projects/${encodeURIComponent(projectId)}`;
+	return tab ? `${path}/${encodeURIComponent(tab)}` : path;
 };
 
 export const safeBuildAgentChatPath = ({

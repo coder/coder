@@ -372,16 +372,24 @@ Actions: `create`, `write`, `delete`
 <table width="100%">
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
 <tbody>
+<tr><td><code>agent_user_id</code></td><td>Yes</td></tr>
+<tr><td><code>allowed_template_ids</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>external_auth_provider_ids</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>invokable_agent_ids</code></td><td>Yes</td></tr>
+<tr><td><code>mcp_server_ids</code></td><td>Yes</td></tr>
+<tr><td><code>model_config_id</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
+<tr><td><code>template_parameter_rules</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
 <tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>workspace_tools_enabled</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -500,6 +508,7 @@ Actions: `create`, `write`, `delete`
 <tbody>
 <tr><td><code>allow_in_plan_mode</code></td><td>Yes</td></tr>
 <tr><td><code>api_key_header</code></td><td>Yes</td></tr>
+<tr><td><code>api_key_prefix</code></td><td>Yes</td></tr>
 <tr><td><code>api_key_value</code></td><td>Yes</td></tr>
 <tr><td><code>api_key_value_key_id</code></td><td>No</td></tr>
 <tr><td><code>auth_type</code></td><td>Yes</td></tr>
@@ -791,6 +800,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>hashed_one_time_passcode</code></td><td>No</td></tr>
 <tr><td><code>hashed_password</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>is_agent</code></td><td>Yes</td></tr>
 <tr><td><code>is_service_account</code></td><td>Yes</td></tr>
 <tr><td><code>is_system</code></td><td>Yes</td></tr>
 <tr><td><code>last_seen_at</code></td><td>No</td></tr>

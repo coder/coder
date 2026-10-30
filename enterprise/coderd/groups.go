@@ -510,6 +510,7 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 		ExactEmail:       userFilterParams.ExactEmail,
 		Status:           userFilterParams.Status,
 		IsServiceAccount: userFilterParams.IsServiceAccount,
+		IsAgent:          userFilterParams.IsAgent,
 		RbacRole:         userFilterParams.RbacRole,
 		LastSeenBefore:   userFilterParams.LastSeenBefore,
 		LastSeenAfter:    userFilterParams.LastSeenAfter,

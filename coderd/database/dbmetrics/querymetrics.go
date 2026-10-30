@@ -616,6 +616,22 @@ func (m queryMetricsStore) DeleteChatProjectMemoryByName(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteChatProjectTriggerByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatProjectTriggerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteChatProjectTriggerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectTriggerByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteChatProjectTriggerEvents(ctx context.Context, arg database.DeleteChatProjectTriggerEventsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatProjectTriggerEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteChatProjectTriggerEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectTriggerEvents").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatQueuedMessage(ctx, arg)
@@ -701,6 +717,22 @@ func (m queryMetricsStore) DeleteMCPServerConfigByID(ctx context.Context, id uui
 	r0 := m.s.DeleteMCPServerConfigByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteMCPServerConfigByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerConfigByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteMCPServerGitHubAppCredential(ctx context.Context, arg database.DeleteMCPServerGitHubAppCredentialParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerGitHubAppCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerGitHubAppCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerGitHubAppCredential").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteMCPServerGitHubAppCredentialsByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerGitHubAppCredentialsByConfigID(ctx, mcpServerConfigID)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerGitHubAppCredentialsByConfigID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerGitHubAppCredentialsByConfigID").Inc()
 	return r0
 }
 
@@ -814,6 +846,22 @@ func (m queryMetricsStore) DeleteOldChatDebugRuns(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("DeleteOldChatDebugRuns").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatDebugRuns").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteOldChatProjectTriggerDeliveries(ctx context.Context, arg database.DeleteOldChatProjectTriggerDeliveriesParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldChatProjectTriggerDeliveries(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldChatProjectTriggerDeliveries").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatProjectTriggerDeliveries").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteOldChatProjectTriggerEvents(ctx context.Context, arg database.DeleteOldChatProjectTriggerEventsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldChatProjectTriggerEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldChatProjectTriggerEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatProjectTriggerEvents").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
@@ -1792,6 +1840,14 @@ func (m queryMetricsStore) GetChatModelConfigByID(ctx context.Context, id uuid.U
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatModelConfigByIDIncludingDeleted(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatModelConfigByIDIncludingDeleted(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatModelConfigByIDIncludingDeleted").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigByIDIncludingDeleted").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.ChatModelConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatModelConfigs(ctx, organizationID)
@@ -1864,6 +1920,14 @@ func (m queryMetricsStore) GetChatPlanModeInstructions(ctx context.Context) (str
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectByAgentUserID(ctx context.Context, agentUserID uuid.UUID) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectByAgentUserID(ctx, agentUserID)
+	m.queryLatencies.WithLabelValues("GetChatProjectByAgentUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByAgentUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectByID(ctx, id)
@@ -1877,6 +1941,14 @@ func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id u
 	r0, r1 := m.s.GetChatProjectByIDForUpdate(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatProjectByIDForUpdate").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectIDsWithoutAgentUser(ctx context.Context) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectIDsWithoutAgentUser(ctx)
+	m.queryLatencies.WithLabelValues("GetChatProjectIDsWithoutAgentUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectIDsWithoutAgentUser").Inc()
 	return r0, r1
 }
 
@@ -1909,6 +1981,62 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	r0, r1 := m.s.GetChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectRuns(ctx context.Context, arg database.GetChatProjectRunsParams) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectRuns(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectRuns").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectRuns").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectTriggerByID(ctx context.Context, id uuid.UUID) (database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectTriggerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProjectTriggerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectTriggerByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectTriggerConversation(ctx context.Context, arg database.GetChatProjectTriggerConversationParams) (database.ChatProjectTriggerConversation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectTriggerConversation(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectTriggerConversation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectTriggerConversation").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectTriggerConversationByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatProjectTriggerConversationByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectTriggerConversationByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatProjectTriggerConversationByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectTriggerConversationByChatID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectTriggerDeliveries(ctx context.Context, arg database.GetChatProjectTriggerDeliveriesParams) ([]database.ChatProjectTriggerDelivery, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectTriggerDeliveries(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectTriggerDeliveries").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectTriggerDeliveries").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectTriggersByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectTriggersByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetChatProjectTriggersByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectTriggersByProjectID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatProjectsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectsByIDs").Inc()
 	return r0, r1
 }
 
@@ -2232,6 +2360,14 @@ func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetDueChatProjectScheduleTriggers(ctx context.Context, arg database.GetDueChatProjectScheduleTriggersParams) ([]database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDueChatProjectScheduleTriggers(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetDueChatProjectScheduleTriggers").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDueChatProjectScheduleTriggers").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
@@ -2504,6 +2640,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestChatProjectTriggerDeliveriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ChatProjectTriggerDelivery, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestChatProjectTriggerDeliveriesByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetLatestChatProjectTriggerDeliveriesByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestChatProjectTriggerDeliveriesByProjectID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
@@ -2613,6 +2757,22 @@ func (m queryMetricsStore) GetMCPServerConfigsByOrganization(ctx context.Context
 	r0, r1 := m.s.GetMCPServerConfigsByOrganization(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByOrganization").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerGitHubAppCredential(ctx context.Context, arg database.GetMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerGitHubAppCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerGitHubAppCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerGitHubAppCredential").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerGitHubAppCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerGitHubAppCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerGitHubAppCredentialsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetMCPServerGitHubAppCredentialsByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerGitHubAppCredentialsByUserID").Inc()
 	return r0, r1
 }
 
@@ -4464,6 +4624,30 @@ func (m queryMetricsStore) InsertChatProjectMemory(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatProjectTrigger(ctx context.Context, arg database.InsertChatProjectTriggerParams) (database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatProjectTrigger(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatProjectTrigger").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectTrigger").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatProjectTriggerDelivery(ctx context.Context, arg database.InsertChatProjectTriggerDeliveryParams) (database.ChatProjectTriggerDelivery, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatProjectTriggerDelivery(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatProjectTriggerDelivery").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectTriggerDelivery").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatProjectTriggerEvents(ctx context.Context, arg database.InsertChatProjectTriggerEventsParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatProjectTriggerEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatProjectTriggerEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectTriggerEvents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatQueuedMessage(ctx, arg)
@@ -5008,6 +5192,14 @@ func (m queryMetricsStore) IsChatProjectAccessibleByUserID(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) IsChatProjectEditableByUserID(ctx context.Context, arg database.IsChatProjectEditableByUserIDParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.IsChatProjectEditableByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("IsChatProjectEditableByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatProjectEditableByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.LinkChatFilesAfterLock(ctx, arg)
@@ -5352,6 +5544,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) RemoveChatProjectFromInvokableAgents(ctx context.Context, projectID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.RemoveChatProjectFromInvokableAgents(ctx, projectID)
+	m.queryLatencies.WithLabelValues("RemoveChatProjectFromInvokableAgents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveChatProjectFromInvokableAgents").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
@@ -5462,6 +5662,14 @@ func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context
 	m.queryLatencies.WithLabelValues("SyncAgentChatsContextMCPResources").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextMCPResources").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) SyncChatProjectAgentUserProfiles(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.SyncChatProjectAgentUserProfiles(ctx)
+	m.queryLatencies.WithLabelValues("SyncChatProjectAgentUserProfiles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncChatProjectAgentUserProfiles").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
@@ -5705,11 +5913,75 @@ func (m queryMetricsStore) UpdateChatProjectACLByID(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) UpdateChatProjectAgentUserID(ctx context.Context, arg database.UpdateChatProjectAgentUserIDParams) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectAgentUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectAgentUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectAgentUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatProjectByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatProjectByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectProfileByAgentUserID(ctx context.Context, arg database.UpdateChatProjectProfileByAgentUserIDParams) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectProfileByAgentUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectProfileByAgentUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectProfileByAgentUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectTriggerByID(ctx context.Context, arg database.UpdateChatProjectTriggerByIDParams) (database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectTriggerByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectTriggerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectTriggerByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectTriggerGitHubWebhookSecret(ctx context.Context, arg database.UpdateChatProjectTriggerGitHubWebhookSecretParams) (database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectTriggerGitHubWebhookSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectTriggerGitHubWebhookSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectTriggerGitHubWebhookSecret").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectTriggerLastTriggeredAt(ctx context.Context, arg database.UpdateChatProjectTriggerLastTriggeredAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatProjectTriggerLastTriggeredAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectTriggerLastTriggeredAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectTriggerLastTriggeredAt").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateChatProjectTriggerNextRunAt(ctx context.Context, arg database.UpdateChatProjectTriggerNextRunAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatProjectTriggerNextRunAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectTriggerNextRunAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectTriggerNextRunAt").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateChatProjectTriggerSecret(ctx context.Context, arg database.UpdateChatProjectTriggerSecretParams) (database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectTriggerSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectTriggerSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectTriggerSecret").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectTriggerSlackSigningSecret(ctx context.Context, arg database.UpdateChatProjectTriggerSlackSigningSecretParams) (database.ChatProjectTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectTriggerSlackSigningSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectTriggerSlackSigningSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectTriggerSlackSigningSecret").Inc()
 	return r0, r1
 }
 
@@ -6801,6 +7073,14 @@ func (m queryMetricsStore) UpsertChatProjectInstructions(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertChatProjectTriggerConversation(ctx context.Context, arg database.UpsertChatProjectTriggerConversationParams) (database.ChatProjectTriggerConversation, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatProjectTriggerConversation(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatProjectTriggerConversation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatProjectTriggerConversation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatRetentionDays(ctx, retentionDays)
@@ -6887,6 +7167,14 @@ func (m queryMetricsStore) UpsertLogoURL(ctx context.Context, value string) erro
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertLogoURL").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertMCPServerGitHubAppCredential(ctx context.Context, arg database.UpsertMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertMCPServerGitHubAppCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertMCPServerGitHubAppCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertMCPServerGitHubAppCredential").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {

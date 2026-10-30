@@ -248,6 +248,7 @@ func UsersFilter(
 			CreatedAt:        dbtime.Time(time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC)),
 			UpdatedAt:        dbtime.Time(time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC)),
 			IsServiceAccount: false,
+			IsAgent:          false,
 		})
 		require.NoError(t, err)
 		// nolint:gocritic // Setting up unit test data.
@@ -283,6 +284,7 @@ func UsersFilter(
 			CreatedAt:        dbtime.Time(time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC)),
 			UpdatedAt:        dbtime.Time(time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC)),
 			IsServiceAccount: false,
+			IsAgent:          false,
 		})
 		require.NoError(t, err)
 		// nolint:gocritic // Setting up unit test data.
@@ -317,6 +319,7 @@ func UsersFilter(
 			CreatedAt:        dbtime.Time(time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC)),
 			UpdatedAt:        dbtime.Time(time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC)),
 			IsServiceAccount: false,
+			IsAgent:          false,
 		})
 		require.NoError(t, err)
 		// nolint:gocritic // Setting up unit test data.

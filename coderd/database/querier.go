@@ -176,6 +176,9 @@ type sqlcQuerier interface {
 	DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
+	DeleteChatProjectTriggerByID(ctx context.Context, id uuid.UUID) error
+	// Releases claimed event keys so a retried delivery is handled again.
+	DeleteChatProjectTriggerEvents(ctx context.Context, arg DeleteChatProjectTriggerEventsParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
@@ -190,6 +193,8 @@ type sqlcQuerier interface {
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error
+	DeleteMCPServerGitHubAppCredential(ctx context.Context, arg DeleteMCPServerGitHubAppCredentialParams) error
+	DeleteMCPServerGitHubAppCredentialsByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error
 	DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
@@ -226,6 +231,9 @@ type sqlcQuerier interface {
 	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
+	// Keeps the most recent deliveries of a trigger.
+	DeleteOldChatProjectTriggerDeliveries(ctx context.Context, arg DeleteOldChatProjectTriggerDeliveriesParams) error
+	DeleteOldChatProjectTriggerEvents(ctx context.Context, arg DeleteOldChatProjectTriggerEventsParams) error
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
@@ -534,6 +542,9 @@ type sqlcQuerier interface {
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
+	// Returns soft-deleted configs too, so an agent can report that the model
+	// it was set to use was deleted.
+	GetChatModelConfigByIDIncludingDeleted(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
 	// All live configs in one organization, unfiltered. Consumed ONLY by
 	// ensureDefaultChatModelConfig's default-election read inside the write
@@ -554,14 +565,27 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
+	GetChatProjectByAgentUserID(ctx context.Context, agentUserID uuid.UUID) (ChatProject, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	GetChatProjectIDsWithoutAgentUser(ctx context.Context) ([]uuid.UUID, error)
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
 	GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Returns root and delegated chats bound to a project, newest first.
+	GetChatProjectRuns(ctx context.Context, arg GetChatProjectRunsParams) ([]Chat, error)
+	GetChatProjectTriggerByID(ctx context.Context, id uuid.UUID) (ChatProjectTrigger, error)
+	GetChatProjectTriggerConversation(ctx context.Context, arg GetChatProjectTriggerConversationParams) (ChatProjectTriggerConversation, error)
+	// Returns the external conversation a chat belongs to, such as the Slack
+	// thread a triggered chat answers in.
+	GetChatProjectTriggerConversationByChatID(ctx context.Context, chatID uuid.UUID) (GetChatProjectTriggerConversationByChatIDRow, error)
+	GetChatProjectTriggerDeliveries(ctx context.Context, arg GetChatProjectTriggerDeliveriesParams) ([]ChatProjectTriggerDelivery, error)
+	// Oldest first, so a new trigger is added below the existing ones.
+	GetChatProjectTriggersByProjectID(ctx context.Context, projectID uuid.UUID) ([]ChatProjectTrigger, error)
+	GetChatProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatProject, error)
 	GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error)
 	// Entries match regardless of the actions they grant, so callers must
 	// authorize each row.
@@ -655,6 +679,10 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
+	// Locks enabled schedule triggers that are due. Rows another replica has
+	// locked are skipped, so each run is claimed once. Call it in a
+	// transaction and move next_run_at forward before committing.
+	GetDueChatProjectScheduleTriggers(ctx context.Context, arg GetDueChatProjectScheduleTriggersParams) ([]ChatProjectTrigger, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
 	// Providers can be disabled independently of their model configs.
 	// Check both to ensure the selected config is actually usable.
@@ -741,6 +769,7 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	GetLatestChatProjectTriggerDeliveriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]ChatProjectTriggerDelivery, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -759,6 +788,8 @@ type sqlcQuerier interface {
 	GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg GetMCPServerConfigByOrganizationAndSlugParams) (MCPServerConfig, error)
 	GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
+	GetMCPServerGitHubAppCredential(ctx context.Context, arg GetMCPServerGitHubAppCredentialParams) (MCPServerGitHubAppCredential, error)
+	GetMCPServerGitHubAppCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerGitHubAppCredential, error)
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
 	GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (MCPServerUserToken, error)
 	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
@@ -1243,6 +1274,13 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
+	// The organization comes from the project row, so the stored scope always
+	// matches the project's organization.
+	InsertChatProjectTrigger(ctx context.Context, arg InsertChatProjectTriggerParams) (ChatProjectTrigger, error)
+	InsertChatProjectTriggerDelivery(ctx context.Context, arg InsertChatProjectTriggerDeliveryParams) (ChatProjectTriggerDelivery, error)
+	// Claims event keys for a trigger. It returns only the keys that were not
+	// already claimed, so a key missing from the result is a duplicate.
+	InsertChatProjectTriggerEvents(ctx context.Context, arg InsertChatProjectTriggerEventsParams) ([]string, error)
 	// Legacy queue insertion path. When no caller-supplied creator exists,
 	// preserve the created_by invariant by attributing the queued row to the
 	// chat owner.
@@ -1338,6 +1376,9 @@ type sqlcQuerier interface {
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
 	IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error)
+	// Reports whether a user owns a project or it is shared with them with
+	// edit access. Agent users never edit projects.
+	IsChatProjectEditableByUserID(ctx context.Context, arg IsChatProjectEditableByUserIDParams) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the
 	// cascade removes their links. A file links to at most one chat, so no other
@@ -1478,6 +1519,8 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// Removes a deleted agent from every agent that was allowed to invoke it.
+	RemoveChatProjectFromInvokableAgents(ctx context.Context, projectID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never
@@ -1535,6 +1578,9 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	// Copies each agent's name and icon to its agent user, which shows the agent
+	// wherever users are listed.
+	SyncChatProjectAgentUserProfiles(ctx context.Context) error
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
@@ -1646,7 +1692,19 @@ type sqlcQuerier interface {
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
+	// Sets the agent user once; a project that already has one is unchanged.
+	UpdateChatProjectAgentUserID(ctx context.Context, arg UpdateChatProjectAgentUserIDParams) (ChatProject, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
+	// Renames the agent an agent user acts as when the user's profile changes.
+	UpdateChatProjectProfileByAgentUserID(ctx context.Context, arg UpdateChatProjectProfileByAgentUserIDParams) (ChatProject, error)
+	UpdateChatProjectTriggerByID(ctx context.Context, arg UpdateChatProjectTriggerByIDParams) (ChatProjectTrigger, error)
+	// An empty secret turns signature verification off.
+	UpdateChatProjectTriggerGitHubWebhookSecret(ctx context.Context, arg UpdateChatProjectTriggerGitHubWebhookSecretParams) (ChatProjectTrigger, error)
+	UpdateChatProjectTriggerLastTriggeredAt(ctx context.Context, arg UpdateChatProjectTriggerLastTriggeredAtParams) error
+	UpdateChatProjectTriggerNextRunAt(ctx context.Context, arg UpdateChatProjectTriggerNextRunAtParams) error
+	UpdateChatProjectTriggerSecret(ctx context.Context, arg UpdateChatProjectTriggerSecretParams) (ChatProjectTrigger, error)
+	// An empty secret turns signature verification off.
+	UpdateChatProjectTriggerSlackSigningSecret(ctx context.Context, arg UpdateChatProjectTriggerSlackSigningSecretParams) (ChatProjectTrigger, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
@@ -1838,6 +1896,9 @@ type sqlcQuerier interface {
 	// The organization comes from the project row, so the stored scope always
 	// matches the project's organization.
 	UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error)
+	// Points a conversation at a chat. A conversation whose chat was archived
+	// moves to the new chat.
+	UpsertChatProjectTriggerConversation(ctx context.Context, arg UpsertChatProjectTriggerConversationParams) (ChatProjectTriggerConversation, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
@@ -1852,6 +1913,7 @@ type sqlcQuerier interface {
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
+	UpsertMCPServerGitHubAppCredential(ctx context.Context, arg UpsertMCPServerGitHubAppCredentialParams) (MCPServerGitHubAppCredential, error)
 	UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCPServerUserTokenParams) (MCPServerUserToken, error)
 	// Insert or update notification report generator logs with recent activity.
 	UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error

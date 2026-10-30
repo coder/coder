@@ -50,8 +50,8 @@ type Story = StoryObj<typeof CompactProjectSelector>;
 
 const openSelector: Story["play"] = async ({ canvasElement }) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: /^Project:/ }));
-	await screen.findByRole("button", { name: "New project" });
+	await userEvent.click(canvas.getByRole("button", { name: /^Agent:/ }));
+	await screen.findByRole("button", { name: "New agent" });
 };
 
 export const NoProject: Story = {};
@@ -80,7 +80,7 @@ export const OpenLoading: Story = {
 };
 
 export const OpenError: Story = {
-	args: { options: [], error: new Error("Failed to load projects.") },
+	args: { options: [], error: new Error("Failed to load agents.") },
 	play: openSelector,
 };
 

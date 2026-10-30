@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
+	MockAgentOrganizationMember,
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockOwnerRole,
@@ -82,5 +83,15 @@ export const NoEdit: Story = {
 export const UpdatingMember: Story = {
 	args: {
 		isUpdatingMemberRoles: true,
+	},
+};
+
+/** An agent member leads with its display name and is labeled Agent. */
+export const WithAgentMember: Story = {
+	args: {
+		members: [
+			{ ...MockOrganizationMember2, groups: [] },
+			{ ...MockAgentOrganizationMember, groups: [] },
+		],
 	},
 };

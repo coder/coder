@@ -28,6 +28,7 @@ import type {
 	UserAISpendStatus,
 } from "#/api/typesGenerated";
 import {
+	MockAgentUser,
 	MockDefaultOrganization,
 	MockGroup,
 	MockGroup2,
@@ -180,6 +181,23 @@ export const MembersSpendError: Story = {
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${MockUserMember.id}`),
 		).toHaveTextContent("\u2014");
+	},
+};
+
+/** An agent member leads with its display name and is labeled Agent. */
+export const WithAgentMember: Story = {
+	parameters: {
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserMember, MockAgentUser], count: 2 }),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const table = await canvas.findByRole("table", { name: "Group members" });
+		await within(table).findByText("Launch");
+		await within(table).findByText("Agent");
 	},
 };
 

@@ -28,6 +28,18 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+/** A new agent can start with the built-in MCP servers its organization has. */
+export const WithQuickAddMCPServers: Story = {
+	args: {
+		quickAddMCPServers: {
+			[MockDefaultOrganization.id]: [
+				{ id: "slack", label: "Slack", iconURL: "/icon/slack.svg" },
+				{ id: "github", label: "GitHub", iconURL: "/icon/github.svg" },
+			],
+		},
+	},
+};
+
 export const OpenOrganizationDropdown: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -60,7 +72,7 @@ export const UnavailableSelection: Story = {
 export const NameRequired: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(body.getByLabelText(/Project name/));
+		await userEvent.click(body.getByLabelText(/Agent name/));
 		await userEvent.tab();
 	},
 };
@@ -69,7 +81,7 @@ export const InvalidName: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.type(
-			await body.findByRole("textbox", { name: /Project name/ }),
+			await body.findByRole("textbox", { name: /Agent name/ }),
 			"x".repeat(65),
 		);
 	},
@@ -106,10 +118,10 @@ export const Submitting: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.type(
-			await body.findByRole("textbox", { name: /Project name/ }),
+			await body.findByRole("textbox", { name: /Agent name/ }),
 			MockChatProject.name,
 		);
-		await userEvent.click(body.getByRole("button", { name: "Create project" }));
+		await userEvent.click(body.getByRole("button", { name: "Create agent" }));
 	},
 };
 
@@ -122,7 +134,7 @@ export const MutationError: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.type(
-			await body.findByRole("textbox", { name: /Project name/ }),
+			await body.findByRole("textbox", { name: /Agent name/ }),
 			MockChatProject.name,
 		);
 		await userEvent.type(

@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -71,6 +73,8 @@ type CreateWorkspaceOptions struct {
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
+	// Policy refuses templates the chat's agent may not use.
+	Policy TemplatePolicy
 }
 
 type createWorkspaceArgs struct {
@@ -177,6 +181,9 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			if !tmpl.AgentsAllowed {
 				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
+			if reason := options.Policy.Check(ctx, db, tmpl); reason != "" {
+				return fantasy.NewTextErrorResponse(reason), nil
+			}
 
 			hasExternalAgent, externalAgentErr := templateHasExternalAgent(ctx, db, tmpl)
 			if externalAgentErr != nil {
@@ -232,11 +239,17 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			}
 			createReq.Name = name
 
-			// Map parameters.
-			for k, v := range args.Parameters {
+			// Map parameters, applying the agent's parameter rules.
+			parameters, reason := options.Policy.ApplyParameterRules(
+				ctx, db, tmpl, createReq.TemplateVersionPresetID, args.Parameters,
+			)
+			if reason != "" {
+				return fantasy.NewTextErrorResponse(reason), nil
+			}
+			for _, k := range slices.Sorted(maps.Keys(parameters)) {
 				createReq.RichParameterValues = append(
 					createReq.RichParameterValues,
-					codersdk.WorkspaceBuildParameter{Name: k, Value: v},
+					codersdk.WorkspaceBuildParameter{Name: k, Value: parameters[k]},
 				)
 			}
 

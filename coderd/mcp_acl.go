@@ -119,6 +119,7 @@ func (api *API) writeOrganizationACLAvailable(rw http.ResponseWriter, r *http.Re
 		ExactEmail:       userFilter.ExactEmail,
 		Status:           userFilter.Status,
 		IsServiceAccount: userFilter.IsServiceAccount,
+		IsAgent:          userFilter.IsAgent,
 		RbacRole:         userFilter.RbacRole,
 		LastSeenBefore:   userFilter.LastSeenBefore,
 		LastSeenAfter:    userFilter.LastSeenAfter,

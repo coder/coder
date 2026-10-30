@@ -234,6 +234,132 @@ type ChatProject struct {
 	Icon      string    `json:"icon"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	// InvokableAgentIDs are other agents that chats in this agent may
+	// invoke to delegate work.
+	InvokableAgentIDs []uuid.UUID `json:"invokable_agent_ids" format:"uuid"`
+	// WorkspaceToolsEnabled allows chats in this agent to create, start,
+	// and use workspaces.
+	WorkspaceToolsEnabled bool `json:"workspace_tools_enabled"`
+	// AllowedTemplateIDs restricts which templates chats in the project may
+	// create workspaces from. Empty allows every template.
+	AllowedTemplateIDs []uuid.UUID `json:"allowed_template_ids" format:"uuid"`
+	// MCPServerIDs are attached to every chat created in the project.
+	MCPServerIDs []uuid.UUID `json:"mcp_server_ids" format:"uuid"`
+	// ExternalAuthProviderIDs restricts which external auth providers a
+	// template may require. Empty allows every provider.
+	ExternalAuthProviderIDs []string `json:"external_auth_provider_ids"`
+	// TemplateParameterRules limit the values chats in the project may use
+	// for specific template parameters.
+	TemplateParameterRules []ChatProjectTemplateParameterRule `json:"template_parameter_rules"`
+	// Permissions describes what the requesting user can do with the project.
+	Permissions ChatProjectPermissions `json:"permissions"`
+	// AgentUser is the service account the agent acts as. Chats in the
+	// agent are owned by this user. It is unset until the user is
+	// provisioned.
+	AgentUser *MinimalUser `json:"agent_user,omitempty"`
+	// ModelConfigID is the model new chats in the agent use when the chat
+	// does not pick one. Unset uses the deployment default.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// ModelStatus reports whether the agent's chats can use ModelConfigID.
+	ModelStatus ChatProjectModelStatus `json:"model_status" enums:"default,available,unavailable"`
+	// ModelStatusReason explains an unavailable model, for example that it
+	// was deleted or its provider has no credentials for the agent.
+	ModelStatusReason string `json:"model_status_reason,omitempty"`
+	// ModelDisplayName is the name of the model in ModelConfigID, including
+	// a deleted one.
+	ModelDisplayName string `json:"model_display_name,omitempty"`
+}
+
+// ChatProjectModelStatus reports whether an agent's chats can use the model
+// the agent is set to.
+type ChatProjectModelStatus string
+
+const (
+	// ChatProjectModelStatusDefault means the agent has no model of its own
+	// and chats use the deployment default.
+	ChatProjectModelStatusDefault ChatProjectModelStatus = "default"
+	// ChatProjectModelStatusAvailable means chats in the agent use its model.
+	ChatProjectModelStatusAvailable ChatProjectModelStatus = "available"
+	// ChatProjectModelStatusUnavailable means the agent's model cannot be
+	// used, for example because it was deleted or disabled, so chats use
+	// the deployment default instead.
+	ChatProjectModelStatusUnavailable ChatProjectModelStatus = "unavailable"
+)
+
+// ChatProjectPermissions describes what the requesting user can do with a
+// chat project beyond reading it.
+type ChatProjectPermissions struct {
+	// Edit allows changing the project's settings, instructions, and
+	// permissions.
+	Edit bool `json:"edit"`
+	// Share allows changing who the project is shared with.
+	Share bool `json:"share"`
+	// Delete allows deleting the project.
+	Delete bool `json:"delete"`
+	// ManageTriggers allows creating and changing webhook triggers. Triggered
+	// chats run as the agent's user on the owner's behalf, so only the owner
+	// has it.
+	ManageTriggers bool `json:"manage_triggers"`
+}
+
+// ChatProjectRole is the access a shared user or group has to a chat project.
+type ChatProjectRole string
+
+const (
+	// ChatProjectRoleUse allows starting chats in the project.
+	ChatProjectRoleUse ChatProjectRole = "use"
+	// ChatProjectRoleEdit also allows changing the project's settings.
+	ChatProjectRoleEdit ChatProjectRole = "edit"
+	// ChatProjectRoleDeleted removes a principal in an ACL update.
+	ChatProjectRoleDeleted ChatProjectRole = ""
+)
+
+// ChatProjectACLUser is a user a chat project is shared with.
+type ChatProjectACLUser struct {
+	MinimalUser
+	Role ChatProjectRole `json:"role" enums:"use,edit"`
+}
+
+// ChatProjectACLGroup is a group a chat project is shared with.
+type ChatProjectACLGroup struct {
+	Group
+	Role ChatProjectRole `json:"role" enums:"use,edit"`
+}
+
+// ChatProjectACL lists who a chat project is shared with. The owner is not
+// listed.
+type ChatProjectACL struct {
+	Users  []ChatProjectACLUser  `json:"users"`
+	Groups []ChatProjectACLGroup `json:"groups"`
+}
+
+// UpdateChatProjectACLRequest is a sparse update of a chat project ACL. Only
+// listed principals change; ChatProjectRoleDeleted removes one.
+type UpdateChatProjectACLRequest struct {
+	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
+}
+
+// ConnectChatProjectExternalAuthRequest starts linking an external auth
+// provider to an agent's user.
+type ConnectChatProjectExternalAuthRequest struct {
+	// Redirect is the Coder path to return to after the provider flow.
+	Redirect string `json:"redirect,omitempty"`
+}
+
+// ConnectChatProjectExternalAuthResponse holds the URL that continues the
+// provider flow. The browser must navigate to it.
+type ConnectChatProjectExternalAuthResponse struct {
+	URL string `json:"url"`
+}
+
+// ChatProjectTemplateParameterRule limits one template parameter to a fixed
+// set of values. The first allowed value is used when a chat does not set
+// the parameter.
+type ChatProjectTemplateParameterRule struct {
+	TemplateID    uuid.UUID `json:"template_id" format:"uuid"`
+	ParameterName string    `json:"parameter_name"`
+	AllowedValues []string  `json:"allowed_values"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -242,14 +368,305 @@ type CreateChatProjectRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description"`
 	Icon        string `json:"icon,omitempty"`
+	// ModelConfigID sets the model new chats in the agent use when the chat
+	// does not pick one. Unset uses the deployment default.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // UpdateChatProjectRequest updates a chat project.
 type UpdateChatProjectRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Icon        *string `json:"icon,omitempty"`
+	Name                    *string      `json:"name,omitempty"`
+	Description             *string      `json:"description,omitempty"`
+	Icon                    *string      `json:"icon,omitempty"`
+	AllowedTemplateIDs      *[]uuid.UUID `json:"allowed_template_ids,omitempty" format:"uuid"`
+	MCPServerIDs            *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
+	ExternalAuthProviderIDs *[]string    `json:"external_auth_provider_ids,omitempty"`
+	// TemplateParameterRules replaces the project's parameter rules.
+	TemplateParameterRules *[]ChatProjectTemplateParameterRule `json:"template_parameter_rules,omitempty"`
+	// InvokableAgentIDs replaces the agents this agent may invoke. Each
+	// must be another agent in the same organization that the caller can
+	// read.
+	InvokableAgentIDs     *[]uuid.UUID `json:"invokable_agent_ids,omitempty" format:"uuid"`
+	WorkspaceToolsEnabled *bool        `json:"workspace_tools_enabled,omitempty"`
+	// ModelConfigID sets the agent's model. An empty string clears it, so
+	// chats use the deployment default. Unset leaves it unchanged.
+	ModelConfigID *string `json:"model_config_id,omitempty"`
 }
+
+// ChatProjectTriggerSource is what starts a trigger: the payload format its
+// webhook accepts, or a schedule.
+type ChatProjectTriggerSource string
+
+const (
+	// ChatProjectTriggerSourceWebhook accepts any request body and passes it
+	// to the chat as is.
+	ChatProjectTriggerSourceWebhook ChatProjectTriggerSource = "webhook"
+	// ChatProjectTriggerSourceGitHub accepts GitHub repository or
+	// organization webhooks.
+	ChatProjectTriggerSourceGitHub ChatProjectTriggerSource = "github"
+	// ChatProjectTriggerSourceSlack accepts Slack Events API requests and
+	// slash commands.
+	ChatProjectTriggerSourceSlack ChatProjectTriggerSource = "slack"
+	// ChatProjectTriggerSourceSchedule starts a chat on a cron schedule. It
+	// has no webhook.
+	ChatProjectTriggerSourceSchedule ChatProjectTriggerSource = "schedule"
+)
+
+// ChatProjectTriggerSources lists every trigger source.
+var ChatProjectTriggerSources = []ChatProjectTriggerSource{
+	ChatProjectTriggerSourceWebhook,
+	ChatProjectTriggerSourceGitHub,
+	ChatProjectTriggerSourceSlack,
+	ChatProjectTriggerSourceSchedule,
+}
+
+// Slack trigger events. GitHub events use GitHub's names: the event in the
+// X-GitHub-Event header, optionally followed by a dot and the payload's
+// action, such as "pull_request.opened" or "push".
+const (
+	ChatProjectTriggerSlackEventAppMention   = "app_mention"
+	ChatProjectTriggerSlackEventMessage      = "message"
+	ChatProjectTriggerSlackEventSlashCommand = "slash_command"
+)
+
+// ChatProjectTrigger starts a chat in a project when its webhook is called
+// or its schedule comes due.
+type ChatProjectTrigger struct {
+	ID        uuid.UUID                `json:"id" format:"uuid"`
+	ProjectID uuid.UUID                `json:"project_id" format:"uuid"`
+	Name      string                   `json:"name"`
+	Prompt    string                   `json:"prompt"`
+	Enabled   bool                     `json:"enabled"`
+	Source    ChatProjectTriggerSource `json:"source" enums:"webhook,github,slack,schedule"`
+	// Schedule is the cron expression of a schedule trigger: five fields
+	// (minute, hour, day of month, month, day of week) with an optional
+	// CRON_TZ= prefix, such as "CRON_TZ=Europe/Berlin 0 9 * * 1-5". Empty
+	// for other sources.
+	Schedule string `json:"schedule,omitempty"`
+	// NextRunAt is when a schedule trigger runs next. Unset when the
+	// trigger is disabled or is not a schedule trigger.
+	NextRunAt *time.Time `json:"next_run_at,omitempty" format:"date-time"`
+	// Events that start a chat. Empty matches every event. Plain webhook
+	// triggers have no events.
+	Events []string `json:"events"`
+	// Repository limits a GitHub trigger to one repository, as owner/name.
+	Repository string `json:"repository,omitempty"`
+	// Channel limits a Slack trigger to one channel ID.
+	Channel string `json:"channel,omitempty"`
+	ChatProjectTriggerTextFilter
+	ChatProjectTriggerConversationOptions
+	// HasSlackSigningSecret reports whether Slack requests are verified with
+	// the app's signing secret. The secret itself is never returned.
+	HasSlackSigningSecret bool `json:"has_slack_signing_secret"`
+	// HasGitHubWebhookSecret reports whether GitHub deliveries are verified
+	// with the webhook's secret. The secret itself is never returned.
+	HasGitHubWebhookSecret bool       `json:"has_github_webhook_secret"`
+	CreatedBy              uuid.UUID  `json:"created_by" format:"uuid"`
+	CreatedAt              time.Time  `json:"created_at" format:"date-time"`
+	UpdatedAt              time.Time  `json:"updated_at" format:"date-time"`
+	LastTriggeredAt        *time.Time `json:"last_triggered_at,omitempty" format:"date-time"`
+	// LastDelivery is the most recent call to the trigger's webhook. It is
+	// only set when listing triggers.
+	LastDelivery *ChatProjectTriggerDelivery `json:"last_delivery,omitempty"`
+}
+
+// ChatProjectTriggerDeliveryStatus is what a call to a trigger's webhook did.
+type ChatProjectTriggerDeliveryStatus string
+
+const (
+	// ChatProjectTriggerDeliveryStatusStarted means the call started a chat.
+	ChatProjectTriggerDeliveryStatusStarted ChatProjectTriggerDeliveryStatus = "started"
+	// ChatProjectTriggerDeliveryStatusContinued means the event was sent to
+	// the chat already handling its conversation, such as a Slack thread.
+	ChatProjectTriggerDeliveryStatusContinued ChatProjectTriggerDeliveryStatus = "continued"
+	// ChatProjectTriggerDeliveryStatusIgnored means the event did not match
+	// the trigger's filter.
+	ChatProjectTriggerDeliveryStatusIgnored ChatProjectTriggerDeliveryStatus = "ignored"
+	// ChatProjectTriggerDeliveryStatusRejected means the call failed, for
+	// example because the trigger is disabled or the payload is invalid.
+	ChatProjectTriggerDeliveryStatusRejected ChatProjectTriggerDeliveryStatus = "rejected"
+	// ChatProjectTriggerDeliveryStatusHandshake means a GitHub ping or Slack
+	// URL verification was answered.
+	ChatProjectTriggerDeliveryStatusHandshake ChatProjectTriggerDeliveryStatus = "handshake"
+)
+
+// ChatProjectTriggerDelivery is one recent call to a trigger's webhook.
+type ChatProjectTriggerDelivery struct {
+	ID        uuid.UUID                        `json:"id" format:"uuid"`
+	TriggerID uuid.UUID                        `json:"trigger_id" format:"uuid"`
+	CreatedAt time.Time                        `json:"created_at" format:"date-time"`
+	Status    ChatProjectTriggerDeliveryStatus `json:"status" enums:"started,continued,ignored,rejected,handshake"`
+	// Event is the event name, such as issue_comment.created. Empty for
+	// plain webhooks.
+	Event string `json:"event,omitempty"`
+	// Message explains why the event was ignored or rejected.
+	Message string `json:"message,omitempty"`
+	// ChatID is the chat the call started or continued.
+	ChatID *uuid.UUID `json:"chat_id,omitempty" format:"uuid"`
+}
+
+// ChatProjectTriggerBusyBehavior is what a continued chat does with a new
+// event while it is still working on an earlier one.
+type ChatProjectTriggerBusyBehavior string
+
+const (
+	// ChatProjectTriggerBusyBehaviorQueue runs the event after the current
+	// turn finishes.
+	ChatProjectTriggerBusyBehaviorQueue ChatProjectTriggerBusyBehavior = "queue"
+	// ChatProjectTriggerBusyBehaviorInterrupt stops the current turn and
+	// runs the event next.
+	ChatProjectTriggerBusyBehaviorInterrupt ChatProjectTriggerBusyBehavior = "interrupt"
+)
+
+// ChatProjectTriggerConversationHeader is the request header a plain webhook
+// sets to continue the chat of an earlier call with the same value.
+const ChatProjectTriggerConversationHeader = "X-Coder-Conversation-Id"
+
+// ChatProjectTriggerConversationOptions control whether events in the same
+// conversation share one chat. A conversation is a Slack thread, a GitHub
+// issue or pull request, or, for plain webhooks, calls with the same
+// X-Coder-Conversation-Id header.
+type ChatProjectTriggerConversationOptions struct {
+	// ContinueConversations sends events in a conversation the trigger
+	// already started a chat for to that chat instead of starting a new
+	// one. An archived chat is replaced by a new one.
+	ContinueConversations bool `json:"continue_conversations"`
+	// BusyBehavior is what a continued chat does with a new event while it
+	// is still working.
+	BusyBehavior ChatProjectTriggerBusyBehavior `json:"busy_behavior" enums:"queue,interrupt"`
+}
+
+// ChatProjectTriggerTextFilter limits which events start a chat by their
+// text and sender.
+type ChatProjectTriggerTextFilter struct {
+	// TextPattern is text the event must contain: a Slack message, a GitHub
+	// comment, review, issue or pull request, or a plain webhook body.
+	// Empty matches every event.
+	TextPattern string `json:"text_pattern,omitempty"`
+	// TextPatternIsRegex treats TextPattern as a regular expression (RE2)
+	// instead of case-insensitive text.
+	TextPatternIsRegex bool `json:"text_pattern_is_regex,omitempty"`
+	// IgnoreThreadReplies keeps Slack thread replies from starting new
+	// chats. Replies in a thread the trigger already started a chat for
+	// still continue that chat when ContinueConversations is set.
+	IgnoreThreadReplies bool `json:"ignore_thread_replies,omitempty"`
+	// Senders limits GitHub triggers to these logins and Slack triggers to
+	// these user IDs. Empty matches everyone.
+	Senders []string `json:"senders,omitempty"`
+}
+
+// CreateChatProjectTriggerRequest creates a webhook trigger.
+type CreateChatProjectTriggerRequest struct {
+	Name string `json:"name" validate:"required"`
+	// Prompt is sent to the new chat ahead of the webhook payload.
+	Prompt string `json:"prompt"`
+	// Source defaults to ChatProjectTriggerSourceWebhook.
+	Source ChatProjectTriggerSource `json:"source,omitempty" enums:"webhook,github,slack,schedule"`
+	// Schedule is required for schedule triggers and rejected for others.
+	// See ChatProjectTrigger.Schedule.
+	Schedule   string   `json:"schedule,omitempty"`
+	Events     []string `json:"events,omitempty"`
+	Repository string   `json:"repository,omitempty"`
+	Channel    string   `json:"channel,omitempty"`
+	ChatProjectTriggerTextFilter
+	// ContinueConversations defaults to true for Slack triggers and false
+	// otherwise.
+	ContinueConversations *bool `json:"continue_conversations,omitempty"`
+	// BusyBehavior defaults to queue.
+	BusyBehavior ChatProjectTriggerBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	// SlackSigningSecret is the Slack app's signing secret. When set,
+	// requests must carry a valid X-Slack-Signature. Only Slack triggers
+	// accept it, and it is never returned.
+	SlackSigningSecret string `json:"slack_signing_secret,omitempty"`
+	// GitHubWebhookSecret is the secret configured on the GitHub webhook.
+	// When set, deliveries must carry a valid X-Hub-Signature-256. Only
+	// GitHub triggers accept it, and it is never returned.
+	GitHubWebhookSecret string `json:"github_webhook_secret,omitempty"`
+}
+
+// CreateChatProjectTriggerResponse is returned once, when a trigger is
+// created. WebhookURL embeds the secret and cannot be retrieved again. It is
+// empty for schedule triggers, which have no webhook.
+type CreateChatProjectTriggerResponse struct {
+	Trigger    ChatProjectTrigger `json:"trigger"`
+	WebhookURL string             `json:"webhook_url"`
+}
+
+// UpdateChatProjectTriggerRequest updates a webhook trigger. The source
+// cannot change because the webhook is configured in the sending service.
+type UpdateChatProjectTriggerRequest struct {
+	Name                *string   `json:"name,omitempty"`
+	Prompt              *string   `json:"prompt,omitempty"`
+	Enabled             *bool     `json:"enabled,omitempty"`
+	Events              *[]string `json:"events,omitempty"`
+	Repository          *string   `json:"repository,omitempty"`
+	Channel             *string   `json:"channel,omitempty"`
+	TextPattern         *string   `json:"text_pattern,omitempty"`
+	TextPatternIsRegex  *bool     `json:"text_pattern_is_regex,omitempty"`
+	IgnoreThreadReplies *bool     `json:"ignore_thread_replies,omitempty"`
+	Senders             *[]string `json:"senders,omitempty"`
+	// ContinueConversations and BusyBehavior: see
+	// ChatProjectTriggerConversationOptions.
+	ContinueConversations *bool                           `json:"continue_conversations,omitempty"`
+	BusyBehavior          *ChatProjectTriggerBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	// SlackSigningSecret replaces the Slack signing secret. An empty string
+	// removes it and turns signature verification off.
+	SlackSigningSecret *string `json:"slack_signing_secret,omitempty"`
+	// GitHubWebhookSecret replaces the GitHub webhook secret. An empty
+	// string removes it and turns signature verification off.
+	GitHubWebhookSecret *string `json:"github_webhook_secret,omitempty"`
+	// Schedule replaces a schedule trigger's cron expression.
+	Schedule *string `json:"schedule,omitempty"`
+}
+
+// ChatProjectTriggerWebhookResponse reports the chat a webhook call or a
+// schedule trigger run started or continued.
+type ChatProjectTriggerWebhookResponse struct {
+	ChatID uuid.UUID `json:"chat_id" format:"uuid"`
+	// Continued is true when the call was sent to the chat of an earlier
+	// call in the same conversation.
+	Continued bool `json:"continued"`
+}
+
+// ChatProjectMCPServerToken is an MCP server attached to an agent and the
+// state of the agent user's token for it. Tokens are never returned.
+type ChatProjectMCPServerToken struct {
+	MCPServerConfigID uuid.UUID `json:"mcp_server_config_id" format:"uuid"`
+	DisplayName       string    `json:"display_name"`
+	Slug              string    `json:"slug"`
+	IconURL           string    `json:"icon_url"`
+	AuthType          string    `json:"auth_type"`
+	// TokenRequired is true for user_api_key servers, whose tools the
+	// agent can only use once its owner stores a token.
+	TokenRequired  bool       `json:"token_required"`
+	HasToken       bool       `json:"has_token"`
+	TokenUpdatedAt *time.Time `json:"token_updated_at,omitempty" format:"date-time"`
+	// CredentialKind says what the agent's user authenticates with. It is
+	// set when HasToken is true.
+	CredentialKind MCPServerCredentialKind `json:"credential_kind,omitempty" enums:"token,github_app"`
+	// GitHubApp is set for the github_app kind.
+	GitHubApp *MCPServerGitHubApp `json:"github_app,omitempty"`
+}
+
+// ChatProjectRun is a chat that ran in a project, started by a person, a
+// trigger, or a parent agent.
+type ChatProjectRun struct {
+	ChatID       uuid.UUID  `json:"chat_id" format:"uuid"`
+	Title        string     `json:"title"`
+	Status       ChatStatus `json:"status"`
+	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID   *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
+	// TriggerID is set when a webhook trigger started the run.
+	TriggerID *uuid.UUID `json:"trigger_id,omitempty" format:"uuid"`
+	// LastError is the error message of a failed run.
+	LastError string    `json:"last_error,omitempty"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+}
+
+// ChatProjectTriggerLabel is the chat label key that records which trigger
+// started a chat.
+const ChatProjectTriggerLabel = "coder.trigger_id"
 
 // ChatProjectInstructions are instructions added to the system prompt of
 // every chat in a project, for every user who chats there. A project without
@@ -280,7 +697,10 @@ type ChatProjectMemory struct {
 	Body              string    `json:"body"`
 	CreatedBy         uuid.UUID `json:"created_by" format:"uuid"`
 	CreatedByUsername string    `json:"created_by_username"`
-	CreatedAt         time.Time `json:"created_at" format:"date-time"`
+	// CreatedByName is the display name of the creator, such as an agent's
+	// name when an agent saved the memory.
+	CreatedByName string    `json:"created_by_name,omitempty"`
+	CreatedAt     time.Time `json:"created_at" format:"date-time"`
 }
 
 type CreateChatProjectMemoryRequest struct {
@@ -2247,18 +2667,21 @@ type ChatHookDeniedResponse struct {
 type ChatRole string
 
 const (
-	ChatRoleRead    ChatRole = "read"
+	ChatRoleRead ChatRole = "read"
+	// ChatRoleWrite can also send messages and change the chat. It is
+	// granted to the people who start a chat owned by an agent.
+	ChatRoleWrite   ChatRole = "write"
 	ChatRoleDeleted ChatRole = ""
 )
 
 type ChatUser struct {
 	MinimalUser
-	Role ChatRole `json:"role" enums:"read"`
+	Role ChatRole `json:"role" enums:"read,write"`
 }
 
 type ChatGroup struct {
 	Group
-	Role ChatRole `json:"role" enums:"read"`
+	Role ChatRole `json:"role" enums:"read,write"`
 }
 
 type ChatACL struct {
@@ -2417,6 +2840,270 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ChatProjectACL returns who a chat project is shared with.
+func (c *ExperimentalClient) ChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/acl", nil)
+	if err != nil {
+		return ChatProjectACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectACL{}, ReadBodyAsError(res)
+	}
+	var projectACL ChatProjectACL
+	return projectACL, ReadBodyAsJSON(res, &projectACL)
+}
+
+// UpdateChatProjectACL applies a sparse update to who a chat project is
+// shared with.
+func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID)+"/acl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectExternalAuth lists the external auth providers and the links
+// of the agent's user.
+func (c *ExperimentalClient) ChatProjectExternalAuth(ctx context.Context, organizationID, projectID uuid.UUID) (ListUserExternalAuthResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/external-auth", nil)
+	if err != nil {
+		return ListUserExternalAuthResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListUserExternalAuthResponse{}, ReadBodyAsError(res)
+	}
+	var resp ListUserExternalAuthResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ConnectChatProjectExternalAuth starts linking a provider to the agent's
+// user through the browser.
+func (c *ExperimentalClient) ConnectChatProjectExternalAuth(ctx context.Context, organizationID, projectID uuid.UUID, provider string, req ConnectChatProjectExternalAuthRequest) (ConnectChatProjectExternalAuthResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/external-auth/"+provider+"/connect", req)
+	if err != nil {
+		return ConnectChatProjectExternalAuthResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ConnectChatProjectExternalAuthResponse{}, ReadBodyAsError(res)
+	}
+	var resp ConnectChatProjectExternalAuthResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatProjectExternalAuthDeviceExchange links a device flow provider to the
+// agent's user.
+func (c *ExperimentalClient) ChatProjectExternalAuthDeviceExchange(ctx context.Context, organizationID, projectID uuid.UUID, provider string, req ExternalAuthDeviceExchange) error {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/external-auth/"+provider+"/device", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectMCPServerTokens lists the agent's MCP servers and whether the
+// agent's user has a token for each one that needs it.
+func (c *ExperimentalClient) ChatProjectMCPServerTokens(ctx context.Context, organizationID, projectID uuid.UUID) ([]ChatProjectMCPServerToken, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/mcp-servers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatProjectMCPServerToken
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// SetChatProjectMCPServerToken stores the token the agent's user sends to a
+// user_api_key MCP server. Only the agent owner may set it.
+func (c *ExperimentalClient) SetChatProjectMCPServerToken(ctx context.Context, organizationID, projectID, mcpServerID uuid.UUID, req UpdateMCPServerUserTokenRequest) (MCPServerUserTokenStatus, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("%s/mcp-servers/%s/token", chatProjectPath(organizationID, projectID), mcpServerID), req)
+	if err != nil {
+		return MCPServerUserTokenStatus{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerUserTokenStatus{}, ReadBodyAsError(res)
+	}
+	var resp MCPServerUserTokenStatus
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// DeleteChatProjectMCPServerToken removes the agent user's token for an MCP
+// server.
+func (c *ExperimentalClient) DeleteChatProjectMCPServerToken(ctx context.Context, organizationID, projectID, mcpServerID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/mcp-servers/%s/token", chatProjectPath(organizationID, projectID), mcpServerID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// DisconnectChatProjectExternalAuth removes the agent user's link to a
+// provider.
+func (c *ExperimentalClient) DisconnectChatProjectExternalAuth(ctx context.Context, organizationID, projectID uuid.UUID, provider string) (DeleteExternalAuthByIDResponse, error) {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/external-auth/"+provider, nil)
+	if err != nil {
+		return DeleteExternalAuthByIDResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return DeleteExternalAuthByIDResponse{}, ReadBodyAsError(res)
+	}
+	var resp DeleteExternalAuthByIDResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatProjectACLAvailable returns users and groups a chat project can be
+// shared with. The request filters users; groups reuse its query and limit.
+func (c *ExperimentalClient) ChatProjectACLAvailable(ctx context.Context, organizationID, projectID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/acl/available", nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return ACLAvailable{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ACLAvailable{}, ReadBodyAsError(res)
+	}
+	var available ACLAvailable
+	return available, ReadBodyAsJSON(res, &available)
+}
+
+// ListChatProjectRuns lists the newest chats that ran in a project.
+func (c *ExperimentalClient) ListChatProjectRuns(ctx context.Context, organizationID, projectID uuid.UUID) ([]ChatProjectRun, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/runs", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var runs []ChatProjectRun
+	return runs, ReadBodyAsJSON(res, &runs)
+}
+
+// ListChatProjectTriggers lists a project's webhook triggers.
+func (c *ExperimentalClient) ListChatProjectTriggers(ctx context.Context, organizationID, projectID uuid.UUID) ([]ChatProjectTrigger, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/triggers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var triggers []ChatProjectTrigger
+	return triggers, ReadBodyAsJSON(res, &triggers)
+}
+
+// CreateChatProjectTrigger creates a webhook trigger. The returned webhook
+// URL embeds the trigger secret and is only returned here.
+func (c *ExperimentalClient) CreateChatProjectTrigger(ctx context.Context, organizationID, projectID uuid.UUID, req CreateChatProjectTriggerRequest) (CreateChatProjectTriggerResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/triggers", req)
+	if err != nil {
+		return CreateChatProjectTriggerResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return CreateChatProjectTriggerResponse{}, ReadBodyAsError(res)
+	}
+	var resp CreateChatProjectTriggerResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateChatProjectTrigger updates a webhook trigger.
+func (c *ExperimentalClient) UpdateChatProjectTrigger(ctx context.Context, organizationID, projectID, triggerID uuid.UUID, req UpdateChatProjectTriggerRequest) (ChatProjectTrigger, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("%s/triggers/%s", chatProjectPath(organizationID, projectID), triggerID), req)
+	if err != nil {
+		return ChatProjectTrigger{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectTrigger{}, ReadBodyAsError(res)
+	}
+	var trigger ChatProjectTrigger
+	return trigger, ReadBodyAsJSON(res, &trigger)
+}
+
+// DeleteChatProjectTrigger deletes a webhook trigger.
+func (c *ExperimentalClient) DeleteChatProjectTrigger(ctx context.Context, organizationID, projectID, triggerID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/triggers/%s", chatProjectPath(organizationID, projectID), triggerID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectTriggerDeliveries lists a trigger's recent webhook calls, newest
+// first.
+func (c *ExperimentalClient) ChatProjectTriggerDeliveries(ctx context.Context, organizationID, projectID, triggerID uuid.UUID) ([]ChatProjectTriggerDelivery, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/triggers/%s/deliveries", chatProjectPath(organizationID, projectID), triggerID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var deliveries []ChatProjectTriggerDelivery
+	return deliveries, ReadBodyAsJSON(res, &deliveries)
+}
+
+// RegenerateChatProjectTriggerWebhookURL replaces a trigger's secret. The
+// previous webhook URL stops working.
+func (c *ExperimentalClient) RegenerateChatProjectTriggerWebhookURL(ctx context.Context, organizationID, projectID, triggerID uuid.UUID) (CreateChatProjectTriggerResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("%s/triggers/%s/webhook-url", chatProjectPath(organizationID, projectID), triggerID), nil)
+	if err != nil {
+		return CreateChatProjectTriggerResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CreateChatProjectTriggerResponse{}, ReadBodyAsError(res)
+	}
+	var resp CreateChatProjectTriggerResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// RunChatProjectTrigger starts a run of a schedule trigger now. The run does
+// not change when the trigger runs next.
+func (c *ExperimentalClient) RunChatProjectTrigger(ctx context.Context, organizationID, projectID, triggerID uuid.UUID) (ChatProjectTriggerWebhookResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("%s/triggers/%s/run", chatProjectPath(organizationID, projectID), triggerID), nil)
+	if err != nil {
+		return ChatProjectTriggerWebhookResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ChatProjectTriggerWebhookResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatProjectTriggerWebhookResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ChatProjectInstructions gets a chat project's instructions.

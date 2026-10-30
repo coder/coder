@@ -32,9 +32,16 @@ const (
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
+	CheckChatProjectTriggerDeliveriesStatus                  CheckConstraint = "chat_project_trigger_deliveries_status"                    // chat_project_trigger_deliveries
+	CheckChatProjectTriggersBusyBehavior                     CheckConstraint = "chat_project_triggers_busy_behavior"                       // chat_project_triggers
+	CheckChatProjectTriggersNameLength                       CheckConstraint = "chat_project_triggers_name_length"                         // chat_project_triggers
+	CheckChatProjectTriggersNameNotBlank                     CheckConstraint = "chat_project_triggers_name_not_blank"                      // chat_project_triggers
+	CheckChatProjectTriggersPromptLength                     CheckConstraint = "chat_project_triggers_prompt_length"                       // chat_project_triggers
+	CheckChatProjectTriggersSource                           CheckConstraint = "chat_project_triggers_source"                              // chat_project_triggers
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
 	CheckChatProjectsGroupAclIsObject                        CheckConstraint = "chat_projects_group_acl_is_object"                         // chat_projects
 	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects
+	CheckChatProjectsInvokableAgentsNotSelf                  CheckConstraint = "chat_projects_invokable_agents_not_self"                   // chat_projects
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects
 	CheckChatProjectsNameNotBlank                            CheckConstraint = "chat_projects_name_not_blank"                              // chat_projects
 	CheckChatProjectsUserAclIsObject                         CheckConstraint = "chat_projects_user_acl_is_object"                          // chat_projects
@@ -50,6 +57,8 @@ const (
 	CheckChatsPinOrderArchivedCheck                          CheckConstraint = "chats_pin_order_archived_check"                            // chats
 	CheckChatsPinOrderParentCheck                            CheckConstraint = "chats_pin_order_parent_check"                              // chats
 	CheckOneTimePasscodeSet                                  CheckConstraint = "one_time_passcode_set"                                     // users
+	CheckUsersAgentLoginType                                 CheckConstraint = "users_agent_login_type"                                    // users
+	CheckUsersAgentNotServiceAccount                         CheckConstraint = "users_agent_not_service_account"                           // users
 	CheckUsersChatSpendLimitMicrosCheck                      CheckConstraint = "users_chat_spend_limit_micros_check"                       // users
 	CheckUsersEmailNotEmpty                                  CheckConstraint = "users_email_not_empty"                                     // users
 	CheckUsersServiceAccountLoginType                        CheckConstraint = "users_service_account_login_type"                          // users
@@ -63,6 +72,8 @@ const (
 	CheckMcpServerConfigsGroupAclIsObject                    CheckConstraint = "mcp_server_configs_group_acl_is_object"                    // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                      CheckConstraint = "mcp_server_configs_transport_check"                        // mcp_server_configs
 	CheckMcpServerConfigsUserAclIsObject                     CheckConstraint = "mcp_server_configs_user_acl_is_object"                     // mcp_server_configs
+	CheckMcpServerGithubAppCredentialsAppIDCheck             CheckConstraint = "mcp_server_github_app_credentials_app_id_check"            // mcp_server_github_app_credentials
+	CheckMcpServerGithubAppCredentialsInstallationIDCheck    CheckConstraint = "mcp_server_github_app_credentials_installation_id_check"   // mcp_server_github_app_credentials
 	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
 	CheckOauth2ProviderAppTokensScopeNotEmpty                CheckConstraint = "oauth2_provider_app_tokens_scope_not_empty"                // oauth2_provider_app_tokens
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps

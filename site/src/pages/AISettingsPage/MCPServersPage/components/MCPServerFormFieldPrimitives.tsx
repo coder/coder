@@ -1,11 +1,18 @@
 import { cn } from "cn";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
+import { useId } from "react";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Label } from "#/components/Label/Label";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 const RequiredMark = () => (
 	<span className="text-xs font-bold text-content-destructive">*</span>
@@ -32,6 +39,67 @@ export const Field: React.FC<{
 				<p className="m-0 text-xs text-content-secondary">{description}</p>
 			)}
 			{children}
+		</div>
+	);
+};
+
+type SwitchFieldProps = {
+	label: string;
+	checked: boolean;
+	onCheckedChange: (checked: boolean) => void;
+	disabled: boolean;
+	/** Explains the setting in a tooltip next to its label. */
+	tooltip?: string;
+	/** Always visible under the label, and read out with the switch. */
+	description?: string;
+};
+
+/** A switch with a label that toggles it. */
+export const SwitchField: React.FC<SwitchFieldProps> = ({
+	label,
+	checked,
+	onCheckedChange,
+	disabled,
+	tooltip,
+	description,
+}) => {
+	const id = useId();
+	const descriptionId = useId();
+	return (
+		<div className="flex flex-col gap-1">
+			<div className="flex items-center gap-3">
+				<Switch
+					id={id}
+					checked={checked}
+					onCheckedChange={onCheckedChange}
+					disabled={disabled}
+					aria-describedby={description ? descriptionId : undefined}
+				/>
+				<Label htmlFor={id} className="cursor-pointer font-normal">
+					{label}
+				</Label>
+				{tooltip && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								aria-label={`About ${label}`}
+								className="flex cursor-help border-0 bg-transparent p-0 text-content-secondary"
+							>
+								<InfoIcon className="size-3" />
+							</button>
+						</TooltipTrigger>
+						<TooltipContent side="top" className="max-w-65">
+							{tooltip}
+						</TooltipContent>
+					</Tooltip>
+				)}
+			</div>
+			{description && (
+				<p id={descriptionId} className="m-0 text-xs text-content-secondary">
+					{description}
+				</p>
+			)}
 		</div>
 	);
 };

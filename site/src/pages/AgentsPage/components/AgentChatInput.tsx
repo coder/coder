@@ -6,6 +6,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	InfoIcon,
+	KeyRoundIcon,
 	LockIcon,
 	MicIcon,
 	MonitorIcon,
@@ -101,6 +102,7 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
+import { MCPUserTokenDialog } from "./MCPUserTokenDialog";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -617,6 +619,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
+	const [mcpTokenTarget, setMcpTokenTarget] =
+		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
 	const mcpDisconnectMutation = useMutation(
 		disconnectMCPServerOAuth2(queryClient),
@@ -745,7 +749,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
 			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
-			!(s.auth_type === "oauth2" && !s.auth_connected),
+			(s.auth_connected ||
+				(s.auth_type !== "oauth2" && s.auth_type !== "user_api_key")),
 	);
 
 	const badgeContainerRef = useRef<HTMLDivElement>(null);
@@ -1655,10 +1660,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														isForceOn ||
 														(selectedMCPServerIds?.includes(server.id) ??
 															false);
-													const needsAuth =
-														server.auth_type === "oauth2" &&
+													const needsCredential =
+														(server.auth_type === "oauth2" ||
+															server.auth_type === "user_api_key") &&
 														!server.auth_connected;
-													const isConnecting = mcpConnectingId === server.id;
 													return (
 														<div
 															key={server.id}
@@ -1679,60 +1684,38 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 															{isForceOn && (
 																<LockIcon className="size-3 shrink-0 text-content-secondary" />
 															)}
-															{needsAuth ? (
-																<>
-																	{isForceOn && (
-																		<span className="sr-only">Always on</span>
-																	)}
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																		onClick={() => connectMCPServer(server.id)}
-																		disabled={
-																			isDisabled || mcpConnectingId !== null
-																		}
-																	>
-																		{isConnecting ? (
-																			<Spinner
-																				loading
-																				className="h-2.5 w-2.5"
-																			/>
-																		) : null}
-																		Auth
-																	</Button>
-																</>
-															) : (
-																<>
-																	{server.auth_type === "oauth2" && (
-																		<Button
-																			variant="subtle"
-																			size="icon"
-																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
-																			onClick={() => {
-																				setPlusMenuOpen(false);
-																				setMcpDisconnectTarget(server);
-																			}}
-																			disabled={isDisabled}
-																			aria-label={`Disconnect ${server.display_name}`}
-																		>
-																			<UnlinkIcon />
-																		</Button>
-																	)}
-																	<Switch
-																		size="sm"
-																		checked={isSelected}
-																		onCheckedChange={(checked) =>
-																			handleMcpToggle(server.id, checked)
-																		}
-																		disabled={isDisabled || isForceOn}
-																		aria-label={
-																			isForceOn
-																				? `${server.display_name} always on`
-																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
-																		}
-																	/>
-																</>
+															{needsCredential && isForceOn && (
+																<span className="sr-only">Always on</span>
+															)}
+															<MCPServerCredentialAction
+																server={server}
+																isDisabled={isDisabled}
+																isConnecting={mcpConnectingId === server.id}
+																isConnectBlocked={mcpConnectingId !== null}
+																onConnect={() => connectMCPServer(server.id)}
+																onEditToken={() => {
+																	setPlusMenuOpen(false);
+																	setMcpTokenTarget(server);
+																}}
+																onDisconnect={() => {
+																	setPlusMenuOpen(false);
+																	setMcpDisconnectTarget(server);
+																}}
+															/>
+															{!needsCredential && (
+																<Switch
+																	size="sm"
+																	checked={isSelected}
+																	onCheckedChange={(checked) =>
+																		handleMcpToggle(server.id, checked)
+																	}
+																	disabled={isDisabled || isForceOn}
+																	aria-label={
+																		isForceOn
+																			? `${server.display_name} always on`
+																			: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
+																	}
+																/>
 															)}
 														</div>
 													);
@@ -2047,6 +2030,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					}}
 				/>
 			)}
+			{mcpTokenTarget && (
+				<MCPUserTokenDialog
+					server={mcpTokenTarget}
+					onClose={() => setMcpTokenTarget(null)}
+				/>
+			)}
 			<ConfirmDialog
 				open={mcpDisconnectTarget !== null}
 				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
@@ -2059,6 +2048,99 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			/>
 		</>
 	);
+};
+
+type MCPServerRowButtonProps = React.ComponentProps<typeof Button> & {
+	/** Makes an icon-only button. Without it, the button shows its children. */
+	readonly icon?: React.ReactNode;
+};
+
+/** A small button at the end of an MCP server row in the plus menu. */
+const MCPServerRowButton: React.FC<MCPServerRowButtonProps> = ({
+	icon,
+	children,
+	...props
+}) =>
+	icon ? (
+		<Button
+			variant="subtle"
+			size="icon"
+			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+			{...props}
+		>
+			{icon}
+		</Button>
+	) : (
+		<Button
+			variant="outline"
+			size="sm"
+			className="h-6 shrink-0 px-2 text-2xs leading-none"
+			{...props}
+		>
+			{children}
+		</Button>
+	);
+
+type MCPServerCredentialActionProps = {
+	readonly server: TypesGen.MCPServerConfig;
+	readonly isDisabled: boolean;
+	readonly isConnecting: boolean;
+	/** True while any server connects, so no other connect can start. */
+	readonly isConnectBlocked: boolean;
+	readonly onConnect: () => void;
+	readonly onEditToken: () => void;
+	readonly onDisconnect: () => void;
+};
+
+/** What a person can do about the credential of an MCP server in the menu. */
+const MCPServerCredentialAction: React.FC<MCPServerCredentialActionProps> = ({
+	server,
+	isDisabled,
+	isConnecting,
+	isConnectBlocked,
+	onConnect,
+	onEditToken,
+	onDisconnect,
+}) => {
+	if (server.auth_type === "oauth2") {
+		if (!server.auth_connected) {
+			return (
+				<MCPServerRowButton
+					onClick={onConnect}
+					disabled={isDisabled || isConnectBlocked}
+				>
+					{isConnecting && <Spinner loading className="h-2.5 w-2.5" />}
+					Auth
+				</MCPServerRowButton>
+			);
+		}
+		return (
+			<MCPServerRowButton
+				icon={<UnlinkIcon />}
+				onClick={onDisconnect}
+				disabled={isDisabled}
+				aria-label={`Disconnect ${server.display_name}`}
+			/>
+		);
+	}
+	if (server.auth_type === "user_api_key") {
+		if (!server.auth_connected) {
+			return (
+				<MCPServerRowButton onClick={onEditToken} disabled={isDisabled}>
+					Add token
+				</MCPServerRowButton>
+			);
+		}
+		return (
+			<MCPServerRowButton
+				icon={<KeyRoundIcon />}
+				onClick={onEditToken}
+				disabled={isDisabled}
+				aria-label={`Replace or remove your token for ${server.display_name}`}
+			/>
+		);
+	}
+	return null;
 };
 
 /**

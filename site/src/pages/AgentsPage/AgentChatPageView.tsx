@@ -97,6 +97,8 @@ type EditingState = {
 
 type AgentChatPageViewProps = {
 	chat: TypesGen.Chat;
+	/** Whether the viewer can send messages: they own the chat or can use its agent. */
+	canDrive: boolean;
 	persistedError: ChatDetailError | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -266,6 +268,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 
 export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	chat,
+	canDrive,
 	persistedError,
 	workspaceAgent,
 	workspace,
@@ -319,7 +322,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 }) => {
 	const { proxy } = useProxy();
 	const { entitlements } = useDashboard();
-	const { permissions, user: currentUser } = useAuthenticated();
+	const { permissions } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
@@ -787,7 +790,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
-	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
+	const isOtherUserReadOnly = !isArchived && !canDrive;
 	const readOnlyNotice = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;

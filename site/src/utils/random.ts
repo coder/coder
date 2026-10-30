@@ -23,7 +23,7 @@ export const generateUUID = (): string => {
 /**
  * Generate a random hexadecimal string from the specified number of bytes.
  */
-const generateRandomString = (bytes: number): string => {
+export const generateRandomHexString = (bytes: number): string => {
 	const byteArr = crypto.getRandomValues(new Uint8Array(bytes));
 	return [...byteArr]
 		.map((byte) => byte.toString(16).padStart(2, "0"))
@@ -39,7 +39,7 @@ const generateRandomString = (bytes: number): string => {
  * @see <https://developer.mozilla.org/en-US/docs/Glossary/Base64#encoded_size_increase>
  */
 export const generateRandomBase64String = (bytes: number): string => {
-	return btoa(generateRandomString(bytes));
+	return btoa(generateRandomHexString(bytes));
 };
 
 /**
@@ -47,5 +47,5 @@ export const generateRandomBase64String = (bytes: number): string => {
  * workspace connection sessions.
  */
 export const generateConnectionSessionId = (): string => {
-	return generateRandomString(16);
+	return generateRandomHexString(16);
 };

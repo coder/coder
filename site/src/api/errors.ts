@@ -104,6 +104,21 @@ export const getValidationErrorMessage = (error: unknown): string => {
 	return validationErrors.map((error) => error.detail).join("\n");
 };
 
+/**
+ * The error message followed by its validation messages, for a toast or an
+ * inline error. A validation message that repeats the message is left out.
+ */
+export const getErrorMessageWithValidations = (
+	error: unknown,
+	defaultMessage: string,
+): string => {
+	const message = getErrorMessage(error, defaultMessage);
+	const validation = getValidationErrorMessage(error);
+	return validation && validation !== message
+		? `${message} ${validation}`
+		: message;
+};
+
 export const getErrorDetail = (error: unknown): string | undefined => {
 	if (error instanceof DetailedError) {
 		return error.detail;

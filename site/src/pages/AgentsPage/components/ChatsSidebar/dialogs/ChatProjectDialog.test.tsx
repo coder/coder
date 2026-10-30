@@ -101,7 +101,7 @@ describe("ChatProjectDialog", () => {
 		);
 
 		await user.type(
-			screen.getByRole("textbox", { name: /Project name/ }),
+			screen.getByRole("textbox", { name: /Agent name/ }),
 			"  My project  ",
 		);
 		await user.tab();
@@ -120,7 +120,7 @@ describe("ChatProjectDialog", () => {
 			screen.getByRole("textbox", { name: "Icon" }),
 			"  /emojis/1f4c1.png  ",
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		const values = {
 			name: "My project",
@@ -141,7 +141,7 @@ describe("ChatProjectDialog", () => {
 				onSubmit={onSubmit}
 			/>,
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
 		expect(onSubmit).toHaveBeenLastCalledWith(values);
 	});
@@ -164,10 +164,10 @@ describe("ChatProjectDialog", () => {
 			{ wrapper: Wrapper },
 		);
 		await user.type(
-			screen.getByRole("textbox", { name: /Project name/ }),
+			screen.getByRole("textbox", { name: /Agent name/ }),
 			"My project{Enter}",
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
@@ -179,7 +179,7 @@ describe("ChatProjectDialog", () => {
 			{ wrapper: Wrapper },
 		);
 		await user.type(
-			screen.getByRole("textbox", { name: /Project name/ }),
+			screen.getByRole("textbox", { name: /Agent name/ }),
 			"My project",
 		);
 		rerender(
@@ -190,10 +190,10 @@ describe("ChatProjectDialog", () => {
 			/>,
 		);
 		await user.type(
-			screen.getByRole("textbox", { name: /Project name/ }),
+			screen.getByRole("textbox", { name: /Agent name/ }),
 			"{Enter}",
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 		expect(onSubmit).not.toHaveBeenCalled();
 		await user.click(screen.getByRole("combobox", { name: /Organization/ }));
 		await user.click(
@@ -201,7 +201,7 @@ describe("ChatProjectDialog", () => {
 				name: new RegExp(MockOrganization2.display_name),
 			}),
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith({
 				name: "My project",
@@ -220,7 +220,7 @@ describe("ChatProjectDialog", () => {
 			{ wrapper: Wrapper },
 		);
 		await user.type(
-			screen.getByRole("textbox", { name: /Project name/ }),
+			screen.getByRole("textbox", { name: /Agent name/ }),
 			"Abandoned project",
 		);
 		await user.click(screen.getByRole("combobox", { name: /Organization/ }));
@@ -234,13 +234,13 @@ describe("ChatProjectDialog", () => {
 		);
 		rerender(<ChatProjectDialog {...defaultProps} onSubmit={onSubmit} />);
 		await user.type(
-			screen.getByRole("textbox", { name: /Project name/ }),
-			"New project",
+			screen.getByRole("textbox", { name: /Agent name/ }),
+			"New agent",
 		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith({
-				name: "New project",
+				name: "New agent",
 				description: "",
 				icon: "",
 				organizationId: MockDefaultOrganization.id,
@@ -270,9 +270,9 @@ describe("ChatProjectDialog", () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await user.type(screen.getByLabelText(/Project name/), "  Launch  ");
+		await user.type(screen.getByLabelText(/Agent name/), "  Launch  ");
 		await user.type(screen.getByLabelText("Description"), " Notes ");
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith({
 			name: "Launch",
@@ -286,9 +286,9 @@ describe("ChatProjectDialog", () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await user.click(screen.getByLabelText(/Project name/));
+		await user.click(screen.getByLabelText(/Agent name/));
 		await user.paste("🚀".repeat(64));
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ name: "🚀".repeat(64) }),
@@ -299,9 +299,9 @@ describe("ChatProjectDialog", () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await user.click(screen.getByLabelText(/Project name/));
+		await user.click(screen.getByLabelText(/Agent name/));
 		await user.paste("🚀".repeat(65));
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
@@ -310,12 +310,12 @@ describe("ChatProjectDialog", () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await user.type(screen.getByLabelText(/Project name/), "Launch");
+		await user.type(screen.getByLabelText(/Agent name/), "Launch");
 		await user.click(screen.getByLabelText("Description"));
 		await user.paste(`${"d".repeat(1024)} `);
 		await user.click(screen.getByLabelText("Icon"));
 		await user.paste(`${"i".repeat(256)} `);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -356,8 +356,8 @@ describe("ChatProjectDialog", () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await user.type(screen.getByLabelText(/Project name/), "   ");
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.type(screen.getByLabelText(/Agent name/), "   ");
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
@@ -391,7 +391,7 @@ describe("ChatProjectDialog", () => {
 		const { props } = renderDialog();
 
 		await user.type(screen.getByLabelText("Description"), "Notes");
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
@@ -410,8 +410,8 @@ describe("ChatProjectDialog", () => {
 		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
 		const { props } = renderDialog({ onSubmit });
 
-		await user.type(screen.getByLabelText(/Project name/), "Launch");
-		await user.click(screen.getByRole("button", { name: "Create project" }));
+		await user.type(screen.getByLabelText(/Agent name/), "Launch");
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
 		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
 		await user.keyboard("{Escape}");
 		await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -426,8 +426,8 @@ describe("ChatProjectDialog", () => {
 		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
 		renderDialog({ onSubmit });
 
-		await user.type(screen.getByLabelText(/Project name/), "Launch");
-		await user.dblClick(screen.getByRole("button", { name: "Create project" }));
+		await user.type(screen.getByLabelText(/Agent name/), "Launch");
+		await user.dblClick(screen.getByRole("button", { name: "Create agent" }));
 
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 	});
@@ -440,8 +440,8 @@ describe("ChatProjectDialog", () => {
 			.mockResolvedValueOnce(undefined);
 		renderDialog({ onSubmit });
 
-		await user.type(screen.getByLabelText(/Project name/), "Launch");
-		const save = screen.getByRole("button", { name: "Create project" });
+		await user.type(screen.getByLabelText(/Agent name/), "Launch");
+		const save = screen.getByRole("button", { name: "Create agent" });
 		await user.click(save);
 		// Wait for the failed submit to release the form before retrying.
 		await waitFor(() => expect(save).toBeEnabled());
@@ -465,5 +465,26 @@ describe("ChatProjectDialog", () => {
 			description: `${MockChatProject.description}!`,
 			icon: MockChatProject.icon,
 		});
+	});
+
+	it("submits the MCP servers picked for a new agent", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({
+			quickAddMCPServers: {
+				[MockDefaultOrganization.id]: [
+					{ id: "slack", label: "Slack", iconURL: "/icon/slack.svg" },
+				],
+			},
+		});
+
+		await user.type(screen.getByLabelText(/agent name/i), "Docs");
+		await user.click(screen.getByRole("checkbox", { name: "Slack" }));
+		await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+		await waitFor(() =>
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "Docs", mcpServerIds: ["slack"] }),
+			),
+		);
 	});
 });

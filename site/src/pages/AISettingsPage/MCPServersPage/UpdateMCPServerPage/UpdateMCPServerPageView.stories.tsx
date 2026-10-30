@@ -176,3 +176,27 @@ export const NoShareReadOnlyAccess: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+/** A built-in server shows its options again, read from its URL. */
+export const BuiltInSlackServer: Story = {
+	args: {
+		server: {
+			...MockCoderMCPServer,
+			display_name: "Slack",
+			slug: "slack",
+			icon_url: "/icon/slack.svg",
+			url: "https://coder.example.com/api/experimental/mcp/builtin/slack?pin_thread=true",
+			auth_type: "user_api_key",
+			api_key_header: "Authorization",
+			api_key_prefix: "Bearer ",
+		},
+	},
+};
+
+/** Coder rejects a built-in server that is not served from the access URL. */
+export const BuiltInServerOnOtherHost: Story = {
+	args: {
+		...BuiltInSlackServer.args,
+		accessURL: "https://other.example.com",
+	},
+};

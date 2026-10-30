@@ -213,6 +213,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 		ExactEmail:       parser.String(values, "", "email"),
 		Status:           httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
 		IsServiceAccount: parser.NullableBoolean(values, sql.NullBool{}, "service_account"),
+		IsAgent:          parser.NullableBoolean(values, sql.NullBool{}, "agent"),
 		RbacRole:         parser.Strings(values, []string{}, "role"),
 		LastSeenAfter:    parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
 		LastSeenBefore:   parser.Time3339Nano(values, time.Time{}, "last_seen_before"),

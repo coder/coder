@@ -93,6 +93,7 @@ INSERT INTO mcp_server_configs (
     api_key_header,
     api_key_value,
     api_key_value_key_id,
+    api_key_prefix,
     custom_headers,
     custom_headers_key_id,
     signing_secret,
@@ -129,6 +130,7 @@ INSERT INTO mcp_server_configs (
     @api_key_header::text,
     @api_key_value::text,
     sqlc.narg('api_key_value_key_id')::text,
+    @api_key_prefix::text,
     @custom_headers::text,
     sqlc.narg('custom_headers_key_id')::text,
     @signing_secret::text,
@@ -170,6 +172,7 @@ SET
     api_key_header = @api_key_header::text,
     api_key_value = @api_key_value::text,
     api_key_value_key_id = sqlc.narg('api_key_value_key_id')::text,
+    api_key_prefix = @api_key_prefix::text,
     custom_headers = @custom_headers::text,
     custom_headers_key_id = sqlc.narg('custom_headers_key_id')::text,
     signing_secret = @signing_secret::text,
@@ -313,6 +316,69 @@ WHERE
 -- name: DeleteMCPServerUserTokensByConfigID :exec
 DELETE FROM
     mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid;
+
+-- name: GetMCPServerGitHubAppCredential :one
+SELECT
+    *
+FROM
+    mcp_server_github_app_credentials
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid
+    AND user_id = @user_id::uuid;
+
+-- name: GetMCPServerGitHubAppCredentialsByUserID :many
+SELECT
+    *
+FROM
+    mcp_server_github_app_credentials
+WHERE
+    user_id = @user_id::uuid
+ORDER BY
+    updated_at DESC, mcp_server_config_id;
+
+-- name: UpsertMCPServerGitHubAppCredential :one
+INSERT INTO mcp_server_github_app_credentials (
+    mcp_server_config_id,
+    user_id,
+    app_id,
+    installation_id,
+    private_key,
+    private_key_key_id,
+    repositories,
+    use_for_git
+) VALUES (
+    @mcp_server_config_id::uuid,
+    @user_id::uuid,
+    @app_id::bigint,
+    @installation_id::bigint,
+    @private_key::text,
+    sqlc.narg('private_key_key_id')::text,
+    @repositories::text[],
+    @use_for_git::boolean
+)
+ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
+    app_id = @app_id::bigint,
+    installation_id = @installation_id::bigint,
+    private_key = @private_key::text,
+    private_key_key_id = sqlc.narg('private_key_key_id')::text,
+    repositories = @repositories::text[],
+    use_for_git = @use_for_git::boolean,
+    updated_at = NOW()
+RETURNING
+    *;
+
+-- name: DeleteMCPServerGitHubAppCredential :exec
+DELETE FROM
+    mcp_server_github_app_credentials
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid
+    AND user_id = @user_id::uuid;
+
+-- name: DeleteMCPServerGitHubAppCredentialsByConfigID :exec
+DELETE FROM
+    mcp_server_github_app_credentials
 WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid;
 

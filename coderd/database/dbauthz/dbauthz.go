@@ -1825,6 +1825,19 @@ func (q *querier) authorizeChatProjectInstructions(ctx context.Context, action p
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
+// authorizeChatProjectTrigger authorizes action on a trigger through its
+// project, so trigger access always matches project access.
+func (q *querier) authorizeChatProjectTrigger(ctx context.Context, action policy.Action, triggerID uuid.UUID) (database.ChatProjectTrigger, error) {
+	trigger, err := q.db.GetChatProjectTriggerByID(ctx, triggerID)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := q.authorizeChatProjectInstructions(ctx, action, trigger.ProjectID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -2394,6 +2407,22 @@ func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg databas
 	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
 }
 
+func (q *querier) DeleteChatProjectTriggerByID(ctx context.Context, id uuid.UUID) error {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionUpdate, id); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectTriggerByID(ctx, id)
+}
+
+// DeleteChatProjectTriggerEvents releases event claims made by
+// unauthenticated webhook calls, so it is limited to system callers.
+func (q *querier) DeleteChatProjectTriggerEvents(ctx context.Context, arg database.DeleteChatProjectTriggerEventsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectTriggerEvents(ctx, arg)
+}
+
 func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -2494,6 +2523,23 @@ func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) e
 		return err
 	}
 	return q.db.DeleteMCPServerConfigByID(ctx, id)
+}
+
+func (q *querier) DeleteMCPServerGitHubAppCredential(ctx context.Context, arg database.DeleteMCPServerGitHubAppCredentialParams) error {
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+		return q.db.GetMCPServerGitHubAppCredential(ctx, database.GetMCPServerGitHubAppCredentialParams(arg))
+	}, q.db.DeleteMCPServerGitHubAppCredential)(ctx, arg)
+}
+
+func (q *querier) DeleteMCPServerGitHubAppCredentialsByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	config, err := q.db.GetMCPServerConfigByID(ctx, mcpServerConfigID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, config); err != nil {
+		return err
+	}
+	return q.db.DeleteMCPServerGitHubAppCredentialsByConfigID(ctx, mcpServerConfigID)
 }
 
 func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
@@ -2597,6 +2643,24 @@ func (q *querier) DeleteOldChatDebugRuns(ctx context.Context, arg database.Delet
 		return 0, err
 	}
 	return q.db.DeleteOldChatDebugRuns(ctx, arg)
+}
+
+// DeleteOldChatProjectTriggerDeliveries prunes the delivery log written by
+// unauthenticated webhook calls, so it is limited to system callers.
+func (q *querier) DeleteOldChatProjectTriggerDeliveries(ctx context.Context, arg database.DeleteOldChatProjectTriggerDeliveriesParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldChatProjectTriggerDeliveries(ctx, arg)
+}
+
+// DeleteOldChatProjectTriggerEvents prunes event claims made by
+// unauthenticated webhook calls, so it is limited to system callers.
+func (q *querier) DeleteOldChatProjectTriggerEvents(ctx context.Context, arg database.DeleteOldChatProjectTriggerEventsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldChatProjectTriggerEvents(ctx, arg)
 }
 
 func (q *querier) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
@@ -3696,6 +3760,22 @@ func (q *querier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (dat
 	return config, nil
 }
 
+func (q *querier) GetChatModelConfigByIDIncludingDeleted(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	config, err := q.db.GetChatModelConfigByIDIncludingDeleted(ctx, id)
+	if err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	object := rbac.ResourceChatModelConfig.
+		WithID(config.ID).
+		InOrg(config.OrganizationID).
+		WithACLUserList(config.UserACL.RBACACL()).
+		WithGroupACL(config.GroupACL.RBACACL())
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	return config, nil
+}
+
 func (q *querier) GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.ChatModelConfig, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatModelConfig.Type)
 	if err != nil {
@@ -3781,12 +3861,25 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 	return q.db.GetChatPlanModeInstructions(ctx)
 }
 
+func (q *querier) GetChatProjectByAgentUserID(ctx context.Context, agentUserID uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByAgentUserID)(ctx, agentUserID)
+}
+
 func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
 func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
+}
+
+// GetChatProjectIDsWithoutAgentUser lists projects across every owner for
+// agent user provisioning, so it is limited to system callers.
+func (q *querier) GetChatProjectIDsWithoutAgentUser(ctx context.Context) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectIDsWithoutAgentUser(ctx)
 }
 
 func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
@@ -3823,6 +3916,51 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 		return database.GetChatProjectMemoryByNameRow{}, err
 	}
 	return row, nil
+}
+
+func (q *querier) GetChatProjectRuns(ctx context.Context, arg database.GetChatProjectRunsParams) ([]database.Chat, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, arg.ProjectID); err != nil {
+		return nil, err
+	}
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectRuns)(ctx, arg)
+}
+
+func (q *querier) GetChatProjectTriggerByID(ctx context.Context, id uuid.UUID) (database.ChatProjectTrigger, error) {
+	return q.authorizeChatProjectTrigger(ctx, policy.ActionRead, id)
+}
+
+func (q *querier) GetChatProjectTriggerConversation(ctx context.Context, arg database.GetChatProjectTriggerConversationParams) (database.ChatProjectTriggerConversation, error) {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionRead, arg.TriggerID); err != nil {
+		return database.ChatProjectTriggerConversation{}, err
+	}
+	return q.db.GetChatProjectTriggerConversation(ctx, arg)
+}
+
+// GetChatProjectTriggerConversationByChatID describes where a chat's
+// conversation lives, so anyone who can read the chat may read it.
+func (q *querier) GetChatProjectTriggerConversationByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatProjectTriggerConversationByChatIDRow, error) {
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return database.GetChatProjectTriggerConversationByChatIDRow{}, err
+	}
+	return q.db.GetChatProjectTriggerConversationByChatID(ctx, chatID)
+}
+
+func (q *querier) GetChatProjectTriggerDeliveries(ctx context.Context, arg database.GetChatProjectTriggerDeliveriesParams) ([]database.ChatProjectTriggerDelivery, error) {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionRead, arg.TriggerID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectTriggerDeliveries(ctx, arg)
+}
+
+func (q *querier) GetChatProjectTriggersByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ChatProjectTrigger, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectTriggersByProjectID(ctx, projectID)
+}
+
+func (q *querier) GetChatProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
@@ -4128,6 +4266,15 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
+// GetDueChatProjectScheduleTriggers spans every organization's triggers, so
+// only the schedule runner may call it.
+func (q *querier) GetDueChatProjectScheduleTriggers(ctx context.Context, arg database.GetDueChatProjectScheduleTriggersParams) ([]database.ChatProjectTrigger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetDueChatProjectScheduleTriggers(ctx, arg)
+}
+
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
 }
@@ -4398,6 +4545,13 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.db.GetLastUpdateCheck(ctx)
 }
 
+func (q *querier) GetLatestChatProjectTriggerDeliveriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ChatProjectTriggerDelivery, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestChatProjectTriggerDeliveriesByProjectID(ctx, projectID)
+}
+
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -4492,6 +4646,14 @@ func (q *querier) GetMCPServerConfigsByOrganization(ctx context.Context, organiz
 		return nil, xerrors.Errorf("prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetMCPServerGitHubAppCredential(ctx context.Context, arg database.GetMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetMCPServerGitHubAppCredential)(ctx, arg)
+}
+
+func (q *querier) GetMCPServerGitHubAppCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerGitHubAppCredential, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetMCPServerGitHubAppCredentialsByUserID)(ctx, userID)
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
@@ -6502,6 +6664,31 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
+func (q *querier) InsertChatProjectTrigger(ctx context.Context, arg database.InsertChatProjectTriggerParams) (database.ChatProjectTrigger, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return q.db.InsertChatProjectTrigger(ctx, arg)
+}
+
+// InsertChatProjectTriggerDelivery records an unauthenticated webhook call,
+// so it is limited to system callers.
+func (q *querier) InsertChatProjectTriggerDelivery(ctx context.Context, arg database.InsertChatProjectTriggerDeliveryParams) (database.ChatProjectTriggerDelivery, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.ChatProjectTriggerDelivery{}, err
+	}
+	return q.db.InsertChatProjectTriggerDelivery(ctx, arg)
+}
+
+// InsertChatProjectTriggerEvents claims event IDs for unauthenticated
+// webhook calls, so it is limited to system callers.
+func (q *querier) InsertChatProjectTriggerEvents(ctx context.Context, arg database.InsertChatProjectTriggerEventsParams) ([]string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.InsertChatProjectTriggerEvents(ctx, arg)
+}
+
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7186,9 +7373,26 @@ func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg datab
 		if err != nil {
 			return false, err
 		}
-		return project.OwnerID == arg.UserID, nil
+		return project.OwnerID == arg.UserID || project.AgentUserID == (uuid.NullUUID{UUID: arg.UserID, Valid: true}), nil
 	}
 	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
+}
+
+func (q *querier) IsChatProjectEditableByUserID(ctx context.Context, arg database.IsChatProjectEditableByUserIDParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return false, err
+	}
+	if rbac.ChatACLDisabled() {
+		project, err := q.db.GetChatProjectByID(ctx, arg.ProjectID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return project.OwnerID == arg.UserID, nil
+	}
+	return q.db.IsChatProjectEditableByUserID(ctx, arg)
 }
 
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
@@ -7555,6 +7759,19 @@ func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg d
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseExternalAuthLinkRefreshLease)(ctx, arg)
 }
 
+// RemoveChatProjectFromInvokableAgents updates agents the caller may not
+// own, so it requires permission to delete the agent being removed.
+func (q *querier) RemoveChatProjectFromInvokableAgents(ctx context.Context, projectID uuid.UUID) error {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, project); err != nil {
+		return err
+	}
+	return q.db.RemoveChatProjectFromInvokableAgents(ctx, projectID)
+}
+
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	// This is a system function to clear user groups in group sync.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
@@ -7690,6 +7907,15 @@ func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID
 		return nil, err
 	}
 	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
+}
+
+// SyncChatProjectAgentUserProfiles rewrites agent users across every
+// organization, so it is limited to system callers.
+func (q *querier) SyncChatProjectAgentUserProfiles(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.SyncChatProjectAgentUserProfiles(ctx)
 }
 
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
@@ -8013,10 +8239,76 @@ func (q *querier) UpdateChatProjectACLByID(ctx context.Context, arg database.Upd
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatProjectACLByID)(ctx, arg)
 }
 
+// UpdateChatProjectAgentUserID links a provisioned service account, which
+// only the system does.
+func (q *querier) UpdateChatProjectAgentUserID(ctx context.Context, arg database.UpdateChatProjectAgentUserIDParams) (database.ChatProject, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.ChatProject{}, err
+	}
+	return q.db.UpdateChatProjectAgentUserID(ctx, arg)
+}
+
 func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 		return q.db.GetChatProjectByID(ctx, arg.ID)
 	}, q.db.UpdateChatProjectByID)(ctx, arg)
+}
+
+// UpdateChatProjectProfileByAgentUserID follows a change to the agent user's
+// profile, so it needs the same permission as changing that profile.
+func (q *querier) UpdateChatProjectProfileByAgentUserID(ctx context.Context, arg database.UpdateChatProjectProfileByAgentUserIDParams) (database.ChatProject, error) {
+	u, err := q.db.GetUserByID(ctx, arg.AgentUserID)
+	if err != nil {
+		return database.ChatProject{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.ChatProject{}, err
+	}
+	return q.db.UpdateChatProjectProfileByAgentUserID(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectTriggerByID(ctx context.Context, arg database.UpdateChatProjectTriggerByIDParams) (database.ChatProjectTrigger, error) {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return q.db.UpdateChatProjectTriggerByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectTriggerGitHubWebhookSecret(ctx context.Context, arg database.UpdateChatProjectTriggerGitHubWebhookSecretParams) (database.ChatProjectTrigger, error) {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return q.db.UpdateChatProjectTriggerGitHubWebhookSecret(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectTriggerLastTriggeredAt(ctx context.Context, arg database.UpdateChatProjectTriggerLastTriggeredAtParams) error {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return err
+	}
+	return q.db.UpdateChatProjectTriggerLastTriggeredAt(ctx, arg)
+}
+
+// UpdateChatProjectTriggerNextRunAt is limited to the schedule runner. API
+// writes set next_run_at with the rest of the trigger.
+func (q *querier) UpdateChatProjectTriggerNextRunAt(ctx context.Context, arg database.UpdateChatProjectTriggerNextRunAtParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateChatProjectTriggerNextRunAt(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectTriggerSecret(ctx context.Context, arg database.UpdateChatProjectTriggerSecretParams) (database.ChatProjectTrigger, error) {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return q.db.UpdateChatProjectTriggerSecret(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectTriggerSlackSigningSecret(ctx context.Context, arg database.UpdateChatProjectTriggerSlackSigningSecretParams) (database.ChatProjectTrigger, error) {
+	if _, err := q.authorizeChatProjectTrigger(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return q.db.UpdateChatProjectTriggerSlackSigningSecret(ctx, arg)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
@@ -9552,6 +9844,15 @@ func (q *querier) UpsertChatProjectInstructions(ctx context.Context, arg databas
 	return q.db.UpsertChatProjectInstructions(ctx, arg)
 }
 
+// UpsertChatProjectTriggerConversation is written by unauthenticated
+// webhook calls, so it is limited to system callers.
+func (q *querier) UpsertChatProjectTriggerConversation(ctx context.Context, arg database.UpsertChatProjectTriggerConversationParams) (database.ChatProjectTriggerConversation, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.ChatProjectTriggerConversation{}, err
+	}
+	return q.db.UpsertChatProjectTriggerConversation(ctx, arg)
+}
+
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -9637,6 +9938,10 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
+}
+
+func (q *querier) UpsertMCPServerGitHubAppCredential(ctx context.Context, arg database.UpsertMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+	return insertWithAction(q.log, q.auth, rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, q.db.UpsertMCPServerGitHubAppCredential)(ctx, arg)
 }
 
 func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {

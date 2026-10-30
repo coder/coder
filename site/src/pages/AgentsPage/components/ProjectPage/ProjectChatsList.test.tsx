@@ -381,7 +381,7 @@ describe("ProjectChatsList", () => {
 			}),
 		);
 		await user.click(
-			await screen.findByRole("menuitem", { name: "Archive agent" }),
+			await screen.findByRole("menuitem", { name: "Archive chat" }),
 		);
 		await waitFor(() => {
 			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
@@ -417,7 +417,7 @@ describe("ProjectChatsList", () => {
 			}),
 		);
 		await user.click(
-			await screen.findByRole("menuitem", { name: "Archive agent" }),
+			await screen.findByRole("menuitem", { name: "Archive chat" }),
 		);
 
 		await waitFor(() => {

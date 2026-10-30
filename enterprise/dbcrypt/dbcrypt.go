@@ -819,6 +819,44 @@ func (db *dbCrypt) GetMCPServerUserTokensByUserID(ctx context.Context, userID uu
 	return toks, nil
 }
 
+func (db *dbCrypt) GetMCPServerGitHubAppCredential(ctx context.Context, arg database.GetMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+	cred, err := db.Store.GetMCPServerGitHubAppCredential(ctx, arg)
+	if err != nil {
+		return database.MCPServerGitHubAppCredential{}, err
+	}
+	if err := db.decryptField(&cred.PrivateKey, cred.PrivateKeyKeyID); err != nil {
+		return database.MCPServerGitHubAppCredential{}, err
+	}
+	return cred, nil
+}
+
+func (db *dbCrypt) GetMCPServerGitHubAppCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerGitHubAppCredential, error) {
+	creds, err := db.Store.GetMCPServerGitHubAppCredentialsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range creds {
+		if err := db.decryptField(&creds[i].PrivateKey, creds[i].PrivateKeyKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return creds, nil
+}
+
+func (db *dbCrypt) UpsertMCPServerGitHubAppCredential(ctx context.Context, params database.UpsertMCPServerGitHubAppCredentialParams) (database.MCPServerGitHubAppCredential, error) {
+	if err := db.encryptField(&params.PrivateKey, &params.PrivateKeyKeyID); err != nil {
+		return database.MCPServerGitHubAppCredential{}, err
+	}
+	cred, err := db.Store.UpsertMCPServerGitHubAppCredential(ctx, params)
+	if err != nil {
+		return database.MCPServerGitHubAppCredential{}, err
+	}
+	if err := db.decryptField(&cred.PrivateKey, cred.PrivateKeyKeyID); err != nil {
+		return database.MCPServerGitHubAppCredential{}, err
+	}
+	return cred, nil
+}
+
 func (db *dbCrypt) InsertMCPServerConfig(ctx context.Context, params database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	if strings.TrimSpace(params.OAuth2ClientSecret) == "" {
 		params.OAuth2ClientSecretKeyID = sql.NullString{}
@@ -1267,4 +1305,115 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 			Test:            testValue,
 		})
 	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
+}
+
+// decryptChatProjectTrigger decrypts the Slack signing secret and GitHub
+// webhook secret of a trigger in place.
+func (db *dbCrypt) decryptChatProjectTrigger(trigger *database.ChatProjectTrigger) error {
+	if err := db.decryptField(&trigger.SlackSigningSecret, trigger.SlackSigningSecretKeyID); err != nil {
+		return err
+	}
+	return db.decryptField(&trigger.GitHubWebhookSecret, trigger.GitHubWebhookSecretKeyID)
+}
+
+func (db *dbCrypt) UpdateChatProjectTriggerGitHubWebhookSecret(ctx context.Context, params database.UpdateChatProjectTriggerGitHubWebhookSecretParams) (database.ChatProjectTrigger, error) {
+	if strings.TrimSpace(params.GitHubWebhookSecret) == "" {
+		params.GitHubWebhookSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.GitHubWebhookSecret, &params.GitHubWebhookSecretKeyID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	trigger, err := db.Store.UpdateChatProjectTriggerGitHubWebhookSecret(ctx, params)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := db.decryptChatProjectTrigger(&trigger); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) GetChatProjectTriggerByID(ctx context.Context, id uuid.UUID) (database.ChatProjectTrigger, error) {
+	trigger, err := db.Store.GetChatProjectTriggerByID(ctx, id)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := db.decryptChatProjectTrigger(&trigger); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) GetChatProjectTriggersByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ChatProjectTrigger, error) {
+	triggers, err := db.Store.GetChatProjectTriggersByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range triggers {
+		if err := db.decryptChatProjectTrigger(&triggers[i]); err != nil {
+			return nil, err
+		}
+	}
+	return triggers, nil
+}
+
+func (db *dbCrypt) GetDueChatProjectScheduleTriggers(ctx context.Context, params database.GetDueChatProjectScheduleTriggersParams) ([]database.ChatProjectTrigger, error) {
+	triggers, err := db.Store.GetDueChatProjectScheduleTriggers(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	for i := range triggers {
+		if err := db.decryptChatProjectTrigger(&triggers[i]); err != nil {
+			return nil, err
+		}
+	}
+	return triggers, nil
+}
+
+func (db *dbCrypt) InsertChatProjectTrigger(ctx context.Context, params database.InsertChatProjectTriggerParams) (database.ChatProjectTrigger, error) {
+	trigger, err := db.Store.InsertChatProjectTrigger(ctx, params)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := db.decryptChatProjectTrigger(&trigger); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) UpdateChatProjectTriggerByID(ctx context.Context, params database.UpdateChatProjectTriggerByIDParams) (database.ChatProjectTrigger, error) {
+	trigger, err := db.Store.UpdateChatProjectTriggerByID(ctx, params)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := db.decryptChatProjectTrigger(&trigger); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) UpdateChatProjectTriggerSecret(ctx context.Context, params database.UpdateChatProjectTriggerSecretParams) (database.ChatProjectTrigger, error) {
+	trigger, err := db.Store.UpdateChatProjectTriggerSecret(ctx, params)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := db.decryptChatProjectTrigger(&trigger); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) UpdateChatProjectTriggerSlackSigningSecret(ctx context.Context, params database.UpdateChatProjectTriggerSlackSigningSecretParams) (database.ChatProjectTrigger, error) {
+	if strings.TrimSpace(params.SlackSigningSecret) == "" {
+		params.SlackSigningSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.SlackSigningSecret, &params.SlackSigningSecretKeyID); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	trigger, err := db.Store.UpdateChatProjectTriggerSlackSigningSecret(ctx, params)
+	if err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	if err := db.decryptChatProjectTrigger(&trigger); err != nil {
+		return database.ChatProjectTrigger{}, err
+	}
+	return trigger, nil
 }

@@ -396,6 +396,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		ExactEmail:       params.ExactEmail,
 		Status:           params.Status,
 		IsServiceAccount: params.IsServiceAccount,
+		IsAgent:          params.IsAgent,
 		RbacRole:         params.RbacRole,
 		LastSeenBefore:   params.LastSeenBefore,
 		LastSeenAfter:    params.LastSeenAfter,
@@ -679,6 +680,14 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	if auth.ID == user.ID.String() {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You cannot delete yourself!",
+		})
+		return
+	}
+
+	if user.IsAgent {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Agent users cannot be deleted.",
+			Detail:  "Delete the agent instead. Its user is suspended and kept for history.",
 		})
 		return
 	}
@@ -1035,15 +1044,35 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if user.LoginType == database.LoginTypePassword || user.LoginType == database.LoginTypeNone {
 		avatarURL = params.AvatarURL
 	}
+	if user.IsAgent {
+		// An agent user's display name and avatar are its agent's name and
+		// icon, so they must also be valid for the agent.
+		if field, message := validateChatProjectAgentUserProfile(params.Name, avatarURL); field != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     message,
+				Validations: []codersdk.ValidationError{{Field: field, Detail: message}},
+			})
+			return
+		}
+	}
 
-	updatedUserProfile, err := api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-		ID:        user.ID,
-		Email:     user.Email,
-		Name:      params.Name,
-		AvatarURL: avatarURL,
-		Username:  params.Username,
-		UpdatedAt: dbtime.Now(),
-	})
+	var updatedUserProfile database.User
+	err = api.Database.InTx(func(tx database.Store) error {
+		var err error
+		updatedUserProfile, err = tx.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+			ID:        user.ID,
+			Email:     user.Email,
+			Name:      params.Name,
+			AvatarURL: avatarURL,
+			Username:  params.Username,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			return err
+		}
+		// Renaming an agent's user renames the agent.
+		return syncChatProjectFromAgentUser(ctx, tx, updatedUserProfile)
+	}, nil)
 	aReq.New = updatedUserProfile
 
 	if err != nil {
@@ -2046,8 +2075,11 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequestWithOrgs
-	LoginType          database.LoginType
-	SkipNotifications  bool
+	LoginType         database.LoginType
+	SkipNotifications bool
+	// IsAgent creates the user a Coder Agent acts as. It is not settable
+	// through the public API.
+	IsAgent            bool
 	accountCreatorName string
 	RBACRoles          []string
 }
@@ -2086,6 +2118,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			LoginType:        req.LoginType,
 			Status:           status,
 			IsServiceAccount: req.ServiceAccount,
+			IsAgent:          req.IsAgent,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

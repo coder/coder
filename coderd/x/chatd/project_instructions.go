@@ -41,6 +41,9 @@ func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Log
 	if !projectID.Valid {
 		return ""
 	}
+	if !p.chatOwnerCanUseProject(ctx, projectID.UUID, chat.OwnerID) {
+		return ""
+	}
 
 	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID.UUID)
 	if err != nil {

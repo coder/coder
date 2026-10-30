@@ -19,6 +19,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
+import { MCPServerPresetOptions } from "./MCPServerPresetOptions";
 import {
 	type MCPServerFormValues,
 	slugify,
@@ -32,6 +33,7 @@ type MCPServerFormFieldsProps = {
 	canSubmit: boolean;
 	isEditing: boolean;
 	canSelectUserOIDC: boolean;
+	accessURL?: string;
 	organizationPicker?: React.ReactNode;
 	onCancel?: () => void;
 	showDetails: boolean;
@@ -49,6 +51,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 	canSubmit,
 	isEditing,
 	canSelectUserOIDC,
+	accessURL,
 	organizationPicker,
 	onCancel,
 	showDetails,
@@ -148,6 +151,13 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 						</Field>
 					</div>
 				</div>
+
+				<MCPServerPresetOptions
+					form={form}
+					formId={formId}
+					disabled={isDisabled}
+					accessURL={accessURL}
+				/>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
 					<CollapsibleSection

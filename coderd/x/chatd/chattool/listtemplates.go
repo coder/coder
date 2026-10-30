@@ -84,6 +84,8 @@ type ListTemplatesOptions struct {
 	OwnerID uuid.UUID
 	Logger  slog.Logger
 	Clock   quartz.Clock
+	// Policy hides templates the chat's agent may not use.
+	Policy TemplatePolicy
 }
 
 type listTemplatesArgs struct {
@@ -146,6 +148,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
+			templates = options.Policy.filterTemplates(ctx, db, templates)
 
 			query := strings.TrimSpace(args.Query)
 			visibleTemplateCount := len(templates)

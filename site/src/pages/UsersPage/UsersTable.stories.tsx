@@ -110,3 +110,22 @@ export const Loading: Story = {
 		isLoading: true,
 	},
 };
+
+/** Agent users show "Agent" instead of an email and cannot be deleted. */
+export const WithAgentUser: Story = {
+	args: {
+		users: [
+			MockUserOwner,
+			{
+				...MockUserMember,
+				id: "agent-user-1",
+				username: "agent-security",
+				email: "",
+				login_type: "none",
+				is_agent: true,
+			},
+		],
+		canEditUsers: true,
+		groupsByUserId: mockGroupsByUserId,
+	},
+};

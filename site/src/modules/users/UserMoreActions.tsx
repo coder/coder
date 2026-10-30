@@ -98,7 +98,8 @@ export const UserMoreActions: React.FC<UserMoreActionsProps> = ({
 				<DropdownMenuItem
 					className="text-content-destructive focus:text-content-destructive"
 					onClick={() => onAction({ type: "delete", user })}
-					disabled={user.id === me}
+					// Agent users are deleted by deleting their agent.
+					disabled={user.id === me || user.is_agent}
 				>
 					<TrashIcon className="size-icon-xs" />
 					Delete&hellip;

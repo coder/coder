@@ -11,6 +11,7 @@ type UpdateMCPServerPageViewProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	accessURL?: string;
 	canShareServer?: boolean;
 	onUpdateServer?: (
 		serverId: string,
@@ -29,6 +30,7 @@ const UpdateMCPServerPageView: React.FC<UpdateMCPServerPageViewProps> = ({
 	isSaving,
 	isDeleting,
 	canSelectUserOIDC,
+	accessURL,
 	canShareServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -45,6 +47,7 @@ const UpdateMCPServerPageView: React.FC<UpdateMCPServerPageViewProps> = ({
 				isSaving={isSaving}
 				isDeleting={isDeleting}
 				canSelectUserOIDC={canSelectUserOIDC}
+				accessURL={accessURL}
 				canShareServer={canShareServer}
 				organizationPicker={
 					<OrganizationPicker

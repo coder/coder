@@ -184,6 +184,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"one_time_passcode_expires_at": ActionTrack,
 		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 		"is_service_account":           ActionTrack, // Should never change, but track it anyway.
+		"is_agent":                     ActionTrack, // Should never change, but track it anyway.
 		"chat_spend_limit_micros":      ActionTrack,
 	},
 	&database.WorkspaceTable{}: {
@@ -507,16 +508,24 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.ChatProject{}: {
-		"id":              ActionTrack,
-		"organization_id": ActionTrack,
-		"owner_id":        ActionTrack,
-		"name":            ActionTrack,
-		"description":     ActionTrack,
-		"icon":            ActionTrack,
-		"created_at":      ActionIgnore,
-		"updated_at":      ActionIgnore,
-		"user_acl":        ActionTrack,
-		"group_acl":       ActionTrack,
+		"id":                         ActionTrack,
+		"organization_id":            ActionTrack,
+		"owner_id":                   ActionTrack,
+		"name":                       ActionTrack,
+		"description":                ActionTrack,
+		"icon":                       ActionTrack,
+		"created_at":                 ActionIgnore,
+		"updated_at":                 ActionIgnore,
+		"user_acl":                   ActionTrack,
+		"group_acl":                  ActionTrack,
+		"invokable_agent_ids":        ActionTrack,
+		"workspace_tools_enabled":    ActionTrack,
+		"allowed_template_ids":       ActionTrack,
+		"mcp_server_ids":             ActionTrack,
+		"external_auth_provider_ids": ActionTrack,
+		"template_parameter_rules":   ActionTrack,
+		"agent_user_id":              ActionTrack,
+		"model_config_id":            ActionTrack,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,
@@ -575,6 +584,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_header":              ActionTrack,
 		"api_key_value":               ActionSecret,
 		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
+		"api_key_prefix":              ActionTrack,
 		"custom_headers":              ActionSecret, // May contain credentials
 		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
 		"signing_secret":              ActionSecret,

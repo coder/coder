@@ -230,14 +230,14 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="subtle" size="icon" aria-label="Filter agents">
+				<Button variant="subtle" size="icon" aria-label="Filter chats">
 					<FilterIcon />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
 				side="bottom"
-				aria-label="Filter agents"
+				aria-label="Filter chats"
 				className="min-w-56"
 			>
 				<DropdownMenuLabel>Grouping</DropdownMenuLabel>

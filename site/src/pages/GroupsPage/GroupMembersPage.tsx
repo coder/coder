@@ -40,6 +40,7 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { userListSubtitle, userListTitle } from "#/modules/users/userLabels";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import {
@@ -255,10 +256,8 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 							src={member.avatar_url}
 						/>
 					}
-					title={member.username}
-					subtitle={
-						member.is_service_account ? "Service Account" : member.email
-					}
+					title={userListTitle(member)}
+					subtitle={userListSubtitle(member)}
 				/>
 			</TableCell>
 			<TableCell

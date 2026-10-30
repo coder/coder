@@ -46,7 +46,11 @@ chats_expanded AS (
         updated_chats.retry_state_version,
         updated_chats.runner_id,
         updated_chats.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chats.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chats.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -115,7 +119,11 @@ chats_expanded AS (
         updated_chats.retry_state_version,
         updated_chats.runner_id,
         updated_chats.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chats.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chats.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -623,10 +631,19 @@ FROM
 WHERE
     (
         (NOT @owned_only::boolean AND NOT @shared_only::boolean)
-        OR (@owned_only::boolean AND chats_expanded.owner_id = @viewer_id::uuid)
+        -- Chats owned by an agent's user are shared for writing with the
+        -- people who start them, so those count as the viewer's own.
+        OR (
+            @owned_only::boolean
+            AND (
+                chats_expanded.owner_id = @viewer_id::uuid
+                OR chats_expanded.user_acl -> (@viewer_id::uuid)::text -> 'permissions' ? 'update'
+            )
+        )
         OR (
             @shared_only::boolean
             AND chats_expanded.owner_id != @viewer_id::uuid
+            AND NOT COALESCE(chats_expanded.user_acl -> (@viewer_id::uuid)::text -> 'permissions' ? 'update', false)
             AND (
                 chats_expanded.user_acl ? (@shared_with_user_id::uuid)::text
                 OR chats_expanded.group_acl ?| @shared_with_group_ids::text[]
@@ -947,7 +964,11 @@ chats_expanded AS (
         inserted_chat.retry_state_version,
         inserted_chat.runner_id,
         inserted_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, inserted_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> inserted_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            inserted_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, inserted_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1127,7 +1148,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1198,7 +1223,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1269,7 +1298,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1340,7 +1373,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1431,7 +1468,11 @@ chats_expanded AS (
         result_chat.retry_state_version,
         result_chat.runner_id,
         result_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, result_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> result_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            result_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, result_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1501,7 +1542,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1600,7 +1645,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -1904,7 +1953,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -2213,7 +2266,11 @@ chats_expanded AS (
         locked_chat.retry_state_version,
         locked_chat.runner_id,
         locked_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, locked_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> locked_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            locked_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, locked_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -2280,7 +2337,11 @@ chats_expanded AS (
         shared_chat.retry_state_version,
         shared_chat.runner_id,
         shared_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, shared_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> shared_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            shared_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, shared_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -2726,7 +2787,11 @@ chats_expanded AS (
         bumped_chat.retry_state_version,
         bumped_chat.runner_id,
         bumped_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, bumped_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> bumped_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            bumped_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, bumped_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -2820,7 +2885,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
@@ -2890,7 +2959,11 @@ chats_expanded AS (
         updated_chat.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(
+            CASE WHEN root.owner_id <> updated_chat.owner_id THEN root.user_acl || jsonb_build_object(root.owner_id::text, '{"permissions": ["read", "update"]}'::jsonb) END,
+            root.user_acl,
+            updated_chat.user_acl
+        ) AS user_acl,
         COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,

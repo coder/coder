@@ -42,6 +42,9 @@ const chatGroup: TypesGen.ChatGroup = {
 	role: "read",
 };
 
+/** The system grants write, for example to whoever started a chat in an agent. */
+const writeChatUser: TypesGen.ChatUser = { ...chatUser, role: "write" };
+
 const emptyACL: TypesGen.ChatACL = { users: [], groups: [] };
 const populatedACL: TypesGen.ChatACL = {
 	users: [chatUser],
@@ -423,6 +426,16 @@ export const MutationErrorClearsWhenReopened: Story = {
 		await body.findByText("No share permission");
 
 		await closeChatSharing(canvasElement);
+		await openChatSharing(canvasElement);
+	},
+};
+
+export const WriteRole: Story = {
+	beforeEach: () =>
+		mockDialogRequests({
+			acl: { users: [writeChatUser], groups: [chatGroup] },
+		}),
+	play: async ({ canvasElement }) => {
 		await openChatSharing(canvasElement);
 	},
 };

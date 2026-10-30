@@ -121,6 +121,8 @@ vi.mock("./components/AgentPageHeader", () => ({
 }));
 
 const projectPath = (projectId: string) => `/agents/projects/${projectId}`;
+const settingsPath = (projectId: string) =>
+	`${projectPath(projectId)}/settings`;
 
 const enableExperiments = (...experiments: TypesGen.Experiment[]) => {
 	server.use(
@@ -143,7 +145,7 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 			<AgentCreatePage />
 		</TooltipProvider>,
 		{
-			path: "/agents/projects/:projectId",
+			path: "/agents/projects/:projectId/:tab?",
 			route,
 			extraRoutes: [
 				{ path: "/agents", element: <AgentCreatePage /> },
@@ -152,14 +154,12 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 		},
 	);
 
-const openProjectAction = async (
+const editName = async (
 	user: ReturnType<typeof userEvent.setup>,
-	action: "Edit project" | "Delete project",
+	text: string,
 ) => {
-	await user.click(
-		await screen.findByRole("button", { name: "Project actions" }),
-	);
-	await user.click(await screen.findByRole("menuitem", { name: action }));
+	await user.click(await screen.findByRole("button", { name: "Edit Name" }));
+	await user.type(screen.getByRole("textbox", { name: "Name" }), text);
 };
 
 const failedBuild = MockFailedWorkspaceBuild();
@@ -222,6 +222,10 @@ beforeEach(() => {
 	vi.spyOn(API.experimental, "getChatProjectInstructions").mockResolvedValue(
 		MockUnsetChatProjectInstructions,
 	);
+	vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+		users: [],
+		groups: [],
+	});
 });
 
 afterEach(() => {
@@ -305,7 +309,7 @@ describe("AgentCreatePage project assignment", () => {
 
 		renderAgentsRoutes();
 
-		await screen.findByText("Failed to load project");
+		await screen.findByText("Failed to load agent");
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await screen.findByRole("button", { name: "Create chat" });
 		expect(lookupCount).toBe(2);
@@ -348,7 +352,7 @@ describe("AgentCreatePage project assignment", () => {
 
 		const { router } = renderAgentsRoutes();
 
-		await screen.findByText("Project not found");
+		await screen.findByText("Agent not found");
 		expect(router.state.location.pathname).toBe(
 			projectPath(MockChatProject.id),
 		);
@@ -368,8 +372,8 @@ describe("AgentCreatePage project assignment", () => {
 			void router.navigate(projectPath(MockChatProject.id));
 		});
 
-		// Throws if the page settled on "Project not found" instead.
-		screen.getByRole("status", { name: "Loading project" });
+		// Throws if the page settled on "Agent not found" instead.
+		screen.getByRole("status", { name: "Loading agent" });
 		await screen.findByRole("heading", { name: MockChatProject.name });
 	});
 
@@ -389,7 +393,7 @@ describe("AgentCreatePage project assignment", () => {
 				void router.navigate(projectPath(MockChatProject.id));
 			});
 
-			await screen.findByRole("status", { name: "Loading project" });
+			await screen.findByRole("status", { name: "Loading agent" });
 		} finally {
 			onlineManager.setOnline(true);
 		}
@@ -422,7 +426,7 @@ describe("AgentCreatePage project assignment", () => {
 			void router.navigate(projectPath(MockChatProject.id));
 		});
 
-		await screen.findByText("Failed to load project");
+		await screen.findByText("Failed to load agent");
 
 		const retry = Promise.withResolvers<undefined>();
 		server.use(
@@ -459,6 +463,37 @@ describe("AgentCreatePage project assignment", () => {
 });
 
 describe("AgentCreatePage project frame", () => {
+	// The settings tab loads MCP servers, models, and triggers.
+	beforeEach(() => {
+		server.use(
+			http.get("/api/v2/organizations/:organizationId/mcp-servers", () =>
+				HttpResponse.json([]),
+			),
+			http.get("/api/v2/organizations/:organizationId/chats/models", () =>
+				HttpResponse.json({
+					models: [],
+					providers: [],
+					unsupported_providers: [],
+				}),
+			),
+			http.get(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId/triggers",
+				() => HttpResponse.json([]),
+			),
+			http.get(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId/mcp-servers",
+				() => HttpResponse.json([]),
+			),
+			http.get(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId/external-auth",
+				() => HttpResponse.json({ providers: [], links: [] }),
+			),
+			http.get("/api/v2/external-auth", () =>
+				HttpResponse.json({ providers: [], links: [] }),
+			),
+		);
+	});
+
 	it("keeps the project route and organization after the debug prefill loads", async () => {
 		enableExperiments("chat-projects", "enable-ai-workspace-debug");
 		serveProjects(MockChatProject);
@@ -523,7 +558,7 @@ describe("AgentCreatePage project frame", () => {
 		expect(formProps.createError).toBeNull();
 	});
 
-	it("keeps the edit target aligned after browser history navigation", async () => {
+	it("keeps the edited agent aligned after browser history navigation", async () => {
 		enableExperiments("chat-projects");
 		const projectA = {
 			...MockChatProject,
@@ -552,26 +587,50 @@ describe("AgentCreatePage project frame", () => {
 		);
 		const user = userEvent.setup();
 
-		const { router } = renderAgentsRoutes(projectPath(projectB.id));
+		const { router } = renderAgentsRoutes(settingsPath(projectB.id));
 		await screen.findByRole("heading", { name: "Beta" });
-		await act(() => router.navigate(projectPath(projectA.id)));
-		await openProjectAction(user, "Edit project");
+		await act(() => router.navigate(settingsPath(projectA.id)));
+		await editName(user, "?");
 		await act(() => router.navigate(-1));
 		await screen.findByRole("heading", { name: "Beta" });
-		await openProjectAction(user, "Edit project");
-		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
-		await user.type(nameInput, "!");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await editName(user, "!{Enter}");
 
 		await waitFor(() => {
 			expect(patchedProjectId).toBe(projectB.id);
 		});
-		// The dialog opened with project B's name, not project A's.
+		// The editor opened with project B's name, not project A's.
 		expect(requestBody).toMatchObject({ name: "Beta!" });
 	});
 
-	it("edits the project from the actions menu and shows the saved name", async () => {
+	it("drops an unsaved instructions draft when another agent opens", async () => {
+		enableExperiments("chat-projects");
+		const mockAgentA = { ...MockChatProject, id: "project-a", name: "Alpha" };
+		const mockAgentB = { ...MockChatProject, id: "project-b", name: "Beta" };
+		serveProjects(mockAgentA, mockAgentB);
+		vi.spyOn(API.experimental, "getChatProjectInstructions").mockImplementation(
+			async (_organizationId, projectId) => ({
+				...MockUnsetChatProjectInstructions,
+				instructions: projectId === mockAgentA.id ? "From A" : "From B",
+			}),
+		);
+		const user = userEvent.setup();
+
+		const { router } = renderAgentsRoutes(settingsPath(mockAgentA.id));
+		const textbox = await screen.findByRole("textbox", {
+			name: "Instructions",
+		});
+		await waitFor(() => expect(textbox).toHaveValue("From A"));
+		await user.type(textbox, " draft");
+		await act(() => router.navigate(settingsPath(mockAgentB.id)));
+
+		await waitFor(() =>
+			expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
+				"From B",
+			),
+		);
+	});
+
+	it("renames the agent in place and shows the saved name", async () => {
 		enableExperiments("chat-projects");
 		let project = MockChatProject;
 		let requestBody: unknown;
@@ -590,63 +649,19 @@ describe("AgentCreatePage project frame", () => {
 		);
 		const user = userEvent.setup();
 
-		renderAgentsRoutes();
+		renderAgentsRoutes(settingsPath(MockChatProject.id));
 
 		await screen.findByRole("heading", { name: MockChatProject.name });
-		await openProjectAction(user, "Edit project");
-		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
-		await user.clear(nameInput);
-		await user.type(nameInput, "Renamed");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await editName(user, "{Control>}a{/Control}Renamed{Enter}");
 
 		await screen.findByRole("heading", { name: "Renamed" });
 		expect(requestBody).toMatchObject({ name: "Renamed" });
 
-		// Reopening edits the saved project, not the one the dialog first opened with.
-		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		});
-		await openProjectAction(user, "Edit project");
-		const reopened = await screen.findByRole("dialog", {
-			name: "Edit project",
-		});
-		await user.type(
-			within(reopened).getByRole("textbox", { name: /Name/ }),
-			"!",
-		);
-		await user.click(within(reopened).getByRole("button", { name: "Save" }));
+		// Editing again starts from the saved name.
+		await editName(user, "!{Enter}");
 		await waitFor(() =>
 			expect(requestBody).toMatchObject({ name: "Renamed!" }),
 		);
-	});
-
-	it("clears a failed save when the edit dialog is reopened", async () => {
-		enableExperiments("chat-projects");
-		serveProjects(MockChatProject);
-		server.use(
-			http.patch(
-				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/${MockChatProject.id}`,
-				() => HttpResponse.json({ message: "Save failed" }, { status: 500 }),
-			),
-		);
-		const user = userEvent.setup();
-
-		renderAgentsRoutes();
-
-		await openProjectAction(user, "Edit project");
-		let dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		await user.type(within(dialog).getByRole("textbox", { name: /Name/ }), "!");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
-		await within(dialog).findByText("Save failed");
-		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		});
-
-		await openProjectAction(user, "Edit project");
-		dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		expect(within(dialog).queryByText("Save failed")).not.toBeInTheDocument();
 	});
 
 	it("deletes the project, clears its drafts, and returns to /agents with the sidebar filters", async () => {
@@ -669,16 +684,21 @@ describe("AgentCreatePage project frame", () => {
 		const user = userEvent.setup();
 
 		const { router } = renderAgentsRoutes(
-			`${projectPath(MockChatProject.id)}?archived=archived`,
+			`${settingsPath(MockChatProject.id)}?archived=archived`,
 		);
 
-		await openProjectAction(user, "Delete project");
+		await user.click(
+			await screen.findByRole("button", { name: "Agent actions" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Delete agent" }),
+		);
 		const dialog = await screen.findByRole("dialog", {
-			name: "Delete project",
+			name: "Delete agent",
 		});
 		await user.type(
 			within(dialog).getByRole("textbox", {
-				name: "Name of the project to delete",
+				name: "Name of the agent to delete",
 			}),
 			MockChatProject.name,
 		);
@@ -689,7 +709,7 @@ describe("AgentCreatePage project frame", () => {
 		});
 		expect(router.state.location.search).toBe("?archived=archived");
 		expect(deletedProjectId).toBe(MockChatProject.id);
-		expect(toastSuccess).toHaveBeenCalledWith("Project deleted");
+		expect(toastSuccess).toHaveBeenCalledWith("Agent deleted");
 		expect(localStorage.getItem(draftKeys.text)).toBeNull();
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 	});
@@ -699,7 +719,7 @@ describe("AgentCreatePage project frame", () => {
 		serveProjects({ ...MockChatProject, owner_id: MockUserMember.id });
 		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 
-		renderAgentsRoutes();
+		renderAgentsRoutes(settingsPath(MockChatProject.id));
 
 		await waitFor(() => {
 			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
@@ -711,9 +731,9 @@ describe("AgentCreatePage project frame", () => {
 		serveProjects(MockChatProject);
 		const getUser = vi.spyOn(API, "getUser");
 
-		renderAgentsRoutes();
+		renderAgentsRoutes(settingsPath(MockChatProject.id));
 
-		await screen.findByRole("button", { name: "Project actions" });
+		await screen.findByRole("button", { name: "Edit Name" });
 		expect(getUser).not.toHaveBeenCalled();
 	});
 });

@@ -29,6 +29,7 @@ import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockCompactionChatModel,
 	MockDefaultChatModel,
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
@@ -88,9 +89,37 @@ const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 			organization_id: MockDefaultOrganization.id,
 			is_default: true,
 		},
+		{
+			...MockCompactionChatModel,
+			organization_id: MockDefaultOrganization.id,
+		},
 	],
 	providers: [MockChatModelProviderDescriptor],
 	unsupported_providers: [],
+};
+
+const mockAgent: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "project-1",
+};
+
+const mockAgentWithModel: TypesGen.ChatProject = {
+	...mockAgent,
+	id: "project-with-model",
+	name: "Compactor",
+	model_config_id: MockCompactionChatModel.id,
+	model_status: "available",
+	model_display_name: MockCompactionChatModel.display_name,
+};
+
+const mockAgentWithUnavailableModel: TypesGen.ChatProject = {
+	...mockAgent,
+	id: "project-with-deleted-model",
+	name: "Orphan",
+	model_config_id: "deleted-model",
+	model_status: "unavailable",
+	model_status_reason: "The model was deleted.",
+	model_display_name: "Claude Sonnet",
 };
 
 const mockPersonalModelOverrides: TypesGen.UserChatPersonalModelOverridesResponse =
@@ -562,6 +591,21 @@ describe("AgentCreateForm organization lock", () => {
 		});
 	});
 
+	it("sends no workspace for a chat in an agent", async () => {
+		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+		const { onCreateChat } = renderForm({
+			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
+		});
+
+		await submitMessage("hello agent");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).workspaceId).toBeUndefined();
+		expect(
+			screen.queryByRole("button", { name: /Attach workspace/ }),
+		).toBeNull();
+	});
+
 	it("submits the project's ID", async () => {
 		const { onCreateChat } = renderForm({
 			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
@@ -573,7 +617,31 @@ describe("AgentCreateForm organization lock", () => {
 		expect(submittedOptions(onCreateChat).projectId).toBe("project-1");
 	});
 
-	it("does not save the user's defaults from choices made in a project", async () => {
+	describe("the agent's model", () => {
+		it("is sent when it is available", async () => {
+			const { onCreateChat } = renderForm({ project: mockAgentWithModel });
+
+			await submitMessage("hello agent");
+
+			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+			expect(submittedOptions(onCreateChat).model).toBe(
+				MockCompactionChatModel.id,
+			);
+		});
+
+		it("is ignored when it is unavailable", async () => {
+			const { onCreateChat } = renderForm({
+				project: mockAgentWithUnavailableModel,
+			});
+
+			await submitMessage("hello agent");
+
+			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+			expect(submittedOptions(onCreateChat).model).toBe(MockChatModel.id);
+		});
+	});
+
+	it("leaves the user's saved defaults alone when composing in a project", async () => {
 		localStorage.setItem(
 			selectedOrganizationIdStorageKey,
 			MockDefaultOrganization.id,
@@ -595,13 +663,6 @@ describe("AgentCreateForm organization lock", () => {
 		await waitFor(() => {
 			expect(mcpRequests).toContain(MockOrganization2.id);
 		});
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("button", { name: /Attach workspace/ }),
-		);
-		await user().click(
-			await screen.findByRole("option", { name: /project-workspace/ }),
-		);
 
 		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
 			MockDefaultOrganization.id,
@@ -875,9 +936,7 @@ describe("AgentCreateForm project picker", () => {
 	};
 
 	const pickProject = async (name: string) => {
-		await user().click(
-			await screen.findByRole("button", { name: /^Project:/ }),
-		);
+		await user().click(await screen.findByRole("button", { name: /^Agent:/ }));
 		await user().click(await screen.findByRole("option", { name }));
 	};
 
@@ -895,7 +954,7 @@ describe("AgentCreateForm project picker", () => {
 			{ queryClient: createProjectQueryClient() },
 		);
 
-		await screen.findByRole("button", { name: "Project: No project" });
+		await screen.findByRole("button", { name: "Agent: No agent" });
 		await submitMessage("no project here");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
@@ -913,6 +972,42 @@ describe("AgentCreateForm project picker", () => {
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
+	});
+
+	it("sends the model of the picked project", async () => {
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [mockAgentWithModel]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(mockAgentWithModel.name);
+		await submitMessage("use the agent's model");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).model).toBe(
+			MockCompactionChatModel.id,
+		);
+	});
+
+	it("sends the model the user picked over the agent's model", async () => {
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [mockAgentWithModel]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(mockAgentWithModel.name);
+		await user().click(
+			await screen.findByRole("combobox", {
+				name: MockCompactionChatModel.display_name,
+			}),
+		);
+		await user().click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockChatModel.display_name),
+			}),
+		);
+		await submitMessage("use my model");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).model).toBe(MockChatModel.id);
 	});
 
 	it("clears the picked project when the organization changes", async () => {
@@ -978,21 +1073,19 @@ describe("AgentCreateForm project picker", () => {
 			);
 
 			await user().click(
-				await screen.findByRole("button", { name: /^Project:/ }),
+				await screen.findByRole("button", { name: /^Agent:/ }),
 			);
 			await user().click(
-				await screen.findByRole("button", { name: "New project" }),
+				await screen.findByRole("button", { name: "New agent" }),
 			);
 			await user().type(
-				await screen.findByRole("textbox", { name: /Project name/ }),
+				await screen.findByRole("textbox", { name: /Agent name/ }),
 				createdProject.name,
 			);
-			await user().click(
-				screen.getByRole("button", { name: "Create project" }),
-			);
+			await user().click(screen.getByRole("button", { name: "Create agent" }));
 			// The modal hides the composer until it closes.
 			await screen.findByRole("button", {
-				name: `Project: ${createdProject.name}`,
+				name: `Agent: ${createdProject.name}`,
 			});
 			await submitMessage("start fresh");
 

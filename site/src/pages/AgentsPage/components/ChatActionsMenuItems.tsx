@@ -103,6 +103,33 @@ export const canManageChat = (
 ): boolean => chat.owner_id === currentUserId;
 
 /**
+ * Whether the viewer can send messages and otherwise drive the chat: they own
+ * it, or it belongs to an agent's user and the viewer can use that agent.
+ * `projects` is the viewer's agent list, so an agent absent from it grants
+ * nothing.
+ */
+export const canDriveChat = (
+	chat: TypesGen.Chat,
+	currentUserId: string,
+	projects: readonly TypesGen.ChatProject[],
+): boolean =>
+	chat.owner_id === currentUserId || isAgentOwnedChat(chat, projects);
+
+/**
+ * Whether the chat belongs to its agent's user. Such chats run with that
+ * user's credentials and workspaces, not the viewer's.
+ */
+export const isAgentOwnedChat = (
+	chat: TypesGen.Chat,
+	projects: readonly TypesGen.ChatProject[],
+): boolean =>
+	projects.some(
+		(project) =>
+			project.id === chat.project_id &&
+			project.agent_user?.id === chat.owner_id,
+	);
+
+/**
  * Every chat exposes copy actions, so the menu itself is never empty and
  * call sites always render their trigger.
  */
@@ -462,7 +489,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 					<>
 						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
 							<ArchiveRestoreIcon className="size-3.5" />
-							Unarchive agent
+							Unarchive chat
 						</Item>
 						{subagentToggle}
 						{readToggle}
@@ -493,7 +520,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 						onSelect={onArchiveAgent}
 					>
 						<ArchiveIcon className="size-3.5" />
-						Archive agent
+						Archive chat
 					</Item>
 					{hasWorkspace && (
 						<Item
