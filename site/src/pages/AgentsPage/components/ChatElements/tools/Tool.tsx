@@ -75,6 +75,7 @@ import { WriteFileTool } from "./WriteFileTool";
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	organizationId: string;
 	name: string;
+	toolCallId?: string;
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
@@ -121,6 +122,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 type ToolRendererProps = {
 	organizationId: string;
 	name: string;
+	toolCallId?: string;
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
@@ -167,10 +169,9 @@ const parseAskUserQuestionOptions = (
 			continue;
 		}
 
-		options.push({
-			label: asString(optionRecord.label).trim(),
-			description: asString(optionRecord.description).trim(),
-		});
+		const label = asString(optionRecord.label).trim();
+		const description = asString(optionRecord.description).trim();
+		options.push(description ? { label, description } : { label });
 	}
 
 	return options;
@@ -696,6 +697,8 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 };
 
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
+	toolCallId,
+	startedAt,
 	args,
 	status,
 	result,
@@ -732,6 +735,8 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			isChatCompleted={isChatCompleted}
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
 			previousResponseText={previousResponseText}
+			toolCallId={toolCallId}
+			startedAt={startedAt}
 		/>
 	);
 };
@@ -1218,6 +1223,7 @@ export const Tool = memo(
 		className,
 		organizationId,
 		name,
+		toolCallId,
 		status = "completed",
 		args,
 		result,
@@ -1271,6 +1277,7 @@ export const Tool = memo(
 					<Renderer
 						organizationId={organizationId}
 						name={name}
+						toolCallId={toolCallId}
 						status={status}
 						args={args}
 						result={result}
