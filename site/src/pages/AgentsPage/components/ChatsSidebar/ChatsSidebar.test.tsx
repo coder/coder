@@ -959,6 +959,29 @@ describe("ChatsSidebar move to project", () => {
 		expect(projectRequests).toBe(1);
 	});
 
+	it("moves a paused chat, whose queued edit blocks only archiving", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				status: "paused",
+			}),
+		]);
+
+		await selectMoveTarget(user, "Billing");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", {
+				project_id: mockBillingProject.id,
+			}),
+		);
+	});
+
 	it("shows the server message when the server refuses a move", async () => {
 		const user = userEvent.setup();
 		const toastError = vi.spyOn(toast, "error");
