@@ -573,12 +573,23 @@ with_terraform() {
 		echoerr "Please install unzip to use this function"
 		exit 1
 	fi
+	TERRAFORM_ZIP="terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
+	TERRAFORM_SHA256=$(terraform_sha256sums | awk -v f="$TERRAFORM_ZIP" '$2 == f { print $1 }')
+	if [ ! "$TERRAFORM_SHA256" ]; then
+		echoh
+		echoerr "No pinned SHA256 checksum for $TERRAFORM_ZIP."
+		echoerr "Refusing to install an unverified Terraform binary."
+		exit 1
+	fi
 	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
 	echoh
 
 	# Download from official source and save it to cache
-	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip" \
-		"$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
+	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TERRAFORM_ZIP}" \
+		"$CACHE_DIR/$TERRAFORM_ZIP"
+	if [ ! "${DRY_RUN-}" ]; then
+		verify_sha256 "$CACHE_DIR/$TERRAFORM_ZIP" "$TERRAFORM_SHA256"
+	fi
 
 	sh_c mkdir -p "$TERRAFORM_INSTALL_PREFIX" 2>/dev/null || true
 
@@ -588,7 +599,7 @@ with_terraform() {
 	fi
 	# Prepare /usr/local/bin/ and the binary for copying
 	"$sh_c" mkdir -p "$TERRAFORM_INSTALL_PREFIX/bin"
-	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip"
+	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/$TERRAFORM_ZIP"
 	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/terraform"
 
 	# Remove the file if it already exists to
@@ -599,6 +610,54 @@ with_terraform() {
 
 	# Copy the binary to the correct location.
 	"$sh_c" cp "$CACHE_DIR/terraform" "$COPY_LOCATION"
+}
+
+# terraform_sha256sums prints the SHA256 checksums of the Terraform release
+# zips that with_terraform can download, in SHA256SUMS format. They are copied
+# from HashiCorp's GPG-signed terraform_${TERRAFORM_VERSION}_SHA256SUMS and
+# must be updated together with TERRAFORM_VERSION.
+terraform_sha256sums() {
+	cat <<-EOF
+		d17d1053bcbde650a8a919b7218ef2886eac76c474306e9ecd8bd64427408741  terraform_1.16.7_darwin_amd64.zip
+		81e98d9186e0cd1bc88caeb2403453fdd4bdeedd574ca4dbe8fb6a2880c9c51a  terraform_1.16.7_darwin_arm64.zip
+		23b7d12176ff147f29bff4d38a6894df95776b6b5697784f2580551207c0b36e  terraform_1.16.7_freebsd_386.zip
+		265e9573edf0898d45f7b31e2844b9e4db4db8d208b6954a6ad0d2311c70064a  terraform_1.16.7_freebsd_amd64.zip
+		29b29aa387f1bce50d004364176c48e94c96ef4d6b142f3714d71d088d19a172  terraform_1.16.7_freebsd_arm.zip
+		8b44e5e21ff8c4961190e6e08061f4ba232f51efaa1f13aac56680bdd78f7a3d  terraform_1.16.7_linux_386.zip
+		5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b  terraform_1.16.7_linux_amd64.zip
+		4a0a478c5d62aa775d6136942f84f87c3557df01283c869ef2ceba2baa389510  terraform_1.16.7_linux_arm.zip
+		2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4  terraform_1.16.7_linux_arm64.zip
+		eb520f390d06d75a24f6861db14ea03227e2dcde5c24215dedcff710eb705384  terraform_1.16.7_linux_s390x.zip
+	EOF
+}
+
+# sha256_file prints the SHA256 checksum of a file.
+sha256_file() {
+	if command_exists sha256sum; then
+		sha256sum "$1" | awk '{ print $1 }'
+	elif command_exists shasum; then
+		shasum -a 256 "$1" | awk '{ print $1 }'
+	elif command_exists sha256; then
+		sha256 -q "$1"
+	else
+		echoerr "This script needs sha256sum, shasum or sha256 to verify downloads."
+		exit 1
+	fi
+}
+
+# verify_sha256 exits if a file doesn't match the expected SHA256 checksum.
+# The file is removed so a rerun downloads it again instead of reusing it.
+verify_sha256() {
+	actual=$(sha256_file "$1")
+	if [ "$actual" != "$2" ]; then
+		rm -f "$1"
+		echoh
+		echoerr "SHA256 checksum mismatch for $1"
+		echoerr "  expected: $2"
+		echoerr "  actual:   $actual"
+		exit 1
+	fi
+	echoh "+ Verified SHA256 checksum of $1"
 }
 
 install_macos() {

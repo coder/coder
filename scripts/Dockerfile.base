@@ -27,7 +27,18 @@ RUN apk add --no-cache \
 # Terraform was disabled in the edge repo due to a build issue.
 # https://gitlab.alpinelinux.org/alpine/aports/-/commit/f3e263d94cfac02d594bef83790c280e045eba35
 # Using wget for now. Note that busybox unzip doesn't support streaming.
-RUN ARCH="$(arch)"; if [ "${ARCH}" == "x86_64" ]; then ARCH="amd64"; elif [ "${ARCH}" == "aarch64" ]; then ARCH="arm64"; elif [ "${ARCH}" == "armv7l" ]; then ARCH="arm"; fi; wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_${ARCH}.zip" && \
+#
+# The SHA256 pins are for terraform_1.16.7_linux_*.zip, copied from HashiCorp's
+# GPG-signed terraform_1.16.7_SHA256SUMS. Update them together with the
+# version; the build fails if the download doesn't match.
+RUN case "$(arch)" in \
+		x86_64) ARCH="amd64" SHA256="5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b" ;; \
+		aarch64) ARCH="arm64" SHA256="2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4" ;; \
+		armv7l) ARCH="arm" SHA256="4a0a478c5d62aa775d6136942f84f87c3557df01283c869ef2ceba2baa389510" ;; \
+		*) echo "Unsupported architecture: $(arch)" >&2 && exit 1 ;; \
+	esac && \
+		wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_${ARCH}.zip" && \
+		echo "${SHA256}  /tmp/terraform.zip" | sha256sum -c - && \
 		busybox unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \
