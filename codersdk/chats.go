@@ -3331,9 +3331,9 @@ type StreamChatOptions struct {
 // live updates. Callers must close the returned io.Closer to release the
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
-	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
+	path := fmt.Sprintf("/api/v2/chats/%s/stream?chunks=true", chatID)
 	if opts != nil && opts.AfterID != nil {
-		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+		path += fmt.Sprintf("&after_id=%d", *opts.AfterID)
 	}
 
 	conn, err := c.Dial(

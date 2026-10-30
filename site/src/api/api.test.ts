@@ -10,12 +10,27 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
+import {
+	API,
+	getURLWithSearchParams,
+	ParameterValidationError,
+	watchChat,
+} from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
 
 describe("api.ts", () => {
+	describe("watchChat", () => {
+		it("opts in to chunk messages", () => {
+			const socket = watchChat("chat-id", 5);
+			const params = new URL(socket.url).searchParams;
+			socket.close();
+			expect(params.get("chunks")).toBe("true");
+			expect(params.get("after_id")).toBe("5");
+		});
+	});
+
 	describe("login", () => {
 		it("should return LoginResponse", async () => {
 			// given

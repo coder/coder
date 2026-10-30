@@ -5009,7 +5009,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
-                "description": "Each message is a JSON array of codersdk.ChatStreamEvent. An empty array is a keepalive.\nAn array that encodes to more than 256 KiB arrives as consecutive codersdk.ChatStreamChunk\nobjects; concatenating their chunk strings up to the one with last set gives the array.",
+                "description": "Each message is a JSON array of codersdk.ChatStreamEvent. An empty array is a keepalive.\nWith chunks=true, an array that encodes to more than 256 KiB arrives instead as consecutive\ncodersdk.ChatStreamChunk messages, each up to twice that size, with no other message between\nthem. A chunk message is an object with a string field chunk and a boolean field last.\nConcatenate the chunk strings up to the message whose last is true, then parse the array.\nDiscard a partial array when you reconnect.",
                 "produces": [
                     "application/json"
                 ],
@@ -5031,6 +5031,12 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Skip snapshot messages with id at or before this cursor",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Split arrays over 256 KiB into codersdk.ChatStreamChunk messages",
+                        "name": "chunks",
                         "in": "query"
                     }
                 ],
