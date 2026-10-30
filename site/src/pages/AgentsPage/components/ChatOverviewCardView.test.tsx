@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
@@ -36,7 +37,7 @@ const mockChatOverview: ChatOverview = {
 
 const renderCard = (overview = mockChatOverview) => {
 	const onOpenTarget = vi.fn<(target: OverviewTarget) => void>();
-	render(
+	renderComponent(
 		<ChatOverviewCardView overview={overview} onOpenTarget={onOpenTarget} />,
 	);
 	return { onOpenTarget };
@@ -68,5 +69,30 @@ describe("ChatOverviewCardView", () => {
 
 		expect(screen.queryByRole("button", { name: /main/ })).toBeNull();
 		expect(onOpenTarget).not.toHaveBeenCalled();
+	});
+
+	it("shows a row's full label in a tooltip on hover", async () => {
+		const user = userEvent.setup();
+		renderCard();
+
+		await user.hover(screen.getByRole("button", { name: /#123 Queue jobs/ }));
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"#123 Queue jobs",
+		);
+	});
+
+	it("opens the tooltip of a repository without changes from the keyboard", async () => {
+		const user = userEvent.setup();
+		renderCard({
+			...mockChatOverview,
+			cost: undefined,
+			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+		});
+
+		await user.tab();
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("main");
+		expect(document.activeElement).toHaveTextContent("main+0 −0");
 	});
 });
