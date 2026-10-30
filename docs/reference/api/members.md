@@ -229,7 +229,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.
 Permissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.
-Requires permission to update custom organization roles, which the Owner and Organization Admin roles have.
+Requires permission to update custom organization roles.
 Requires a Premium license.
 
 > Body parameter
@@ -367,7 +367,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 Creates a custom role in an organization with the given organization permissions.
 The name can't match a built-in role, and the request can't include site, user, or organization member permissions.
-Requires permission to create custom organization roles, which the Owner and Organization Admin roles have.
+Requires permission to create custom organization roles.
 Requires a Premium license.
 
 > Body parameter
@@ -503,7 +503,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 `DELETE /api/v2/organizations/{organization}/members/roles/{roleName}`
 
 Deletes a custom role from an organization.
-Requires permission to delete custom organization roles, which the Owner and Organization Admin roles have.
+Requires permission to delete custom organization roles.
 Requires a Premium license.
 
 ### Parameters
@@ -672,7 +672,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 Adds an existing user to an organization with no roles beyond the organization's defaults.
 Fails for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.
-Requires permission to read the user and to create organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to read the user and to create organization members.
 
 ### Parameters
 
@@ -723,7 +723,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 Removes a user from an organization.
 You can't remove yourself.
-Requires permission to delete organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to delete organization members.
 
 ### Parameters
 
@@ -756,7 +756,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Replaces an organization member's roles with the roles in the request body.
 You can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.
-Requires permission to assign organization roles, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to assign organization roles.
 
 > Body parameter
 
@@ -819,7 +819,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.
 Use `q` to filter the members and `limit` with `offset` or `after_id` to page through them.
-Requires permission to read all of the organization's members, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have.
+Requires permission to read all of the organization's members.
 
 ### Parameters
 

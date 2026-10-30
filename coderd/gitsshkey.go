@@ -17,7 +17,7 @@ import (
 // @Summary Regenerate user SSH key
 // @Description Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.
 // @Description Update your Git provider with the new public key, because Coder no longer has the old private key.
-// @Description You can regenerate your own key, and regenerating another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+// @Description You can regenerate your own key, and regenerating another user's key requires permission to update personal user data.
 // @ID regenerate-user-ssh-key
 // @Security CoderSessionToken
 // @Produce json
@@ -84,7 +84,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get user Git SSH key
 // @Description Returns the user's public Git SSH key and never the private key.
-// @Description You can read your own key, and reading another user's key requires permission to read personal user data, which the Owner and User Admin roles have.
+// @Description You can read your own key, and reading another user's key requires permission to read personal user data.
 // @ID get-user-git-ssh-key
 // @Security CoderSessionToken
 // @Produce json

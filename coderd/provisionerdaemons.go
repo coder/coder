@@ -19,7 +19,7 @@ import (
 // @Summary Get provisioner daemons
 // @Description Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.
 // @Description Use the `ids`, `status`, and `tags` query parameters to narrow the list.
-// @Description Requires permission to read provisioner jobs in the organization, which the Owner, Organization Admin, and Organization Template Admin roles have, and returns `404` without it.
+// @Description Requires permission to read provisioner jobs in the organization, and returns `404` without it.
 // @ID get-provisioner-daemons
 // @Security CoderSessionToken
 // @Produce json

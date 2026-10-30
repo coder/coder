@@ -19,7 +19,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
 `GET /api/v2/templatebuilder/bases`
 
 Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.
-Requires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to read templates in at least one organization.
 Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
 
 ### Example responses
@@ -82,7 +82,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
 `POST /api/v2/templatebuilder/compose`
 
 Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.
-Requires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create templates in at least one organization.
 Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
 
 > Body parameter
@@ -137,7 +137,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
 
 Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.
 The call waits up to 2 minutes for the import and returns `504` if it takes longer.
-Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create templates in the organization.
 
 > Body parameter
 
@@ -272,7 +272,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
 
 Returns the modules you can add to a base template in the template builder.
 Set `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.
-Requires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to read templates in at least one organization.
 
 ### Parameters
 
@@ -339,7 +339,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/sessions \
 `POST /api/v2/templatebuilder/sessions`
 
 Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.
-Requires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create templates in at least one organization.
 
 > Body parameter
 

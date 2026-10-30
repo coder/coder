@@ -155,7 +155,7 @@ func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Han
 // @Summary List AI Gateway sessions
 // @Description Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.
 // @Description Returns only the sessions you can read.
-// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires permission to read AI Gateway interceptions.
 // @Description Requires a Premium license.
 // @Description Also available at `GET /api/v2/aibridge/sessions` for backward compatibility.
 // @ID list-ai-gateway-sessions
@@ -286,7 +286,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get AI Gateway session threads
 // @Description Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.
 // @Description Returns `404` if the session doesn't exist or you can't read it.
-// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires permission to read AI Gateway interceptions.
 // @Description Requires a Premium license.
 // @Description Also available at `GET /api/v2/aibridge/sessions/{session_id}` for backward compatibility.
 // @ID get-ai-gateway-session-threads
@@ -522,7 +522,7 @@ var likePatternEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 //
 // @Summary List AI Gateway models
 // @Description Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.
-// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires permission to read AI Gateway interceptions.
 // @Description Requires a Premium license.
 // @Description Also available at `GET /api/v2/aibridge/models` for backward compatibility.
 // @ID list-ai-gateway-models
@@ -593,7 +593,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary List AI Gateway clients
 // @Description Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with `Unknown` for interceptions that have no client.
-// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires permission to read AI Gateway interceptions.
 // @Description Requires a Premium license.
 // @Description Also available at `GET /api/v2/aibridge/clients` for backward compatibility.
 // @ID list-ai-gateway-clients
@@ -654,7 +654,7 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 // @Summary List AI Gateway providers
 // @Description Returns the name, type, display name, and icon of each AI provider, which you can use to label the `provider_name` values on AI Gateway sessions and to filter sessions by provider.
 // @Description Returns no provider configuration or secrets.
-// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires permission to read AI Gateway interceptions.
 // @Description Requires a Premium license.
 // @ID list-ai-gateway-providers
 // @Security CoderSessionToken
@@ -712,7 +712,7 @@ func validateInterceptionCursor(ctx context.Context, db database.Store, cursorID
 // @Summary Get group AI budget
 // @Description Returns the AI budget of a group, which is the spend limit that applies to each of its members.
 // @Description Returns `404` if the group has no budget.
-// @Description Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+// @Description Requires permission to read the group.
 // @Description Requires a Premium license.
 // @ID get-group-ai-budget
 // @Security CoderSessionToken
@@ -757,7 +757,7 @@ func validAISpendLimit(ctx context.Context, rw http.ResponseWriter, spendLimitMi
 
 // @Summary Upsert group AI budget
 // @Description Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.
-// @Description Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to update the group.
 // @Description Requires a Premium license.
 // @ID upsert-group-ai-budget
 // @Security CoderSessionToken
@@ -822,7 +822,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete group AI budget
 // @Description Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.
 // @Description Returns `404` if the group has no budget.
-// @Description Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to update the group.
 // @Description Requires a Premium license.
 // @ID delete-group-ai-budget
 // @Security CoderSessionToken
@@ -863,7 +863,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get user AI budget override
 // @Description Returns the AI budget override of a user, which replaces the budgets of their groups.
 // @Description Returns `404` if the user has no override.
-// @Description Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+// @Description Requires permission to read the user, which you have for yourself.
 // @Description Requires a Premium license.
 // @ID get-user-ai-budget-override
 // @Security CoderSessionToken
@@ -893,7 +893,7 @@ func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 // @Summary Upsert user AI budget override
 // @Description Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.
 // @Description The user must be a member of that group, and you can't set an override for a system user.
-// @Description Requires permission to update both the user and the group, which the Owner and User Admin roles have.
+// @Description Requires permission to update both the user and the group.
 // @Description Requires a Premium license.
 // @ID upsert-user-ai-budget-override
 // @Security CoderSessionToken
@@ -1005,7 +1005,7 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 // @Summary Delete user AI budget override
 // @Description Deletes the AI budget override of a user, which returns them to the budget of their effective group.
 // @Description Returns `404` if the user has no override.
-// @Description Requires permission to update both the user and the group the override attributes spend to, which the Owner and User Admin roles have.
+// @Description Requires permission to update both the user and the group the override attributes spend to.
 // @Description Requires a Premium license.
 // @ID delete-user-ai-budget-override
 // @Security CoderSessionToken
@@ -1073,7 +1073,7 @@ func (api *API) currentAIBudgetWindow() (budget.PeriodWindow, error) {
 
 // @Summary Get user AI spend
 // @Description Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.
-// @Description Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+// @Description Requires permission to read the user, which you have for yourself.
 // @Description Requires a Premium license.
 // @ID get-user-ai-spend
 // @Security CoderSessionToken

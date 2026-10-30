@@ -19,7 +19,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 `GET /api/v2/workspaces/{workspace}/port-share`
 
 Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.
-Requires permission to read the workspace, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to read the workspace.
 
 ### Parameters
 
@@ -69,7 +69,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 Shares a port on one of a workspace's agents at the given `share_level`, or updates the share if the port is already shared.
 The `port` must be from 9 to 65535, the `share_level` is `authenticated`, `organization`, or `public`, and the `protocol` is `http` or `https`.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 With a Premium license, the template's `max_port_share_level` limits the levels you can set.
 
 > Body parameter
@@ -127,7 +127,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 
 Stops sharing a port on one of a workspace's agents.
 Returns `404` if the port isn't shared.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 

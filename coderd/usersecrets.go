@@ -361,7 +361,7 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary List user secrets
 // @Description Returns the metadata of a user's secrets, without their values.
-// @Description You can read only your own secrets, because no built-in role grants access to other users' secrets.
+// @Description You can read only your own secrets.
 // @ID list-user-secrets
 // @Security CoderSessionToken
 // @Produce json

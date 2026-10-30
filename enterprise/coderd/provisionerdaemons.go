@@ -155,7 +155,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 // @Description A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
 // @Description A pre-shared key works only for the default organization.
 // @Description With a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.
-// @Description Starting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Starting any other daemon with a session token requires permission to create provisioner daemons in the organization.
 // @Description The WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.
 // @Description Requires a Premium license.
 // @ID serve-provisioner-daemon

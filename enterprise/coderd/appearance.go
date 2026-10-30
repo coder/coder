@@ -147,7 +147,7 @@ func validateHexColor(color string) error {
 
 // @Summary Update appearance
 // @Description Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.
-// @Description Requires permission to update deployment configuration, which only the Owner role has.
+// @Description Requires permission to update deployment configuration.
 // @Description The application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.
 // @ID update-appearance
 // @Security CoderSessionToken

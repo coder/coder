@@ -20,7 +20,7 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 
 Returns every AI provider configured for the deployment, including disabled ones, with each API key masked.
 Coder Agents and AI Gateway use these providers to reach model APIs.
-Requires permission to read AI providers, which the Owner role has.
+Requires permission to read AI providers.
 
 ### Example responses
 
@@ -111,7 +111,7 @@ Creates an AI provider that Coder Agents and AI Gateway can use to reach a model
 Set `type`, `name` (lowercase letters, digits, and single hyphens between words), `enabled`, and `base_url` (an absolute `http` or `https` URL), and optionally `api_keys`.
 Providers of type `bedrock` use `settings` for credentials, so they don't accept `api_keys`.
 Returns `409` when a provider with that name exists.
-Requires permission to create AI providers, which the Owner role has.
+Requires permission to create AI providers.
 
 > Body parameter
 
@@ -189,7 +189,7 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers/{idOrName} \
 `GET /api/v2/ai/providers/{idOrName}`
 
 Returns an AI provider's configuration and routing warnings, with each API key masked.
-Requires permission to read AI providers, which the Owner role has.
+Requires permission to read AI providers.
 
 ### Parameters
 
@@ -250,7 +250,7 @@ curl -X DELETE http://coder-server:8080/api/v2/ai/providers/{idOrName} \
 
 Deletes an AI provider.
 To stop using a provider without deleting it, update it with `enabled` set to `false`.
-Requires permission to delete AI providers, which the Owner role has.
+Requires permission to delete AI providers.
 
 ### Parameters
 
@@ -283,7 +283,7 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
 Updates the fields you send on an AI provider, and leaves the rest as they are.
 Send at least one field.
 In `api_keys`, send the full set of keys to keep, each existing key by `id` and each new key as `api_key`, because Coder removes any existing key you leave out.
-Requires permission to update AI providers, which the Owner role has.
+Requires permission to update AI providers.
 
 > Body parameter
 

@@ -24,7 +24,7 @@ import (
 // @Summary Update organization
 // @Description Updates an organization's name, display name, description, icon, or default member roles.
 // @Description Fields you leave out keep their current values, and `default` is a reserved name.
-// @Description Requires permission to update the organization, which the Owner and Organization Admin roles have.
+// @Description Requires permission to update the organization.
 // @Description Requires a Premium license.
 // @ID update-organization
 // @Security CoderSessionToken
@@ -168,7 +168,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete organization
 // @Description Deletes an organization.
 // @Description The call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
-// @Description Requires permission to delete the organization, which the Owner and Organization Admin roles have.
+// @Description Requires permission to delete the organization.
 // @Description Requires a Premium license.
 // @ID delete-organization
 // @Security CoderSessionToken
@@ -258,7 +258,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Summary Create organization
 // @Description Creates an organization and adds you to it as a member without extra roles.
 // @Description `display_name` defaults to `name`, and `default` is a reserved name.
-// @Description Requires permission to create organizations, which the Owner role has.
+// @Description Requires permission to create organizations.
 // @Description Requires a Premium license.
 // @ID create-organization
 // @Security CoderSessionToken

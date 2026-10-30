@@ -439,7 +439,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 //
 // @Summary Create new user
 // @Description Creates a user account, or a service account for automation when `service_account` is `true`.
-// @Description Requires permission to create users, which the Owner and User Admin roles have.
+// @Description Requires permission to create users.
 // @Description Creating a service account also requires a Premium license.
 // @ID create-new-user
 // @Security CoderSessionToken
@@ -675,7 +675,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Delete user
 // @Description Deletes a user account and notifies the deployment's user admins.
-// @Description Requires permission to delete users, which the Owner and User Admin roles have.
+// @Description Requires permission to delete users.
 // @Description You can't delete yourself or a user who still has workspaces, so delete their workspaces first.
 // @ID delete-user
 // @Security CoderSessionToken
@@ -784,7 +784,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Get user by name
 // @Description Returns a user's account details, including status, login type, and organization IDs.
-// @Description You can read your own account, and reading other users requires permission to read users, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description You can read your own account, and reading other users requires permission to read users.
 // @ID get-user-by-name
 // @Security CoderSessionToken
 // @Produce json
@@ -994,7 +994,7 @@ var (
 
 // @Summary Update user profile
 // @Description Updates a user's username, display name, and avatar URL.
-// @Description Changing a username, including your own, requires permission to update users, which the Owner and User Admin roles have, and so does updating another user's profile.
+// @Description Changing a username, including your own, requires permission to update users, and so does updating another user's profile.
 // @Description The avatar URL applies only to users with the `password` or `none` login type.
 // @ID update-user-profile
 // @Security CoderSessionToken
@@ -1098,7 +1098,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Suspend user account
 // @Description Suspends a user account by setting its status to `suspended`, which stops the user from signing in.
-// @Description Requires permission to update users, which the Owner and User Admin roles have.
+// @Description Requires permission to update users.
 // @Description You can't suspend yourself or a user with the Owner role.
 // @ID suspend-user-account
 // @Security CoderSessionToken
@@ -1113,7 +1113,7 @@ func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Req
 
 // @Summary Activate user account
 // @Description Sets a user's status to `active`, for example to reactivate a suspended account.
-// @Description Requires permission to update users, which the Owner and User Admin roles have.
+// @Description Requires permission to update users.
 // @ID activate-user-account
 // @Security CoderSessionToken
 // @Produce json
@@ -1266,7 +1266,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 
 // @Summary Get user appearance settings
 // @Description Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.
-// @Description You can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.
+// @Description You can read your own settings, and reading another user's settings requires permission to read personal user data.
 // @ID get-user-appearance-settings
 // @Security CoderSessionToken
 // @Produce json
@@ -1317,7 +1317,7 @@ func writeUserSettingsReadError(ctx context.Context, rw http.ResponseWriter, err
 
 // @Summary Update user appearance settings
 // @Description Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.
-// @Description You can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.
+// @Description You can update your own settings, and updating another user's settings requires permission to update personal user data.
 // @ID update-user-appearance-settings
 // @Security CoderSessionToken
 // @Accept json
@@ -1432,7 +1432,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 
 // @Summary Get user preference settings
 // @Description Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.
-// @Description You can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.
+// @Description You can read your own settings, and reading another user's settings requires permission to read personal user data.
 // @ID get-user-preference-settings
 // @Security CoderSessionToken
 // @Produce json
@@ -1503,7 +1503,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 // @Summary Update user preference settings
 // @Description Updates the user's Coder Agents chat preferences and returns all of them.
 // @Description Fields you omit keep their current values.
-// @Description You can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.
+// @Description You can update your own settings, and updating another user's settings requires permission to update personal user data.
 // @ID update-user-preference-settings
 // @Security CoderSessionToken
 // @Accept json
@@ -1738,7 +1738,7 @@ func isValidFontName(font codersdk.TerminalFontName) bool {
 // @Summary Update user password
 // @Description Changes a user's password and revokes all of the user's API keys.
 // @Description Works only for users with the `password` login type, and changing your own password requires `old_password`.
-// @Description Changing another user's password requires permission to update personal user data, which the Owner and User Admin roles have, and only an Owner can change an Owner's password.
+// @Description Changing another user's password requires permission to update personal user data, and only an Owner can change an Owner's password.
 // @ID update-user-password
 // @Security CoderSessionToken
 // @Accept json
@@ -1896,7 +1896,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get user roles
 // @Description Returns the user's site-wide roles and their roles in each organization.
-// @Description You can read your own roles, and reading another user's roles requires permission to read personal user data, which the Owner and User Admin roles have.
+// @Description You can read your own roles, and reading another user's roles requires permission to read personal user data.
 // @ID get-user-roles
 // @Security CoderSessionToken
 // @Produce json
@@ -1942,7 +1942,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Assign role to user
 // @Description Replaces the user's site-wide roles with the given `roles`.
-// @Description Requires permission to assign roles, which the Owner and User Admin roles have, but you can assign only roles your own roles allow, so the Owner role can assign any site role and the User Admin role can assign only Member.
+// @Description Requires permission to assign roles, but you can assign only the roles that your own roles allow.
 // @Description You can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.
 // @ID assign-role-to-user
 // @Security CoderSessionToken

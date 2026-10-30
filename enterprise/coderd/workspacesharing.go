@@ -56,7 +56,7 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 // @Description Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.
 // @Description Choosing `none` removes every workspace share in the organization.
 // @Description Choosing `service_accounts` removes the shares on workspaces that service accounts don't own.
-// @Description Requires permission to update the organization, which the Owner and Organization Admin roles have.
+// @Description Requires permission to update the organization.
 // @ID update-workspace-sharing-settings-for-organization
 // @Security CoderSessionToken
 // @Produce json

@@ -111,7 +111,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Summary Patch template version by ID
 // @Description Updates the `name` or `message` of a template version.
 // @Description Renaming a version to a name that another version of the same template uses returns an error.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @ID patch-template-version-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -229,7 +229,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Summary Cancel template version by ID
 // @Description Cancels the import job of a template version that hasn't finished.
 // @Description The call returns an error if the job has already completed or been canceled.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @ID cancel-template-version-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -335,7 +335,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 
 // @Summary Get external auth by template version
 // @Description Returns the external authentication providers a template version uses and whether the user is authenticated with each.
-// @Description Setting `user_id` to another user requires permission to create workspaces for that user, which the Owner and Organization Admin roles have.
+// @Description Setting `user_id` to another user requires permission to create workspaces for that user.
 // @ID get-external-auth-by-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -511,7 +511,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 // @Description Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.
 // @Description The response is the dry-run job, so poll it with `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` or stream its logs, then read the planned resources after it completes.
 // @Description The template version's import job must have finished, or the call returns `425`.
-// @Description Requires permission to create workspaces in the template version's organization, which the Owner, Organization Admin, and Organization Workspace Access roles have.
+// @Description Requires permission to create workspaces in the template version's organization.
 // @ID create-template-version-dry-run
 // @Security CoderSessionToken
 // @Accept json
@@ -738,7 +738,7 @@ func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Reques
 // @Summary Cancel template version dry-run by job ID
 // @Description Cancels a dry-run job that hasn't completed.
 // @Description The call returns `400` if the job has already completed or been canceled.
-// @Description Requires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
+// @Description Requires permission to update both the template and workspaces owned by the user who started the dry run.
 // @ID cancel-template-version-dry-run-by-job-id
 // @Security CoderSessionToken
 // @Produce json
@@ -1249,7 +1249,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 // @Description Archives the unused versions of a template and returns the IDs it archived.
 // @Description By default, only versions whose import job failed are archived, and setting `all` to `true` archives every unused version.
 // @Description A version is unused when no workspace's latest build uses it and it isn't the template's active version.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @ID archive-template-unused-versions-by-template-id
 // @Security CoderSessionToken
 // @Accept json
@@ -1319,7 +1319,7 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 // @Summary Archive template version
 // @Description Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.
 // @Description The call fails if a workspace's latest build uses the version or if it is the template's active version.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @ID archive-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -1333,7 +1333,7 @@ func (api *API) postArchiveTemplateVersion() func(rw http.ResponseWriter, r *htt
 
 // @Summary Unarchive template version
 // @Description Restores an archived template version so that it appears in version lists and can be used again.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @ID unarchive-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -1424,7 +1424,7 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 // @Summary Update active template version by template ID
 // @Description Sets the active version of a template, which is the version new workspaces use by default.
 // @Description The version must belong to the template, must have built successfully, and can't be archived.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @ID update-active-template-version-by-template-id
 // @Security CoderSessionToken
 // @Accept json
@@ -1531,7 +1531,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Description Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.
 // @Description Set either `file_id`, which you get from `POST /api/v2/files`, or `example_id`, but not both.
 // @Description Set `template_id` to add the version to an existing template, or omit it to create a version for a new template.
-// @Description Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to create templates in the organization.
 // @ID create-template-version-by-organization
 // @Security CoderSessionToken
 // @Accept json

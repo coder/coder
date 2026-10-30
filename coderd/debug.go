@@ -34,7 +34,7 @@ import (
 
 // @Summary Debug Info Wireguard Coordinator
 // @Description Returns an HTML debug page for the tailnet coordinator, which connects workspace agents and clients, including the peers and tunnels it tracks.
-// @Description Requires permission to read debug information, which the Owner role has.
+// @Description Requires permission to read debug information.
 // @ID debug-info-wireguard-coordinator
 // @Security CoderSessionToken
 // @Produce text/html
@@ -47,7 +47,7 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Debug Info Tailnet
 // @Description Returns an HTML debug page for the tailnet connection that the Coder server uses to reach workspace agents.
-// @Description Requires permission to read debug information, which the Owner role has.
+// @Description Requires permission to read debug information.
 // @ID debug-info-tailnet
 // @Security CoderSessionToken
 // @Produce text/html
@@ -61,7 +61,7 @@ func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 // @Summary Debug Info Deployment Health
 // @Description Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.
 // @Description Returns a cached report while it's newer than the healthcheck refresh interval.
-// @Description Requires permission to read debug information, which the Owner role has.
+// @Description Requires permission to read debug information.
 // @ID debug-info-deployment-health
 // @Security CoderSessionToken
 // @Produce json
@@ -171,7 +171,7 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 
 // @Summary Get health settings
 // @Description Returns the deployment's health settings, which list the health sections that administrators dismissed in `dismissed_healthchecks`.
-// @Description Requires permission to read debug information, which the Owner role has.
+// @Description Requires permission to read debug information.
 // @ID get-health-settings
 // @Security CoderSessionToken
 // @Produce json
@@ -207,7 +207,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 
 // @Summary Update health settings
 // @Description Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration.
 // @ID update-health-settings
 // @Security CoderSessionToken
 // @Accept json

@@ -19,7 +19,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets \
 `GET /api/v2/users/{user}/secrets`
 
 Returns the metadata of a user's secrets, without their values.
-You can read only your own secrets, because no built-in role grants access to other users' secrets.
+You can read only your own secrets.
 
 ### Parameters
 

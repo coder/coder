@@ -971,7 +971,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/
 `DELETE /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}`
 
 Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 Returns `409` while the dev container is starting, stopping, or deleting.
 A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 
@@ -1004,7 +1004,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
 `POST /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
 Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 Returns `409` while the dev container is starting, stopping, or deleting.
 A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 

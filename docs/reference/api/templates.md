@@ -182,7 +182,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 Creates a template in an organization from an existing template version.
 The template version must not be archived or already belong to a template, and its import job can still be running.
-Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create templates in the organization.
 The organization's Everyone group gets the `use` role on the new template unless you set `disable_everyone_group_access` to `true`.
 Settings that need a Premium license, such as `autostop_requirement`, `failure_ttl_ms`, and `require_active_version`, are ignored without one, and `max_port_share_level` returns a validation error.
 
@@ -695,7 +695,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.
 Set either `file_id`, which you get from `POST /api/v2/files`, or `example_id`, but not both.
 Set `template_id` to add the version to an existing template, or omit it to create a version for a new template.
-Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create templates in the organization.
 
 > Body parameter
 
@@ -1135,7 +1135,7 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
 
 Deletes a template.
 The call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
-Requires permission to delete the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to delete the template.
 
 ### Parameters
 
@@ -1184,7 +1184,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 
 Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.
 Send only the fields you want to change, because omitted fields keep their current values.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 Without a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.
 Without a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.
 
@@ -1326,7 +1326,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 
 Returns the number of active users per day for a template over the last 60 days.
 Set the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.
-Requires permission to view the template's insights, which the Owner, Auditor, Template Admin, Organization Admin, Organization Auditor, and Organization Template Admin roles have.
+Requires permission to view the template's insights.
 
 ### Parameters
 
@@ -1555,7 +1555,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
 
 Sets the active version of a template, which is the version new workspaces use by default.
 The version must belong to the template, must have built successfully, and can't be archived.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 
 > Body parameter
 
@@ -1614,7 +1614,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
 Archives the unused versions of a template and returns the IDs it archived.
 By default, only versions whose import job failed are archived, and setting `all` to `true` archives every unused version.
 A version is unused when no workspace's latest build uses it and it isn't the template's active version.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 
 > Body parameter
 
@@ -1954,7 +1954,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 Updates the `name` or `message` of a template version.
 Renaming a version to a name that another version of the same template uses returns an error.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 
 > Body parameter
 
@@ -2069,7 +2069,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.
 The call fails if a workspace's latest build uses the version or if it is the template's active version.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 
 ### Parameters
 
@@ -2117,7 +2117,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 Cancels the import job of a template version that hasn't finished.
 The call returns an error if the job has already completed or been canceled.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 
 ### Parameters
 
@@ -2167,7 +2167,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.
 The response is the dry-run job, so poll it with `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` or stream its logs, then read the planned resources after it completes.
 The template version's import job must have finished, or the call returns `425`.
-Requires permission to create workspaces in the template version's organization, which the Owner, Organization Admin, and Organization Workspace Access roles have.
+Requires permission to create workspaces in the template version's organization.
 
 > Body parameter
 
@@ -2347,7 +2347,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 Cancels a dry-run job that hasn't completed.
 The call returns `400` if the job has already completed or been canceled.
-Requires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
+Requires permission to update both the template and workspaces owned by the user who started the dry run.
 
 ### Parameters
 
@@ -3010,7 +3010,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 `GET /api/v2/templateversions/{templateversion}/external-auth`
 
 Returns the external authentication providers a template version uses and whether the user is authenticated with each.
-Setting `user_id` to another user requires permission to create workspaces for that user, which the Owner and Organization Admin roles have.
+Setting `user_id` to another user requires permission to create workspaces for that user.
 
 ### Parameters
 
@@ -3720,7 +3720,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 `POST /api/v2/templateversions/{templateversion}/unarchive`
 
 Restores an archived template version so that it appears in version lists and can be used again.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 
 ### Parameters
 

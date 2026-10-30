@@ -25,7 +25,7 @@ import (
 // @Summary Add organization member
 // @Description Adds an existing user to an organization with no roles beyond the organization's defaults.
 // @Description Fails for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.
-// @Description Requires permission to read the user and to create organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to read the user and to create organization members.
 // @ID add-organization-member
 // @Security CoderSessionToken
 // @Produce json
@@ -96,7 +96,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 // @Summary Remove organization member
 // @Description Removes a user from an organization.
 // @Description You can't remove yourself.
-// @Description Requires permission to delete organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to delete organization members.
 // @ID remove-organization-member
 // @Security CoderSessionToken
 // @Tags Members
@@ -275,7 +275,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Summary Paginated organization members
 // @Description Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.
 // @Description Use `q` to filter the members and `limit` with `offset` or `after_id` to page through them.
-// @Description Requires permission to read all of the organization's members, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read all of the organization's members.
 // @ID paginated-organization-members
 // @Security CoderSessionToken
 // @Produce json
@@ -412,7 +412,7 @@ func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uui
 // @Summary Assign role to organization member
 // @Description Replaces an organization member's roles with the roles in the request body.
 // @Description You can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.
-// @Description Requires permission to assign organization roles, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to assign organization roles.
 // @ID assign-role-to-organization-member
 // @Security CoderSessionToken
 // @Accept json

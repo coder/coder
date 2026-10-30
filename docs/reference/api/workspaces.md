@@ -379,7 +379,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.
 The list covers users across the deployment, not only the members of the organization.
-Requires permission to create workspaces for other users in the organization, which the Owner and Organization Admin roles have.
+Requires permission to create workspaces for other users in the organization.
 
 ### Parameters
 
@@ -1753,7 +1753,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 Renames a workspace.
 Fails unless the deployment or the workspace's template allows workspace renames.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 
@@ -1871,7 +1871,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 Removes every user and group from a workspace's ACL.
 Fails if workspace sharing is turned off for the organization.
-Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.
+Requires permission to share the workspace.
 
 ### Parameters
 
@@ -1903,7 +1903,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.
 The role is `admin` or `use`, and an empty string removes the entry.
 Fails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.
-Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.
+Requires permission to share the workspace.
 
 > Body parameter
 
@@ -2008,7 +2008,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`.
 An empty or omitted `schedule` turns autostart off.
 Fails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 
@@ -2047,7 +2047,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
 `PUT /api/v2/workspaces/{workspace}/autoupdates`
 
 Sets whether the workspace moves to the template's active version when it starts, with `automatic_updates` set to `always` or `never`.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 
@@ -2089,7 +2089,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
 Returns `304 Not Modified` if the workspace is already in that state, and fails for prebuilt workspaces.
 When you mark another user's workspace dormant, Coder notifies its owner.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 
@@ -2653,7 +2653,7 @@ Sets or clears the time until the workspace stops automatically, given as `ttl_m
 The value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.
 The template's autostop requirement still applies.
 Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 
@@ -2693,7 +2693,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 
 Marks a workspace as recently used.
 When the `workspace-usage` experiment is enabled and the request body sets both `agent_id` and `app_name`, it also counts a session for that app on that workspace agent.
-Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Requires permission to update the workspace.
 
 > Body parameter
 

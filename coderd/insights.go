@@ -29,7 +29,7 @@ const insightsTimeLayout = time.RFC3339
 
 // @Summary Get deployment DAUs
 // @Description Returns the number of daily active users across the deployment for the last 60 days, one entry per day.
-// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+// @Description Requires permission to read deployment configuration.
 // @Description Returns `404` when usage stats collection is turned off.
 // @ID get-deployment-daus
 // @Security CoderSessionToken
@@ -103,7 +103,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 
 // @Summary Get insights about user activity
 // @Description Returns how many seconds each user was active in workspaces between `start_time` and `end_time`, along with the templates that contributed.
-// @Description Requires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.
+// @Description Requires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.
 // @Description Returns `404` when usage stats collection is turned off.
 // @ID get-insights-about-user-activity
 // @Security CoderSessionToken
@@ -209,7 +209,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get insights about user latency
 // @Description Returns each user's workspace connection latency between `start_time` and `end_time`, as 50th and 95th percentile values in milliseconds.
-// @Description Requires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.
+// @Description Requires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.
 // @Description Returns `404` when usage stats collection is turned off.
 // @ID get-insights-about-user-latency
 // @Security CoderSessionToken
@@ -305,7 +305,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get insights about user status counts
 // @Description Returns the number of users in each status on each of the last 60 days.
-// @Description Requires permission to read users, which the Owner, Auditor, Template Admin, and User Admin roles have.
+// @Description Requires permission to read users.
 // @ID get-insights-about-user-status-counts
 // @Security CoderSessionToken
 // @Produce json
@@ -400,7 +400,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 
 // @Summary Get insights about templates
 // @Description Returns usage insights for templates between `start_time` and `end_time`: active users, total usage time, app usage, and template parameter usage, plus active users for each `interval` when you set one.
-// @Description Requires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.
+// @Description Requires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.
 // @Description Returns `404` when usage stats collection is turned off.
 // @ID get-insights-about-templates
 // @Security CoderSessionToken

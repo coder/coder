@@ -143,7 +143,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 
 Returns the deployment's configuration `values` with secrets removed, and its `options`.
 Each entry in `options` describes one setting, including its description, flag, and environment variable.
-Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+Requires permission to read deployment configuration.
 
 ### Example responses
 
@@ -787,7 +787,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 `GET /api/v2/deployment/stats`
 
 Returns usage statistics for the deployment, such as workspace counts and session counts.
-Returns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats, which the Owner and Auditor roles have.
+Returns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats.
 
 ### Example responses
 

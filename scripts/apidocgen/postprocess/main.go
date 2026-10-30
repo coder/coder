@@ -68,6 +68,12 @@ A body that exceeds the limit that applies to it is answered with
 
 The limits are fixed. There is no deployment option that raises them.
 
+## Permissions
+
+An endpoint that checks a permission names it in its description, such as "Requires permission to update the workspace."
+Built-in roles, organization roles, custom roles, and sharing all grant permissions, so the descriptions don't list the roles that hold each one.
+Refer to [Groups and roles](../../admin/users/groups-roles.md) for what each built-in role allows.
+
 ## Sections
 
 <children>

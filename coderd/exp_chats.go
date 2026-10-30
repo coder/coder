@@ -1294,7 +1294,8 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 
 // @Summary Create chat
 // @Description Creates a chat in an organization, and starts generating a reply when you include initial `content`.
-// @Description Set `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, which the Owner role has, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
+// @Description Requires permission to create chats in the organization.
+// @Description Set `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
 // @ID create-chat
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5362,7 +5363,7 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 
 // @Summary Get chat system prompt
 // @Description Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.
-// @Description Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
+// @Description Requires permission to update deployment configuration, and returns `404` without it.
 // @ID get-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5399,7 +5400,7 @@ const chatInstructionSettingsLockTimeout = 5 * time.Second
 
 // @Summary Update chat system prompt
 // @Description Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.
-// @Description Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits the prompt size.
+// @Description Requires permission to update deployment configuration. The `--chat-max-prompt-bytes` option limits the prompt size.
 // @ID update-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5521,7 +5522,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get organization chat system prompt
 // @Description Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.
-// @Description Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have, and returns `404` without it.
+// @Description Requires permission to read the organization's chat model configuration, and returns `404` without it.
 // @ID get-organization-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5553,7 +5554,7 @@ func (api *API) getOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 
 // @Summary Update organization chat system prompt
 // @Description Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.
-// @Description Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `--chat-max-prompt-bytes` option limits their size.
+// @Description Requires permission to update the organization's chat model configuration. The `--chat-max-prompt-bytes` option limits their size.
 // @ID update-organization-chat-system-prompt
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5639,7 +5640,7 @@ func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 
 // @Summary Get chat plan mode instructions
 // @Description Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.
-// @Description Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
+// @Description Requires permission to update deployment configuration, and returns `404` without it.
 // @ID get-chat-plan-mode-instructions
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5671,7 +5672,7 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Update chat plan mode instructions
 // @Description Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.
-// @Description Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits their size.
+// @Description Requires permission to update deployment configuration. The `--chat-max-prompt-bytes` option limits their size.
 // @ID update-chat-plan-mode-instructions
 // @Security CoderSessionToken
 // @Tags Chats
@@ -5951,7 +5952,7 @@ func readChatPersonalModelOverrideContext(
 
 // @Summary Get chat personal model override settings
 // @Description Returns whether users can choose their own models for their chats instead of the organization defaults.
-// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+// @Description Requires permission to read deployment configuration.
 // @ID get-chat-personal-model-override-settings
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6129,7 +6130,7 @@ func validateChatSettingDays(label string, days, maximum int32) *codersdk.Respon
 
 // @Summary Update chat personal model override settings
 // @Description Sets whether users can choose their own models for their chats instead of the organization defaults.
-// @Description Personal model overrides are off by default. Requires permission to update deployment configuration, which the Owner role has.
+// @Description Personal model overrides are off by default. Requires permission to update deployment configuration.
 // @ID update-chat-personal-model-override-settings
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6373,7 +6374,7 @@ func (api *API) deploymentChatDebugLoggingEnabled() bool {
 
 // @Summary Get chat debug logging setting
 // @Description Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.
-// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+// @Description Requires permission to read deployment configuration.
 // @ID get-chat-debug-logging-setting
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6405,7 +6406,7 @@ func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update chat debug logging setting
 // @Description Sets whether users can turn on chat debug logging for their own chats with `PUT /api/v2/chats/config/user-debug-logging`.
-// @Description Requires permission to update deployment configuration, which the Owner role has. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.
+// @Description Requires permission to update deployment configuration. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.
 // @ID update-chat-debug-logging-setting
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6565,7 +6566,7 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 // @Description Both values must be `0` or greater.
 // @Description For `max_uses_per_run`, `0` means no cap other than the per-turn step limit.
 // @Description For `max_output_tokens`, `0` means the default of 16,384 tokens.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration.
 // @ID update-chat-advisor-config
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6667,7 +6668,7 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update chat workspace time to live
 // @Description Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.
-// @Description The value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration, which the Owner role has.
+// @Description The value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration.
 // @ID update-chat-workspace-time-to-live
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6785,7 +6786,7 @@ const chatDebugRetentionDaysMaximum = 3650 // ~10 years
 //
 // @Summary Update chat debug retention days
 // @Description Sets the number of days Coder Agents keeps chat debug runs before deleting them, from `0` to `3650`.
-// @Description The value `0` turns off the cleanup. Requires permission to update deployment configuration, which the Owner role has.
+// @Description The value `0` turns off the cleanup. Requires permission to update deployment configuration.
 // @ID update-chat-debug-retention-days
 // @Security CoderSessionToken
 // @Tags Chats
@@ -6844,7 +6845,7 @@ const autoArchiveDaysMaximum = 3650 // ~10 years
 //
 // @Summary Update chat auto archive days
 // @Description Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from `0` to `3650`.
-// @Description The value `0` turns off auto-archive. Requires permission to update deployment configuration, which the Owner role has.
+// @Description The value `0` turns off auto-archive. Requires permission to update deployment configuration.
 // @ID update-chat-auto-archive-days
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8226,7 +8227,7 @@ func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderS
 
 // @Summary List user AI provider key configurations
 // @Description Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.
-// @Description It never returns key values. Reading another user's configuration requires permission to read personal user data, which the Owner and User Admin roles have.
+// @Description It never returns key values. Reading another user's configuration requires permission to read personal user data.
 // @ID list-user-ai-provider-key-configurations
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8298,7 +8299,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 
 // @Summary Update user AI provider key
 // @Description Sets a user's own API key for an AI provider, replacing any key already stored.
-// @Description The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+// @Description The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data.
 // @ID update-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8387,7 +8388,7 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 
 // @Summary Delete user AI provider key
 // @Description Deletes a user's stored API key for an AI provider.
-// @Description Deleting another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+// @Description Deleting another user's key requires permission to update personal user data.
 // @ID delete-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8761,7 +8762,7 @@ func (api *API) auditChatModelConfigTransitions(
 
 // @Summary Create an AI model in an organization
 // @Description Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.
-// @Description Requires permission to create chat model configurations in the organization, which the Owner and Organization Admin roles have. The provider must exist and be enabled.
+// @Description Requires permission to create chat model configurations in the organization. The provider must exist and be enabled.
 // @ID create-an-ai-model-in-an-organization
 // @Security CoderSessionToken
 // @Tags Chats

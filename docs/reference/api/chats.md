@@ -385,7 +385,8 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 `POST /api/v2/chats`
 
 Creates a chat in an organization, and starts generating a reply when you include initial `content`.
-Set `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, which the Owner role has, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
+Requires permission to create chats in the organization.
+Set `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
 
 > Body parameter
 
@@ -875,7 +876,7 @@ Sets the deployment-wide limits on the advisor that a Coder Agents root agent ca
 Both values must be `0` or greater.
 For `max_uses_per_run`, `0` means no cap other than the per-turn step limit.
 For `max_output_tokens`, `0` means the default of 16,384 tokens.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -954,7 +955,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/auto-archive-days \
 `PUT /api/v2/chats/config/auto-archive-days`
 
 Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from `0` to `3650`.
-The value `0` turns off auto-archive. Requires permission to update deployment configuration, which the Owner role has.
+The value `0` turns off auto-archive. Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -992,7 +993,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/debug-logging \
 `GET /api/v2/chats/config/debug-logging`
 
 Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.
-Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+Requires permission to read deployment configuration.
 
 ### Example responses
 
@@ -1027,7 +1028,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/debug-logging \
 `PUT /api/v2/chats/config/debug-logging`
 
 Sets whether users can turn on chat debug logging for their own chats with `PUT /api/v2/chats/config/user-debug-logging`.
-Requires permission to update deployment configuration, which the Owner role has. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.
+Requires permission to update deployment configuration. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.
 
 > Body parameter
 
@@ -1099,7 +1100,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/debug-retention-days \
 `PUT /api/v2/chats/config/debug-retention-days`
 
 Sets the number of days Coder Agents keeps chat debug runs before deleting them, from `0` to `3650`.
-The value `0` turns off the cleanup. Requires permission to update deployment configuration, which the Owner role has.
+The value `0` turns off the cleanup. Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -1137,7 +1138,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/personal-model-override
 `GET /api/v2/chats/config/personal-model-overrides`
 
 Returns whether users can choose their own models for their chats instead of the organization defaults.
-Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+Requires permission to read deployment configuration.
 
 ### Example responses
 
@@ -1171,7 +1172,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/personal-model-override
 `PUT /api/v2/chats/config/personal-model-overrides`
 
 Sets whether users can choose their own models for their chats instead of the organization defaults.
-Personal model overrides are off by default. Requires permission to update deployment configuration, which the Owner role has.
+Personal model overrides are off by default. Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -1209,7 +1210,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 `GET /api/v2/chats/config/plan-mode-instructions`
 
 Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.
-Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
+Requires permission to update deployment configuration, and returns `404` without it.
 
 ### Example responses
 
@@ -1243,7 +1244,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/plan-mode-instructions 
 `PUT /api/v2/chats/config/plan-mode-instructions`
 
 Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.
-Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits their size.
+Requires permission to update deployment configuration. The `--chat-max-prompt-bytes` option limits their size.
 
 > Body parameter
 
@@ -1281,7 +1282,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/config/system-prompt \
 `GET /api/v2/chats/config/system-prompt`
 
 Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.
-Requires permission to update deployment configuration, which the Owner role has, and returns `404` without it.
+Requires permission to update deployment configuration, and returns `404` without it.
 
 ### Example responses
 
@@ -1317,7 +1318,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/system-prompt \
 `PUT /api/v2/chats/config/system-prompt`
 
 Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.
-Requires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits the prompt size.
+Requires permission to update deployment configuration. The `--chat-max-prompt-bytes` option limits the prompt size.
 
 > Body parameter
 
@@ -1547,7 +1548,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/config/workspace-ttl \
 `PUT /api/v2/chats/config/workspace-ttl`
 
 Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.
-The value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration, which the Owner role has.
+The value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -4998,7 +4999,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 `GET /api/v2/organizations/{organization}/chats/config/system-prompt`
 
 Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.
-Requires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have, and returns `404` without it.
+Requires permission to read the organization's chat model configuration, and returns `404` without it.
 
 ### Parameters
 
@@ -5038,7 +5039,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/chats/c
 `PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
 
 Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.
-Requires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `--chat-max-prompt-bytes` option limits their size.
+Requires permission to update the organization's chat model configuration. The `--chat-max-prompt-bytes` option limits their size.
 
 > Body parameter
 
@@ -5311,7 +5312,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 `POST /api/v2/organizations/{organization}/chats/models`
 
 Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.
-Requires permission to create chat model configurations in the organization, which the Owner and Organization Admin roles have. The provider must exist and be enabled.
+Requires permission to create chat model configurations in the organization. The provider must exist and be enabled.
 
 > Body parameter
 
@@ -5689,7 +5690,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
 `GET /api/v2/users/{user}/ai-provider-keys`
 
 Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.
-It never returns key values. Reading another user's configuration requires permission to read personal user data, which the Owner and User Admin roles have.
+It never returns key values. Reading another user's configuration requires permission to read personal user data.
 
 ### Parameters
 
@@ -5768,7 +5769,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 `PUT /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
 Sets a user's own API key for an AI provider, replacing any key already stored.
-The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data.
 
 > Body parameter
 
@@ -5828,7 +5829,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 `DELETE /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
 Deletes a user's stored API key for an AI provider.
-Deleting another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+Deleting another user's key requires permission to update personal user data.
 
 ### Parameters
 

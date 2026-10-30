@@ -18,7 +18,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/coordinator \
 `GET /api/v2/debug/coordinator`
 
 Returns an HTML debug page for the tailnet coordinator, which connects workspace agents and clients, including the peers and tunnels it tracks.
-Requires permission to read debug information, which the Owner role has.
+Requires permission to read debug information.
 
 ### Responses
 
@@ -43,7 +43,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.
 Returns a cached report while it's newer than the healthcheck refresh interval.
-Requires permission to read debug information, which the Owner role has.
+Requires permission to read debug information.
 
 ### Parameters
 
@@ -448,7 +448,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
 `GET /api/v2/debug/health/settings`
 
 Returns the deployment's health settings, which list the health sections that administrators dismissed in `dismissed_healthchecks`.
-Requires permission to read debug information, which the Owner role has.
+Requires permission to read debug information.
 
 ### Example responses
 
@@ -485,7 +485,7 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 `PUT /api/v2/debug/health/settings`
 
 Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -536,7 +536,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
 `GET /api/v2/debug/tailnet`
 
 Returns an HTML debug page for the tailnet connection that the Coder server uses to reach workspace agents.
-Requires permission to read debug information, which the Owner role has.
+Requires permission to read debug information.
 
 ### Responses
 

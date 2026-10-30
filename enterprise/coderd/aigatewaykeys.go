@@ -23,7 +23,7 @@ const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, num
 // @Summary Create AI Gateway key
 // @Description Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.
 // @Description The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
-// @Description Requires permission to create AI Gateway keys, which only the Owner role has.
+// @Description Requires permission to create AI Gateway keys.
 // @Description Requires a Premium license.
 // @ID create-ai-gateway-key
 // @Security CoderSessionToken
@@ -117,7 +117,7 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 // @Summary List AI Gateway keys
 // @Description Lists the AI Gateway keys, oldest first.
 // @Description Each key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.
-// @Description Requires permission to read AI Gateway keys, which only the Owner role has.
+// @Description Requires permission to read AI Gateway keys.
 // @Description Requires a Premium license.
 // @ID list-ai-gateway-keys
 // @Security CoderSessionToken
@@ -151,7 +151,7 @@ func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete AI Gateway key
 // @Description Deletes an AI Gateway key.
 // @Description A standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.
-// @Description Requires permission to delete AI Gateway keys, which only the Owner role has.
+// @Description Requires permission to delete AI Gateway keys.
 // @Description Requires a Premium license.
 // @ID delete-ai-gateway-key
 // @Security CoderSessionToken

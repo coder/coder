@@ -17,7 +17,7 @@ import (
 // @Summary Update notification template dispatch method
 // @Description Sets the delivery method of a notification template to `smtp`, `webhook`, or `inbox`.
 // @Description Returns `304` if the template already uses that method.
-// @Description Requires permission to update notification templates, which only the Owner role has.
+// @Description Requires permission to update notification templates.
 // @ID update-notification-template-dispatch-method
 // @Security CoderSessionToken
 // @Produce json

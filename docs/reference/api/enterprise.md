@@ -111,7 +111,7 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id} \
 `GET /api/v2/agent-firewall/sessions/{id}`
 
 Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.
-Requires permission to read Agent Firewall logs, which the Owner and Auditor roles have.
+Requires permission to read Agent Firewall logs.
 Requires a Premium license.
 
 ### Parameters
@@ -157,7 +157,7 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
 
 Returns the logs for an Agent Firewall session in ascending sequence order.
 Use `seq_after` and `seq_before` to fetch a range of sequence numbers, and `limit` to change the number of logs returned, which defaults to `100`.
-Requires permission to read Agent Firewall logs, which the Owner and Auditor roles have.
+Requires permission to read Agent Firewall logs.
 Requires a Premium license.
 
 ### Parameters
@@ -215,7 +215,7 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
 
 Lists the AI Gateway keys, oldest first.
 Each key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.
-Requires permission to read AI Gateway keys, which only the Owner role has.
+Requires permission to read AI Gateway keys.
 Requires a Premium license.
 
 ### Example responses
@@ -271,7 +271,7 @@ curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
 
 Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.
 The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
-Requires permission to create AI Gateway keys, which only the Owner role has.
+Requires permission to create AI Gateway keys.
 Requires a Premium license.
 
 > Body parameter
@@ -324,7 +324,7 @@ curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
 
 Deletes an AI Gateway key.
 A standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.
-Requires permission to delete AI Gateway keys, which only the Owner role has.
+Requires permission to delete AI Gateway keys.
 Requires a Premium license.
 
 ### Parameters
@@ -439,7 +439,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 `PUT /api/v2/appearance`
 
 Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.
-Requires permission to update deployment configuration, which only the Owner role has.
+Requires permission to update deployment configuration.
 The application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.
 
 > Body parameter
@@ -517,7 +517,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 
 Returns connection log entries, newest first, filtered by the `q` search query.
 Returns only the entries you can read.
-Requires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.
+Requires permission to read connection logs.
 The `count` in the response is capped at the value of `count_cap`.
 Requires a Premium license.
 
@@ -622,7 +622,7 @@ curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
 
 Records through telemetry that a user selected the call to action on a Premium paywall.
 The dashboard calls this when a user selects a paywall button, so you don't need to call it.
-Requires permission to read licenses, which only the Owner role has, and returns `404` for everyone else.
+Requires permission to read licenses, and returns `404` without it.
 
 > Body parameter
 
@@ -846,7 +846,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 `GET /api/v2/groups/{group}`
 
 Returns a group by its ID, with the members you can read.
-Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+Requires permission to read the group.
 Requires a Premium license.
 
 ### Parameters
@@ -914,7 +914,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 
 Deletes a group by its ID.
 You can't delete the `Everyone` group.
-Requires permission to delete the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to delete the group.
 Requires a Premium license.
 
 ### Parameters
@@ -982,7 +982,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.
 You can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.
-Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update the group.
 Requires a Premium license.
 
 > Body parameter
@@ -1067,7 +1067,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 Returns the AI budget of a group, which is the spend limit that applies to each of its members.
 Returns `404` if the group has no budget.
-Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+Requires permission to read the group.
 Requires a Premium license.
 
 ### Parameters
@@ -1112,7 +1112,7 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 `PUT /api/v2/groups/{group}/ai/budget`
 
 Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.
-Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update the group.
 Requires a Premium license.
 
 > Body parameter
@@ -1165,7 +1165,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.
 Returns `404` if the group has no budget.
-Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update the group.
 Requires a Premium license.
 
 ### Parameters
@@ -1359,7 +1359,7 @@ curl -X GET http://coder-server:8080/api/v2/licenses \
 `GET /api/v2/licenses`
 
 Returns the licenses installed on the deployment, with the claims each one asserts.
-Returns only the licenses you can read, and only the Owner role can read licenses.
+Returns only the licenses you can read, which requires permission to read licenses.
 
 ### Example responses
 
@@ -1412,7 +1412,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 Adds a license to the deployment and recomputes its entitlements.
 A deployment can hold several licenses at once, and it doesn't need a license to add the first one.
-Requires permission to create licenses, which only the Owner role has.
+Requires permission to create licenses.
 
 > Body parameter
 
@@ -1465,7 +1465,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
 Use it to apply a license change immediately instead of waiting for the next automatic refresh.
 You can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.
-Requires permission to create licenses, which only the Owner role has.
+Requires permission to create licenses.
 
 ### Example responses
 
@@ -1508,7 +1508,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 Requests a trial license from the Coder license server and installs it.
 Returns `409` if the deployment already has a license, so delete the existing license first.
-Requires permission to create licenses, which only the Owner role has.
+Requires permission to create licenses.
 
 > Body parameter
 
@@ -1567,7 +1567,7 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 `DELETE /api/v2/licenses/{id}`
 
 Deletes a license by its numeric ID and recomputes the deployment's entitlements.
-Requires permission to delete licenses, which only the Owner role has.
+Requires permission to delete licenses.
 
 ### Parameters
 
@@ -1597,7 +1597,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notificatio
 
 Sets the delivery method of a notification template to `smtp`, `webhook`, or `inbox`.
 Returns `304` if the template already uses that method.
-Requires permission to update notification templates, which only the Owner role has.
+Requires permission to update notification templates.
 
 ### Parameters
 
@@ -1628,7 +1628,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 `GET /api/v2/oauth2-provider/apps`
 
 Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.
-Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens, which the Owner role has.
+Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Parameters
@@ -1714,7 +1714,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 `POST /api/v2/oauth2-provider/apps`
 
 Registers an OAuth2 application that can use Coder as its authorization server.
-Requires permission to create OAuth2 applications, which the Owner role has.
+Requires permission to create OAuth2 applications.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 > Body parameter
@@ -1841,7 +1841,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 `PUT /api/v2/oauth2-provider/apps/{app}`
 
 Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send `scope`.
-Requires permission to update OAuth2 applications, which the Owner role has.
+Requires permission to update OAuth2 applications.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 > Body parameter
@@ -1911,7 +1911,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 `DELETE /api/v2/oauth2-provider/apps/{app}`
 
 Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.
-Requires permission to delete OAuth2 applications, which the Owner role has.
+Requires permission to delete OAuth2 applications.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Parameters
@@ -1942,7 +1942,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
 `GET /api/v2/oauth2-provider/apps/{app}/secrets`
 
 Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.
-Requires permission to read OAuth2 application secrets, which the Owner role has.
+Requires permission to read OAuth2 application secrets.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Parameters
@@ -1998,7 +1998,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 `POST /api/v2/oauth2-provider/apps/{app}/secrets`
 
 Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.
-Requires permission to create OAuth2 application secrets, which the Owner role has, and returns `400` for a public client, which has no secret.
+Requires permission to create OAuth2 application secrets, and returns `400` for a public client, which has no secret.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Parameters
@@ -2053,7 +2053,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.
 It also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.
-Requires permission to delete OAuth2 application secrets, which the Owner role has.
+Requires permission to delete OAuth2 application secrets.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Parameters
@@ -2085,7 +2085,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/settings \
 `GET /api/v2/oauth2-provider/settings`
 
 Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.
-Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+Requires permission to read deployment configuration.
 Works while the OAuth2 provider is disabled.
 
 ### Example responses
@@ -2121,7 +2121,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 `PUT /api/v2/oauth2-provider/settings`
 
 Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration.
 Works while the OAuth2 provider is disabled.
 
 > Body parameter
@@ -2317,7 +2317,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 Creates a group in an organization.
 Returns `409` if the organization already has a group with that name.
-Requires permission to create groups in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to create groups in the organization.
 Requires a Premium license.
 
 > Body parameter
@@ -2446,7 +2446,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 `GET /api/v2/organizations/{organization}/groups/{groupName}`
 
 Returns a group in an organization by its name, with the members you can read.
-Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+Requires permission to read the group.
 Requires a Premium license.
 
 ### Parameters
@@ -2635,7 +2635,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.
 The budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.
-Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+Requires permission to read the user, which you have for yourself.
 
 ### Parameters
 
@@ -2742,7 +2742,7 @@ Send `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners
 A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
 A pre-shared key works only for the default organization.
 With a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.
-Starting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Starting any other daemon with a session token requires permission to create provisioner daemons in the organization.
 The WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.
 Requires a Premium license.
 
@@ -2775,7 +2775,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Returns the provisioner keys in an organization, oldest first, without their secrets.
 The list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.
-Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to read provisioner daemons in the organization.
 Requires a Premium license.
 
 ### Parameters
@@ -2841,7 +2841,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
 Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.
 Set `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.
 The response holds the key secret, which Coder stores only as a hash, so save it when you create the key.
-Requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create provisioner daemons in the organization.
 Requires a Premium license.
 
 ### Parameters
@@ -2884,7 +2884,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.
 Use it to check which external provisioner daemons are connected.
 Returns only the keys you can read.
-Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to read provisioner daemons in the organization.
 Requires a Premium license.
 
 ### Parameters
@@ -3013,7 +3013,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 
 Deletes a provisioner key, and daemons that authenticated with it lose their connection.
 You can't delete the reserved `built-in`, `user-auth`, and `psk` keys.
-Requires permission to delete provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to delete provisioner daemons in the organization.
 Requires a Premium license.
 
 ### Parameters
@@ -3046,7 +3046,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 Returns the claim field names found in the stored OIDC claims of this organization's members.
 Use it to choose a `field` for group or role sync.
-Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
@@ -3089,7 +3089,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.
 Use it to find the values to put in a group or role `mapping`.
-Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
@@ -3132,7 +3132,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 `GET /api/v2/organizations/{organization}/settings/idpsync/groups`
 
 Returns how an organization syncs its groups from the identity provider, including the claim `field`, the `mapping` to Coder groups, and any `regex_filter`.
-Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
@@ -3188,7 +3188,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 Replaces all of an organization's group sync settings, so any field you omit resets.
 To change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.
-Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update IdP sync settings in the organization.
 Rejects a request that sets the deprecated `legacy_group_name_mapping`.
 
 > Body parameter
@@ -3267,7 +3267,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`
 
 Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.
-Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update IdP sync settings in the organization.
 
 > Body parameter
 
@@ -3334,7 +3334,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 Adds and removes entries in an organization's group `mapping`, and keeps the claim `field`, `regex_filter`, and `auto_create_missing_groups`.
 An entry that appears in both `add` and `remove` ends up removed.
-Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update IdP sync settings in the organization.
 
 > Body parameter
 
@@ -3408,7 +3408,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 `GET /api/v2/organizations/{organization}/settings/idpsync/roles`
 
 Returns how an organization syncs organization roles from the identity provider, including the claim `field` and the `mapping` to role names.
-Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
@@ -3458,7 +3458,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 Replaces all of an organization's role sync settings, so any field you omit resets.
 To change only the claim `field`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`.
-Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update IdP sync settings in the organization.
 
 > Body parameter
 
@@ -3524,7 +3524,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`
 
 Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
-Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update IdP sync settings in the organization.
 
 > Body parameter
 
@@ -3583,7 +3583,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 Adds and removes entries in an organization's role `mapping`, and keeps the claim `field`.
 An entry that appears in both `add` and `remove` ends up removed.
-Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires permission to update IdP sync settings in the organization.
 
 > Body parameter
 
@@ -3696,7 +3696,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.
 Choosing `none` removes every workspace share in the organization.
 Choosing `service_accounts` removes the shares on workspaces that service accounts don't own.
-Requires permission to update the organization, which the Owner and Organization Admin roles have.
+Requires permission to update the organization.
 
 > Body parameter
 
@@ -3794,7 +3794,7 @@ curl -X GET http://coder-server:8080/api/v2/replicas \
 `GET /api/v2/replicas`
 
 Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.
-Requires permission to read replicas, which the Owner role has.
+Requires permission to read replicas.
 
 ### Example responses
 
@@ -3852,7 +3852,7 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 
 Returns the claim field names found in the stored OIDC claims of all users on the deployment.
 Use it to choose a `field` for organization sync.
-Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
+Requires permission to read IdP sync settings across the deployment.
 
 ### Parameters
 
@@ -3895,7 +3895,7 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimF
 
 Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.
 Use it to find the values to put in an organization `mapping`.
-Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
+Requires permission to read IdP sync settings across the deployment.
 
 ### Parameters
 
@@ -3939,7 +3939,7 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 Returns how the deployment syncs organization membership from the identity provider, including the claim `field`, the `mapping` to organizations, and `organization_assign_default`.
 This setting is deployment-wide and isn't scoped to one organization.
-Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
+Requires permission to read IdP sync settings across the deployment.
 
 ### Example responses
 
@@ -3984,7 +3984,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 Replaces all of the deployment's organization sync settings, so any field you omit resets.
 To change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
-Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
+Requires permission to update IdP sync settings across the deployment.
 
 > Body parameter
 
@@ -4052,7 +4052,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
 
 Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.
 This setting is deployment-wide and isn't scoped to one organization.
-Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
+Requires permission to update IdP sync settings across the deployment.
 
 > Body parameter
 
@@ -4112,7 +4112,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapp
 
 Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.
 An entry that appears in both `add` and `remove` ends up removed.
-Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
+Requires permission to update IdP sync settings across the deployment.
 
 > Body parameter
 
@@ -4180,7 +4180,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 `GET /api/v2/templates/{template}/acl`
 
 Returns the users and groups that have access to a template, each with its role, either `admin` or `use`.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 Requires a Premium license.
 
 ### Parameters
@@ -4281,7 +4281,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in `user_perms` and group IDs in `group_perms` to a role, either `admin` or `use`.
 Set a role to an empty string to remove that user or group, and entries you leave out stay as they are.
-Requires permission to create templates, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to create the template, not only to update it.
 Requires a Premium license.
 
 > Body parameter
@@ -4346,7 +4346,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 
 Returns the users and groups you can add to a template's access control list.
 Pass `q` to search the users and groups and `limit` to cap how many of each return.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 Requires a Premium license.
 
 ### Parameters
@@ -4476,7 +4476,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 
 Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.
 Returns the invalidated presets.
-Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the template.
 Requires a Premium license.
 
 ### Parameters
@@ -4524,7 +4524,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 Returns the AI budget override of a user, which replaces the budgets of their groups.
 Returns `404` if the user has no override.
-Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+Requires permission to read the user, which you have for yourself.
 Requires a Premium license.
 
 ### Parameters
@@ -4571,7 +4571,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.
 The user must be a member of that group, and you can't set an override for a system user.
-Requires permission to update both the user and the group, which the Owner and User Admin roles have.
+Requires permission to update both the user and the group.
 Requires a Premium license.
 
 > Body parameter
@@ -4626,7 +4626,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 Deletes the AI budget override of a user, which returns them to the budget of their effective group.
 Returns `404` if the user has no override.
-Requires permission to update both the user and the group the override attributes spend to, which the Owner and User Admin roles have.
+Requires permission to update both the user and the group the override attributes spend to.
 Requires a Premium license.
 
 ### Parameters
@@ -4657,7 +4657,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 `GET /api/v2/users/{user}/ai/spend`
 
 Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.
-Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+Requires permission to read the user, which you have for yourself.
 Requires a Premium license.
 
 ### Parameters
@@ -4770,7 +4770,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
 Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
-You can update your own schedule, and updating another user's schedule requires permission to update personal user data, which the Owner and User Admin roles have.
+You can update your own schedule, and updating another user's schedule requires permission to update personal user data.
 Requires a Premium license.
 
 > Body parameter
@@ -4984,7 +4984,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
 Set `name` (not `primary`), and optionally `display_name` and `icon`.
 Save the token from the response, because Coder doesn't show it again unless you regenerate it.
-Requires permission to create workspace proxies, which the Owner role has.
+Requires permission to create workspace proxies.
 Requires a Premium license.
 
 > Body parameter
@@ -5124,7 +5124,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
 
 Deletes a workspace proxy, so Coder stops offering it as a region.
 You can't delete the primary proxy.
-Requires permission to delete workspace proxies, which the Owner role has.
+Requires permission to delete workspace proxies.
 Requires a Premium license.
 
 ### Parameters
@@ -5175,7 +5175,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.
 Set `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.
 For the primary proxy, you can change only `display_name` and `icon`.
-Requires permission to update workspace proxies, which the Owner role has.
+Requires permission to update workspace proxies.
 Requires a Premium license.
 
 > Body parameter
@@ -5254,7 +5254,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
 
 Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.
 Treat the response as a secret, because the token lets the holder act as the workspace agent.
-Requires permission to SSH to the workspace, which the workspace owner has.
+Requires permission to SSH to the workspace.
 Requires a Premium license.
 
 ### Parameters

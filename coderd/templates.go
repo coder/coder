@@ -59,7 +59,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete template by ID
 // @Description Deletes a template.
 // @Description The call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
-// @Description Requires permission to delete the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to delete the template.
 // @ID delete-template-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -178,7 +178,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 // @Summary Create template by organization
 // @Description Creates a template in an organization from an existing template version.
 // @Description The template version must not be archived or already belong to a template, and its import job can still be running.
-// @Description Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to create templates in the organization.
 // @Description The organization's Everyone group gets the `use` role on the new template unless you set `disable_everyone_group_access` to `true`.
 // @Description Settings that need a Premium license, such as `autostop_requirement`, `failure_ttl_ms`, and `require_active_version`, are ignored without one, and `max_port_share_level` returns a validation error.
 // @ID create-template-by-organization
@@ -662,7 +662,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 // @Summary Update template settings by ID
 // @Description Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.
 // @Description Send only the fields you want to change, because omitted fields keep their current values.
-// @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the template.
 // @Description Without a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.
 // @Description Without a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.
 // @ID update-template-settings-by-id
@@ -929,7 +929,7 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 // @Summary Get template DAUs by ID
 // @Description Returns the number of active users per day for a template over the last 60 days.
 // @Description Set the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.
-// @Description Requires permission to view the template's insights, which the Owner, Auditor, Template Admin, Organization Admin, Organization Auditor, and Organization Template Admin roles have.
+// @Description Requires permission to view the template's insights.
 // @ID get-template-daus-by-id
 // @Security CoderSessionToken
 // @Produce json

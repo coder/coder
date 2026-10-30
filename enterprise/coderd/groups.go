@@ -24,7 +24,7 @@ import (
 // @Summary Create group for organization
 // @Description Creates a group in an organization.
 // @Description Returns `409` if the organization already has a group with that name.
-// @Description Requires permission to create groups in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to create groups in the organization.
 // @Description Requires a Premium license.
 // @ID create-group-for-organization
 // @Security CoderSessionToken
@@ -97,7 +97,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Summary Update group by name
 // @Description Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.
 // @Description You can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.
-// @Description Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to update the group.
 // @Description Requires a Premium license.
 // @ID update-group-by-name
 // @Security CoderSessionToken
@@ -346,7 +346,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete group by name
 // @Description Deletes a group by its ID.
 // @Description You can't delete the `Everyone` group.
-// @Description Requires permission to delete the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires permission to delete the group.
 // @Description Requires a Premium license.
 // @ID delete-group-by-name
 // @Security CoderSessionToken
@@ -401,7 +401,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get group by organization and group name
 // @Description Returns a group in an organization by its name, with the members you can read.
-// @Description Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+// @Description Requires permission to read the group.
 // @Description Requires a Premium license.
 // @ID get-group-by-organization-and-group-name
 // @Security CoderSessionToken
@@ -417,7 +417,7 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get group by ID
 // @Description Returns a group by its ID, with the members you can read.
-// @Description Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+// @Description Requires permission to read the group.
 // @Description Requires a Premium license.
 // @ID get-group-by-id
 // @Security CoderSessionToken

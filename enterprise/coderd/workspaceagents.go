@@ -27,7 +27,7 @@ func (api *API) shouldBlockNonBrowserConnections(rw http.ResponseWriter) bool {
 // @Summary Get workspace external agent credentials
 // @Description Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.
 // @Description Treat the response as a secret, because the token lets the holder act as the workspace agent.
-// @Description Requires permission to SSH to the workspace, which the workspace owner has.
+// @Description Requires permission to SSH to the workspace.
 // @Description Requires a Premium license.
 // @ID get-workspace-external-agent-credentials
 // @Security CoderSessionToken

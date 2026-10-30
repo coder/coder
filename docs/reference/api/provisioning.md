@@ -20,7 +20,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.
 Use the `ids`, `status`, and `tags` query parameters to narrow the list.
-Requires permission to read provisioner jobs in the organization, which the Owner, Organization Admin, and Organization Template Admin roles have, and returns `404` without it.
+Requires permission to read provisioner jobs in the organization, and returns `404` without it.
 
 ### Parameters
 

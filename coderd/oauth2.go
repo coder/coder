@@ -16,7 +16,7 @@ import (
 
 // @Summary Get OAuth2 applications.
 // @Description Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.
-// @Description Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens, which the Owner role has.
+// @Description Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID get-oauth2-applications
 // @Security CoderSessionToken
@@ -46,7 +46,7 @@ func (api *API) oAuth2ProviderApp() http.HandlerFunc {
 
 // @Summary Create OAuth2 application.
 // @Description Registers an OAuth2 application that can use Coder as its authorization server.
-// @Description Requires permission to create OAuth2 applications, which the Owner role has.
+// @Description Requires permission to create OAuth2 applications.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID create-oauth2-application
 // @Security CoderSessionToken
@@ -62,7 +62,7 @@ func (api *API) postOAuth2ProviderApp() http.HandlerFunc {
 
 // @Summary Update OAuth2 application.
 // @Description Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send `scope`.
-// @Description Requires permission to update OAuth2 applications, which the Owner role has.
+// @Description Requires permission to update OAuth2 applications.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID update-oauth2-application
 // @Security CoderSessionToken
@@ -79,7 +79,7 @@ func (api *API) putOAuth2ProviderApp() http.HandlerFunc {
 
 // @Summary Delete OAuth2 application.
 // @Description Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.
-// @Description Requires permission to delete OAuth2 applications, which the Owner role has.
+// @Description Requires permission to delete OAuth2 applications.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID delete-oauth2-application
 // @Security CoderSessionToken
@@ -93,7 +93,7 @@ func (api *API) deleteOAuth2ProviderApp() http.HandlerFunc {
 
 // @Summary Get OAuth2 application secrets.
 // @Description Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.
-// @Description Requires permission to read OAuth2 application secrets, which the Owner role has.
+// @Description Requires permission to read OAuth2 application secrets.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID get-oauth2-application-secrets
 // @Security CoderSessionToken
@@ -108,7 +108,7 @@ func (api *API) oAuth2ProviderAppSecrets() http.HandlerFunc {
 
 // @Summary Create OAuth2 application secret.
 // @Description Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.
-// @Description Requires permission to create OAuth2 application secrets, which the Owner role has, and returns `400` for a public client, which has no secret.
+// @Description Requires permission to create OAuth2 application secrets, and returns `400` for a public client, which has no secret.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID create-oauth2-application-secret
 // @Security CoderSessionToken
@@ -125,7 +125,7 @@ func (api *API) postOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Summary Delete OAuth2 application secret.
 // @Description Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.
 // @Description It also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.
-// @Description Requires permission to delete OAuth2 application secrets, which the Owner role has.
+// @Description Requires permission to delete OAuth2 application secrets.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID delete-oauth2-application-secret
 // @Security CoderSessionToken
@@ -287,7 +287,7 @@ func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 
 // @Summary Get OAuth2 provider settings.
 // @Description Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.
-// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+// @Description Requires permission to read deployment configuration.
 // @Description Works while the OAuth2 provider is disabled.
 // @ID get-oauth2-provider-settings
 // @Security CoderSessionToken
@@ -313,7 +313,7 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 
 // @Summary Update OAuth2 provider settings.
 // @Description Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration.
 // @Description Works while the OAuth2 provider is disabled.
 // @ID update-oauth2-provider-settings
 // @Security CoderSessionToken

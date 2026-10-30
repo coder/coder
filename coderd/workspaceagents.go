@@ -1026,7 +1026,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 
 // @Summary Delete devcontainer for workspace agent
 // @Description Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.
-// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Requires permission to update the workspace.
 // @Description Returns `409` while the dev container is starting, stopping, or deleting.
 // @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID delete-devcontainer-for-workspace-agent
@@ -1119,7 +1119,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 
 // @Summary Recreate devcontainer for workspace agent
 // @Description Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.
-// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Requires permission to update the workspace.
 // @Description Returns `409` while the dev container is starting, stopping, or deleting.
 // @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID recreate-devcontainer-for-workspace-agent

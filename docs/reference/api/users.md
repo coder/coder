@@ -90,7 +90,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
 `POST /api/v2/users`
 
 Creates a user account, or a service account for automation when `service_account` is `true`.
-Requires permission to create users, which the Owner and User Admin roles have.
+Requires permission to create users.
 Creating a service account also requires a Premium license.
 
 > Body parameter
@@ -491,7 +491,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
 `GET /api/v2/users/{user}`
 
 Returns a user's account details, including status, login type, and organization IDs.
-You can read your own account, and reading other users requires permission to read users, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have.
+You can read your own account, and reading other users requires permission to read users.
 
 ### Parameters
 
@@ -552,7 +552,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 `DELETE /api/v2/users/{user}`
 
 Deletes a user account and notifies the deployment's user admins.
-Requires permission to delete users, which the Owner and User Admin roles have.
+Requires permission to delete users.
 You can't delete yourself or a user who still has workspaces, so delete their workspaces first.
 
 ### Parameters
@@ -583,7 +583,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
 `GET /api/v2/users/{user}/appearance`
 
 Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.
-You can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.
+You can read your own settings, and reading another user's settings requires permission to read personal user data.
 
 ### Parameters
 
@@ -628,7 +628,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 `PUT /api/v2/users/{user}/appearance`
 
 Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.
-You can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.
+You can update your own settings, and updating another user's settings requires permission to update personal user data.
 
 > Body parameter
 
@@ -685,7 +685,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/gitsshkey \
 `GET /api/v2/users/{user}/gitsshkey`
 
 Returns the user's public Git SSH key and never the private key.
-You can read your own key, and reading another user's key requires permission to read personal user data, which the Owner and User Admin roles have.
+You can read your own key, and reading another user's key requires permission to read personal user data.
 
 ### Parameters
 
@@ -729,7 +729,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/gitsshkey \
 
 Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.
 Update your Git provider with the new public key, because Coder no longer has the old private key.
-You can regenerate your own key, and regenerating another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+You can regenerate your own key, and regenerating another user's key requires permission to update personal user data.
 
 ### Parameters
 
@@ -772,7 +772,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
 `POST /api/v2/users/{user}/keys`
 
 Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.
-The new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user, which the Owner role has.
+The new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user.
 
 ### Parameters
 
@@ -812,7 +812,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 `GET /api/v2/users/{user}/keys/tokens`
 
 Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
-Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys, which the Owner role has.
+Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.
 Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
 
 ### Parameters
@@ -906,7 +906,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.
 Without `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.
-The token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user, which the Owner role has.
+The token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user.
 
 > Body parameter
 
@@ -967,7 +967,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 
 Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.
 The response never includes the token secret.
-You can read your own tokens, and reading another user's tokens requires permission to read that user's API keys, which the Owner role has.
+You can read your own tokens, and reading another user's tokens requires permission to read that user's API keys.
 
 ### Parameters
 
@@ -1027,7 +1027,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.
 The response never includes the key secret.
-You can read your own API keys, and reading another user's keys requires permission to read that user's API keys, which the Owner role has.
+You can read your own API keys, and reading another user's keys requires permission to read that user's API keys.
 
 ### Parameters
 
@@ -1085,7 +1085,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 `DELETE /api/v2/users/{user}/keys/{keyid}`
 
 Deletes an API key by its ID, so the key can no longer authenticate requests.
-You can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys, which the Owner role has.
+You can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys.
 
 ### Parameters
 
@@ -1117,7 +1117,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/keys/{keyid}/expire \
 
 Expires an API key immediately by setting its expiry to now, which keeps the key's record.
 Does nothing when the key has already expired.
-You can expire your own API keys, and expiring another user's key requires permission to update that user's API keys, which the Owner role has.
+You can expire your own API keys, and expiring another user's key requires permission to update that user's API keys.
 
 ### Parameters
 
@@ -1315,7 +1315,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
 
 Changes a user's password and revokes all of the user's API keys.
 Works only for users with the `password` login type, and changing your own password requires `old_password`.
-Changing another user's password requires permission to update personal user data, which the Owner and User Admin roles have, and only an Owner can change an Owner's password.
+Changing another user's password requires permission to update personal user data, and only an Owner can change an Owner's password.
 
 > Body parameter
 
@@ -1355,7 +1355,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 `GET /api/v2/users/{user}/preferences`
 
 Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.
-You can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.
+You can read your own settings, and reading another user's settings requires permission to read personal user data.
 
 ### Parameters
 
@@ -1401,7 +1401,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 Updates the user's Coder Agents chat preferences and returns all of them.
 Fields you omit keep their current values.
-You can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.
+You can update your own settings, and updating another user's settings requires permission to update personal user data.
 
 > Body parameter
 
@@ -1459,7 +1459,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 `PUT /api/v2/users/{user}/profile`
 
 Updates a user's username, display name, and avatar URL.
-Changing a username, including your own, requires permission to update users, which the Owner and User Admin roles have, and so does updating another user's profile.
+Changing a username, including your own, requires permission to update users, and so does updating another user's profile.
 The avatar URL applies only to users with the `password` or `none` login type.
 
 > Body parameter
@@ -1533,7 +1533,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
 `GET /api/v2/users/{user}/roles`
 
 Returns the user's site-wide roles and their roles in each organization.
-You can read your own roles, and reading another user's roles requires permission to read personal user data, which the Owner and User Admin roles have.
+You can read your own roles, and reading another user's roles requires permission to read personal user data.
 
 ### Parameters
 
@@ -1596,7 +1596,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
 `PUT /api/v2/users/{user}/roles`
 
 Replaces the user's site-wide roles with the given `roles`.
-Requires permission to assign roles, which the Owner and User Admin roles have, but you can assign only roles your own roles allow, so the Owner role can assign any site role and the User Admin role can assign only Member.
+Requires permission to assign roles, but you can assign only the roles that your own roles allow.
 You can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.
 
 > Body parameter
@@ -1670,7 +1670,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
 `PUT /api/v2/users/{user}/status/activate`
 
 Sets a user's status to `active`, for example to reactivate a suspended account.
-Requires permission to update users, which the Owner and User Admin roles have.
+Requires permission to update users.
 
 ### Parameters
 
@@ -1732,7 +1732,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
 `PUT /api/v2/users/{user}/status/suspend`
 
 Suspends a user account by setting its status to `suspended`, which stops the user from signing in.
-Requires permission to update users, which the Owner and User Admin roles have.
+Requires permission to update users.
 You can't suspend yourself or a user with the Owner role.
 
 ### Parameters

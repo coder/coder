@@ -39,7 +39,7 @@ import (
 
 // @Summary List template builder base templates
 // @Description Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.
-// @Description Requires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read templates in at least one organization.
 // @Description Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
 // @ID list-template-builder-base-templates
 // @Security CoderSessionToken
@@ -140,7 +140,7 @@ func baseVariablesToSDK(vars []templatebuilder.ModuleVariable) []codersdk.Templa
 // @Summary List template builder modules
 // @Description Returns the modules you can add to a base template in the template builder.
 // @Description Set `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.
-// @Description Requires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read templates in at least one organization.
 // @ID list-template-builder-modules
 // @Security CoderSessionToken
 // @Produce json
@@ -205,7 +205,7 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 
 // @Summary Compose template from base and modules
 // @Description Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.
-// @Description Requires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to create templates in at least one organization.
 // @Description Returns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.
 // @ID compose-template-from-base-and-modules
 // @Security CoderSessionToken
@@ -322,7 +322,7 @@ func templateBuilderProvisionerFailureReason(category templatebuilder.Provisione
 // @Summary Compose and create a template
 // @Description Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.
 // @Description The call waits up to 2 minutes for the import and returns `504` if it takes longer.
-// @Description Requires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to create templates in the organization.
 // @ID compose-and-create-a-template
 // @Security CoderSessionToken
 // @Accept json
@@ -765,7 +765,7 @@ func (api *API) waitForProvisionerJob(
 
 // @Summary Report a template builder session event
 // @Description Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.
-// @Description Requires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to create templates in at least one organization.
 // @ID report-a-template-builder-session-event
 // @Security CoderSessionToken
 // @Accept json

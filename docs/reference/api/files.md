@@ -72,7 +72,8 @@ curl -X GET http://coder-server:8080/api/v2/files/{fileID} \
 
 Returns the contents of an uploaded file, such as a template source archive, with its stored `Content-Type`, which is `application/x-tar` because Coder converts zip uploads to tar.
 Set `format` to `zip` to download a tar file as a zip archive, and any other `format` value, or a file that isn't a tar, returns `400`.
-You can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get `404` for a file you can't read.
+Requires permission to read the file, which you have for files you uploaded, or permission to update a template that uses the file.
+Returns `404` for a file you can't read.
 
 ### Parameters
 

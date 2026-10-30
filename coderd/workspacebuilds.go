@@ -332,8 +332,8 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Description Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.
 // @Description Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 // @Description A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
-// @Description Requires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
-// @Description Setting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to start, stop, or delete the workspace.
+// @Description Setting `state` or `orphan` also requires permission to update the template.
 // @ID create-workspace-build
 // @Security CoderSessionToken
 // @Accept json
@@ -852,6 +852,7 @@ func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Req
 // @Summary Cancel workspace build
 // @Description Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
 // @Description Fails if the build's job already completed or was already canceled.
+// @Description Requires permission to update the workspace.
 // @Description You can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.
 // @ID cancel-workspace-build
 // @Security CoderSessionToken
@@ -1069,7 +1070,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get provisioner state for workspace build
 // @Description Returns the provisioner state that the build saved, as raw JSON.
-// @Description Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the workspace's template.
 // @ID get-provisioner-state-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json
@@ -1103,7 +1104,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace build state
 // @Description Replaces the provisioner state that a build saved, without queuing a new build.
 // @Description Use it for state-only migrations.
-// @Description Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to update the workspace's template.
 // @ID update-workspace-build-state
 // @Security CoderSessionToken
 // @Accept json

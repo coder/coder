@@ -19,7 +19,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
 `GET /api/v2/audit`
 
 Returns the audit logs you can read, newest first, filtered by the `q` search query.
-Requires permission to read audit logs, which the Owner and Auditor roles have across the deployment, and the Organization Admin and Organization Auditor roles have in their own organizations.
+Requires permission to read audit logs.
 Coder records audit logs only while the deployment has a Premium license.
 
 ### Parameters

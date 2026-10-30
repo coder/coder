@@ -207,7 +207,7 @@ func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get workspace quota by user
 // @Description Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.
 // @Description The budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.
-// @Description Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+// @Description Requires permission to read the user, which you have for yourself.
 // @ID get-workspace-quota-by-user
 // @Security CoderSessionToken
 // @Produce json

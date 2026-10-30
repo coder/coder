@@ -15,7 +15,7 @@ import (
 // @Summary Upsert workspace agent port share
 // @Description Shares a port on one of a workspace's agents at the given `share_level`, or updates the share if the port is already shared.
 // @Description The `port` must be from 9 to 65535, the `share_level` is `authenticated`, `organization`, or `public`, and the `protocol` is `http` or `https`.
-// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Requires permission to update the workspace.
 // @Description With a Premium license, the template's `max_port_share_level` limits the levels you can set.
 // @ID upsert-workspace-agent-port-share
 // @Security CoderSessionToken
@@ -118,7 +118,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Get workspace agent port shares
 // @Description Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.
-// @Description Requires permission to read the workspace, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Requires permission to read the workspace.
 // @ID get-workspace-agent-port-shares
 // @Security CoderSessionToken
 // @Produce json
@@ -144,7 +144,7 @@ func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request
 // @Summary Delete workspace agent port share
 // @Description Stops sharing a port on one of a workspace's agents.
 // @Description Returns `404` if the port isn't shared.
-// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Requires permission to update the workspace.
 // @ID delete-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json

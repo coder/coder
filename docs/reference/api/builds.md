@@ -553,6 +553,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
 Fails if the build's job already completed or was already canceled.
+Requires permission to update the workspace.
 You can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.
 
 ### Parameters
@@ -1152,7 +1153,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 `GET /api/v2/workspacebuilds/{workspacebuild}/state`
 
 Returns the provisioner state that the build saved, as raw JSON.
-Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the workspace's template.
 
 ### Parameters
 
@@ -1419,7 +1420,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 Replaces the provisioner state that a build saved, without queuing a new build.
 Use it for state-only migrations.
-Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to update the workspace's template.
 
 > Body parameter
 
@@ -2009,8 +2010,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.
 Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
-Requires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
-Setting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires permission to start, stop, or delete the workspace.
+Setting `state` or `orphan` also requires permission to update the template.
 
 > Body parameter
 

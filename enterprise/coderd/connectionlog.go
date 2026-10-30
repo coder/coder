@@ -22,7 +22,7 @@ const connectionLogCountCap = 2000
 // @Summary Get connection logs
 // @Description Returns connection log entries, newest first, filtered by the `q` search query.
 // @Description Returns only the entries you can read.
-// @Description Requires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.
+// @Description Requires permission to read connection logs.
 // @Description The `count` in the response is capped at the value of `count_cap`.
 // @Description Requires a Premium license.
 // @ID get-connection-logs

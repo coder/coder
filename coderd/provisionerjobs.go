@@ -32,7 +32,7 @@ import (
 
 // @Summary Get provisioner job
 // @Description Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.
-// @Description Requires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read provisioner jobs in the organization.
 // @ID get-provisioner-job
 // @Security CoderSessionToken
 // @Produce json
@@ -70,7 +70,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get provisioner jobs
 // @Description Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.
-// @Description Requires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read provisioner jobs in the organization.
 // @ID get-provisioner-jobs
 // @Security CoderSessionToken
 // @Produce json

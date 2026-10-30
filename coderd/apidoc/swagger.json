@@ -1991,7 +1991,7 @@
 		},
 		"/api/v2/agent-firewall/sessions/{id}": {
 			"get": {
-				"description": "Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.\nRequires permission to read Agent Firewall logs, which the Owner and Auditor roles have.\nRequires a Premium license.",
+				"description": "Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.\nRequires permission to read Agent Firewall logs.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get agent firewall session by ID",
@@ -2023,7 +2023,7 @@
 		},
 		"/api/v2/agent-firewall/sessions/{id}/logs": {
 			"get": {
-				"description": "Returns the logs for an Agent Firewall session in ascending sequence order.\nUse `seq_after` and `seq_before` to fetch a range of sequence numbers, and `limit` to change the number of logs returned, which defaults to `100`.\nRequires permission to read Agent Firewall logs, which the Owner and Auditor roles have.\nRequires a Premium license.",
+				"description": "Returns the logs for an Agent Firewall session in ascending sequence order.\nUse `seq_after` and `seq_before` to fetch a range of sequence numbers, and `limit` to change the number of logs returned, which defaults to `100`.\nRequires permission to read Agent Firewall logs.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get agent firewall session logs",
@@ -2073,7 +2073,7 @@
 		},
 		"/api/v2/ai-gateway/clients": {
 			"get": {
-				"description": "Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with `Unknown` for interceptions that have no client.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/clients` for backward compatibility.",
+				"description": "Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with `Unknown` for interceptions that have no client.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/clients` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway clients",
@@ -2098,7 +2098,7 @@
 		},
 		"/api/v2/ai-gateway/keys": {
 			"get": {
-				"description": "Lists the AI Gateway keys, oldest first.\nEach key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.\nRequires permission to read AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
+				"description": "Lists the AI Gateway keys, oldest first.\nEach key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.\nRequires permission to read AI Gateway keys.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "List AI Gateway keys",
@@ -2121,7 +2121,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.\nThe response contains the secret in `key`, which you can't retrieve again, so store it when you create it.\nRequires permission to create AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
+				"description": "Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.\nThe response contains the secret in `key`, which you can't retrieve again, so store it when you create it.\nRequires permission to create AI Gateway keys.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -2155,7 +2155,7 @@
 		},
 		"/api/v2/ai-gateway/keys/{key}": {
 			"delete": {
-				"description": "Deletes an AI Gateway key.\nA standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.\nRequires permission to delete AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
+				"description": "Deletes an AI Gateway key.\nA standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.\nRequires permission to delete AI Gateway keys.\nRequires a Premium license.",
 				"tags": ["Enterprise"],
 				"summary": "Delete AI Gateway key",
 				"operationId": "delete-ai-gateway-key",
@@ -2183,7 +2183,7 @@
 		},
 		"/api/v2/ai-gateway/models": {
 			"get": {
-				"description": "Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/models` for backward compatibility.",
+				"description": "Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/models` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway models",
@@ -2222,7 +2222,7 @@
 		},
 		"/api/v2/ai-gateway/providers": {
 			"get": {
-				"description": "Returns the name, type, display name, and icon of each AI provider, which you can use to label the `provider_name` values on AI Gateway sessions and to filter sessions by provider.\nReturns no provider configuration or secrets.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.",
+				"description": "Returns the name, type, display name, and icon of each AI provider, which you can use to label the `provider_name` values on AI Gateway sessions and to filter sessions by provider.\nReturns no provider configuration or secrets.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway providers",
@@ -2265,7 +2265,7 @@
 		},
 		"/api/v2/ai-gateway/sessions": {
 			"get": {
-				"description": "Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.\nReturns only the sessions you can read.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/sessions` for backward compatibility.",
+				"description": "Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.\nReturns only the sessions you can read.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/sessions` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "List AI Gateway sessions",
@@ -2313,7 +2313,7 @@
 		},
 		"/api/v2/ai-gateway/sessions/{session_id}": {
 			"get": {
-				"description": "Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.\nReturns `404` if the session doesn't exist or you can't read it.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/sessions/{session_id}` for backward compatibility.",
+				"description": "Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.\nReturns `404` if the session doesn't exist or you can't read it.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at `GET /api/v2/aibridge/sessions/{session_id}` for backward compatibility.",
 				"produces": ["application/json"],
 				"tags": ["AI Gateway"],
 				"summary": "Get AI Gateway session threads",
@@ -2362,7 +2362,7 @@
 		},
 		"/api/v2/ai/providers": {
 			"get": {
-				"description": "Returns every AI provider configured for the deployment, including disabled ones, with each API key masked.\nCoder Agents and AI Gateway use these providers to reach model APIs.\nRequires permission to read AI providers, which the Owner role has.",
+				"description": "Returns every AI provider configured for the deployment, including disabled ones, with each API key masked.\nCoder Agents and AI Gateway use these providers to reach model APIs.\nRequires permission to read AI providers.",
 				"produces": ["application/json"],
 				"tags": ["AI Providers"],
 				"summary": "List AI providers",
@@ -2385,7 +2385,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates an AI provider that Coder Agents and AI Gateway can use to reach a model API.\nSet `type`, `name` (lowercase letters, digits, and single hyphens between words), `enabled`, and `base_url` (an absolute `http` or `https` URL), and optionally `api_keys`.\nProviders of type `bedrock` use `settings` for credentials, so they don't accept `api_keys`.\nReturns `409` when a provider with that name exists.\nRequires permission to create AI providers, which the Owner role has.",
+				"description": "Creates an AI provider that Coder Agents and AI Gateway can use to reach a model API.\nSet `type`, `name` (lowercase letters, digits, and single hyphens between words), `enabled`, and `base_url` (an absolute `http` or `https` URL), and optionally `api_keys`.\nProviders of type `bedrock` use `settings` for credentials, so they don't accept `api_keys`.\nReturns `409` when a provider with that name exists.\nRequires permission to create AI providers.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["AI Providers"],
@@ -2419,7 +2419,7 @@
 		},
 		"/api/v2/ai/providers/{idOrName}": {
 			"get": {
-				"description": "Returns an AI provider's configuration and routing warnings, with each API key masked.\nRequires permission to read AI providers, which the Owner role has.",
+				"description": "Returns an AI provider's configuration and routing warnings, with each API key masked.\nRequires permission to read AI providers.",
 				"produces": ["application/json"],
 				"tags": ["AI Providers"],
 				"summary": "Get an AI provider",
@@ -2448,7 +2448,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes an AI provider.\nTo stop using a provider without deleting it, update it with `enabled` set to `false`.\nRequires permission to delete AI providers, which the Owner role has.",
+				"description": "Deletes an AI provider.\nTo stop using a provider without deleting it, update it with `enabled` set to `false`.\nRequires permission to delete AI providers.",
 				"tags": ["AI Providers"],
 				"summary": "Delete an AI provider",
 				"operationId": "delete-an-ai-provider",
@@ -2473,7 +2473,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates the fields you send on an AI provider, and leaves the rest as they are.\nSend at least one field.\nIn `api_keys`, send the full set of keys to keep, each existing key by `id` and each new key as `api_key`, because Coder removes any existing key you leave out.\nRequires permission to update AI providers, which the Owner role has.",
+				"description": "Updates the fields you send on an AI provider, and leaves the rest as they are.\nSend at least one field.\nIn `api_keys`, send the full set of keys to keep, each existing key by `id` and each new key as `api_key`, because Coder removes any existing key you leave out.\nRequires permission to update AI providers.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["AI Providers"],
@@ -2534,7 +2534,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.\nRequires permission to update deployment configuration, which only the Owner role has.\nThe application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.",
+				"description": "Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.\nRequires permission to update deployment configuration.\nThe application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -2653,7 +2653,7 @@
 		},
 		"/api/v2/audit": {
 			"get": {
-				"description": "Returns the audit logs you can read, newest first, filtered by the `q` search query.\nRequires permission to read audit logs, which the Owner and Auditor roles have across the deployment, and the Organization Admin and Organization Auditor roles have in their own organizations.\nCoder records audit logs only while the deployment has a Premium license.",
+				"description": "Returns the audit logs you can read, newest first, filtered by the `q` search query.\nRequires permission to read audit logs.\nCoder records audit logs only while the deployment has a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Audit"],
 				"summary": "Get audit logs",
@@ -2863,7 +2863,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a chat in an organization, and starts generating a reply when you include initial `content`.\nSet `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, which the Owner role has, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.",
+				"description": "Creates a chat in an organization, and starts generating a reply when you include initial `content`.\nRequires permission to create chats in the organization.\nSet `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -2959,7 +2959,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.\nBoth values must be `0` or greater.\nFor `max_uses_per_run`, `0` means no cap other than the per-turn step limit.\nFor `max_output_tokens`, `0` means the default of 16,384 tokens.\nRequires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.\nBoth values must be `0` or greater.\nFor `max_uses_per_run`, `0` means no cap other than the per-turn step limit.\nFor `max_output_tokens`, `0` means the default of 16,384 tokens.\nRequires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat advisor config",
@@ -3021,7 +3021,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from `0` to `3650`.\nThe value `0` turns off auto-archive. Requires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from `0` to `3650`.\nThe value `0` turns off auto-archive. Requires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat auto archive days",
@@ -3051,7 +3051,7 @@
 		},
 		"/api/v2/chats/config/debug-logging": {
 			"get": {
-				"description": "Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.",
+				"description": "Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.\nRequires permission to read deployment configuration.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat debug logging setting",
@@ -3071,7 +3071,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets whether users can turn on chat debug logging for their own chats with `PUT /api/v2/chats/config/user-debug-logging`.\nRequires permission to update deployment configuration, which the Owner role has. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.",
+				"description": "Sets whether users can turn on chat debug logging for their own chats with `PUT /api/v2/chats/config/user-debug-logging`.\nRequires permission to update deployment configuration. While `--chat-debug-logging-enabled` forces debug logging on, users can't change their own setting.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat debug logging setting",
@@ -3121,7 +3121,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the number of days Coder Agents keeps chat debug runs before deleting them, from `0` to `3650`.\nThe value `0` turns off the cleanup. Requires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sets the number of days Coder Agents keeps chat debug runs before deleting them, from `0` to `3650`.\nThe value `0` turns off the cleanup. Requires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat debug retention days",
@@ -3151,7 +3151,7 @@
 		},
 		"/api/v2/chats/config/personal-model-overrides": {
 			"get": {
-				"description": "Returns whether users can choose their own models for their chats instead of the organization defaults.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.",
+				"description": "Returns whether users can choose their own models for their chats instead of the organization defaults.\nRequires permission to read deployment configuration.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat personal model override settings",
@@ -3171,7 +3171,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets whether users can choose their own models for their chats instead of the organization defaults.\nPersonal model overrides are off by default. Requires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sets whether users can choose their own models for their chats instead of the organization defaults.\nPersonal model overrides are off by default. Requires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat personal model override settings",
@@ -3201,7 +3201,7 @@
 		},
 		"/api/v2/chats/config/plan-mode-instructions": {
 			"get": {
-				"description": "Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.\nRequires permission to update deployment configuration, which the Owner role has, and returns `404` without it.",
+				"description": "Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.\nRequires permission to update deployment configuration, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat plan mode instructions",
@@ -3221,7 +3221,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.\nRequires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits their size.",
+				"description": "Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.\nRequires permission to update deployment configuration. The `--chat-max-prompt-bytes` option limits their size.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat plan mode instructions",
@@ -3305,7 +3305,7 @@
 		},
 		"/api/v2/chats/config/system-prompt": {
 			"get": {
-				"description": "Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.\nRequires permission to update deployment configuration, which the Owner role has, and returns `404` without it.",
+				"description": "Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.\nRequires permission to update deployment configuration, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat system prompt",
@@ -3325,7 +3325,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.\nRequires permission to update deployment configuration, which the Owner role has. The `--chat-max-prompt-bytes` option limits the prompt size.",
+				"description": "Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.\nRequires permission to update deployment configuration. The `--chat-max-prompt-bytes` option limits the prompt size.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat system prompt",
@@ -3575,7 +3575,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.\nThe value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.\nThe value must be `0`, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat workspace time to live",
@@ -4800,7 +4800,7 @@
 		},
 		"/api/v2/connectionlog": {
 			"get": {
-				"description": "Returns connection log entries, newest first, filtered by the `q` search query.\nReturns only the entries you can read.\nRequires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.\nThe `count` in the response is capped at the value of `count_cap`.\nRequires a Premium license.",
+				"description": "Returns connection log entries, newest first, filtered by the `q` search query.\nReturns only the entries you can read.\nRequires permission to read connection logs.\nThe `count` in the response is capped at the value of `count_cap`.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get connection logs",
@@ -4879,7 +4879,7 @@
 		},
 		"/api/v2/debug/coordinator": {
 			"get": {
-				"description": "Returns an HTML debug page for the tailnet coordinator, which connects workspace agents and clients, including the peers and tunnels it tracks.\nRequires permission to read debug information, which the Owner role has.",
+				"description": "Returns an HTML debug page for the tailnet coordinator, which connects workspace agents and clients, including the peers and tunnels it tracks.\nRequires permission to read debug information.",
 				"produces": ["text/html"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Wireguard Coordinator",
@@ -4950,7 +4950,7 @@
 		},
 		"/api/v2/debug/health": {
 			"get": {
-				"description": "Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.\nReturns a cached report while it's newer than the healthcheck refresh interval.\nRequires permission to read debug information, which the Owner role has.",
+				"description": "Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.\nReturns a cached report while it's newer than the healthcheck refresh interval.\nRequires permission to read debug information.",
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Deployment Health",
@@ -4980,7 +4980,7 @@
 		},
 		"/api/v2/debug/health/settings": {
 			"get": {
-				"description": "Returns the deployment's health settings, which list the health sections that administrators dismissed in `dismissed_healthchecks`.\nRequires permission to read debug information, which the Owner role has.",
+				"description": "Returns the deployment's health settings, which list the health sections that administrators dismissed in `dismissed_healthchecks`.\nRequires permission to read debug information.",
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Get health settings",
@@ -5000,7 +5000,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.\nRequires permission to update deployment configuration, which the Owner role has.",
+				"description": "Replaces the deployment's health settings with the sections listed in `dismissed_healthchecks`, and returns `204` when the settings don't change.\nRequires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
@@ -5174,7 +5174,7 @@
 		},
 		"/api/v2/debug/tailnet": {
 			"get": {
-				"description": "Returns an HTML debug page for the tailnet connection that the Coder server uses to reach workspace agents.\nRequires permission to read debug information, which the Owner role has.",
+				"description": "Returns an HTML debug page for the tailnet connection that the Coder server uses to reach workspace agents.\nRequires permission to read debug information.",
 				"produces": ["text/html"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Tailnet",
@@ -5246,7 +5246,7 @@
 		},
 		"/api/v2/deployment/config": {
 			"get": {
-				"description": "Returns the deployment's configuration `values` with secrets removed, and its `options`.\nEach entry in `options` describes one setting, including its description, flag, and environment variable.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.",
+				"description": "Returns the deployment's configuration `values` with secrets removed, and its `options`.\nEach entry in `options` describes one setting, including its description, flag, and environment variable.\nRequires permission to read deployment configuration.",
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get deployment config",
@@ -5268,7 +5268,7 @@
 		},
 		"/api/v2/deployment/premium-funnel-events": {
 			"post": {
-				"description": "Records through telemetry that a user selected the call to action on a Premium paywall.\nThe dashboard calls this when a user selects a paywall button, so you don't need to call it.\nRequires permission to read licenses, which only the Owner role has, and returns `404` for everyone else.",
+				"description": "Records through telemetry that a user selected the call to action on a Premium paywall.\nThe dashboard calls this when a user selects a paywall button, so you don't need to call it.\nRequires permission to read licenses, and returns `404` without it.",
 				"consumes": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Report a premium paywall click",
@@ -5320,7 +5320,7 @@
 		},
 		"/api/v2/deployment/stats": {
 			"get": {
-				"description": "Returns usage statistics for the deployment, such as workspace counts and session counts.\nReturns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats, which the Owner and Auditor roles have.",
+				"description": "Returns usage statistics for the deployment, such as workspace counts and session counts.\nReturns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats.",
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get deployment stats",
@@ -5648,7 +5648,7 @@
 		},
 		"/api/v2/files/{fileID}": {
 			"get": {
-				"description": "Returns the contents of an uploaded file, such as a template source archive, with its stored `Content-Type`, which is `application/x-tar` because Coder converts zip uploads to tar.\nSet `format` to `zip` to download a tar file as a zip archive, and any other `format` value, or a file that isn't a tar, returns `400`.\nYou can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get `404` for a file you can't read.",
+				"description": "Returns the contents of an uploaded file, such as a template source archive, with its stored `Content-Type`, which is `application/x-tar` because Coder converts zip uploads to tar.\nSet `format` to `zip` to download a tar file as a zip archive, and any other `format` value, or a file that isn't a tar, returns `400`.\nRequires permission to read the file, which you have for files you uploaded, or permission to update a template that uses the file.\nReturns `404` for a file you can't read.",
 				"tags": ["Files"],
 				"summary": "Get file by ID",
 				"operationId": "get-file-by-id",
@@ -5724,7 +5724,7 @@
 		},
 		"/api/v2/groups/{group}": {
 			"get": {
-				"description": "Returns a group by its ID, with the members you can read.\nRequires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.\nRequires a Premium license.",
+				"description": "Returns a group by its ID, with the members you can read.\nRequires permission to read the group.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group by ID",
@@ -5759,7 +5759,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes a group by its ID.\nYou can't delete the `Everyone` group.\nRequires permission to delete the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
+				"description": "Deletes a group by its ID.\nYou can't delete the `Everyone` group.\nRequires permission to delete the group.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Delete group by name",
@@ -5788,7 +5788,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.\nYou can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.\nRequires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
+				"description": "Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.\nYou can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.\nRequires permission to update the group.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -5829,7 +5829,7 @@
 		},
 		"/api/v2/groups/{group}/ai/budget": {
 			"get": {
-				"description": "Returns the AI budget of a group, which is the spend limit that applies to each of its members.\nReturns `404` if the group has no budget.\nRequires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.\nRequires a Premium license.",
+				"description": "Returns the AI budget of a group, which is the spend limit that applies to each of its members.\nReturns `404` if the group has no budget.\nRequires permission to read the group.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group AI budget",
@@ -5859,7 +5859,7 @@
 				]
 			},
 			"put": {
-				"description": "Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.\nRequires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
+				"description": "Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.\nRequires permission to update the group.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -5899,7 +5899,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.\nReturns `404` if the group has no budget.\nRequires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
+				"description": "Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.\nReturns `404` if the group has no budget.\nRequires permission to update the group.\nRequires a Premium license.",
 				"tags": ["Enterprise"],
 				"summary": "Delete group AI budget",
 				"operationId": "delete-group-ai-budget",
@@ -6084,7 +6084,7 @@
 		},
 		"/api/v2/insights/daus": {
 			"get": {
-				"description": "Returns the number of daily active users across the deployment for the last 60 days, one entry per day.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.\nReturns `404` when usage stats collection is turned off.",
+				"description": "Returns the number of daily active users across the deployment for the last 60 days, one entry per day.\nRequires permission to read deployment configuration.\nReturns `404` when usage stats collection is turned off.",
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get deployment DAUs",
@@ -6115,7 +6115,7 @@
 		},
 		"/api/v2/insights/templates": {
 			"get": {
-				"description": "Returns usage insights for templates between `start_time` and `end_time`: active users, total usage time, app usage, and template parameter usage, plus active users for each `interval` when you set one.\nRequires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.\nReturns `404` when usage stats collection is turned off.",
+				"description": "Returns usage insights for templates between `start_time` and `end_time`: active users, total usage time, app usage, and template parameter usage, plus active users for each `interval` when you set one.\nRequires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.\nReturns `404` when usage stats collection is turned off.",
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about templates",
@@ -6173,7 +6173,7 @@
 		},
 		"/api/v2/insights/user-activity": {
 			"get": {
-				"description": "Returns how many seconds each user was active in workspaces between `start_time` and `end_time`, along with the templates that contributed.\nRequires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.\nReturns `404` when usage stats collection is turned off.",
+				"description": "Returns how many seconds each user was active in workspaces between `start_time` and `end_time`, along with the templates that contributed.\nRequires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.\nReturns `404` when usage stats collection is turned off.",
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about user activity",
@@ -6223,7 +6223,7 @@
 		},
 		"/api/v2/insights/user-latency": {
 			"get": {
-				"description": "Returns each user's workspace connection latency between `start_time` and `end_time`, as 50th and 95th percentile values in milliseconds.\nRequires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.\nReturns `404` when usage stats collection is turned off.",
+				"description": "Returns each user's workspace connection latency between `start_time` and `end_time`, as 50th and 95th percentile values in milliseconds.\nRequires permission to view insights for all templates, or, when you set `template_ids`, for each template you list.\nReturns `404` when usage stats collection is turned off.",
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about user latency",
@@ -6273,7 +6273,7 @@
 		},
 		"/api/v2/insights/user-status-counts": {
 			"get": {
-				"description": "Returns the number of users in each status on each of the last 60 days.\nRequires permission to read users, which the Owner, Auditor, Template Admin, and User Admin roles have.",
+				"description": "Returns the number of users in each status on each of the last 60 days.\nRequires permission to read users.",
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about user status counts",
@@ -6309,7 +6309,7 @@
 		},
 		"/api/v2/licenses": {
 			"get": {
-				"description": "Returns the licenses installed on the deployment, with the claims each one asserts.\nReturns only the licenses you can read, and only the Owner role can read licenses.",
+				"description": "Returns the licenses installed on the deployment, with the claims each one asserts.\nReturns only the licenses you can read, which requires permission to read licenses.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get licenses",
@@ -6332,7 +6332,7 @@
 				]
 			},
 			"post": {
-				"description": "Adds a license to the deployment and recomputes its entitlements.\nA deployment can hold several licenses at once, and it doesn't need a license to add the first one.\nRequires permission to create licenses, which only the Owner role has.",
+				"description": "Adds a license to the deployment and recomputes its entitlements.\nA deployment can hold several licenses at once, and it doesn't need a license to add the first one.\nRequires permission to create licenses.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -6366,7 +6366,7 @@
 		},
 		"/api/v2/licenses/refresh-entitlements": {
 			"post": {
-				"description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply a license change immediately instead of waiting for the next automatic refresh.\nYou can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.\nRequires permission to create licenses, which only the Owner role has.",
+				"description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply a license change immediately instead of waiting for the next automatic refresh.\nYou can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.\nRequires permission to create licenses.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update license entitlements",
@@ -6388,7 +6388,7 @@
 		},
 		"/api/v2/licenses/trial": {
 			"post": {
-				"description": "Requests a trial license from the Coder license server and installs it.\nReturns `409` if the deployment already has a license, so delete the existing license first.\nRequires permission to create licenses, which only the Owner role has.",
+				"description": "Requests a trial license from the Coder license server and installs it.\nReturns `409` if the deployment already has a license, so delete the existing license first.\nRequires permission to create licenses.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -6422,7 +6422,7 @@
 		},
 		"/api/v2/licenses/{id}": {
 			"delete": {
-				"description": "Deletes a license by its numeric ID and recomputes the deployment's entitlements.\nRequires permission to delete licenses, which only the Owner role has.",
+				"description": "Deletes a license by its numeric ID and recomputes the deployment's entitlements.\nRequires permission to delete licenses.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Delete license",
@@ -6726,7 +6726,7 @@
 				]
 			},
 			"put": {
-				"description": "Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.\nReturns `304 Not Modified` when the settings are unchanged.\nRequires permission to update deployment configuration, which the Owner role has.",
+				"description": "Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.\nReturns `304 Not Modified` when the settings are unchanged.\nRequires permission to update deployment configuration.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
@@ -6825,7 +6825,7 @@
 		},
 		"/api/v2/notifications/templates/{notification_template}/method": {
 			"put": {
-				"description": "Sets the delivery method of a notification template to `smtp`, `webhook`, or `inbox`.\nReturns `304` if the template already uses that method.\nRequires permission to update notification templates, which only the Owner role has.",
+				"description": "Sets the delivery method of a notification template to `smtp`, `webhook`, or `inbox`.\nReturns `304` if the template already uses that method.\nRequires permission to update notification templates.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update notification template dispatch method",
@@ -6856,7 +6856,7 @@
 		},
 		"/api/v2/notifications/test": {
 			"post": {
-				"description": "Sends a test notification to you, to check that the deployment delivers notifications.\nRequires permission to update deployment configuration, which the Owner role has.",
+				"description": "Sends a test notification to you, to check that the deployment delivers notifications.\nRequires permission to update deployment configuration.",
 				"tags": ["Notifications"],
 				"summary": "Send a test notification",
 				"operationId": "send-a-test-notification",
@@ -6874,7 +6874,7 @@
 		},
 		"/api/v2/oauth2-provider/apps": {
 			"get": {
-				"description": "Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.\nAny member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.\nAny member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 applications.",
@@ -6905,7 +6905,7 @@
 				]
 			},
 			"post": {
-				"description": "Registers an OAuth2 application that can use Coder as its authorization server.\nRequires permission to create OAuth2 applications, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Registers an OAuth2 application that can use Coder as its authorization server.\nRequires permission to create OAuth2 applications.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -6968,7 +6968,7 @@
 				]
 			},
 			"put": {
-				"description": "Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send `scope`.\nRequires permission to update OAuth2 applications, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send `scope`.\nRequires permission to update OAuth2 applications.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -7007,7 +7007,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.\nRequires permission to delete OAuth2 applications, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.\nRequires permission to delete OAuth2 applications.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application.",
 				"operationId": "delete-oauth2-application",
@@ -7034,7 +7034,7 @@
 		},
 		"/api/v2/oauth2-provider/apps/{app}/secrets": {
 			"get": {
-				"description": "Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.\nRequires permission to read OAuth2 application secrets, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.\nRequires permission to read OAuth2 application secrets.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 application secrets.",
@@ -7066,7 +7066,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.\nRequires permission to create OAuth2 application secrets, which the Owner role has, and returns `400` for a public client, which has no secret.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.\nRequires permission to create OAuth2 application secrets, and returns `400` for a public client, which has no secret.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Create OAuth2 application secret.",
@@ -7106,7 +7106,7 @@
 		},
 		"/api/v2/oauth2-provider/apps/{app}/secrets/{secretID}": {
 			"delete": {
-				"description": "Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.\nIt also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.\nRequires permission to delete OAuth2 application secrets, which the Owner role has.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
+				"description": "Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.\nIt also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.\nRequires permission to delete OAuth2 application secrets.\nReturns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.",
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application secret.",
 				"operationId": "delete-oauth2-application-secret",
@@ -7140,7 +7140,7 @@
 		},
 		"/api/v2/oauth2-provider/settings": {
 			"get": {
-				"description": "Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.\nWorks while the OAuth2 provider is disabled.",
+				"description": "Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.\nRequires permission to read deployment configuration.\nWorks while the OAuth2 provider is disabled.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 provider settings.",
@@ -7160,7 +7160,7 @@
 				]
 			},
 			"put": {
-				"description": "Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.\nRequires permission to update deployment configuration, which the Owner role has.\nWorks while the OAuth2 provider is disabled.",
+				"description": "Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.\nRequires permission to update deployment configuration.\nWorks while the OAuth2 provider is disabled.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -7217,7 +7217,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates an organization and adds you to it as a member without extra roles.\n`display_name` defaults to `name`, and `default` is a reserved name.\nRequires permission to create organizations, which the Owner role has.\nRequires a Premium license.",
+				"description": "Creates an organization and adds you to it as a member without extra roles.\n`display_name` defaults to `name`, and `default` is a reserved name.\nRequires permission to create organizations.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
@@ -7281,7 +7281,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes an organization.\nThe call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.\nRequires permission to delete the organization, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
+				"description": "Deletes an organization.\nThe call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.\nRequires permission to delete the organization.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Delete organization",
@@ -7310,7 +7310,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates an organization's name, display name, description, icon, or default member roles.\nFields you leave out keep their current values, and `default` is a reserved name.\nRequires permission to update the organization, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
+				"description": "Updates an organization's name, display name, description, icon, or default member roles.\nFields you leave out keep their current values, and `default` is a reserved name.\nRequires permission to update the organization.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
@@ -7420,7 +7420,7 @@
 		},
 		"/api/v2/organizations/{organization}/chats/config/system-prompt": {
 			"get": {
-				"description": "Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.\nRequires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have, and returns `404` without it.",
+				"description": "Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.\nRequires permission to read the organization's chat model configuration, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get organization chat system prompt",
@@ -7450,7 +7450,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.\nRequires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The `--chat-max-prompt-bytes` option limits their size.",
+				"description": "Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.\nRequires permission to update the organization's chat model configuration. The `--chat-max-prompt-bytes` option limits their size.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update organization chat system prompt",
@@ -7608,7 +7608,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.\nRequires permission to create chat model configurations in the organization, which the Owner and Organization Admin roles have. The provider must exist and be enabled.",
+				"description": "Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.\nRequires permission to create chat model configurations in the organization. The provider must exist and be enabled.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -7959,7 +7959,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a group in an organization.\nReturns `409` if the organization already has a group with that name.\nRequires permission to create groups in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
+				"description": "Creates a group in an organization.\nReturns `409` if the organization already has a group with that name.\nRequires permission to create groups in the organization.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -8039,7 +8039,7 @@
 		},
 		"/api/v2/organizations/{organization}/groups/{groupName}": {
 			"get": {
-				"description": "Returns a group in an organization by its name, with the members you can read.\nRequires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.\nRequires a Premium license.",
+				"description": "Returns a group in an organization by its name, with the members you can read.\nRequires permission to read the group.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group by organization and group name",
@@ -8647,7 +8647,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.\nPermissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.\nRequires permission to update custom organization roles, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
+				"description": "Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.\nPermissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.\nRequires permission to update custom organization roles.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
@@ -8690,7 +8690,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a custom role in an organization with the given organization permissions.\nThe name can't match a built-in role, and the request can't include site, user, or organization member permissions.\nRequires permission to create custom organization roles, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
+				"description": "Creates a custom role in an organization with the given organization permissions.\nThe name can't match a built-in role, and the request can't include site, user, or organization member permissions.\nRequires permission to create custom organization roles.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
@@ -8735,7 +8735,7 @@
 		},
 		"/api/v2/organizations/{organization}/members/roles/{roleName}": {
 			"delete": {
-				"description": "Deletes a custom role from an organization.\nRequires permission to delete custom organization roles, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
+				"description": "Deletes a custom role from an organization.\nRequires permission to delete custom organization roles.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Delete a custom organization role",
@@ -8813,7 +8813,7 @@
 				]
 			},
 			"post": {
-				"description": "Adds an existing user to an organization with no roles beyond the organization's defaults.\nFails for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.\nRequires permission to read the user and to create organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Adds an existing user to an organization with no roles beyond the organization's defaults.\nFails for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.\nRequires permission to read the user and to create organization members.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Add organization member",
@@ -8849,7 +8849,7 @@
 				]
 			},
 			"delete": {
-				"description": "Removes a user from an organization.\nYou can't remove yourself.\nRequires permission to delete organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Removes a user from an organization.\nYou can't remove yourself.\nRequires permission to delete organization members.",
 				"tags": ["Members"],
 				"summary": "Remove organization member",
 				"operationId": "remove-organization-member",
@@ -8977,7 +8977,7 @@
 		},
 		"/api/v2/organizations/{organization}/members/{user}/roles": {
 			"put": {
-				"description": "Replaces an organization member's roles with the roles in the request body.\nYou can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.\nRequires permission to assign organization roles, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Replaces an organization member's roles with the roles in the request body.\nYou can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.\nRequires permission to assign organization roles.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
@@ -9025,7 +9025,7 @@
 		},
 		"/api/v2/organizations/{organization}/members/{user}/workspace-quota": {
 			"get": {
-				"description": "Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.\nThe budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.\nRequires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.",
+				"description": "Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.\nThe budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.\nRequires permission to read the user, which you have for yourself.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace quota by user",
@@ -9114,7 +9114,7 @@
 		},
 		"/api/v2/organizations/{organization}/members/{user}/workspaces/available-users": {
 			"get": {
-				"description": "Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.\nThe list covers users across the deployment, not only the members of the organization.\nRequires permission to create workspaces for other users in the organization, which the Owner and Organization Admin roles have.",
+				"description": "Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.\nThe list covers users across the deployment, not only the members of the organization.\nRequires permission to create workspaces for other users in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Get users available for workspace creation",
@@ -9230,7 +9230,7 @@
 		},
 		"/api/v2/organizations/{organization}/paginated-members": {
 			"get": {
-				"description": "Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.\nUse `q` to filter the members and `limit` with `offset` or `after_id` to page through them.\nRequires permission to read all of the organization's members, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have.",
+				"description": "Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.\nUse `q` to filter the members and `limit` with `offset` or `after_id` to page through them.\nRequires permission to read all of the organization's members.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Paginated organization members",
@@ -9289,7 +9289,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerdaemons": {
 			"get": {
-				"description": "Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.\nUse the `ids`, `status`, and `tags` query parameters to narrow the list.\nRequires permission to read provisioner jobs in the organization, which the Owner, Organization Admin, and Organization Template Admin roles have, and returns `404` without it.",
+				"description": "Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.\nUse the `ids`, `status`, and `tags` query parameters to narrow the list.\nRequires permission to read provisioner jobs in the organization, and returns `404` without it.",
 				"produces": ["application/json"],
 				"tags": ["Provisioning"],
 				"summary": "Get provisioner daemons",
@@ -9368,7 +9368,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerdaemons/serve": {
 			"get": {
-				"description": "Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.\nAuthenticates with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.\nSend `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.\nA provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.\nA pre-shared key works only for the default organization.\nWith a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.\nStarting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nThe WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.\nRequires a Premium license.",
+				"description": "Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.\nAuthenticates with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.\nSend `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.\nA provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.\nA pre-shared key works only for the default organization.\nWith a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.\nStarting any other daemon with a session token requires permission to create provisioner daemons in the organization.\nThe WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.\nRequires a Premium license.",
 				"tags": ["Enterprise"],
 				"summary": "Serve provisioner daemon",
 				"operationId": "serve-provisioner-daemon",
@@ -9396,7 +9396,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerjobs": {
 			"get": {
-				"description": "Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.\nRequires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.\nRequires permission to read provisioner jobs in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Get provisioner jobs",
@@ -9482,7 +9482,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerjobs/{job}": {
 			"get": {
-				"description": "Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.\nRequires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.\nRequires permission to read provisioner jobs in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Get provisioner job",
@@ -9522,7 +9522,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerkeys": {
 			"get": {
-				"description": "Returns the provisioner keys in an organization, oldest first, without their secrets.\nThe list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.\nRequires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Returns the provisioner keys in an organization, oldest first, without their secrets.\nThe list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.\nRequires permission to read provisioner daemons in the organization.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "List provisioner key",
@@ -9554,7 +9554,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.\nSet `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.\nThe response holds the key secret, which Coder stores only as a hash, so save it when you create the key.\nRequires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.\nSet `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.\nThe response holds the key secret, which Coder stores only as a hash, so save it when you create the key.\nRequires permission to create provisioner daemons in the organization.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Create provisioner key",
@@ -9585,7 +9585,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerkeys/daemons": {
 			"get": {
-				"description": "Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.\nUse it to check which external provisioner daemons are connected.\nReturns only the keys you can read.\nRequires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.\nUse it to check which external provisioner daemons are connected.\nReturns only the keys you can read.\nRequires permission to read provisioner daemons in the organization.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "List provisioner key daemons",
@@ -9619,7 +9619,7 @@
 		},
 		"/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}": {
 			"delete": {
-				"description": "Deletes a provisioner key, and daemons that authenticated with it lose their connection.\nYou can't delete the reserved `built-in`, `user-auth`, and `psk` keys.\nRequires permission to delete provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Deletes a provisioner key, and daemons that authenticated with it lose their connection.\nYou can't delete the reserved `built-in`, `user-auth`, and `psk` keys.\nRequires permission to delete provisioner daemons in the organization.\nRequires a Premium license.",
 				"tags": ["Enterprise"],
 				"summary": "Delete provisioner key",
 				"operationId": "delete-provisioner-key",
@@ -9653,7 +9653,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/available-fields": {
 			"get": {
-				"description": "Returns the claim field names found in the stored OIDC claims of this organization's members.\nUse it to choose a `field` for group or role sync.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Returns the claim field names found in the stored OIDC claims of this organization's members.\nUse it to choose a `field` for group or role sync.\nRequires permission to read IdP sync settings in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the available organization idp sync claim fields",
@@ -9688,7 +9688,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/field-values": {
 			"get": {
-				"description": "Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.\nUse it to find the values to put in a group or role `mapping`.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.\nUse it to find the values to put in a group or role `mapping`.\nRequires permission to read IdP sync settings in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the organization idp sync claim field values",
@@ -9731,7 +9731,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/groups": {
 			"get": {
-				"description": "Returns how an organization syncs its groups from the identity provider, including the claim `field`, the `mapping` to Coder groups, and any `regex_filter`.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Returns how an organization syncs its groups from the identity provider, including the claim `field`, the `mapping` to Coder groups, and any `regex_filter`.\nRequires permission to read IdP sync settings in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group IdP Sync settings by organization",
@@ -9761,7 +9761,7 @@
 				]
 			},
 			"patch": {
-				"description": "Replaces all of an organization's group sync settings, so any field you omit resets.\nTo change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRejects a request that sets the deprecated `legacy_group_name_mapping`.",
+				"description": "Replaces all of an organization's group sync settings, so any field you omit resets.\nTo change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.\nRequires permission to update IdP sync settings in the organization.\nRejects a request that sets the deprecated `legacy_group_name_mapping`.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -9803,7 +9803,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/groups/config": {
 			"patch": {
-				"description": "Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.\nRequires permission to update IdP sync settings in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -9845,7 +9845,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/groups/mapping": {
 			"patch": {
-				"description": "Adds and removes entries in an organization's group `mapping`, and keeps the claim `field`, `regex_filter`, and `auto_create_missing_groups`.\nAn entry that appears in both `add` and `remove` ends up removed.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Adds and removes entries in an organization's group `mapping`, and keeps the claim `field`, `regex_filter`, and `auto_create_missing_groups`.\nAn entry that appears in both `add` and `remove` ends up removed.\nRequires permission to update IdP sync settings in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -9887,7 +9887,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/roles": {
 			"get": {
-				"description": "Returns how an organization syncs organization roles from the identity provider, including the claim `field` and the `mapping` to role names.\nRequires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Returns how an organization syncs organization roles from the identity provider, including the claim `field` and the `mapping` to role names.\nRequires permission to read IdP sync settings in the organization.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get role IdP Sync settings by organization",
@@ -9917,7 +9917,7 @@
 				]
 			},
 			"patch": {
-				"description": "Replaces all of an organization's role sync settings, so any field you omit resets.\nTo change only the claim `field`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Replaces all of an organization's role sync settings, so any field you omit resets.\nTo change only the claim `field`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`.\nRequires permission to update IdP sync settings in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -9959,7 +9959,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/roles/config": {
 			"patch": {
-				"description": "Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.\nRequires permission to update IdP sync settings in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10001,7 +10001,7 @@
 		},
 		"/api/v2/organizations/{organization}/settings/idpsync/roles/mapping": {
 			"patch": {
-				"description": "Adds and removes entries in an organization's role `mapping`, and keeps the claim `field`.\nAn entry that appears in both `add` and `remove` ends up removed.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Adds and removes entries in an organization's role `mapping`, and keeps the claim `field`.\nAn entry that appears in both `add` and `remove` ends up removed.\nRequires permission to update IdP sync settings in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10073,7 +10073,7 @@
 				]
 			},
 			"patch": {
-				"description": "Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.\nChoosing `none` removes every workspace share in the organization.\nChoosing `service_accounts` removes the shares on workspaces that service accounts don't own.\nRequires permission to update the organization, which the Owner and Organization Admin roles have.",
+				"description": "Sets whose workspaces can be shared in an organization: `none`, `everyone`, or `service_accounts`.\nChoosing `none` removes every workspace share in the organization.\nChoosing `service_accounts` removes the shares on workspaces that service accounts don't own.\nRequires permission to update the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10148,7 +10148,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a template in an organization from an existing template version.\nThe template version must not be archived or already belong to a template, and its import job can still be running.\nRequires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nThe organization's Everyone group gets the `use` role on the new template unless you set `disable_everyone_group_access` to `true`.\nSettings that need a Premium license, such as `autostop_requirement`, `failure_ttl_ms`, and `require_active_version`, are ignored without one, and `max_port_share_level` returns a validation error.",
+				"description": "Creates a template in an organization from an existing template version.\nThe template version must not be archived or already belong to a template, and its import job can still be running.\nRequires permission to create templates in the organization.\nThe organization's Everyone group gets the `use` role on the new template unless you set `disable_everyone_group_access` to `true`.\nSettings that need a Premium license, such as `autostop_requirement`, `failure_ttl_ms`, and `require_active_version`, are ignored without one, and `max_port_share_level` returns a validation error.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -10358,7 +10358,7 @@
 		},
 		"/api/v2/organizations/{organization}/templateversions": {
 			"post": {
-				"description": "Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.\nSet either `file_id`, which you get from `POST /api/v2/files`, or `example_id`, but not both.\nSet `template_id` to add the version to an existing template, or omit it to create a version for a new template.\nRequires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.\nSet either `file_id`, which you get from `POST /api/v2/files`, or `example_id`, but not both.\nSet `template_id` to add the version to an existing template, or omit it to create a version for a new template.\nRequires permission to create templates in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -10420,7 +10420,7 @@
 				]
 			},
 			"put": {
-				"description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with `reconciliation_paused`.\nReturns `304 Not Modified` when the settings are unchanged.\nRequires permission to update deployment configuration, which the Owner role has.\nRequires a Premium license.",
+				"description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with `reconciliation_paused`.\nReturns `304 Not Modified` when the settings are unchanged.\nRequires permission to update deployment configuration.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Prebuilds"],
@@ -10510,7 +10510,7 @@
 		},
 		"/api/v2/replicas": {
 			"get": {
-				"description": "Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.\nRequires permission to read replicas, which the Owner role has.",
+				"description": "Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.\nRequires permission to read replicas.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get active replicas",
@@ -10535,7 +10535,7 @@
 		},
 		"/api/v2/settings/idpsync/available-fields": {
 			"get": {
-				"description": "Returns the claim field names found in the stored OIDC claims of all users on the deployment.\nUse it to choose a `field` for organization sync.\nRequires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+				"description": "Returns the claim field names found in the stored OIDC claims of all users on the deployment.\nUse it to choose a `field` for organization sync.\nRequires permission to read IdP sync settings across the deployment.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the available idp sync claim fields",
@@ -10570,7 +10570,7 @@
 		},
 		"/api/v2/settings/idpsync/field-values": {
 			"get": {
-				"description": "Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.\nUse it to find the values to put in an organization `mapping`.\nRequires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+				"description": "Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.\nUse it to find the values to put in an organization `mapping`.\nRequires permission to read IdP sync settings across the deployment.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the idp sync claim field values",
@@ -10613,7 +10613,7 @@
 		},
 		"/api/v2/settings/idpsync/organization": {
 			"get": {
-				"description": "Returns how the deployment syncs organization membership from the identity provider, including the claim `field`, the `mapping` to organizations, and `organization_assign_default`.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+				"description": "Returns how the deployment syncs organization membership from the identity provider, including the claim `field`, the `mapping` to organizations, and `organization_assign_default`.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to read IdP sync settings across the deployment.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get organization IdP Sync settings",
@@ -10633,7 +10633,7 @@
 				]
 			},
 			"patch": {
-				"description": "Replaces all of the deployment's organization sync settings, so any field you omit resets.\nTo change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+				"description": "Replaces all of the deployment's organization sync settings, so any field you omit resets.\nTo change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.\nRequires permission to update IdP sync settings across the deployment.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10667,7 +10667,7 @@
 		},
 		"/api/v2/settings/idpsync/organization/config": {
 			"patch": {
-				"description": "Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+				"description": "Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to update IdP sync settings across the deployment.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10701,7 +10701,7 @@
 		},
 		"/api/v2/settings/idpsync/organization/mapping": {
 			"patch": {
-				"description": "Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.\nAn entry that appears in both `add` and `remove` ends up removed.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+				"description": "Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.\nAn entry that appears in both `add` and `remove` ends up removed.\nRequires permission to update IdP sync settings across the deployment.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10753,7 +10753,7 @@
 		},
 		"/api/v2/templatebuilder/bases": {
 			"get": {
-				"description": "Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.\nRequires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.\nReturns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.",
+				"description": "Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.\nRequires permission to read templates in at least one organization.\nReturns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.",
 				"produces": ["application/json"],
 				"tags": ["TemplateBuilder"],
 				"summary": "List template builder base templates",
@@ -10775,7 +10775,7 @@
 		},
 		"/api/v2/templatebuilder/compose": {
 			"post": {
-				"description": "Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.\nRequires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nReturns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.",
+				"description": "Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.\nRequires permission to create templates in at least one organization.\nReturns `404` if you lack that permission or the deployment turns off the template builder with `--disable-template-builder`.",
 				"consumes": ["application/json"],
 				"produces": ["application/x-tar"],
 				"tags": ["TemplateBuilder"],
@@ -10806,7 +10806,7 @@
 		},
 		"/api/v2/templatebuilder/compose/template": {
 			"post": {
-				"description": "Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.\nThe call waits up to 2 minutes for the import and returns `504` if it takes longer.\nRequires permission to create templates in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.\nThe call waits up to 2 minutes for the import and returns `504` if it takes longer.\nRequires permission to create templates in the organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["TemplateBuilder"],
@@ -10864,7 +10864,7 @@
 		},
 		"/api/v2/templatebuilder/modules": {
 			"get": {
-				"description": "Returns the modules you can add to a base template in the template builder.\nSet `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.\nRequires permission to read templates in at least one organization, which the Owner, Auditor, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Returns the modules you can add to a base template in the template builder.\nSet `base` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.\nRequires permission to read templates in at least one organization.",
 				"produces": ["application/json"],
 				"tags": ["TemplateBuilder"],
 				"summary": "List template builder modules",
@@ -10894,7 +10894,7 @@
 		},
 		"/api/v2/templatebuilder/sessions": {
 			"post": {
-				"description": "Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.\nRequires permission to create templates in at least one organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.\nRequires permission to create templates in at least one organization.",
 				"consumes": ["application/json"],
 				"tags": ["TemplateBuilder"],
 				"summary": "Report a template builder session event",
@@ -11004,7 +11004,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes a template.\nThe call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.\nRequires permission to delete the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Deletes a template.\nThe call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.\nRequires permission to delete the template.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Delete template by ID",
@@ -11034,7 +11034,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.\nSend only the fields you want to change, because omitted fields keep their current values.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nWithout a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.\nWithout a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.",
+				"description": "Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.\nSend only the fields you want to change, because omitted fields keep their current values.\nRequires permission to update the template.\nWithout a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.\nWithout a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -11076,7 +11076,7 @@
 		},
 		"/api/v2/templates/{template}/acl": {
 			"get": {
-				"description": "Returns the users and groups that have access to a template, each with its role, either `admin` or `use`.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Returns the users and groups that have access to a template, each with its role, either `admin` or `use`.\nRequires permission to update the template.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get template ACLs",
@@ -11106,7 +11106,7 @@
 				]
 			},
 			"patch": {
-				"description": "Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in `user_perms` and group IDs in `group_perms` to a role, either `admin` or `use`.\nSet a role to an empty string to remove that user or group, and entries you leave out stay as they are.\nRequires permission to create templates, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in `user_perms` and group IDs in `group_perms` to a role, either `admin` or `use`.\nSet a role to an empty string to remove that user or group, and entries you leave out stay as they are.\nRequires permission to create the template, not only to update it.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -11148,7 +11148,7 @@
 		},
 		"/api/v2/templates/{template}/acl/available": {
 			"get": {
-				"description": "Returns the users and groups you can add to a template's access control list.\nPass `q` to search the users and groups and `limit` to cap how many of each return.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Returns the users and groups you can add to a template's access control list.\nPass `q` to search the users and groups and `limit` to cap how many of each return.\nRequires permission to update the template.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get template available acl users/groups",
@@ -11183,7 +11183,7 @@
 		},
 		"/api/v2/templates/{template}/daus": {
 			"get": {
-				"description": "Returns the number of active users per day for a template over the last 60 days.\nSet the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.\nRequires permission to view the template's insights, which the Owner, Auditor, Template Admin, Organization Admin, Organization Auditor, and Organization Template Admin roles have.",
+				"description": "Returns the number of active users per day for a template over the last 60 days.\nSet the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.\nRequires permission to view the template's insights.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template DAUs by ID",
@@ -11215,7 +11215,7 @@
 		},
 		"/api/v2/templates/{template}/prebuilds/invalidate": {
 			"post": {
-				"description": "Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.\nReturns the invalidated presets.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
+				"description": "Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.\nReturns the invalidated presets.\nRequires permission to update the template.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Invalidate presets for template",
@@ -11305,7 +11305,7 @@
 				]
 			},
 			"patch": {
-				"description": "Sets the active version of a template, which is the version new workspaces use by default.\nThe version must belong to the template, must have built successfully, and can't be archived.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Sets the active version of a template, which is the version new workspaces use by default.\nThe version must belong to the template, must have built successfully, and can't be archived.\nRequires permission to update the template.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -11347,7 +11347,7 @@
 		},
 		"/api/v2/templates/{template}/versions/archive": {
 			"post": {
-				"description": "Archives the unused versions of a template and returns the IDs it archived.\nBy default, only versions whose import job failed are archived, and setting `all` to `true` archives every unused version.\nA version is unused when no workspace's latest build uses it and it isn't the template's active version.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Archives the unused versions of a template and returns the IDs it archived.\nBy default, only versions whose import job failed are archived, and setting `all` to `true` archives every unused version.\nA version is unused when no workspace's latest build uses it and it isn't the template's active version.\nRequires permission to update the template.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -11461,7 +11461,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates the `name` or `message` of a template version.\nRenaming a version to a name that another version of the same template uses returns an error.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Updates the `name` or `message` of a template version.\nRenaming a version to a name that another version of the same template uses returns an error.\nRequires permission to update the template.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -11503,7 +11503,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/archive": {
 			"post": {
-				"description": "Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.\nThe call fails if a workspace's latest build uses the version or if it is the template's active version.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.\nThe call fails if a workspace's latest build uses the version or if it is the template's active version.\nRequires permission to update the template.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Archive template version",
@@ -11535,7 +11535,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/cancel": {
 			"patch": {
-				"description": "Cancels the import job of a template version that hasn't finished.\nThe call returns an error if the job has already completed or been canceled.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Cancels the import job of a template version that hasn't finished.\nThe call returns an error if the job has already completed or been canceled.\nRequires permission to update the template.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Cancel template version by ID",
@@ -11567,7 +11567,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/dry-run": {
 			"post": {
-				"description": "Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.\nThe response is the dry-run job, so poll it with `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` or stream its logs, then read the planned resources after it completes.\nThe template version's import job must have finished, or the call returns `425`.\nRequires permission to create workspaces in the template version's organization, which the Owner, Organization Admin, and Organization Workspace Access roles have.",
+				"description": "Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.\nThe response is the dry-run job, so poll it with `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` or stream its logs, then read the planned resources after it completes.\nThe template version's import job must have finished, or the call returns `425`.\nRequires permission to create workspaces in the template version's organization.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -11649,7 +11649,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
 			"patch": {
-				"description": "Cancels a dry-run job that hasn't completed.\nThe call returns `400` if the job has already completed or been canceled.\nRequires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.",
+				"description": "Cancels a dry-run job that hasn't completed.\nThe call returns `400` if the job has already completed or been canceled.\nRequires permission to update both the template and workspaces owned by the user who started the dry run.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Cancel template version dry-run by job ID",
@@ -11910,7 +11910,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/external-auth": {
 			"get": {
-				"description": "Returns the external authentication providers a template version uses and whether the user is authenticated with each.\nSetting `user_id` to another user requires permission to create workspaces for that user, which the Owner and Organization Admin roles have.",
+				"description": "Returns the external authentication providers a template version uses and whether the user is authenticated with each.\nSetting `user_id` to another user requires permission to create workspaces for that user.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get external auth by template version",
@@ -12173,7 +12173,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/unarchive": {
 			"post": {
-				"description": "Restores an archived template version so that it appears in version lists and can be used again.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Restores an archived template version so that it appears in version lists and can be used again.\nRequires permission to update the template.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Unarchive template version",
@@ -12304,7 +12304,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a user account, or a service account for automation when `service_account` is `true`.\nRequires permission to create users, which the Owner and User Admin roles have.\nCreating a service account also requires a Premium license.",
+				"description": "Creates a user account, or a service account for automation when `service_account` is `true`.\nRequires permission to create users.\nCreating a service account also requires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -12654,7 +12654,7 @@
 		},
 		"/api/v2/users/{user}": {
 			"get": {
-				"description": "Returns a user's account details, including status, login type, and organization IDs.\nYou can read your own account, and reading other users requires permission to read users, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have.",
+				"description": "Returns a user's account details, including status, login type, and organization IDs.\nYou can read your own account, and reading other users requires permission to read users.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user by name",
@@ -12683,7 +12683,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes a user account and notifies the deployment's user admins.\nRequires permission to delete users, which the Owner and User Admin roles have.\nYou can't delete yourself or a user who still has workspaces, so delete their workspaces first.",
+				"description": "Deletes a user account and notifies the deployment's user admins.\nRequires permission to delete users.\nYou can't delete yourself or a user who still has workspaces, so delete their workspaces first.",
 				"tags": ["Users"],
 				"summary": "Delete user",
 				"operationId": "delete-user",
@@ -12710,7 +12710,7 @@
 		},
 		"/api/v2/users/{user}/ai-provider-keys": {
 			"get": {
-				"description": "Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.\nIt never returns key values. Reading another user's configuration requires permission to read personal user data, which the Owner and User Admin roles have.",
+				"description": "Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.\nIt never returns key values. Reading another user's configuration requires permission to read personal user data.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "List user AI provider key configurations",
@@ -12744,7 +12744,7 @@
 		},
 		"/api/v2/users/{user}/ai-provider-keys/{aiProvider}": {
 			"put": {
-				"description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data, which the Owner and User Admin roles have.",
+				"description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -12791,7 +12791,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes a user's stored API key for an AI provider.\nDeleting another user's key requires permission to update personal user data, which the Owner and User Admin roles have.",
+				"description": "Deletes a user's stored API key for an AI provider.\nDeleting another user's key requires permission to update personal user data.",
 				"tags": ["Chats"],
 				"summary": "Delete user AI provider key",
 				"operationId": "delete-user-ai-provider-key",
@@ -12826,7 +12826,7 @@
 		},
 		"/api/v2/users/{user}/ai/budget/override": {
 			"get": {
-				"description": "Returns the AI budget override of a user, which replaces the budgets of their groups.\nReturns `404` if the user has no override.\nRequires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.\nRequires a Premium license.",
+				"description": "Returns the AI budget override of a user, which replaces the budgets of their groups.\nReturns `404` if the user has no override.\nRequires permission to read the user, which you have for yourself.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get user AI budget override",
@@ -12855,7 +12855,7 @@
 				]
 			},
 			"put": {
-				"description": "Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.\nThe user must be a member of that group, and you can't set an override for a system user.\nRequires permission to update both the user and the group, which the Owner and User Admin roles have.\nRequires a Premium license.",
+				"description": "Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.\nThe user must be a member of that group, and you can't set an override for a system user.\nRequires permission to update both the user and the group.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -12894,7 +12894,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes the AI budget override of a user, which returns them to the budget of their effective group.\nReturns `404` if the user has no override.\nRequires permission to update both the user and the group the override attributes spend to, which the Owner and User Admin roles have.\nRequires a Premium license.",
+				"description": "Deletes the AI budget override of a user, which returns them to the budget of their effective group.\nReturns `404` if the user has no override.\nRequires permission to update both the user and the group the override attributes spend to.\nRequires a Premium license.",
 				"tags": ["Enterprise"],
 				"summary": "Delete user AI budget override",
 				"operationId": "delete-user-ai-budget-override",
@@ -12921,7 +12921,7 @@
 		},
 		"/api/v2/users/{user}/ai/spend": {
 			"get": {
-				"description": "Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.\nRequires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.\nRequires a Premium license.",
+				"description": "Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.\nRequires permission to read the user, which you have for yourself.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get user AI spend",
@@ -12952,7 +12952,7 @@
 		},
 		"/api/v2/users/{user}/appearance": {
 			"get": {
-				"description": "Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.",
+				"description": "Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user appearance settings",
@@ -12981,7 +12981,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.",
+				"description": "Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -13063,7 +13063,7 @@
 		},
 		"/api/v2/users/{user}/gitsshkey": {
 			"get": {
-				"description": "Returns the user's public Git SSH key and never the private key.\nYou can read your own key, and reading another user's key requires permission to read personal user data, which the Owner and User Admin roles have.",
+				"description": "Returns the user's public Git SSH key and never the private key.\nYou can read your own key, and reading another user's key requires permission to read personal user data.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user Git SSH key",
@@ -13092,7 +13092,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.\nUpdate your Git provider with the new public key, because Coder no longer has the old private key.\nYou can regenerate your own key, and regenerating another user's key requires permission to update personal user data, which the Owner and User Admin roles have.",
+				"description": "Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.\nUpdate your Git provider with the new public key, because Coder no longer has the old private key.\nYou can regenerate your own key, and regenerating another user's key requires permission to update personal user data.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Regenerate user SSH key",
@@ -13123,7 +13123,7 @@
 		},
 		"/api/v2/users/{user}/keys": {
 			"post": {
-				"description": "Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.\nThe new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user, which the Owner role has.",
+				"description": "Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.\nThe new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Create new session key",
@@ -13154,7 +13154,7 @@
 		},
 		"/api/v2/users/{user}/keys/tokens": {
 			"get": {
-				"description": "Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys, which the Owner role has.\nSet `include_all` to `true` to list the tokens of every user you can read instead of only this user's.",
+				"description": "Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.\nSet `include_all` to `true` to list the tokens of every user you can read instead of only this user's.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user tokens",
@@ -13192,7 +13192,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.\nWithout `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.\nThe token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user, which the Owner role has.",
+				"description": "Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.\nWithout `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.\nThe token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -13264,7 +13264,7 @@
 		},
 		"/api/v2/users/{user}/keys/tokens/{keyname}": {
 			"get": {
-				"description": "Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.\nThe response never includes the token secret.\nYou can read your own tokens, and reading another user's tokens requires permission to read that user's API keys, which the Owner role has.",
+				"description": "Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.\nThe response never includes the token secret.\nYou can read your own tokens, and reading another user's tokens requires permission to read that user's API keys.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get API key by token name",
@@ -13303,7 +13303,7 @@
 		},
 		"/api/v2/users/{user}/keys/{keyid}": {
 			"get": {
-				"description": "Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.\nThe response never includes the key secret.\nYou can read your own API keys, and reading another user's keys requires permission to read that user's API keys, which the Owner role has.",
+				"description": "Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.\nThe response never includes the key secret.\nYou can read your own API keys, and reading another user's keys requires permission to read that user's API keys.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get API key by ID",
@@ -13340,7 +13340,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes an API key by its ID, so the key can no longer authenticate requests.\nYou can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys, which the Owner role has.",
+				"description": "Deletes an API key by its ID, so the key can no longer authenticate requests.\nYou can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys.",
 				"tags": ["Users"],
 				"summary": "Delete API key",
 				"operationId": "delete-api-key",
@@ -13375,7 +13375,7 @@
 		},
 		"/api/v2/users/{user}/keys/{keyid}/expire": {
 			"put": {
-				"description": "Expires an API key immediately by setting its expiry to now, which keeps the key's record.\nDoes nothing when the key has already expired.\nYou can expire your own API keys, and expiring another user's key requires permission to update that user's API keys, which the Owner role has.",
+				"description": "Expires an API key immediately by setting its expiry to now, which keeps the key's record.\nDoes nothing when the key has already expired.\nYou can expire your own API keys, and expiring another user's key requires permission to update that user's API keys.",
 				"tags": ["Users"],
 				"summary": "Expire API key",
 				"operationId": "expire-api-key",
@@ -13453,7 +13453,7 @@
 		},
 		"/api/v2/users/{user}/notifications/preferences": {
 			"get": {
-				"description": "Returns the per-template notification preferences a user has set, including whether each template is turned off.\nYou can read your own preferences, and the Owner role can read any user's.",
+				"description": "Returns the per-template notification preferences a user has set, including whether each template is turned off.\nYou can read your own preferences, and reading another user's requires permission to read that user's notification preferences.",
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Get user notification preferences",
@@ -13485,7 +13485,7 @@
 				]
 			},
 			"put": {
-				"description": "Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.\nYou can update your own preferences, and the Owner role can update any user's.",
+				"description": "Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.\nYou can update your own preferences, and updating another user's requires permission to update that user's notification preferences.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
@@ -13601,7 +13601,7 @@
 		},
 		"/api/v2/users/{user}/password": {
 			"put": {
-				"description": "Changes a user's password and revokes all of the user's API keys.\nWorks only for users with the `password` login type, and changing your own password requires `old_password`.\nChanging another user's password requires permission to update personal user data, which the Owner and User Admin roles have, and only an Owner can change an Owner's password.",
+				"description": "Changes a user's password and revokes all of the user's API keys.\nWorks only for users with the `password` login type, and changing your own password requires `old_password`.\nChanging another user's password requires permission to update personal user data, and only an Owner can change an Owner's password.",
 				"consumes": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Update user password",
@@ -13638,7 +13638,7 @@
 		},
 		"/api/v2/users/{user}/preferences": {
 			"get": {
-				"description": "Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.",
+				"description": "Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user preference settings",
@@ -13667,7 +13667,7 @@
 				]
 			},
 			"put": {
-				"description": "Updates the user's Coder Agents chat preferences and returns all of them.\nFields you omit keep their current values.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.",
+				"description": "Updates the user's Coder Agents chat preferences and returns all of them.\nFields you omit keep their current values.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -13708,7 +13708,7 @@
 		},
 		"/api/v2/users/{user}/profile": {
 			"put": {
-				"description": "Updates a user's username, display name, and avatar URL.\nChanging a username, including your own, requires permission to update users, which the Owner and User Admin roles have, and so does updating another user's profile.\nThe avatar URL applies only to users with the `password` or `none` login type.",
+				"description": "Updates a user's username, display name, and avatar URL.\nChanging a username, including your own, requires permission to update users, and so does updating another user's profile.\nThe avatar URL applies only to users with the `password` or `none` login type.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -13782,7 +13782,7 @@
 				]
 			},
 			"put": {
-				"description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.\nReturns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.\nYou can update your own schedule, and updating another user's schedule requires permission to update personal user data, which the Owner and User Admin roles have.\nRequires a Premium license.",
+				"description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.\nReturns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.\nYou can update your own schedule, and updating another user's schedule requires permission to update personal user data.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -13827,7 +13827,7 @@
 		},
 		"/api/v2/users/{user}/roles": {
 			"get": {
-				"description": "Returns the user's site-wide roles and their roles in each organization.\nYou can read your own roles, and reading another user's roles requires permission to read personal user data, which the Owner and User Admin roles have.",
+				"description": "Returns the user's site-wide roles and their roles in each organization.\nYou can read your own roles, and reading another user's roles requires permission to read personal user data.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user roles",
@@ -13856,7 +13856,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the user's site-wide roles with the given `roles`.\nRequires permission to assign roles, which the Owner and User Admin roles have, but you can assign only roles your own roles allow, so the Owner role can assign any site role and the User Admin role can assign only Member.\nYou can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.",
+				"description": "Replaces the user's site-wide roles with the given `roles`.\nRequires permission to assign roles, but you can assign only the roles that your own roles allow.\nYou can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -13897,7 +13897,7 @@
 		},
 		"/api/v2/users/{user}/secrets": {
 			"get": {
-				"description": "Returns the metadata of a user's secrets, without their values.\nYou can read only your own secrets, because no built-in role grants access to other users' secrets.",
+				"description": "Returns the metadata of a user's secrets, without their values.\nYou can read only your own secrets.",
 				"produces": ["application/json"],
 				"tags": ["Secrets"],
 				"summary": "List user secrets",
@@ -14172,7 +14172,7 @@
 		},
 		"/api/v2/users/{user}/status/activate": {
 			"put": {
-				"description": "Sets a user's status to `active`, for example to reactivate a suspended account.\nRequires permission to update users, which the Owner and User Admin roles have.",
+				"description": "Sets a user's status to `active`, for example to reactivate a suspended account.\nRequires permission to update users.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Activate user account",
@@ -14203,7 +14203,7 @@
 		},
 		"/api/v2/users/{user}/status/suspend": {
 			"put": {
-				"description": "Suspends a user account by setting its status to `suspended`, which stops the user from signing in.\nRequires permission to update users, which the Owner and User Admin roles have.\nYou can't suspend yourself or a user with the Owner role.",
+				"description": "Suspends a user account by setting its status to `suspended`, which stops the user from signing in.\nRequires permission to update users.\nYou can't suspend yourself or a user with the Owner role.",
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Suspend user account",
@@ -15013,7 +15013,7 @@
 		},
 		"/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
 			"delete": {
-				"description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nReturns `409` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.",
+				"description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace.\nReturns `409` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.",
 				"tags": ["Agents"],
 				"summary": "Delete devcontainer for workspace agent",
 				"operationId": "delete-devcontainer-for-workspace-agent",
@@ -15048,7 +15048,7 @@
 		},
 		"/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
 			"post": {
-				"description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nReturns `409` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.",
+				"description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.\nRequires permission to update the workspace.\nReturns `409` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Recreate devcontainer for workspace agent",
@@ -15428,7 +15428,7 @@
 		},
 		"/api/v2/workspacebuilds/{workspacebuild}/cancel": {
 			"patch": {
-				"description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nFails if the build's job already completed or was already canceled.\nYou can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.",
+				"description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nFails if the build's job already completed or was already canceled.\nRequires permission to update the workspace.\nYou can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.",
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Cancel workspace build",
@@ -15668,7 +15668,7 @@
 		},
 		"/api/v2/workspacebuilds/{workspacebuild}/state": {
 			"get": {
-				"description": "Returns the provisioner state that the build saved, as raw JSON.\nRequires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Returns the provisioner state that the build saved, as raw JSON.\nRequires permission to update the workspace's template.",
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get provisioner state for workspace build",
@@ -15697,7 +15697,7 @@
 				]
 			},
 			"put": {
-				"description": "Replaces the provisioner state that a build saved, without queuing a new build.\nUse it for state-only migrations.\nRequires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Replaces the provisioner state that a build saved, without queuing a new build.\nUse it for state-only migrations.\nRequires permission to update the workspace's template.",
 				"consumes": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Update workspace build state",
@@ -15790,7 +15790,7 @@
 				]
 			},
 			"post": {
-				"description": "Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.\nSet `name` (not `primary`), and optionally `display_name` and `icon`.\nSave the token from the response, because Coder doesn't show it again unless you regenerate it.\nRequires permission to create workspace proxies, which the Owner role has.\nRequires a Premium license.",
+				"description": "Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.\nSet `name` (not `primary`), and optionally `display_name` and `icon`.\nSave the token from the response, because Coder doesn't show it again unless you regenerate it.\nRequires permission to create workspace proxies.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -16043,7 +16043,7 @@
 				]
 			},
 			"delete": {
-				"description": "Deletes a workspace proxy, so Coder stops offering it as a region.\nYou can't delete the primary proxy.\nRequires permission to delete workspace proxies, which the Owner role has.\nRequires a Premium license.",
+				"description": "Deletes a workspace proxy, so Coder stops offering it as a region.\nYou can't delete the primary proxy.\nRequires permission to delete workspace proxies.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Delete workspace proxy",
@@ -16073,7 +16073,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.\nSet `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.\nFor the primary proxy, you can change only `display_name` and `icon`.\nRequires permission to update workspace proxies, which the Owner role has.\nRequires a Premium license.",
+				"description": "Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.\nSet `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.\nFor the primary proxy, you can change only `display_name` and `icon`.\nRequires permission to update workspace proxies.\nRequires a Premium license.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -16199,7 +16199,7 @@
 				]
 			},
 			"patch": {
-				"description": "Renames a workspace.\nFails unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Renames a workspace.\nFails unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace metadata by ID",
@@ -16267,7 +16267,7 @@
 				]
 			},
 			"delete": {
-				"description": "Removes every user and group from a workspace's ACL.\nFails if workspace sharing is turned off for the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.",
+				"description": "Removes every user and group from a workspace's ACL.\nFails if workspace sharing is turned off for the organization.\nRequires permission to share the workspace.",
 				"tags": ["Workspaces"],
 				"summary": "Completely clears the workspace's user and group ACLs.",
 				"operationId": "completely-clears-the-workspaces-user-and-group-acls",
@@ -16293,7 +16293,7 @@
 				]
 			},
 			"patch": {
-				"description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.\nThe role is `admin` or `use`, and an empty string removes the entry.\nFails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.",
+				"description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.\nThe role is `admin` or `use`, and an empty string removes the entry.\nFails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.\nRequires permission to share the workspace.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
@@ -16364,7 +16364,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/autostart": {
 			"put": {
-				"description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e`.\nAn empty or omitted `schedule` turns autostart off.\nFails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e`.\nAn empty or omitted `schedule` turns autostart off.\nFails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace autostart schedule by ID",
@@ -16402,7 +16402,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/autoupdates": {
 			"put": {
-				"description": "Sets whether the workspace moves to the template's active version when it starts, with `automatic_updates` set to `always` or `never`.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Sets whether the workspace moves to the template's active version when it starts, with `automatic_updates` set to `always` or `never`.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace automatic updates by ID",
@@ -16499,7 +16499,7 @@
 				]
 			},
 			"post": {
-				"description": "Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.\nUse it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.\nA `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.\nRequires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nSetting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.",
+				"description": "Starts, stops, or deletes a workspace by queuing a build with `transition` set to `start`, `stop`, or `delete`.\nUse it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.\nA `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.\nRequires permission to start, stop, or delete the workspace.\nSetting `state` or `orphan` also requires permission to update the template.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
@@ -16541,7 +16541,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/dormant": {
 			"put": {
-				"description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.\nReturns `304 Not Modified` if the workspace is already in that state, and fails for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.\nReturns `304 Not Modified` if the workspace is already in that state, and fails for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
@@ -16625,7 +16625,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials": {
 			"get": {
-				"description": "Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.\nTreat the response as a secret, because the token lets the holder act as the workspace agent.\nRequires permission to SSH to the workspace, which the workspace owner has.\nRequires a Premium license.",
+				"description": "Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.\nTreat the response as a secret, because the token lets the holder act as the workspace agent.\nRequires permission to SSH to the workspace.\nRequires a Premium license.",
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace external agent credentials",
@@ -16718,7 +16718,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/port-share": {
 			"get": {
-				"description": "Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.\nRequires permission to read the workspace, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.\nRequires permission to read the workspace.",
 				"produces": ["application/json"],
 				"tags": ["PortSharing"],
 				"summary": "Get workspace agent port shares",
@@ -16748,7 +16748,7 @@
 				]
 			},
 			"post": {
-				"description": "Shares a port on one of a workspace's agents at the given `share_level`, or updates the share if the port is already shared.\nThe `port` must be from 9 to 65535, the `share_level` is `authenticated`, `organization`, or `public`, and the `protocol` is `http` or `https`.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nWith a Premium license, the template's `max_port_share_level` limits the levels you can set.",
+				"description": "Shares a port on one of a workspace's agents at the given `share_level`, or updates the share if the port is already shared.\nThe `port` must be from 9 to 65535, the `share_level` is `authenticated`, `organization`, or `public`, and the `protocol` is `http` or `https`.\nRequires permission to update the workspace.\nWith a Premium license, the template's `max_port_share_level` limits the levels you can set.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["PortSharing"],
@@ -16788,7 +16788,7 @@
 				]
 			},
 			"delete": {
-				"description": "Stops sharing a port on one of a workspace's agents.\nReturns `404` if the port isn't shared.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Stops sharing a port on one of a workspace's agents.\nReturns `404` if the port isn't shared.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"tags": ["PortSharing"],
 				"summary": "Delete workspace agent port share",
@@ -16890,7 +16890,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/ttl": {
 			"put": {
-				"description": "Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.\nThe value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.\nThe template's autostop requirement still applies.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.\nThe value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.\nThe template's autostop requirement still applies.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace TTL by ID",
@@ -16928,7 +16928,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/usage": {
 			"post": {
-				"description": "Marks a workspace as recently used.\nWhen the `workspace-usage` experiment is enabled and the request body sets both `agent_id` and `app_name`, it also counts a session for that app on that workspace agent.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
+				"description": "Marks a workspace as recently used.\nWhen the `workspace-usage` experiment is enabled and the request body sets both `agent_id` and `app_name`, it also counts a session for that app on that workspace agent.\nRequires permission to update the workspace.",
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Post Workspace Usage by ID",

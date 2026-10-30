@@ -35,7 +35,7 @@ const auditLogCountCap = 2000
 
 // @Summary Get audit logs
 // @Description Returns the audit logs you can read, newest first, filtered by the `q` search query.
-// @Description Requires permission to read audit logs, which the Owner and Auditor roles have across the deployment, and the Organization Admin and Organization Auditor roles have in their own organizations.
+// @Description Requires permission to read audit logs.
 // @Description Coder records audit logs only while the deployment has a Premium license.
 // @ID get-audit-logs
 // @Security CoderSessionToken

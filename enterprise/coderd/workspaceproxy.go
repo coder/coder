@@ -89,7 +89,7 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 // @Description Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.
 // @Description Set `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.
 // @Description For the primary proxy, you can change only `display_name` and `icon`.
-// @Description Requires permission to update workspace proxies, which the Owner role has.
+// @Description Requires permission to update workspace proxies.
 // @Description Requires a Premium license.
 // @ID update-workspace-proxy
 // @Security CoderSessionToken
@@ -244,7 +244,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 // @Summary Delete workspace proxy
 // @Description Deletes a workspace proxy, so Coder stops offering it as a region.
 // @Description You can't delete the primary proxy.
-// @Description Requires permission to delete workspace proxies, which the Owner role has.
+// @Description Requires permission to delete workspace proxies.
 // @Description Requires a Premium license.
 // @ID delete-workspace-proxy
 // @Security CoderSessionToken
@@ -320,7 +320,7 @@ func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 // @Description Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
 // @Description Set `name` (not `primary`), and optionally `display_name` and `icon`.
 // @Description Save the token from the response, because Coder doesn't show it again unless you regenerate it.
-// @Description Requires permission to create workspace proxies, which the Owner role has.
+// @Description Requires permission to create workspace proxies.
 // @Description Requires a Premium license.
 // @ID create-workspace-proxy
 // @Security CoderSessionToken

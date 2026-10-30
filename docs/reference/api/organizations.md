@@ -84,7 +84,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 Creates an organization and adds you to it as a member without extra roles.
 `display_name` defaults to `name`, and `default` is a reserved name.
-Requires permission to create organizations, which the Owner role has.
+Requires permission to create organizations.
 Requires a Premium license.
 
 > Body parameter
@@ -197,7 +197,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 Deletes an organization.
 The call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
-Requires permission to delete the organization, which the Owner and Organization Admin roles have.
+Requires permission to delete the organization.
 Requires a Premium license.
 
 ### Parameters
@@ -247,7 +247,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 Updates an organization's name, display name, description, icon, or default member roles.
 Fields you leave out keep their current values, and `default` is a reserved name.
-Requires permission to update the organization, which the Owner and Organization Admin roles have.
+Requires permission to update the organization.
 Requires a Premium license.
 
 > Body parameter
@@ -313,7 +313,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 `GET /api/v2/organizations/{organization}/provisionerjobs`
 
 Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.
-Requires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.
+Requires permission to read provisioner jobs in the organization.
 
 ### Parameters
 
@@ -454,7 +454,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 `GET /api/v2/organizations/{organization}/provisionerjobs/{job}`
 
 Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.
-Requires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.
+Requires permission to read provisioner jobs in the organization.
 
 ### Parameters
 

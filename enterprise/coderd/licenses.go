@@ -71,7 +71,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Summary Add new license
 // @Description Adds a license to the deployment and recomputes its entitlements.
 // @Description A deployment can hold several licenses at once, and it doesn't need a license to add the first one.
-// @Description Requires permission to create licenses, which only the Owner role has.
+// @Description Requires permission to create licenses.
 // @ID add-new-license
 // @Security CoderSessionToken
 // @Accept json
@@ -135,7 +135,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Summary Request a trial license
 // @Description Requests a trial license from the Coder license server and installs it.
 // @Description Returns `409` if the deployment already has a license, so delete the existing license first.
-// @Description Requires permission to create licenses, which only the Owner role has.
+// @Description Requires permission to create licenses.
 // @ID request-a-trial-license
 // @Security CoderSessionToken
 // @Accept json
@@ -307,7 +307,7 @@ func (api *API) installLicense(
 // @Description Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
 // @Description Use it to apply a license change immediately instead of waiting for the next automatic refresh.
 // @Description You can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.
-// @Description Requires permission to create licenses, which only the Owner role has.
+// @Description Requires permission to create licenses.
 // @ID update-license-entitlements
 // @Security CoderSessionToken
 // @Produce json
@@ -376,7 +376,7 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 
 // @Summary Get licenses
 // @Description Returns the licenses installed on the deployment, with the claims each one asserts.
-// @Description Returns only the licenses you can read, and only the Owner role can read licenses.
+// @Description Returns only the licenses you can read, which requires permission to read licenses.
 // @ID get-licenses
 // @Security CoderSessionToken
 // @Produce json
@@ -419,7 +419,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Delete license
 // @Description Deletes a license by its numeric ID and recomputes the deployment's entitlements.
-// @Description Requires permission to delete licenses, which only the Owner role has.
+// @Description Requires permission to delete licenses.
 // @ID delete-license
 // @Security CoderSessionToken
 // @Produce json

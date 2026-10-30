@@ -368,7 +368,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.
 Returns `304 Not Modified` when the settings are unchanged.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration.
 
 > Body parameter
 
@@ -540,7 +540,7 @@ curl -X POST http://coder-server:8080/api/v2/notifications/test \
 `POST /api/v2/notifications/test`
 
 Sends a test notification to you, to check that the deployment delivers notifications.
-Requires permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration.
 
 ### Responses
 
@@ -564,7 +564,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 `GET /api/v2/users/{user}/notifications/preferences`
 
 Returns the per-template notification preferences a user has set, including whether each template is turned off.
-You can read your own preferences, and the Owner role can read any user's.
+You can read your own preferences, and reading another user's requires permission to read that user's notification preferences.
 
 ### Parameters
 
@@ -620,7 +620,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 `PUT /api/v2/users/{user}/notifications/preferences`
 
 Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.
-You can update your own preferences, and the Owner role can update any user's.
+You can update your own preferences, and updating another user's requires permission to update that user's notification preferences.
 
 > Body parameter
 

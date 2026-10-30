@@ -22,7 +22,7 @@ import (
 // @Description Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.
 // @Description Set `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.
 // @Description The response holds the key secret, which Coder stores only as a hash, so save it when you create the key.
-// @Description Requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to create provisioner daemons in the organization.
 // @Description Requires a Premium license.
 // @ID create-provisioner-key
 // @Security CoderSessionToken
@@ -107,7 +107,7 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 // @Summary List provisioner key
 // @Description Returns the provisioner keys in an organization, oldest first, without their secrets.
 // @Description The list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.
-// @Description Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read provisioner daemons in the organization.
 // @Description Requires a Premium license.
 // @ID list-provisioner-key
 // @Security CoderSessionToken
@@ -133,7 +133,7 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 // @Description Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.
 // @Description Use it to check which external provisioner daemons are connected.
 // @Description Returns only the keys you can read.
-// @Description Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to read provisioner daemons in the organization.
 // @Description Requires a Premium license.
 // @ID list-provisioner-key-daemons
 // @Security CoderSessionToken
@@ -203,7 +203,7 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete provisioner key
 // @Description Deletes a provisioner key, and daemons that authenticated with it lose their connection.
 // @Description You can't delete the reserved `built-in`, `user-auth`, and `psk` keys.
-// @Description Requires permission to delete provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires permission to delete provisioner daemons in the organization.
 // @Description Requires a Premium license.
 // @ID delete-provisioner-key
 // @Security CoderSessionToken

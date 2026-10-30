@@ -57,7 +57,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update notifications settings
 // @Description Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.
 // @Description Returns `304 Not Modified` when the settings are unchanged.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration.
 // @ID update-notifications-settings
 // @Security CoderSessionToken
 // @Accept json
@@ -203,7 +203,7 @@ func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Send a test notification
 // @Description Sends a test notification to you, to check that the deployment delivers notifications.
-// @Description Requires permission to update deployment configuration, which the Owner role has.
+// @Description Requires permission to update deployment configuration.
 // @ID send-a-test-notification
 // @Security CoderSessionToken
 // @Tags Notifications
@@ -252,7 +252,7 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get user notification preferences
 // @Description Returns the per-template notification preferences a user has set, including whether each template is turned off.
-// @Description You can read your own preferences, and the Owner role can read any user's.
+// @Description You can read your own preferences, and reading another user's requires permission to read that user's notification preferences.
 // @ID get-user-notification-preferences
 // @Security CoderSessionToken
 // @Produce json
@@ -284,7 +284,7 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Update user notification preferences
 // @Description Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.
-// @Description You can update your own preferences, and the Owner role can update any user's.
+// @Description You can update your own preferences, and updating another user's requires permission to update that user's notification preferences.
 // @ID update-user-notification-preferences
 // @Security CoderSessionToken
 // @Accept json

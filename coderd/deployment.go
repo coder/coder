@@ -12,7 +12,7 @@ import (
 // @Summary Get deployment config
 // @Description Returns the deployment's configuration `values` with secrets removed, and its `options`.
 // @Description Each entry in `options` describes one setting, including its description, flag, and environment variable.
-// @Description Requires permission to read deployment configuration, which the Owner and Auditor roles have.
+// @Description Requires permission to read deployment configuration.
 // @ID get-deployment-config
 // @Security CoderSessionToken
 // @Produce json
@@ -42,7 +42,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get deployment stats
 // @Description Returns usage statistics for the deployment, such as workspace counts and session counts.
-// @Description Returns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats, which the Owner and Auditor roles have.
+// @Description Returns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats.
 // @ID get-deployment-stats
 // @Security CoderSessionToken
 // @Produce json

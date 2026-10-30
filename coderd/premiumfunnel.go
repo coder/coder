@@ -15,7 +15,7 @@ import (
 // @Summary Report a premium paywall click
 // @Description Records through telemetry that a user selected the call to action on a Premium paywall.
 // @Description The dashboard calls this when a user selects a paywall button, so you don't need to call it.
-// @Description Requires permission to read licenses, which only the Owner role has, and returns `404` for everyone else.
+// @Description Requires permission to read licenses, and returns `404` without it.
 // @ID report-a-premium-paywall-click
 // @Security CoderSessionToken
 // @Accept json

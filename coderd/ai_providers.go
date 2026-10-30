@@ -48,7 +48,7 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 // @Summary List AI providers
 // @Description Returns every AI provider configured for the deployment, including disabled ones, with each API key masked.
 // @Description Coder Agents and AI Gateway use these providers to reach model APIs.
-// @Description Requires permission to read AI providers, which the Owner role has.
+// @Description Requires permission to read AI providers.
 // @ID list-ai-providers
 // @Security CoderSessionToken
 // @Produce json
@@ -105,7 +105,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get an AI provider
 // @Description Returns an AI provider's configuration and routing warnings, with each API key masked.
-// @Description Requires permission to read AI providers, which the Owner role has.
+// @Description Requires permission to read AI providers.
 // @ID get-an-ai-provider
 // @Security CoderSessionToken
 // @Produce json
@@ -150,7 +150,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 // @Description Set `type`, `name` (lowercase letters, digits, and single hyphens between words), `enabled`, and `base_url` (an absolute `http` or `https` URL), and optionally `api_keys`.
 // @Description Providers of type `bedrock` use `settings` for credentials, so they don't accept `api_keys`.
 // @Description Returns `409` when a provider with that name exists.
-// @Description Requires permission to create AI providers, which the Owner role has.
+// @Description Requires permission to create AI providers.
 // @ID create-an-ai-provider
 // @Security CoderSessionToken
 // @Accept json
@@ -294,7 +294,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 // @Description Updates the fields you send on an AI provider, and leaves the rest as they are.
 // @Description Send at least one field.
 // @Description In `api_keys`, send the full set of keys to keep, each existing key by `id` and each new key as `api_key`, because Coder removes any existing key you leave out.
-// @Description Requires permission to update AI providers, which the Owner role has.
+// @Description Requires permission to update AI providers.
 // @ID update-an-ai-provider
 // @Security CoderSessionToken
 // @Accept json
@@ -520,7 +520,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete an AI provider
 // @Description Deletes an AI provider.
 // @Description To stop using a provider without deleting it, update it with `enabled` set to `false`.
-// @Description Requires permission to delete AI providers, which the Owner role has.
+// @Description Requires permission to delete AI providers.
 // @ID delete-an-ai-provider
 // @Security CoderSessionToken
 // @Tags AI Providers
