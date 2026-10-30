@@ -1043,107 +1043,57 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	}, nil
 }
 
-// PromoteQueuedMessageInput configures [Tx.PromoteQueuedMessage].
-type PromoteQueuedMessageInput struct {
+// SteerQueuedMessageInput configures [Tx.SteerQueuedMessage].
+type SteerQueuedMessageInput struct {
 	QueuedMessageID int64
 }
 
-// PromoteQueuedMessageResult is returned by [Tx.PromoteQueuedMessage].
-type PromoteQueuedMessageResult struct {
-	QueuedMessage        database.ChatQueuedMessage
-	InsertedMessage      *database.ChatMessage
-	CancellationMessages []database.ChatMessage
-	// PromotedQueuedAt is zero when the row only moved to the queue head.
+// SteerQueuedMessageResult is returned by [Tx.SteerQueuedMessage].
+type SteerQueuedMessageResult struct {
+	// InsertedMessages holds the tool call cancellations and then the
+	// delivered steer rows. Only E1 delivers; every other state leaves
+	// it empty.
+	InsertedMessages []database.ChatMessage
+	// PromotedQueuedAt is zero when no queued message was delivered.
 	PromotedQueuedAt time.Time
 }
 
-// PromoteQueuedMessage moves the target queued message to the head of
-// its lane; from E1/A1 it also pops it into active history.
-func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
+// SteerQueuedMessage moves a queue row behind existing steer rows, without
+// reordering an existing steer row. From E1 it cancels open tool calls,
+// delivers the steer lane, and resumes the chat.
+func (tx *Tx) SteerQueuedMessage(input SteerQueuedMessageInput) (SteerQueuedMessageResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionSteerQueuedMessage)
 	if err != nil {
-		return PromoteQueuedMessageResult{}, err
+		return SteerQueuedMessageResult{}, err
 	}
 	target, err := tx.store.GetChatQueuedMessageByID(tx.ctx, database.GetChatQueuedMessageByIDParams{
 		ID:     input.QueuedMessageID,
 		ChatID: tx.chatID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return PromoteQueuedMessageResult{}, ErrQueuedMessageNotFound
+		return SteerQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
 	if err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
+		return SteerQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	_, err = tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
-		ID:     input.QueuedMessageID,
-		ChatID: tx.chatID,
-	})
-	if err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
-	}
-
-	// R1/I1: leave the target at the head of its lane and transition to
-	// status `interrupting` so the worker can drain the in-flight
-	// generation before FinishInterruption delivers queued messages.
-	// No history row is inserted here and no queue rows are deleted.
-	if from == StateR1 || from == StateI1 {
-		if _, err := tx.applyExecutionState(executionStateUpdate{
-			Status:                   database.ChatStatusInterrupting,
-			Archived:                 false,
-			WorkerID:                 chat.WorkerID,
-			RunnerID:                 chat.RunnerID,
-			LastError:                chat.LastError,
-			RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+	if target.BusyBehavior == database.ChatBusyBehaviorQueue {
+		if _, err := tx.store.SteerChatQueuedMessage(tx.ctx, database.SteerChatQueuedMessageParams{
+			ID:     target.ID,
+			ChatID: tx.chatID,
 		}); err != nil {
-			return PromoteQueuedMessageResult{}, xerrors.Errorf("set interrupting: %w", err)
+			return SteerQueuedMessageResult{}, xerrors.Errorf("steer queued: %w", err)
 		}
-		return PromoteQueuedMessageResult{
-			QueuedMessage: target,
-		}, nil
 	}
-
-	// E1/A1: synthesize cancellations, pop the head, insert into
-	// history, set running. Both paths insert a queued user message
-	// into active history, so every outstanding tool call must be
-	// closed (not just dynamic ones) to keep the LLM history valid.
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
+	if from != StateE1 {
+		return SteerQueuedMessageResult{}, nil
+	}
+	d, err := tx.resumeFromError(chat)
 	if err != nil {
-		return PromoteQueuedMessageResult{}, err
+		return SteerQueuedMessageResult{}, err
 	}
-	promotedMsg, err := tx.messageFromQueuedRow(chat, target)
-	if err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
-	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
-	if err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
-	}
-	if len(inserted) != len(cancels)+1 {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf(
-			"insert promoted queued message: expected %d rows, got %d",
-			len(cancels)+1, len(inserted),
-		)
-	}
-	if err := tx.deletePromotedQueuedMessage(target.ID); err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("delete promoted queued: %w", err)
-	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
-		Status:                   database.ChatStatusRunning,
-		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                pqtype.NullRawMessage{},
-		RequiresActionDeadlineAt: sql.NullTime{},
-	}); err != nil {
-		return PromoteQueuedMessageResult{}, xerrors.Errorf("set running: %w", err)
-	}
-	cancellations := inserted[:len(inserted)-1]
-	insertedUserMsg := inserted[len(inserted)-1]
-	return PromoteQueuedMessageResult{
-		QueuedMessage:        target,
-		InsertedMessage:      &insertedUserMsg,
-		CancellationMessages: cancellations,
-		PromotedQueuedAt:     target.CreatedAt,
+	return SteerQueuedMessageResult{
+		InsertedMessages: d.inserted,
+		PromotedQueuedAt: d.queuedAt,
 	}, nil
 }
 
