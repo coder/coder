@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
 import {
 	type ChatOverview,
@@ -125,6 +126,17 @@ export const SubagentCost: Story = {
 export const CostUnavailable: Story = {
 	args: {
 		overview: { ...mockChatOverview, cost: "unavailable" },
+	},
+};
+
+/** The earlier attachments failed to load: Attachments shows the error and a retry. */
+export const EarlierAttachmentsError: Story = {
+	args: {
+		earlierAttachmentsRequest: {
+			error: mockApiError({ message: "Failed to get chat attachments." }),
+			isRetrying: false,
+			retry: fn(),
+		},
 	},
 };
 
