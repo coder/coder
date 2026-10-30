@@ -6321,6 +6321,7 @@ const docTemplate = `{
         },
         "/api/v2/files/{fileID}": {
             "get": {
+                "description": "Returns the contents of an uploaded file, such as a template source archive, with its stored ` + "`" + `Content-Type` + "`" + `, which is ` + "`" + `application/x-tar` + "`" + ` because Coder converts zip uploads to tar.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `zip` + "`" + ` to download a tar file as a zip archive, and any other ` + "`" + `format` + "`" + ` value, or a file that isn't a tar, returns ` + "`" + `400` + "`" + `.\nYou can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get ` + "`" + `404` + "`" + ` for a file you can't read.",
                 "tags": [
                     "Files"
                 ],
@@ -6330,7 +6331,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "File ID",
+                        "description": "File ID, as returned by ` + "`" + `POST /api/v2/files` + "`" + `.",
                         "name": "fileID",
                         "in": "path",
                         "required": true
