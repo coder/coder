@@ -77,8 +77,11 @@ import {
 } from "./pasteHelpers";
 import {
 	$getSkillInvocationNodes,
+	$hasSkillInvocationNode,
 	$insertSkillInvocation,
+	MAX_SKILL_INVOCATIONS_PER_MESSAGE,
 	SkillInvocationNode,
+	warnSkillLimit,
 } from "./SkillInvocationNode";
 import {
 	createCommandMenuItem,
@@ -703,8 +706,61 @@ const isSameSkillsTrigger = (
 	return (
 		a.nodeKey === b.nodeKey &&
 		a.slashOffset === b.slashOffset &&
-		a.query === b.query
+		a.query === b.query &&
+		a.nodeText === b.nodeText
 	);
+};
+
+/**
+ * Replaces a closed trigger's alias with the skill's chip when the edit that
+ * closed the trigger inserted whitespace right after the alias and left the
+ * caret just past it.
+ */
+const $replaceTypedSkillAlias = (
+	trigger: ActiveSkillsTrigger,
+	skill: SkillInvocationData,
+) => {
+	const alias = `/${trigger.query}`;
+	const aliasEnd = trigger.slashOffset + alias.length;
+	const selection = $getSelection();
+	if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+		return;
+	}
+
+	const { anchor, focus } = selection;
+	if (anchor.key !== trigger.nodeKey || anchor.offset !== aliasEnd + 1) {
+		return;
+	}
+
+	const node = $getNodeByKey(trigger.nodeKey);
+	if (!$isTextNode(node)) {
+		return;
+	}
+
+	// Moving the caret past whitespace that was already there also closes
+	// the trigger, so require the text to differ by exactly that insertion.
+	const text = node.getTextContent();
+	const inserted = text.charAt(aliasEnd);
+	const { nodeText } = trigger;
+	if (
+		!/\s/.test(inserted) ||
+		text !== nodeText.slice(0, aliasEnd) + inserted + nodeText.slice(aliasEnd)
+	) {
+		return;
+	}
+
+	// Unlike a menu pick, typed text is kept when no chip can replace it.
+	if ($hasSkillInvocationNode(skill.source, skill.name)) {
+		return;
+	}
+	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+		warnSkillLimit();
+		return;
+	}
+
+	anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
+	focus.set(trigger.nodeKey, aliasEnd, "text");
+	$insertSkillInvocation(selection, skill.source, skill.name);
 };
 
 /**
@@ -946,6 +1002,20 @@ const ChatMessageInput = ({
 			? -1
 			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
+	// Left as text, a typed alias never loads a manual-only skill.
+	const convertTypedSkillAlias = (closedTrigger: ActiveSkillsTrigger) => {
+		const alias = `/${closedTrigger.query}`;
+		const skill = skillTriggers.find(
+			(trigger) =>
+				trigger.triggerText === alias || trigger.altTriggerText === alias,
+		);
+		if (skill) {
+			editorRef.current?.update(() =>
+				$replaceTypedSkillAlias(closedTrigger, skill),
+			);
+		}
+	};
+
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
 			trigger &&
@@ -957,6 +1027,9 @@ const ChatMessageInput = ({
 		suppressedSkillsTriggerRef.current = null;
 		if (isSameSkillsTrigger(trigger, skillsTrigger)) {
 			return;
+		}
+		if (skillsTrigger && !trigger) {
+			convertTypedSkillAlias(skillsTrigger);
 		}
 		if (trigger?.query !== skillsTrigger?.query) {
 			setSkillsMenuSelectedIndex(0);
