@@ -30,7 +30,8 @@ For production deployments running multiple replicas (HA), active connections fr
 
 ### Recommended strategy for major upgrades
 
-1. **Scale down before upgrading:** Before running `helm upgrade`, scale your Coder deployment down to eliminate database connection contention from existing pods.
+1. **Scale down before upgrading:**
+   Before running `helm upgrade`, scale your Coder deployment down to eliminate database connection contention from existing pods.
 
    - **Scale to zero** for a clean cutover with no active database connections when the upgrade starts.
      This momentarily ensures no application access to the database, allowing migrations to acquire locks immediately:
@@ -46,10 +47,13 @@ For production deployments running multiple replicas (HA), active connections fr
      kubectl scale deployment coder --replicas=1
      ```
 
-1. **Perform upgrade:** Run your standard Helm upgrade command.
+1. **Perform upgrade:**
+   Run your standard Helm upgrade command.
+
    When scaling to zero, this will bring up a fresh pod that can run migrations without competing for database locks.
 
-1. **Scale back:** Once the upgrade is healthy, scale back to your desired replica count.
+1. **Scale back:**
+   Once the upgrade is healthy, scale back to your desired replica count.
 
 ## Kubernetes liveness probes and long-running migrations
 
@@ -59,7 +63,7 @@ Starting with Coder v2.30.0, liveness probes are *disabled by default* in the He
 This change was made because:
 
 - Liveness probes can kill pods during legitimate long-running migrations
-- If a Coder pod becomes unresponsive (due to a deadlock, etc.), it's better to investigate the issue rather than have Kubernetes silently restart the pod
+- If a Coder pod becomes unresponsive (due to a deadlock, and so on), it's better to investigate the issue rather than have Kubernetes silently restart the pod
 
 If you have enabled liveness probes in your deployment and observe pods restarting with `CrashLoopBackOff` during an upgrade, the liveness probe may be killing the pod prematurely.
 
@@ -96,12 +100,17 @@ Remove the `livenessProbe` section entirely, then proceed with the upgrade.
 
 ### Workaround steps
 
-1. **Remove or adjust liveness probes:** Temporarily remove the `livenessProbe` from your Deployment configuration to prevent Kubernetes from restarting the pod during migrations.
+1. **Remove or adjust liveness probes:**
+   Temporarily remove the `livenessProbe` from your Deployment configuration to prevent Kubernetes from restarting the pod during migrations.
 
-1. **Isolate the migration:** Ensure all extra replica sets are shut down.
+1. **Isolate the migration:**
+   Ensure all extra replica sets are shut down.
+
    If you have clear evidence of database locks from old pods, scale the deployment to 1 replica to prevent old pods from holding locks on the tables being upgraded.
 
-1. **Clear database locks:** Monitor database activity.
+1. **Clear database locks:**
+   Monitor database activity.
+
    If the migration remains blocked by locks despite scaling down, you may need to manually terminate existing connections.
    See [Recover from failed database migrations](#recover-from-failed-database-migrations) below for instructions.
 
@@ -111,13 +120,16 @@ Remove the `livenessProbe` section entirely, then proceed with the upgrade.
 
 If an upgrade gets stuck in a restart loop due to database locks:
 
-1. **Scale to zero:** Scale the Coder deployment to 0 to stop all application activity.
+1. **Scale to zero:**
+   Scale the Coder deployment to 0 to stop all application activity.
 
    ```sh
    kubectl scale deployment coder --replicas=0
    ```
 
-1. **Clear connections:** Terminate existing connections to the Coder database to release any lingering locks.
+1. **Clear connections:**
+   Terminate existing connections to the Coder database to release any lingering locks.
+
    This PostgreSQL command drops all active connections to the database:
 
    > [!CAUTION]
@@ -132,7 +144,9 @@ If an upgrade gets stuck in a restart loop due to database locks:
    AND pid <> pg_backend_pid();
    ```
 
-1. **Check schema migrations:** Verify the level of upgrade and check if `dirty` is true.
+1. **Check schema migrations:**
+   Verify the level of upgrade and check if `dirty` is true.
+
    If this has progressed, this now indicates your current Coder installation state.
 
    > [!NOTE]
@@ -143,10 +157,13 @@ If an upgrade gets stuck in a restart loop due to database locks:
    SELECT * FROM schema_migrations;
    ```
 
-1. **Ensure image version:** Confirm the Deployment image is set to the appropriate version (old or new, depending on the database migration state found in step 3).
+1. **Ensure image version:**
+   Confirm the Deployment image version (old or new) matches the database migration state found in step 3.
+
    Match your tag in the [migrations directory](../../../../coderd/database/migrations) to the value in the `schema_migrations` output.
 
-1. **Resume the upgrade:** Follow the [pre-upgrade strategy](#recommended-strategy-for-major-upgrades) to scale back up and continue the upgrade process.
+1. **Resume the upgrade:**
+   Follow the [pre-upgrade strategy](#recommended-strategy-for-major-upgrades) to scale back up and continue the upgrade process.
 
 ## When to contact support
 
@@ -157,7 +174,7 @@ If you encounter any of the following issues, contact [Coder support](../../../s
 - Resource consumption issues (excessive memory, CPU, or OOM kills) during upgrades
 - Any other upgrade problems not covered by this documentation
 
-When contacting support, please collect and provide:
+When contacting support, collect and provide:
 
 - `coderd` logs with details on the stages where the upgrade stalled
 - PostgreSQL logs if available

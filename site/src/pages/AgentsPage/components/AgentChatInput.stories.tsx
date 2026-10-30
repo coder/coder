@@ -1,20 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
-import { API } from "#/api/api";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import {
@@ -27,7 +20,6 @@ import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	withDashboardProvider,
 	withProxyProvider,
-	withToaster,
 } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
@@ -122,7 +114,7 @@ export const NoPromptHistoryUpArrowIsNoOp: Story = {
 
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
-		isEditingHistoryMessage: true,
+		editingKind: "history",
 		userPromptHistory: promptHistory,
 	},
 };
@@ -139,6 +131,43 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	args: {
 		isLoading: true,
 		userPromptHistory: promptHistory,
+	},
+};
+
+export const ChatPaused: Story = {
+	args: {
+		isChatPaused: true,
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+			"Also update the docs",
+		);
+		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
+	},
+};
+
+// The queue head is under edit on a chat that is not paused, for example
+// one in error.
+export const QueueHeadUnderEdit: Story = {
+	args: {
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+			"Also update the docs",
+		);
+		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
 	},
 };
 
@@ -663,34 +692,22 @@ const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
 const mcpDefaults = {
 	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
-	onMCPAuthComplete: fn(),
 };
 
-const dispatchMCPOAuthComplete = (
-	serverID: string,
-	source: MessageEventSource | null = null,
-) => {
-	window.dispatchEvent(
-		new MessageEvent("message", {
-			data: { type: "mcp-oauth2-complete", serverID },
-			origin: location.origin,
-			source,
-		}),
+const mockNotionMCPSignedOut = { ...notionMCPConnected, auth_connected: false };
+
+const openMCPSubmenu: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "More options" }),
 	);
-};
-
-// Requires window.open mocked to return a Window; the completion
-// message's source must be that same mocked popup to correlate.
-const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	const body = within(canvasElement.ownerDocument.body);
-	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-	await userEvent.click(await body.findByRole("button", { name: "Auth" }));
+	await userEvent.click(
+		await screen.findByRole("button", { name: /MCP servers/ }),
+	);
 };
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Three selected servers collapse into a single "3 MCPs" pill. */
+/** Selected servers share one "N MCPs" pill. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
@@ -718,11 +735,16 @@ export const ReadOnlyNotice: Story = {
 	},
 };
 
-/** The pill lists only its active servers; Notion stays in the plus menu. */
 export const MCPGroupPopoverOpen: Story = {
 	args: {
 		...WithMCPServers.args,
-		mcpServers: [sentryMCP, linearMCP, githubMCPConnected, notionMCPConnected],
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			notionMCPConnected,
+			mockSlackMCPAlwaysOnNeedingAuth,
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -740,6 +762,15 @@ export const MCPGroupDisabled: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
+export const MCPGroupReadOnly: Story = {
+	args: {
+		...ReadOnlyNotice.args,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+	},
+	play: MCPGroupPopoverOpen.play,
+};
+
 const mockLongNameMCP = buildMCPServer({
 	id: "mcp-long-name",
 	display_name: "Coder Internal Documentation Search Server",
@@ -749,7 +780,6 @@ const mockLongNameMCP = buildMCPServer({
 	enabled: true,
 });
 
-/** A long server name truncates inside the popover instead of pushing its X out of view. */
 export const MCPGroupPopoverLongName: Story = {
 	args: {
 		...mcpDefaults,
@@ -759,174 +789,57 @@ export const MCPGroupPopoverLongName: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
-export const PlusMenuAlwaysOnNeedingAuth: Story = {
+export const MCPSubmenuOpen: Story = {
 	args: {
-		...WithMCPServers.args,
+		...mcpDefaults,
+		mcpServers: [sentryMCP, githubMCP, linearMCP, notionMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id],
+	},
+	play: openMCPSubmenu,
+};
+
+export const MCPSubmenuSelectedDisconnected: Story = {
+	args: {
+		...mcpDefaults,
 		mcpServers: [
 			sentryMCP,
+			githubMCP,
 			linearMCP,
-			githubMCPConnected,
 			mockSlackMCPAlwaysOnNeedingAuth,
 		],
+		selectedMCPServerIds: [sentryMCP.id, githubMCP.id, linearMCP.id],
 	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "More options" }),
-		);
-	},
+	play: openMCPSubmenu,
 };
 
-/** MCP server needing OAuth — shows Auth button instead of toggle. */
-export const WithMCPNeedingAuth: Story = {
+export const MCPSubmenuNoUsableServers: Story = {
 	args: {
 		...mcpDefaults,
-		mcpServers: [sentryMCP, githubMCP],
-		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
-	},
-	beforeEach: () => {
-		spyOn(window, "open").mockReturnValue(null);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(body.getByRole("button", { name: "Auth" }));
-		expect(window.open).toHaveBeenCalledWith(
-			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
-			"_blank",
-			"width=900,height=600",
-		);
-		// The popup was blocked (window.open returned null), so the flow
-		// must not enter the connecting state that disables Auth buttons.
-		expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
-	},
-};
-
-export const MCPAutoEnablesAfterOAuthCompletes: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP],
-		selectedMCPServerIds: [linearMCP.id],
-	},
-	beforeEach: () => {
-		spyOn(window, "open").mockReturnValue(window);
-	},
-	play: async ({ args, canvasElement }) => {
-		await startMCPOAuthFlow(canvasElement);
-		expect(window.open).toHaveBeenCalledWith(
-			`/api/v2/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
-			"_blank",
-			"width=900,height=600",
-		);
-		dispatchMCPOAuthComplete(githubMCP.id, window);
-
-		await waitFor(() => {
-			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
-				linearMCP.id,
-				githubMCP.id,
-			]);
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
-		});
-	},
-};
-
-// The coderd callback page posts the completion message and then closes
-// the popup, so the close poll can observe the closed popup before the
-// queued message is dispatched. An iframe contentWindow stands in for
-// the popup: it is a real Window whose closed becomes true on removal.
-export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCP],
+		mcpServers: [githubMCP, mockNotionMCPSignedOut],
 		selectedMCPServerIds: [],
 	},
-	play: async ({ args, canvasElement }) => {
-		const doc = canvasElement.ownerDocument;
-		const iframe = doc.createElement("iframe");
-		doc.body.appendChild(iframe);
-		const popup = iframe.contentWindow;
-		if (!popup) {
-			throw new Error("iframe contentWindow unavailable");
-		}
-		spyOn(window, "open").mockReturnValue(popup);
-
-		await startMCPOAuthFlow(canvasElement);
-		iframe.remove();
-		expect(popup.closed).toBe(true);
-		// Wait for the close poll to clear the connecting state before
-		// delivering the completion message.
-		const body = within(doc.body);
-		await waitFor(
-			() => {
-				expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
-			},
-			{ timeout: 2_000 },
-		);
-		dispatchMCPOAuthComplete(githubMCP.id, popup);
-
-		await waitFor(() => {
-			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
-		});
-	},
+	play: openMCPSubmenu,
 };
 
-export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
+export const MCPSubmenuAllConnected: Story = {
 	args: {
 		...mcpDefaults,
-		mcpServers: [githubMCP],
-		selectedMCPServerIds: [githubMCP.id],
+		mcpServers: [sentryMCP, githubMCPConnected, linearMCP],
+		selectedMCPServerIds: [sentryMCP.id],
 	},
-	beforeEach: () => {
-		spyOn(window, "open").mockReturnValue(window);
-	},
-	play: async ({ args, canvasElement }) => {
-		await startMCPOAuthFlow(canvasElement);
-		dispatchMCPOAuthComplete(githubMCP.id, window);
-
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
-		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
-	},
+	play: openMCPSubmenu,
 };
 
-export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP],
-		selectedMCPServerIds: [linearMCP.id],
+export const MCPSubmenuMobile: Story = {
+	args: MCPSubmenuOpen.args,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
-	play: async ({ args }) => {
-		dispatchMCPOAuthComplete(githubMCP.id, window);
-
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
-		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
-	},
+	play: openMCPSubmenu,
 };
 
-export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP],
-		selectedMCPServerIds: [],
-	},
-	beforeEach: () => {
-		spyOn(window, "open").mockReturnValue(window);
-	},
-	play: async ({ args, canvasElement }) => {
-		await startMCPOAuthFlow(canvasElement);
-		dispatchMCPOAuthComplete(linearMCP.id, window);
-
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
-		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
-	},
-};
-
-/** No MCP servers active — shows only "MCP" label with chevron. */
+/** No MCP servers active: the pill reads "Add MCPs". */
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
@@ -959,131 +872,6 @@ export const PlusMenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-	},
-};
-
-export const MCPDisconnectControls: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
-		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-	},
-};
-
-export const MCPDisconnectCancel: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
-			token_revoked: true,
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await body.findByRole("button", { name: "Disconnect GitHub" }),
-		);
-		expect(await body.findByText("Disconnect GitHub?")).toBeInTheDocument();
-		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
-		await waitFor(() =>
-			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
-		);
-		expect(API.experimental.disconnectMCPServerOAuth2).not.toHaveBeenCalled();
-	},
-};
-
-export const MCPDisconnectConfirm: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
-			token_revoked: true,
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await body.findByRole("button", { name: "Disconnect GitHub" }),
-		);
-		await body.findByText("Disconnect GitHub?");
-		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
-		await waitFor(() =>
-			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
-		);
-		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledTimes(1);
-		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
-			githubMCPConnected.id,
-		);
-	},
-};
-
-export const MCPDisconnectRevocationWarning: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
-	},
-	decorators: [withToaster],
-	beforeEach: () => {
-		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
-			token_revoked: false,
-			token_revocation_error:
-				"The OAuth provider rejected the revocation request.",
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await body.findByRole("button", { name: "Disconnect GitHub" }),
-		);
-		await body.findByText("Disconnect GitHub?");
-		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
-		await body.findByText(
-			"The OAuth provider rejected the revocation request.",
-		);
-	},
-};
-
-export const MCPDisconnectError: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
-			new Error("disconnect failed"),
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			await body.findByRole("button", { name: "Disconnect GitHub" }),
-		);
-		await body.findByText("Disconnect GitHub?");
-		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
-		await waitFor(() =>
-			expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalled(),
-		);
-		expect(body.getByText("Disconnect GitHub?")).toBeInTheDocument();
 	},
 };
 
@@ -1396,8 +1184,8 @@ export const MCPGroupInOverflow: Story = {
 		await userEvent.click(
 			within(overflow).getByRole("button", { name: "3 MCPs" }),
 		);
-		// The group popover is a second dialog, so wait for one of its pills.
-		await screen.findByRole("button", { name: "Remove Linear" });
+		// The group popover is a second dialog, so wait for one of its switches.
+		await screen.findByRole("switch", { name: "Disable Linear" });
 	},
 };
 

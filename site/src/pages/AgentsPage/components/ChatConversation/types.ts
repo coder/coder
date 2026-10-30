@@ -1,6 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
 
+/** A URL shown as a pill, either a found page or an answer citation. */
+export type SourceLink = { url: string; title: string };
+
 export type ParsedToolCall = {
 	id: string;
 	name: string;
@@ -9,6 +12,9 @@ export type ParsedToolCall = {
 	mcpServerConfigId?: string;
 	hookRewritten?: boolean;
 	startedAt?: string;
+	providerExecuted?: boolean;
+	/** Pages a provider-executed web search returned, from tagged source parts. */
+	foundPages?: SourceLink[];
 };
 
 export type ParsedToolResult = {
@@ -38,6 +44,8 @@ export type MergedTool = {
 	killedBySignal?: "kill" | "terminate";
 	/** When the model emitted the call, from the tool-call part's created_at. */
 	startedAt?: string;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 export type RenderBlock =
@@ -63,6 +71,7 @@ export type RenderBlock =
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
 	| TypesGen.ChatWorkspaceFileReferencePart
+	| TypesGen.ChatSkillInvocationPart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
@@ -75,6 +84,11 @@ export type ParsedMessageContent = {
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
 	blocks: RenderBlock[];
+	/**
+	 * After each content part, the index of the newest block, or -1 while there
+	 * is none, so a part that renders nothing maps to the block before it.
+	 */
+	partBlockIndices: number[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
 };
@@ -97,6 +111,12 @@ export type RetryState = {
 	retryingAt?: string;
 };
 
+/**
+ * The message the composer is editing. History rows and queued rows have
+ * independent ID spaces, so the kind is required to interpret the ID.
+ */
+export type EditingTarget = { kind: "history"; id: number };
+
 type StreamToolCall = {
 	id: string;
 	name: string;
@@ -106,6 +126,8 @@ type StreamToolCall = {
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 	startedAt?: string;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 type StreamToolResult = {

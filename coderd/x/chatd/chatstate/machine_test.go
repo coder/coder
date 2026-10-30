@@ -72,14 +72,14 @@ func (f *testFixture) readChat(ctx context.Context, t *testing.T, chatID uuid.UU
 	return chat
 }
 
-// classify reads the chat plus queue cardinality and returns the
-// execution state.
+// classify reads the chat plus queue state and returns the execution
+// state.
 func (f *testFixture) classify(ctx context.Context, t *testing.T, chatID uuid.UUID) chatstate.ExecutionState {
 	t.Helper()
 	chat := f.readChat(ctx, t, chatID)
-	count, err := f.DB.CountChatQueuedMessages(ctx, chatID)
+	queue, err := chatstate.LoadQueueState(ctx, f.DB, chatID)
 	require.NoError(t, err)
-	return chatstate.ClassifyExecutionState(chat, count > 0, true)
+	return chatstate.ClassifyExecutionState(chat, queue, true)
 }
 
 // recordingPubsub captures every Publish call so tests can assert on
@@ -178,7 +178,7 @@ func TestChatMachine_Update_RejectsMissingChat(t *testing.T) {
 type chatReadCounts struct {
 	mu          sync.Mutex
 	getChatByID int
-	countQueued int
+	queueHead   int
 }
 
 type chatReadCountingStore struct {
@@ -202,13 +202,13 @@ func (s *chatReadCountingStore) GetChatByID(ctx context.Context, id uuid.UUID) (
 	return s.Store.GetChatByID(ctx, id)
 }
 
-func (s *chatReadCountingStore) CountChatQueuedMessages(ctx context.Context, id uuid.UUID) (int64, error) {
+func (s *chatReadCountingStore) GetChatQueuedMessageHead(ctx context.Context, id uuid.UUID) (database.ChatQueuedMessage, error) {
 	if s.inTx {
 		s.counts.mu.Lock()
-		s.counts.countQueued++
+		s.counts.queueHead++
 		s.counts.mu.Unlock()
 	}
-	return s.Store.CountChatQueuedMessages(ctx, id)
+	return s.Store.GetChatQueuedMessageHead(ctx, id)
 }
 
 // Reads under the transition lock directly lengthen lock hold time, so
@@ -220,12 +220,13 @@ func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
 		name            string
 		passSnapshot    bool
 		wantGetChatByID int
-		wantCountQueued int
+		wantQueueHead   int
 	}{
-		// Only the publication read, plus the post-lock queue count.
-		{name: "WithSnapshot", passSnapshot: true, wantGetChatByID: 1, wantCountQueued: 2},
+		// The publication read, plus queue reads after the lock, in
+		// FinishTurn's queue advance, and for publication.
+		{name: "WithSnapshot", passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 3},
 		// Without a snapshot the transition reads the chat itself.
-		{name: "WithoutSnapshot", passSnapshot: false, wantGetChatByID: 2, wantCountQueued: 3},
+		{name: "WithoutSnapshot", passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -245,7 +246,7 @@ func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tc.wantGetChatByID, counts.getChatByID)
-			require.Equal(t, tc.wantCountQueued, counts.countQueued)
+			require.Equal(t, tc.wantQueueHead, counts.queueHead)
 		})
 	}
 }
@@ -262,7 +263,7 @@ func TestChatMachine_Update_SnapshotMatchesDatabase(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, read, snapshot.Chat, "the snapshot must match an in-transaction read")
 		require.Equal(t, created.Chat.SnapshotVersion+1, snapshot.Chat.SnapshotVersion)
-		require.False(t, snapshot.HasQueued)
+		require.Equal(t, chatstate.QueueState{}, snapshot.Queue)
 		require.Equal(t, chatstate.StateR0, snapshot.State())
 		return nil
 	})

@@ -73,6 +73,146 @@ export const FailedScript: Story = {
 	},
 };
 
+// A script that never ran has the same start and end, so its bar is drawn
+// at the minimum width.
+const skippedScriptTiming = {
+	...WorkspaceTimingsResponse.agent_script_timings[0],
+	display_name: "Install tools",
+	started_at: "2024-10-14T11:31:10.852776Z",
+	ended_at: "2024-10-14T11:31:10.852776Z",
+	status: "skipped" as const,
+};
+
+const canceledNotStartedScriptTiming = {
+	...skippedScriptTiming,
+	display_name: "Post setup",
+	status: "canceled" as const,
+};
+
+const canceledRunningScriptTiming = {
+	...WorkspaceTimingsResponse.agent_script_timings[0],
+	display_name: "Clone repo",
+	exit_code: -1,
+	status: "canceled" as const,
+};
+
+const openStartupScripts = async (canvasElement: HTMLElement) => {
+	const user = userEvent.setup();
+	const canvas = within(canvasElement);
+	await user.click(
+		canvas.getByRole("button", { name: "View run startup scripts details" }),
+	);
+	return { user, canvas, body: within(canvasElement.ownerDocument.body) };
+};
+
+// A stage only opens when it has more than one script, which is always the
+// case for a skipped one because it had a prerequisite.
+export const SkippedScript: Story = {
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				display_name: "Clone repo",
+				status: "exit_failure",
+				exit_code: 128,
+			},
+			skippedScriptTiming,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const { user, canvas, body } = await openStartupScripts(canvasElement);
+		const bar = await canvas.findByLabelText("Install tools: skipped");
+		await user.hover(bar);
+		await body.findByText(
+			"Script was skipped because a script it depends on failed, timed out, or was skipped.",
+		);
+	},
+};
+
+export const CanceledScript: Story = {
+	args: {
+		agentScriptTimings: [
+			canceledRunningScriptTiming,
+			canceledNotStartedScriptTiming,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const { user, canvas, body } = await openStartupScripts(canvasElement);
+		await canvas.findByLabelText("Clone repo: canceled");
+		const bar = await canvas.findByLabelText("Post setup: canceled");
+		await user.hover(bar);
+		await body.findByText(
+			"Script was canceled because the agent shut down before it finished.",
+		);
+	},
+};
+
+export const TimedOutScript: Story = {
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				status: "timed_out",
+				exit_code: 255,
+			},
+			WorkspaceTimingsResponse.agent_script_timings[1],
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const { user, canvas, body } = await openStartupScripts(canvasElement);
+		const bar = await canvas.findByLabelText("Startup Script: timed out");
+		await user.hover(bar);
+		await body.findByText("Script timed out.");
+	},
+};
+
+export const PipesLeftOpenScript: Story = {
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				status: "pipes_left_open",
+				exit_code: 255,
+			},
+			WorkspaceTimingsResponse.agent_script_timings[1],
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const { user, canvas, body } = await openStartupScripts(canvasElement);
+		const bar = await canvas.findByLabelText(
+			"Startup Script: output pipes left open",
+		);
+		await user.hover(bar);
+		await body.findByText("Script exited without closing its output pipes.");
+	},
+};
+
+export const MixedScriptOutcomes: Story = {
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				display_name: "Clone repository",
+			},
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[1],
+				display_name: "Install dependencies",
+				status: "exit_failure",
+				exit_code: 1,
+			},
+			skippedScriptTiming,
+			canceledNotStartedScriptTiming,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const { canvas } = await openStartupScripts(canvasElement);
+		await canvas.findByLabelText("Clone repository: success");
+		await canvas.findByLabelText("Install dependencies: failure");
+		await canvas.findByLabelText("Install tools: skipped");
+		await canvas.findByLabelText("Post setup: canceled");
+	},
+};
+
 // Navigate into a provisioning stage
 export const NavigateToPlanStage: Story = {
 	play: async ({ canvasElement }) => {

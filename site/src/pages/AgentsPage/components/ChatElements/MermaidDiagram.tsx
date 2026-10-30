@@ -7,6 +7,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useTheme } from "#/theme/context";
 import { generateUUID } from "#/utils/random";
 import { Lightbox } from "../Lightbox";
+import { LightboxSlot, useLightbox } from "../LightboxHost";
 
 type RenderState =
 	| { status: "pending" }
@@ -97,7 +98,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const isDark = theme.palette.mode === "dark";
 	const isIncomplete = useIsCodeFenceIncomplete();
 	const [state, setState] = useState<RenderState>({ status: "pending" });
-	const [expanded, setExpanded] = useState(false);
+	const { openLightbox, lightbox } = useLightbox();
 	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
@@ -167,7 +168,25 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 				ref={triggerRef}
 				type="button"
 				aria-label="View diagram full size"
-				onClick={() => setExpanded(true)}
+				onClick={() =>
+					openLightbox((close) => (
+						<Lightbox
+							title="Diagram preview"
+							onClose={close}
+							onCloseAutoFocus={(event) => {
+								event.preventDefault();
+								triggerRef.current?.focus();
+							}}
+						>
+							<div
+								style={{ width: fittedWidth(state.svg) }}
+								className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+								// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
+								dangerouslySetInnerHTML={{ __html: state.svg }}
+							/>
+						</Lightbox>
+					))
+				}
 				className="group relative my-4 block w-full cursor-zoom-in overflow-x-auto rounded-md border border-solid border-border bg-surface-primary p-4 text-left hover:border-border-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-link"
 			>
 				<span
@@ -184,20 +203,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					<Maximize2Icon className="size-3.5" />
 				</span>
 			</button>
-			{expanded && (
-				<Lightbox
-					title="Diagram preview"
-					onClose={() => setExpanded(false)}
-					onCloseAutoFocus={() => triggerRef.current?.focus()}
-				>
-					<div
-						style={{ width: fittedWidth(state.svg) }}
-						className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
-						// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
-						dangerouslySetInnerHTML={{ __html: state.svg }}
-					/>
-				</Lightbox>
-			)}
+			<LightboxSlot lightbox={lightbox} />
 		</>
 	);
 };

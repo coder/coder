@@ -44,7 +44,7 @@ postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslce
 
 ## Server verification (client verifies the server)
 
-1. Download the CA certificate chain for your database instance, and create it as a secret in your Kubernetes cluster, if not already present:
+1. Download the database CA certificate chain and create it as a Kubernetes secret, if not already present:
 
 ```sh
 kubectl create secret tls postgres-certs -n coder --key="postgres-root.key" --cert="postgres-root.crt"

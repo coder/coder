@@ -11,23 +11,35 @@ import { toast } from "#/components/Toaster/toast";
 // be used internally, and is highly subject to break.
 export const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
 
-// This is a list of external app protocols that we
-// allow to be opened in a new window. This is
-// used to prevent phishing attacks where a user
-// is tricked into clicking a link that opens
-// a malicious app using the Coder session token.
-const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
-	"vscode:",
-	"vscode-insiders:",
-	"windsurf:",
-	"devin:",
-	"cursor:",
-	"jetbrains-gateway:",
-	"jetbrains:",
-	"kiro:",
-	"positron:",
-	"antigravity:",
-	"antigravity-ide:",
+type SessionTokenHandler = {
+	/** Scheme and authority, matched case-insensitively. */
+	base: string;
+	/** Path through the first required param, matched exactly. */
+	path: string;
+};
+
+// The only deep-link handlers that may receive the session token.
+const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
+	...[
+		"vscode",
+		"vscode-insiders",
+		"windsurf",
+		"devin",
+		"cursor",
+		"kiro",
+		"positron",
+		"antigravity",
+		"antigravity-ide",
+	].flatMap((scheme) =>
+		["/open?", "/openDevContainer?"].map((path) => ({
+			base: `${scheme}://coder.coder-remote`,
+			path,
+		})),
+	),
+	{ base: "jetbrains://gateway", path: "/coder?" },
+	{ base: "jetbrains://gateway", path: "/com.coder.toolbox?" },
+	// Gateway also handles non-Coder providers, such as `type=ssh`.
+	{ base: "jetbrains-gateway://connect", path: "#type=coder&" },
 ];
 
 type GetVSCodeHrefParams = {
@@ -112,26 +124,20 @@ type GetAppHrefParams = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	token?: string;
+	accessUrl?: string;
 };
 
 export const getAppHref = (
 	app: WorkspaceApp,
-	{ path, token, workspace, agent, host }: GetAppHrefParams,
+	{ path, token, workspace, agent, host, accessUrl }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		let isAllowedProtocol = false;
-		try {
-			isAllowedProtocol = ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(
-				new URL(app.url).protocol,
-			);
-		} catch {
-			// The URL is unparsable. Leave isAllowedProtocol false and return
-			// the raw URL. Consumers disable the button via
-			// isAppUrlValid, so the href is never followed.
-		}
-
-		return needsSessionToken(app) && isAllowedProtocol
-			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
+		// Sub-agent apps never get a token; `coder open app` refuses them too.
+		return needsSessionToken(app) && !isSessionTokenLinkBlocked(app, accessUrl)
+			? app.url.replaceAll(
+					SESSION_TOKEN_PLACEHOLDER,
+					agent.parent_id ? "" : (token ?? ""),
+				)
 			: app.url;
 	}
 
@@ -179,6 +185,115 @@ export const needsSessionToken = (app: ExternalWorkspaceApp) => {
 	const requiresSessionToken = app.url.includes(SESSION_TOKEN_PLACEHOLDER);
 	return requiresSessionToken && !isHttp;
 };
+
+/** Shown when `isSessionTokenLinkBlocked` blocks an app. */
+export const SESSION_TOKEN_LINK_BLOCKED_MESSAGE =
+	"This app's URL isn't trusted to sign you in to Coder.";
+
+/** True when an app needs a session token but its link isn't trusted with one. */
+export const isSessionTokenLinkBlocked = (
+	app: WorkspaceApp,
+	accessUrl: string | undefined,
+): boolean =>
+	isExternalApp(app) &&
+	needsSessionToken(app) &&
+	!isSessionTokenDestinationTrusted(app.url, accessUrl);
+
+/**
+ * True when the link opens a known Coder handler, its only `url` param is this
+ * deployment (the current origin or `accessUrl`), and the placeholder is its
+ * only `token`.
+ */
+export const isSessionTokenDestinationTrusted = (
+	appUrl: string,
+	accessUrl: string | undefined,
+): boolean => {
+	// Browsers strip tab, LF and CR before the IDE sees the link, so `ur\tl`
+	// would become a second `url` there.
+	if (
+		/\p{Cc}/u.test(appUrl) ||
+		appUrl.split(SESSION_TOKEN_PLACEHOLDER).length !== 2
+	) {
+		return false;
+	}
+	const handler = getHandler(appUrl);
+	if (handler === undefined) {
+		return false;
+	}
+	const params = appUrl.slice(
+		handler.base.length + handler.path.search(/[?#]/) + 1,
+	);
+	const entries = params.split("&");
+	const decoded = decodeOnce(params);
+	// `getAppHref` replaces the raw placeholder, so it must be the raw `token`
+	// entry. JetBrains Gateway doesn't decode names, so they must be literal.
+	// IDEs decode values twice, so check that view too and reject leftovers.
+	// A later `#` would hide params from IDEs that read only the query.
+	return (
+		!params.includes("#") &&
+		entries.includes(`token=${SESSION_TOKEN_PLACEHOLDER}`) &&
+		entries.every((entry) => !entry.split("=")[0].includes("%")) &&
+		decoded !== undefined &&
+		!decoded.includes("%") &&
+		[params, decoded].every((p) =>
+			hasTrustedParams(new URLSearchParams(p), accessUrl),
+		)
+	);
+};
+
+/** The known handler the link starts with, if any. Case folding is ASCII only. */
+const getHandler = (appUrl: string): SessionTokenHandler | undefined =>
+	SESSION_TOKEN_HANDLERS.find(
+		({ base, path }) =>
+			appUrl.slice(0, base.length).replace(/[A-Z]/g, (c) => c.toLowerCase()) ===
+				base && appUrl.startsWith(path, base.length),
+	);
+
+const decodeOnce = (value: string): string | undefined => {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return undefined;
+	}
+};
+
+/** Every name appears once, `token` is the placeholder, `url` is this deployment. */
+const hasTrustedParams = (
+	params: URLSearchParams,
+	accessUrl: string | undefined,
+): boolean => {
+	const names = [...params.keys()];
+	return (
+		new Set(names).size === names.length &&
+		params.get("token") === SESSION_TOKEN_PLACEHOLDER &&
+		isThisDeployment(params.get("url") ?? "", accessUrl)
+	);
+};
+
+const isThisDeployment = (
+	url: string,
+	accessUrl: string | undefined,
+): boolean => {
+	if (!isBareOrigin(url)) {
+		return false;
+	}
+	const { origin } = new URL(url);
+	return (
+		origin === location.origin ||
+		(accessUrl !== undefined &&
+			URL.canParse(accessUrl) &&
+			origin === new URL(accessUrl).origin)
+	);
+};
+
+/**
+ * True when `url` is only an origin, optionally with a trailing slash. A path
+ * could reach a workspace app on this deployment, and userinfo can hide a
+ * different host from IDEs that decode it again. Matched on the raw string,
+ * since parsing normalizes `/.` and drops an empty `?`.
+ */
+export const isBareOrigin = (url: string): boolean =>
+	/^[a-z][a-z\d+.-]*:\/\/[^/\\?#@\s]+\/?$/i.test(url) && URL.canParse(url);
 
 /**
  * True for apps that can be rendered inside a dashboard iframe. Command apps

@@ -67,7 +67,8 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff && "cursor-pointer",
+							shouldDisplayDiff &&
+								"relative cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 						)}
 						{...(shouldDisplayDiff && {
 							tabIndex: 0,
@@ -118,8 +119,8 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 										{showOrgDetails ? (
-											<Tooltip>
-												<TooltipTrigger asChild>
+											<Tooltip interactive>
+												<TooltipTrigger aria-label="Request details">
 													<InfoIcon className="size-icon-sm text-content-secondary" />
 												</TooltipTrigger>
 												<TooltipContent side="bottom">

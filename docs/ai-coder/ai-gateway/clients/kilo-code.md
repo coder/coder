@@ -22,7 +22,7 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 1. **API Key**:
    Enter your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 1. **Model ID**:
-   Enter the model you wish to use (e.g., `gpt-5.2-codex`).
+   Enter the model you wish to use (for example, `gpt-5.2-codex`).
 
 ![Kilo Code OpenAI Settings](../../../images/aibridge/clients/kilo-code-openai.png)
 

@@ -51,12 +51,12 @@ import {
 	formatCompactionPercent,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
-} from "../compactionTriggers";
-import { getModelLabel } from "../utils/modelOptions";
+} from "../utils/compactionTriggers";
+import { getModelLabel, type ProviderInfo } from "../utils/modelOptions";
 
 type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
-	providerTypeByID: ReadonlyMap<string, string>;
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	organizations: readonly TypesGen.Organization[];
 	compactionTriggersByOrganizationID: ReadonlyMap<
 		string,
@@ -245,7 +245,7 @@ type CompactionThresholdRowProps = {
 	draft: string | undefined;
 	isThisModelMutating: boolean;
 	rowError: string | undefined;
-	provider: string;
+	provider: ProviderInfo | undefined;
 	organizationName: string;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
 	organizationOverrideNotLoaded: boolean;
@@ -307,7 +307,8 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	}
 
 	const modelName = getModelLabel(modelConfig);
-	const providerLabel = formatProviderLabel(provider);
+	const providerLabel =
+		provider?.displayName || formatProviderLabel(provider?.provider ?? "");
 	const effectiveThresholdPercent =
 		parsedDraftValue ??
 		(draftValue.length === 0 ? modelConfig.compression_threshold : undefined);
@@ -330,7 +331,8 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				>
 					<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface-secondary">
 						<ProviderIcon
-							provider={provider}
+							provider={provider?.provider ?? ""}
+							icon={provider?.icon}
 							className="size-3/5 text-content-secondary"
 						/>
 					</span>
@@ -443,7 +445,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	UserCompactionThresholdSettingsProps
 > = ({
 	models,
-	providerTypeByID,
+	providerInfoByID,
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
@@ -706,9 +708,7 @@ export const UserCompactionThresholdSettings: React.FC<
 									draft={drafts[modelConfig.id]}
 									isThisModelMutating={pendingModels.has(modelConfig.id)}
 									rowError={rowErrors[modelConfig.id]}
-									provider={
-										providerTypeByID.get(modelConfig.ai_provider_id) ?? ""
-									}
+									provider={providerInfoByID.get(modelConfig.ai_provider_id)}
 									organizationName={
 										organizationNameByID.get(modelConfig.organization_id) ??
 										modelConfig.organization_id

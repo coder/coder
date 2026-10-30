@@ -6,8 +6,13 @@ import {
 	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { Fragment, useEffect, useState } from "react";
+import type {
+	ChatQueuedMessage,
+	ChatSkillInvocationPart,
+	ChatTextPart,
+} from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -15,6 +20,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { SkillChip } from "./ChatMessageInput/SkillChip";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -23,8 +29,10 @@ type QueuedMessagesListProps = {
 	className?: string;
 };
 
+type QueuedMessagePreviewPart = ChatTextPart | ChatSkillInvocationPart;
+
 type QueuedMessageInfo = {
-	displayText: string;
+	previewParts: QueuedMessagePreviewPart[];
 	attachmentCount: number;
 	hookNotices: string[];
 };
@@ -33,25 +41,122 @@ export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	let attachmentCount = 0;
-	const textParts: string[] = [];
+	const previewParts: QueuedMessagePreviewPart[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
 		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
-		} else if (part.type === "text" && part.text?.trim()) {
-			textParts.push(part.text);
+		} else if (
+			part.type === "text" &&
+			// A blank line after a chip still ends the preview's first line.
+			(part.text?.trim() ||
+				(previewParts.length > 0 && part.text?.includes("\n")))
+		) {
+			previewParts.push({ type: "text", text: part.text });
+		} else if (part.type === "skill-invocation") {
+			previewParts.push(part);
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
 			hookNotices.push(part.text);
 		}
 	}
-	const rawText = textParts.join(" ").trim();
 
-	return {
-		displayText: rawText || "[Queued message]",
-		attachmentCount,
-		hookNotices,
-	};
+	return { previewParts, attachmentCount, hookNotices };
 };
+
+/** Cuts preview parts at the first line break, trimming text only after the cut. */
+export const getFirstLinePreview = (
+	parts: readonly QueuedMessagePreviewPart[],
+): { parts: QueuedMessagePreviewPart[]; isTruncated: boolean } => {
+	const firstLine: QueuedMessagePreviewPart[] = [];
+	for (const [index, part] of parts.entries()) {
+		if (part.type !== "text") {
+			firstLine.push(part);
+			continue;
+		}
+		const text = firstLine.length === 0 ? part.text.trimStart() : part.text;
+		const lineBreakIndex = text.indexOf("\n");
+		const line = lineBreakIndex === -1 ? text : text.slice(0, lineBreakIndex);
+		if (line.trim()) {
+			firstLine.push({ ...part, text: line.trim() });
+		}
+		if (lineBreakIndex !== -1) {
+			const isTruncated =
+				Boolean(text.slice(lineBreakIndex).trim()) || index < parts.length - 1;
+			return { parts: firstLine, isTruncated };
+		}
+	}
+	return { parts: firstLine, isTruncated: false };
+};
+
+const QueuedMessagePreview: React.FC<{
+	parts: readonly QueuedMessagePreviewPart[];
+}> = ({ parts }) => {
+	if (parts.length === 0) {
+		return "[Queued message]";
+	}
+	const firstLine = getFirstLinePreview(parts);
+	return (
+		<>
+			{firstLine.parts.map((part, index) => (
+				<Fragment key={index}>
+					{index > 0 && " "}
+					{part.type === "skill-invocation" ? (
+						<SkillChip source={part.skill_source} name={part.skill_name} />
+					) : (
+						part.text
+					)}
+				</Fragment>
+			))}
+			{firstLine.isTruncated && "…"}
+		</>
+	);
+};
+
+type QueuedMessageAction = "delete" | "promote";
+
+type QueuedMessageActionButtonProps = {
+	label: string;
+	// Defaults to label.
+	tooltip?: string;
+	icon: React.ReactNode;
+	busy: boolean;
+	disabled: boolean;
+	destructive?: boolean;
+	onClick: () => void;
+};
+
+const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
+	label,
+	tooltip,
+	icon,
+	busy,
+	disabled,
+	destructive = false,
+	onClick,
+}) => (
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<Button
+				variant="subtle"
+				size="icon"
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+				className={cn(
+					"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
+					destructive
+						? "hover:text-content-destructive"
+						: "hover:text-content-primary",
+				)}
+			>
+				<Spinner className="h-3.5 w-3.5" loading={busy}>
+					{icon}
+				</Spinner>
+			</Button>
+		</TooltipTrigger>
+		<TooltipContent side="top">{tooltip ?? label}</TooltipContent>
+	</Tooltip>
+);
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
@@ -59,17 +164,36 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onPromote,
 	className,
 }) => {
-	const items = messages.map((message) => {
-		const { displayText, attachmentCount, hookNotices } =
-			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+	const underEditIndex = messages.findIndex((message) => message.editing_since);
+	const items = messages.map((message, index) => {
+		const isUnderEdit = Boolean(message.editing_since);
+		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+		let badge: { label: string; tooltip: string } | undefined;
+		if (isUnderEdit) {
+			badge = {
+				label: "Editing",
+				tooltip: "Not sent until you finish editing.",
+			};
+		} else if (isWaitingBehindEdit) {
+			badge = {
+				label: "Waiting",
+				tooltip: "Waits for the edit above to finish.",
+			};
+		}
+		return {
+			id: message.id,
+			...getQueuedMessageInfo(message),
+			isUnderEdit,
+			isWaitingBehindEdit,
+			badge,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
-	const [busyItem, setBusyItem] = useState<{
+	const [pendingAction, setPendingAction] = useState<{
 		id: number;
-		action: "delete" | "promote";
+		action: QueuedMessageAction;
 	} | null>(null);
 	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
 		ReadonlySet<number>
@@ -116,28 +240,20 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const handleDelete = async (id: number) => {
-		setBusyItem({ id, action: "delete" });
+	// Both actions remove the row, so it is hidden optimistically.
+	const runAction = async (
+		id: number,
+		action: QueuedMessageAction,
+		run: (id: number) => Promise<void> | void,
+	) => {
+		setPendingAction({ id, action });
 		hideItemOptimistically(id);
 		try {
-			await onDelete(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			await run(id);
 		} catch {
 			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
 		}
-	};
-
-	const handlePromote = async (id: number) => {
-		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
-		try {
-			await onPromote(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
-		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
-		}
+		setPendingAction((current) => (current?.id === id ? null : current));
 	};
 
 	const visibleItems = items.filter(
@@ -148,7 +264,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		return null;
 	}
 
-	const isBusy = busyItem !== null;
+	const isBusy = pendingAction !== null;
 
 	return (
 		<div
@@ -159,14 +275,19 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		>
 			{visibleItems.map((item, index) => {
 				const isFirst = index === 0;
-				const isItemBusy = busyItem !== null && busyItem.id === item.id;
+				const isRowPending =
+					pendingAction !== null && pendingAction.id === item.id;
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
-
 				return (
 					<div
 						key={item.id}
-						className="my-1 opacity-40 transition-opacity hover:opacity-80"
+						className={cn(
+							"my-1 transition-opacity",
+							item.isWaitingBehindEdit
+								? "opacity-25 hover:opacity-60"
+								: "opacity-40 hover:opacity-80",
+						)}
 						onMouseEnter={() => setHoveredID(item.id)}
 						onMouseLeave={() =>
 							setHoveredID((current) => (current === item.id ? null : current))
@@ -174,9 +295,25 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 					>
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
-								{item.displayText.split("\n")[0]}
-								{item.displayText.includes("\n") ? "…" : ""}
+								<QueuedMessagePreview parts={item.previewParts} />
 							</span>
+							{item.badge && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge
+											asChild
+											variant={item.isUnderEdit ? "warning" : "default"}
+											size="sm"
+											className="shrink-0 cursor-default"
+										>
+											<button type="button">{item.badge.label}</button>
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										{item.badge.tooltip}
+									</TooltipContent>
+								</Tooltip>
+							)}
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
@@ -203,7 +340,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && (
+							{isFirst && !item.isUnderEdit && (
 								<span
 									className={cn(
 										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
@@ -221,44 +358,22 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Send now"
-											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-										>
-											{isItemBusy && busyItem.action === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Send now</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Remove from queue"
-											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-										>
-											{isItemBusy && busyItem.action === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Remove</TooltipContent>
-								</Tooltip>
+								<QueuedMessageActionButton
+									label="Send now"
+									icon={<ArrowUpIcon className="size-3.5" />}
+									busy={isRowPending && pendingAction.action === "promote"}
+									disabled={isBusy}
+									onClick={() => void runAction(item.id, "promote", onPromote)}
+								/>
+								<QueuedMessageActionButton
+									label="Remove from queue"
+									tooltip="Remove"
+									icon={<Trash2Icon className="size-3.5" />}
+									busy={isRowPending && pendingAction.action === "delete"}
+									disabled={isBusy}
+									destructive
+									onClick={() => void runAction(item.id, "delete", onDelete)}
+								/>
 							</div>
 						</div>
 					</div>

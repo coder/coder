@@ -38,14 +38,6 @@ var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of c
 // agent is still working and the wait can be retried.
 var ErrSubagentWaitTimeout = xerrors.New("timed out waiting for delegated subagent completion")
 
-// subagentToolNameAliases maps deprecated subagent tool names to their
-// current names so historical close_agent calls in chat history still
-// dispatch to interrupt_agent without advertising the old name in the
-// tool list.
-var subagentToolNameAliases = map[string]string{
-	"close_agent": "interrupt_agent",
-}
-
 // subagentStatusError wraps a subagent that reached error status. It
 // carries the chat and report so callers can surface a structured,
 // recoverable-aware payload instead of a bare tool error.
@@ -435,17 +427,20 @@ func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
 		currentChatSnapshot = currentChat()
 	}
 
-	spawnAgentDescription := buildSpawnAgentDescription(
+	spawnAgentDescription, err := buildSpawnAgentDescription(
 		ctx,
 		p,
 		currentChatSnapshot,
 	)
+	if err != nil {
+		return nil, xerrors.Errorf("build spawn agent description: %w", err)
+	}
 
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
@@ -577,7 +572,9 @@ func (p *Server) subagentTools(
 				"a longer timeout is set. A timeout does not stop the child; it "+
 				"still owns its task. Wait again or check its status with "+
 				"list_agents; do not take over its work without an acknowledged "+
-				"handoff.",
+				"handoff. A timeout with status paused means the child's owner is "+
+				"editing one of its queued messages; the child continues when the "+
+				"edit ends, so keep waiting unless the owner says otherwise.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -785,7 +782,8 @@ func (p *Server) subagentTools(
 			"interrupt_agent",
 			"Interrupt a spawned child agent's current work. The "+
 				"status may briefly read interrupting before transitioning "+
-				"to waiting, or running if there are queued messages. "+
+				"to waiting, running if there are queued messages, or "+
+				"paused if its owner is editing its next queued message. "+
 				"Resume with message_agent or leave it idle.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -834,7 +832,8 @@ func (p *Server) subagentTools(
 				"agent has chat_id, title, type, status, created_at, "+
 				"updated_at. Status: running = working, "+
 				"interrupting = transient, waiting = idle, "+
-				"error = stopped on error.",
+				"error = stopped on error, paused = waiting for its owner "+
+				"to finish editing a queued message.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -896,7 +895,7 @@ func (p *Server) subagentTools(
 				}), nil
 			},
 		),
-	}
+	}, nil
 }
 
 func (p *Server) loadSubagentSpawnParentChat(
@@ -1424,7 +1423,8 @@ func (p *Server) interruptSubagent(
 		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	if targetChat.Status == database.ChatStatusWaiting {
+	// Idle and paused chats have no turn to interrupt.
+	if targetChat.Status == database.ChatStatusWaiting || targetChat.Status == database.ChatStatusPaused {
 		return targetChat, false, nil
 	}
 
@@ -1455,9 +1455,11 @@ func (p *Server) checkSubagentCompletion(
 	// interrupting is transient: the worker transitions it to
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
-	// classification, avoiding stale partial output.
+	// classification, avoiding stale partial output. Paused is not
+	// done either: the child resumes when the queued edit ends.
 	if chat.Status == database.ChatStatusRunning ||
-		chat.Status == database.ChatStatusInterrupting {
+		chat.Status == database.ChatStatusInterrupting ||
+		chat.Status == database.ChatStatusPaused {
 		return chat, "", false, nil
 	}
 

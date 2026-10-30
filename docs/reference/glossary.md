@@ -9,11 +9,18 @@ Each entry gives a short definition and, where it helps, links to the page that 
 > Several Coder terms share the word "agent" but mean different things:
 >
 > - [Coder Agents](#coder-agents) is the AI product for delegating development work to coding agents.
-> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces. It is not Coder Agents.
+> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces.
+>   It is not Coder Agents.
 > - A [workspace agent](#workspace-agent) is the process that runs inside a workspace to provide SSH, port forwarding, the web terminal, and other services.
 > - [`coder_agent`](#coder_agent) is the Terraform resource in a template that declares a workspace agent.
 
 ## A
+
+### ACP subagent
+
+An external coding agent that receives delegated tasks from a Coder Agents chat.
+An Agent Client Protocol (ACP) adapter launches its harness inside the workspace and handles communication with Coder.
+Refer to [ACP subagents](../ai-coder/agents/acp-subagents.md).
 
 ### Agent API
 
@@ -30,7 +37,8 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 ### Agent Relay
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
-The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
+The provider's orchestration and AI inference stay cloud-hosted.
+A worker process inside the workspace executes the agent's tool calls.
 In [early access](./feature-stages.md#early-access-features).
 Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
@@ -165,6 +173,11 @@ Refer to the [`coder_metadata` resource](https://registry.terraform.io/providers
 The Terraform resource that runs a shell script inside the workspace on start or stop, or on demand.
 Refer to the [`coder_script` resource](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script).
 
+### `coder_script_order`
+
+The Terraform data source that declares dependencies between startup or shutdown scripts within one workspace agent or dev container sub-agent.
+Refer to [Order startup and shutdown scripts](../admin/templates/extending-templates/script-ordering.md).
+
 ### `coderd`
 
 The process that runs the [control plane](#control-plane), started with [`coder server`](#coder-server).
@@ -260,12 +273,17 @@ Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
-Template inputs that can change per build, with conditional visibility and validation.
-Refer to [Dynamic parameters](../admin/templates/extending-templates/dynamic-parameters.md).
+Refer to [Parameters](#parameters).
 
 ## E
 
 ### Envbuilder
+
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../admin/integrations/devcontainers/integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
 
 The Coder-built tool that constructs a workspace image from a `devcontainer.json` file without requiring Docker inside the workspace.
 Refer to [Envbuilder](../admin/integrations/devcontainers/envbuilder/index.md) and the [`envbuilder` repository](https://github.com/coder/envbuilder).
@@ -390,6 +408,12 @@ The top-level administrator role, with full access to the deployment and every o
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## P
+
+### Parameters
+
+Template inputs that a user sets when they create or update a workspace, with conditional visibility, identity-aware values, and validation.
+Previously, the conditional and identity-aware capabilities were called dynamic parameters.
+Refer to [Parameters](../admin/templates/extending-templates/parameters/index.md).
 
 ### Peripheral resource
 

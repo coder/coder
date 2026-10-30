@@ -101,15 +101,42 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
 							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
-							<TableHead className="text-nowrap">Network Requests</TableHead>
-							<TableHead className="flex items-center flex-nowrap gap-1">
-								Threads
-								<ThreadTooltip>
-									<InfoIcon className="size-icon-xs" />
-								</ThreadTooltip>
+							<TableHead className="text-nowrap">Network</TableHead>
+							<TableHead>
+								<div className="flex items-center flex-nowrap gap-1">
+									Threads
+									<ThreadTooltip>
+										<InfoIcon className="size-icon-xs" />
+									</ThreadTooltip>
+								</div>
 							</TableHead>
-							<TableHead className="text-nowrap">
-								Last Prompt At [UTC{utcOffset}]
+							<TableHead>
+								<div className="flex items-center flex-nowrap gap-1">
+									Last active
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<button
+													type="button"
+													aria-label="About last active time"
+													className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+												>
+													<InfoIcon className="size-icon-xs" />
+												</button>
+											</TooltipTrigger>
+											<TooltipContent
+												side="top"
+												align="end"
+												className="max-w-60 text-sm font-normal"
+											>
+												Times are shown in your local timezone{" "}
+												<span className="whitespace-nowrap">
+													(UTC{utcOffset}).
+												</span>
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+								</div>
 							</TableHead>
 						</TableRow>
 					</TableHeader>

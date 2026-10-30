@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -285,6 +286,41 @@ children:
 			wantErr: "home.yml: line 2: description has a trailing comment",
 		},
 		{
+			name: "DescriptionWithoutPeriod",
+			edit: func(f map[string]string) {
+				f["home.yml"] = "title: Home\ndescription: The home page\npath: ./index.md\n"
+			},
+			wantErr: `home.yml: Home: description must end with a period: "The home page"`,
+		},
+		{
+			name: "DescriptionWithQuestionMark",
+			edit: func(f map[string]string) {
+				f["home.yml"] = "title: Home\ndescription: Where do I start?\npath: ./index.md\n"
+			},
+			wantErr: `home.yml: Home: description must end with a period: "Where do I start?"`,
+		},
+		{
+			name: "ChildDescriptionWithoutPeriod",
+			edit: func(f map[string]string) {
+				f["ref.yml"] = testRef + "  - title: Home again\n    description: Same page\n    path: ./index.md\n"
+			},
+			wantErr: `ref.yml: Reference > Home again: description must end with a period: "Same page"`,
+		},
+		{
+			name: "OverlayDescriptionWithoutPeriod",
+			edit: func(f map[string]string) {
+				f["ref/api.yml"] = strings.Replace(testRefAPI, "Manage users.", "Manage users", 1)
+			},
+			wantErr: `ref/api.yml: Reference > REST API > Users: description must end with a period: "Manage users"`,
+		},
+		{
+			name: "FragmentDescriptionWithoutPeriod",
+			edit: func(f map[string]string) {
+				f["generated/api.json"] = `[{"title": "General", "description": "General endpoints", "path": "./ref/api/general.md"}, {"title": "Users", "path": "./ref/api/users.md"}]`
+			},
+			wantErr: `generated/api.json: General: description must end with a period: "General endpoints"`,
+		},
+		{
 			name:    "MultipleDocuments",
 			edit:    func(f map[string]string) { f["home.yml"] = testHome + "---\n" + testHome },
 			wantErr: "single YAML document",
@@ -321,4 +357,42 @@ func TestWriteRouteFragmentRoundTrips(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(dir, "frag.json"))
 	require.NoError(t, err)
 	require.Contains(t, string(b), `Groups & Roles`)
+}
+
+// TestBuildManifestFrontMatterDescription checks the description in a page's
+// own front matter, which the docs site prefers over the manifest's.
+func TestBuildManifestFrontMatterDescription(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		page    string
+		wantErr string
+	}{
+		{name: "Period", page: "---\ntitle: Home\ndescription: The home page.\n---\n\n# page\n"},
+		{name: "NoDescription", page: "---\ntitle: Home\n---\n\n# page\n"},
+		{name: "NoFrontMatter", page: "# page\n\n---\n\ndescription: not front matter\n"},
+		{
+			name:    "WithoutPeriod",
+			page:    "---\ntitle: Home\ndescription: The home page\n---\n\n# page\n",
+			wantErr: `index.md: Home: front matter description must end with a period: "The home page"`,
+		},
+		{
+			name:    "Quoted",
+			page:    "---\ntitle: Home\ndescription: \"Show role(s)\"\n---\n\n# page\n",
+			wantErr: `index.md: Home: front matter description must end with a period: "Show role(s)"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			docsDir, sourcesDir := writeTree(t, validTree())
+			require.NoError(t, os.WriteFile(filepath.Join(docsDir, "index.md"), []byte(tc.page), 0o600))
+			_, err := docgenenv.BuildManifest(sourcesDir, docsDir)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }

@@ -1,4 +1,8 @@
-# Coder Docs Content Guidelines
+---
+review-personas: [accuracy, coverage, audience, structure]
+---
+
+# Coder docs content guidelines
 
 > [!NOTE]
 > This is the **canonical** guidance for what belongs in the Coder documentation under `docs/` (published to [coder.com/docs](https://coder.com/docs)) and what doesn't.
@@ -13,12 +17,13 @@ When you have a candidate change for the docs, apply these rules in order:
 2. If the checklist routes the content away from the docs, find the correct home in the [routing table](#routing-table).
 3. If the content does belong in the docs, follow the [guiding principles](#guiding-principles), the [what belongs](#what-belongs-in-the-docs) catalog, and the [structural rules](#structural-rules).
 4. If you're still unsure, file a question in the DOCS project in Linear or tag `@vigilante` on a draft PR.
-   Don't guess.
+
+   Do not guess.
 
 ## Quick decision checklist
 
 Triage a piece of content fast.
-If any answer routes you away from the docs, see the [routing table](#routing-table) for the correct destination.
+If any answer routes you away from the docs, refer to the [routing table](#routing-table) for the correct destination.
 
 1. Does it describe how the product works or how to use it, from the end user's perspective?
    **Likely docs.**
@@ -30,10 +35,11 @@ If any answer routes you away from the docs, see the [routing table](#routing-ta
    **Support KB (Pylon)**, not docs.
 5. Is it about contributing to the Coder codebase or writing style?
    **GitHub** (or public Notion), not docs.
-6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, etc.)?
-   **Link to their docs**, don't duplicate.
+6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, and so on)?
+   **Link to their docs**, do not duplicate.
 7. Is it relevant only to a past or hypothetical future version?
-   **Doesn't belong**; keep docs scoped to the version they describe.
+   **Doesn't belong**.
+   Keep docs scoped to the version they describe.
 
 ## Guiding principles
 
@@ -65,7 +71,10 @@ Tutorials and how-to guides that include CLI commands (or chained commands) must
 *Why:* If we can run it, we can detect drift.
 Untestable claims rot silently.
 
-### Verify against the code; document exact values
+The same holds for claims about product behavior, such as a default, a limit, a file format, or an ordering.
+When no test pins the behavior a page describes, add one in the product, so the build fails before the page becomes false.
+
+### Verify against the code and document exact values
 
 Docs claims should be checked against the actual implementation, not approximations:
 
@@ -76,18 +85,22 @@ Docs claims should be checked against the actual implementation, not approximati
 - Full API paths.
   Example: `/api/v2/insights/templates`, not `/insights/templates`.
 
-*Why:* Precise values are what make accuracy checkable; "roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
-Whether an exact value belongs on the page at all is a separate question; refer to [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
+*Why:* Precise values are what make accuracy checkable.
+"roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
+Whether an exact value belongs on the page at all is a separate question.
+Refer to [Evidence justifies a claim and does not belong in the claim](#evidence-justifies-a-claim-and-does-not-belong-in-the-claim).
 
-### Evidence justifies a claim; it does not belong in the claim
+### Evidence justifies a claim and does not belong in the claim
 
 Verifying a behavior against the code does not mean publishing the code's vocabulary.
 For each identifier, ask: **within the task this page documents, does the reader type it or receive it?**
 Then pick the first rung that applies, testing in order:
 
-1. **Typed or received in this page's task:** document the exact value, per [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
+1. **Typed or received in this page's task:** document the exact value, per [Verify against the code and document exact values](#verify-against-the-code-and-document-exact-values).
+
    This is the normal case for reference, API, CLI, and configuration content.
 2. **Shown in the product, on a surface this page's task involves:** use the words the product shows there, such as a visible status text, form field label, or button name.
+
    What the screen shows is what the reader can verify against it.
    Confirm the words are rendered as visible text on that surface, not only as accessibility labels.
 3. **Neither:** describe the behavior in plain terms of the reader's task, following the [voice and tone rules](./style-guide/voice-and-tone.md).
@@ -122,10 +135,11 @@ Tying the docs bar to default visibility keeps backend-only plumbing PRs out of 
 Three corollaries:
 
 1. **Features that introduce or change behavior get documented in the PR that introduces or changes them.**
-   Don't merge a behavior change without the matching doc update.
+   Do not merge a behavior change without the matching doc update.
 2. **Features that are not yet confirmed to exist do not get documented.**
    No speculative docs for unmerged or uncommitted work.
 3. **Multi-PR launch exception.**
+
    For a body of work that spans several PRs and is spec'd to launch together by a particular date, docs may be written ahead of those merges, in the present tense, describing the feature as it will exist at launch.
    They must never read as a promise of what's coming.
    No "will support", "in a future release", "coming soon", or roadmap framing.
@@ -133,7 +147,7 @@ Three corollaries:
 ### Experiments versus feature stages
 
 Coder has two related but distinct concepts.
-Don't conflate them:
+Do not conflate them:
 
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
@@ -159,7 +173,8 @@ Each entry includes the reason it belongs in the docs.
 - **Tutorials that touch programmatic aspects of the product.**
   "If I run this group of CLI commands, what's supposed to happen?" and "How do I do X in the product?", each written so it can become a testable, verifiable CI surface.
 
-  *Why:* A true tutorial serves the user's study and informs action; it teaches the right way to use a command in an approachable, no-risk way that a bare reference page can't.
+  *Why:* A true tutorial serves the user's study and informs action.
+  It teaches the right way to use a command in an approachable, no-risk way that a bare reference page can't.
 
 - **Explanations of features with a direct, noticeable impact on how users interact with the product.**
 
@@ -173,9 +188,10 @@ Each entry includes the reason it belongs in the docs.
   *Why:* Users need an authoritative answer to "does Coder work with X?", and this is a high-drift area worth actively monitoring.
 
 - **New features that add genuine net-new value.**
-  New UI sections, and new CLI commands or flags (e.g., key expiration policy for Coder secrets), including expected command flags and output.
+  New UI sections, and new CLI commands or flags (for example, key expiration policy for Coder secrets), including expected command flags and output.
 
-  *Why:* Net-new surface area is undocumented by definition; documenting expected flags and output also feeds the testable-CI-surface goal.
+  *Why:* Net-new surface area is undocumented by definition.
+  Documenting expected flags and output also feeds the testable-CI-surface goal.
 
 - **Configuration surfaces.**
   New environment variables, server flags, and settings must be documented when they ship.
@@ -198,34 +214,35 @@ Each entry includes the reason it belongs in the docs.
   Once a migration path is no longer relevant to the supported upgrade path, it ages out like any other stale content.
 
 - **Tutorials and guides that go beyond an API reference.**
-  Walkthroughs using the CLI (or chained commands) with expected outputs.
+  Tutorials using the CLI (or chained commands) with expected outputs.
 
-  *Why:* Reference docs tell users what exists; guides teach them how to accomplish something with it.
+  *Why:* Reference docs tell users what exists.
+  Guides teach them how to accomplish something with it.
 
 - **Minimal teaching examples of Terraform, with ample links to HashiCorp's docs.**
 
   *Why:* This is a deliberate exception to the "don't duplicate third-party docs" rule.
   Solutions-team experience shows many customers don't know how to write the Terraform needed to build workspaces that satisfy their business requirements.
-  A light sprinkling of Terraform unblocks them; the links keep HashiCorp's docs as the source of truth.
+  A light sprinkling of Terraform unblocks them.
+  The links keep HashiCorp's docs as the source of truth.
 
 - **Screenshots, used wisely, never reflexively.**
   Include a screenshot only when the topic would be confusing without the visual aid.
-  The policy is not "no screenshots"; it is "use screenshots wisely."
+  The policy is not "no screenshots."
+  It is "use screenshots wisely."
   Every screenshot must follow all of these rules:
 
   1. No PHI or PII.
   2. No internal secrets leaked without properly obfuscating the text.
   3. Capture the minimally necessary surface area.
-     The more area a
-     screenshot includes, the more likely it becomes out of date.
-  4. Alt text is always required, and must properly explain the purpose
-     of the screenshot for accessibility.
+     The more area a screenshot includes, the more likely it becomes out of date.
+  4. Alt text is always required, and must properly explain the purpose of the screenshot for accessibility.
 
   *Why:* Screenshots must be kept up to date and risk going stale if not actively monitored, and users who rely on screen readers or other assistive technology cannot get the same value from screenshots that sighted users can.
   Each screenshot must earn its place, stay small, and carry alt text that conveys its purpose.
 
   *Note:* This policy supersedes the older "image-driven documentation" guidance (structuring sections around screenshots, inserting placeholders for missing screenshots).
-  It may be loosened if automated screenshot generation becomes real (see [Open items](#open-items)).
+  It might be loosened if automated screenshot generation becomes real (refer to [Open items](#open-items)).
 
 ## Structural rules
 
@@ -233,9 +250,11 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
 
 - **Every new page must be added to the sidebar sources in `docs/manifest/`.**
   Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
-  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources.
+  Do not edit the JSON directly.
 - **Never hand-edit auto-generated content.**
-  Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
+  Files under `docs/reference/cli/` are generated from Go code.
+  Changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
 - **Feature states are marked in navigation metadata.**
   The page's route in `docs/manifest/` must include its state, such as `state: [premium]` or `state: [beta]`.
@@ -244,6 +263,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
   2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
+
      Each rule has a `source` and a `destination`, both full `/docs/...` paths, and an optional `permanent` flag that defaults to `true`.
      A `destination` can also be an external `http` or `https` URL.
      A `source` is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
@@ -259,16 +279,16 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   That format isn't processed by [coder.com](https://coder.com).
 - **No emdash, endash, or ` -- ` as punctuation.**
   This applies in docs prose, code blocks, comments, and string literals.
-  Use commas, semicolons, or periods, or restructure the sentence.
-  For numeric ranges, use a plain hyphen (e.g., `0-100`).
+  Use commas, parentheses, or periods, or restructure the sentence.
+  For numeric ranges in code and tables, a plain hyphen is fine (`0-100`).
+  In prose, spell out the joiner (`0 to 100`), as [Numeric ranges](./style-guide/capitalization-and-punctuation.md#numeric-ranges) describes.
   The rule is enforced by `make lint/emdash`.
 - **Terminology changes update the glossary.**
   When a change introduces, renames, or deprecates a Coder product or feature name, update the [glossary](../reference/glossary.md) in the same change, the way a user-facing feature lands with its docs:
-  1. New name: add an entry with a short definition and a link to the
-     page that covers the term.
-  2. Rename: update the entry and record the former name (for example,
-     "previously named ...") so a reader who searches the old term still
-     lands in the right place.
+  1. New name: add an entry with a short definition and a link to the page that covers the term.
+  2. Rename: update the entry and record the former name (for example, "previously named ...").
+
+     A reader who searches the old term then still lands in the right place.
   3. Deprecation: mark the term deprecated and name its replacement.
 
   A term earns an entry when it is a Coder-specific product or feature proper noun, or a word that collides with another Coder meaning (for example, the several senses of "agent").
@@ -283,7 +303,8 @@ Each entry includes the destination and the reason.
 - **Contributing guides.**
   Route to GitHub directly, or possibly a public Notion site.
 
-  *Why:* The number of people contributing to the Coder codebase is a small fraction of the number of people using the product; this content isn't relevant to end users.
+  *Why:* The number of people contributing to the Coder codebase is a small fraction of the number of people using the product.
+  This content isn't relevant to end users.
 
 - **Style guides (including the docs style guide).**
   Route to GitHub, alongside the code.
@@ -294,7 +315,8 @@ Each entry includes the destination and the reason.
   Route to the support knowledge base (Pylon).
   Troubleshooting documentation is primarily owned by Support, with Docs as secondary owner where needed.
 
-  *Why:* The docs explain how the product works and how to use it; the KB covers what to do when things go wrong.
+  *Why:* The docs explain how the product works and how to use it.
+  The KB covers what to do when things go wrong.
   Support should own the content they produce.
 
   *Connection point:* Docs pages should surface relevant Pylon KB articles via an embedded widget, scoped to the section or page.
@@ -311,9 +333,10 @@ Each entry includes the destination and the reason.
 - **Timeless, predictive, or stale content.**
   Only content relevant to the specific version a doc applies to belongs in that doc.
 
-  *Why:* Don't predict the future; don't carry forward material that no longer applies.
+  *Why:* Do not predict the future.
+  Do not carry forward material that no longer applies.
   Version-scoped content is what keeps the docs trustworthy and drift-detectable.
-  See the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
+  Refer to the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
 
 - **Feature announcements and launch rationale.**
   Route to blog.
@@ -324,12 +347,14 @@ Each entry includes the destination and the reason.
 - **Deep internals of how the code works.**
   Focus on how the product changes for the end user instead.
 
-  *Why:* Most users don't care how Coder's code is written; they care about inputs and outputs.
+  *Why:* Most users don't care how Coder's code is written.
+  They care about inputs and outputs.
 
 - **Duplicated third-party documentation** (Terraform, Amazon, Microsoft, Google, other vendors).
   Link to their docs instead.
 
-  *Why:* Vendor docs are the source of truth; ours would immediately start drifting from them.
+  *Why:* Vendor docs are the source of truth.
+  Ours would immediately start drifting from them.
 
   *Exception:* Minimal Terraform teaching examples, as described in [What belongs in the docs](#what-belongs-in-the-docs).
 
@@ -343,7 +368,7 @@ When content doesn't belong in the docs, here's where it goes.
 | Launch rationale ("why we built this")   | Blog                                   | Casual, narrative voice belongs on the blog                                                                                                          |
 | Performance improvements                 | Changelog or blog                      | No change to how the user interacts with the product                                                                                                 |
 | Release-by-release changes               | Changelog                              | The changelog is the record of what changed and when                                                                                                 |
-| Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (see exception above)                                                                                          |
+| Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (refer to the exception in the previous section)                                                               |
 | Troubleshooting ("when things go wrong") | Support KB (Pylon)                     | Support is primary owner of failure-mode content (Docs secondary where needed); docs own intended behavior and link to the KB via an embedded widget |
 | Contributing guides                      | GitHub (or public Notion)              | Audience is contributors, not end users                                                                                                              |
 | Style guides (code and docs)             | GitHub, with the codebase              | Same audience as contributing guides; enables CI enforcement                                                                                         |
@@ -357,11 +382,14 @@ Update this section as they land.
 
 - **In-docs troubleshooting migration.**
   Audits the existing `## Troubleshooting` sections and dedicated troubleshooting pages under `docs/`, rewrites them for KB voice, and uploads them via the Pylon API.
-  Until that work lands, link out to the relevant Pylon article from the page body; if no Pylon article exists yet, leave the existing inline troubleshooting in place rather than removing it.
+  Until that work lands, link out to the relevant Pylon article from the page body.
+  If no Pylon article exists yet, leave the existing inline troubleshooting in place rather than removing it.
 - **Pylon KB widget implementation.**
-  The direction is decided (embedded widget surfacing relevant KB articles per page or section); the mechanics are still under investigation.
+  The direction is decided (embedded widget surfacing relevant KB articles per page or section).
+  The mechanics are still under investigation.
 - **Automated screenshot generation.**
-  Today, doc-check only analyzes and comments; it creates nothing.
+  Today, doc-check only analyzes and comments.
+  It creates nothing.
   The repo has Playwright e2e infrastructure under `site/e2e/`, so an agent workspace generating screenshots is plausible but unproven.
   If it becomes real, revisit loosening the screenshots policy.
   Until then, the screenshot rules in [What belongs in the docs](#what-belongs-in-the-docs) govern.

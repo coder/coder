@@ -2,21 +2,15 @@
 title: Template change management
 ---
 
-We recommend source-controlling your templates as you would other any code, and
-automating the creation of new versions in CI/CD pipelines.
+We recommend source-controlling your templates as you would other any code, and automating the creation of new versions in CI/CD pipelines.
 
-These pipelines will require tokens for your deployment. To cap token lifetime
-on creation,
-[configure the control plane to set a shorter max token lifetime](../../../reference/cli/server/index.md#--max-token-lifetime).
+These pipelines will require tokens for your deployment.
+To cap token lifetime on creation, [configure the control plane to set a shorter max token lifetime](../../../reference/cli/server/index.md#--max-token-lifetime).
 
 ## coderd Terraform Provider
 
-The
-[coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest)
-can be used to push new template versions, either manually, or in CI/CD
-pipelines. To run the provider in a CI/CD pipeline, and to prevent drift, you'll
-need to store the Terraform state
-[remotely](https://developer.hashicorp.com/terraform/language/backend).
+The [coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest) can be used to push new template versions, either manually, or in CI/CD pipelines.
+To run the provider in a CI/CD pipeline, and to prevent drift, you'll need to store the Terraform state [remotely](https://developer.hashicorp.com/terraform/language/backend).
 
 ```tf
 terraform {
@@ -59,14 +53,12 @@ resource "coderd_template" "kubernetes" {
 }
 ```
 
-For an example, see how we push our development image
-[with GitHub actions](../../../../.github/workflows/dogfood.yaml).
+For an example, see how we push our development image [with GitHub actions](../../../../.github/workflows/dogfood.yaml).
 
 ## Coder CLI
 
-You can [install Coder](../../../install/cli.md) CLI to automate pushing new
-template versions in CI/CD pipelines. For GitHub Actions, see our
-[setup-coder](https://github.com/coder/setup-coder) action.
+You can [install Coder](../../../install/cli.md) CLI to automate pushing new template versions in CI/CD pipelines.
+For GitHub Actions, see our [setup-coder](https://github.com/coder/setup-coder) action.
 
 ```console
 # Install the Coder CLI
@@ -95,8 +87,7 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 
 ## Test and publish Coder templates in CI/CD
 
-See our [testing templates](../../../tutorials/testing-templates.md) tutorial
-for an example of how to test and publish Coder templates in a CI/CD pipeline.
+See our [testing templates](../../../tutorials/testing-templates.md) tutorial for an example of how to test and publish Coder templates in a CI/CD pipeline.
 
 ### Next steps
 

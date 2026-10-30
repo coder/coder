@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -107,26 +106,6 @@ func (w *chatWorker) Wake() {
 	w.mu.Unlock()
 	if wakeCh != nil {
 		wake(wakeCh)
-	}
-}
-
-// WaitIdle waits until the worker has no active or cleaning runners.
-func (w *chatWorker) WaitIdle(ctx context.Context) error {
-	for {
-		w.mu.Lock()
-		manager := w.manager
-		w.mu.Unlock()
-		if manager == nil || manager.idle() {
-			return nil
-		}
-		timer := w.opts.Clock.NewTimer(10*time.Millisecond, "chatworker", "wait-idle")
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		}
-		timer.Stop()
 	}
 }
 

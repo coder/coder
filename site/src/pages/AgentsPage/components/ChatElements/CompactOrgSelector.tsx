@@ -62,10 +62,9 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 					{value ? (
 						<>
 							<Avatar
-								size="sm"
+								size="xs"
 								src={value.icon}
 								fallback={value.display_name || value.name}
-								className="size-3.5! border-0"
 							/>
 							<span className="truncate">
 								{value.display_name || value.name}
@@ -108,10 +107,9 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 										// the option's accessible name once they render, making
 										// name queries and screen-reader output timing-dependent.
 										aria-hidden
-										size="sm"
+										size="xs"
 										src={org.icon}
 										fallback={org.display_name || org.name}
-										className="size-3.5! border-0"
 									/>
 									<span className="truncate">
 										{org.display_name || org.name}

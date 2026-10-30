@@ -209,7 +209,7 @@ func TestWorker_MessageBumpSendsChatToQueueBack(t *testing.T) {
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, older.ID)
 	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage(t, "move me", f.user.ID, f.model.ID, f.apiKey.ID),
+			Message:      userTextMessage(t, "move me", f.user.ID, f.model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})

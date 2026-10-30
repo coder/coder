@@ -64,7 +64,7 @@ credentials "<your-artifactory-host>" {
 
 Replace:
 
-- `<your-artifactory-host>` with your Artifactory hostname (e.g., `artifactory.example.com` or `mycompany.jfrog.io`)
+- `<your-artifactory-host>` with your Artifactory hostname (for example, `artifactory.example.com` or `mycompany.jfrog.io`)
 - `<your-artifactory-token>` with your Artifactory access token with read permissions to the `coder-registry` repository
 
 > [!NOTE]

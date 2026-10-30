@@ -73,7 +73,7 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 // queue order.
 func queuedIDsByPosition(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) []int64 {
 	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 	require.NoError(t, err)
 	ids := make([]int64, len(rows))
 	for i, r := range rows {

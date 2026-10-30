@@ -544,7 +544,7 @@ export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 		expect(docsLink).toHaveAttribute(
 			"href",
 			expect.stringContaining(
-				"/admin/templates/extending-templates/dynamic-parameters",
+				"/admin/templates/extending-templates/parameters/compatibility-mode",
 			),
 		);
 		expect(docsLink).toHaveAttribute("target", "_blank");

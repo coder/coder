@@ -194,7 +194,7 @@ func TestKeyring(t *testing.T) {
 		srv1URL, err := url.Parse(testURL1)
 		require.NoError(t, err)
 
-		const testURL2 = "http://127.0.0.1:1338"
+		const testURL2 = "https://127.0.0.1:1338"
 		srv2URL, err := url.Parse(testURL2)
 		require.NoError(t, err)
 
@@ -225,8 +225,10 @@ func TestKeyring(t *testing.T) {
 
 		// Both credentials should exist
 		require.Len(t, storedCreds, 2)
-		require.Equal(t, token1, storedCreds[srv1URL.Host].APIToken)
-		require.Equal(t, token2, storedCreds[srv2URL.Host].APIToken)
+		require.Equal(t, token1, storedCreds[testURL1].APIToken)
+		require.Equal(t, token2, storedCreds["127.0.0.1:1338"].APIToken)
+		require.Equal(t, testURL1, storedCreds[testURL1].CoderURL)
+		require.Equal(t, testURL2, storedCreds["127.0.0.1:1338"].CoderURL)
 
 		// Read individual credentials
 		token, err := backend.Read(srv1URL)

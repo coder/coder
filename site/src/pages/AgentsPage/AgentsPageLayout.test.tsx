@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import {
 	type InfiniteData,
 	InfiniteQueryObserver,
+	type QueryClient,
 	QueryObserver,
 	useQuery,
 } from "react-query";
@@ -66,6 +67,30 @@ const renderLayout = (route = "/agents") =>
 		],
 		extraRoutes: [{ path: "/workspaces", element: null }],
 	});
+
+const mockChatWatchSocket = () => {
+	let chatWatchServer: MockWebSocketServer | undefined;
+	vi.spyOn(apiModule, "watchChats").mockImplementation(
+		() =>
+			new OneWayWebSocket<ChatWatchEvent>({
+				apiRoute: "/api/v2/chats/watch",
+				websocketInit: (url, protocol) => {
+					const [socket, server] = createMockWebSocket(url, protocol);
+					chatWatchServer = server;
+					return socket;
+				},
+			}),
+	);
+	return (event: ChatWatchEvent) => {
+		if (!chatWatchServer)
+			throw new Error("Chat watch connection was not opened");
+		act(() =>
+			chatWatchServer?.publishMessage(
+				new MessageEvent("message", { data: JSON.stringify(event) }),
+			),
+		);
+	};
+};
 
 beforeEach(() => {
 	vi.spyOn(API, "getWorkspaceQuota").mockResolvedValue(MockWorkspaceQuota);
@@ -493,7 +518,7 @@ describe("AgentsPageLayout archive and delete", () => {
 		parent_chat_id: chat.id,
 		root_chat_id: chat.id,
 	};
-	let chatWatchServer: MockWebSocketServer | undefined;
+	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
 
 	beforeEach(() => {
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat, otherChat]);
@@ -517,18 +542,7 @@ describe("AgentsPageLayout archive and delete", () => {
 		vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
 			MockWorkspaceBuildDelete,
 		);
-		chatWatchServer = undefined;
-		vi.spyOn(apiModule, "watchChats").mockImplementation(
-			() =>
-				new OneWayWebSocket<ChatWatchEvent>({
-					apiRoute: "/api/v2/chats/watch",
-					websocketInit: (url, protocol) => {
-						const [socket, server] = createMockWebSocket(url, protocol);
-						chatWatchServer = server;
-						return socket;
-					},
-				}),
-		);
+		publishChatWatchEvent = mockChatWatchSocket();
 	});
 
 	it.each(["sidebar", "top bar"] as const)(
@@ -769,17 +783,10 @@ describe("AgentsPageLayout archive and delete", () => {
 						// Archiving emits this event before the workspace deletion finishes,
 						// removing the sidebar row that started the mutation.
 						vi.mocked(API.experimental.getChats).mockResolvedValue([otherChat]);
-						if (!chatWatchServer)
-							throw new Error("Chat watch connection was not opened");
-						const event: ChatWatchEvent = {
+						publishChatWatchEvent({
 							kind: "deleted",
 							chat: { ...chat, archived: true },
-						};
-						act(() =>
-							chatWatchServer?.publishMessage(
-								new MessageEvent("message", { data: JSON.stringify(event) }),
-							),
-						);
+						});
 						await waitFor(() =>
 							expect(
 								queryClient
@@ -880,4 +887,87 @@ describe("AgentsPageLayout archive and delete", () => {
 			});
 		},
 	);
+});
+
+describe("AgentsPageLayout project moves", () => {
+	const mockChatInProjectA: Chat = { ...MockChat, project_id: "project-a" };
+	const mockChatInProjectB: Chat = { ...MockChat, project_id: "project-b" };
+	const mockChatInProjectC: Chat = { ...MockChat, project_id: "project-c" };
+	let publishChatWatchEvent: (event: ChatWatchEvent) => void;
+
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+			mockChatInProjectA,
+		]);
+		vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockChatInProjectA);
+		publishChatWatchEvent = mockChatWatchSocket();
+	});
+
+	const commitMove = (movedChat: Chat) => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([movedChat]);
+		vi.mocked(API.experimental.getChat).mockResolvedValue(movedChat);
+	};
+
+	const expectOpenChatProject = (queryClient: QueryClient, projectId: string) =>
+		waitFor(() =>
+			expect(
+				queryClient.getQueryData(chatEntityKey(MockChat.id)),
+			).toMatchObject({ project_id: projectId }),
+		);
+
+	it("ends on the committed project when move events arrive out of order", async () => {
+		const { queryClient } = renderLayout(`/agents/${MockChat.id}`);
+		await expectOpenChatProject(queryClient, "project-a");
+
+		// Two quick moves committed project-b and then project-c, and this tab
+		// receives their events in reverse order.
+		commitMove(mockChatInProjectC);
+		publishChatWatchEvent({ kind: "project_change", chat: mockChatInProjectC });
+		publishChatWatchEvent({ kind: "project_change", chat: mockChatInProjectB });
+
+		await expectOpenChatProject(queryClient, "project-c");
+	});
+
+	it("ends on the moved project when a move overtakes the open chat's first fetch", async () => {
+		const firstFetch = createDeferred<Chat>();
+		vi.mocked(API.experimental.getChat).mockReturnValueOnce(firstFetch.promise);
+		const { queryClient } = renderLayout(`/agents/${MockChat.id}`);
+		await waitFor(() =>
+			expect(API.experimental.getChat).toHaveBeenCalledTimes(1),
+		);
+
+		commitMove(mockChatInProjectB);
+		publishChatWatchEvent({ kind: "project_change", chat: mockChatInProjectB });
+		// The first fetch read the chat before the move committed.
+		await act(async () => firstFetch.resolve(mockChatInProjectA));
+
+		await expectOpenChatProject(queryClient, "project-b");
+	});
+
+	it("ends on the moved project when a move overtakes the first chat list fetch", async () => {
+		const firstFetch = createDeferred<Chat[]>();
+		vi.mocked(API.experimental.getChats).mockReturnValueOnce(
+			firstFetch.promise,
+		);
+		const { queryClient } = renderLayout();
+		await waitFor(() =>
+			expect(API.experimental.getChats).toHaveBeenCalledTimes(1),
+		);
+
+		commitMove(mockChatInProjectB);
+		publishChatWatchEvent({ kind: "project_change", chat: mockChatInProjectB });
+		// The first fetch read the list before the move committed.
+		await act(async () => firstFetch.resolve([mockChatInProjectA]));
+
+		await waitFor(() =>
+			expect(
+				queryClient
+					.getQueryData<InfiniteData<Chat[]>>(
+						infiniteChats({ sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources })
+							.queryKey,
+					)
+					?.pages.flat(),
+			).toEqual([mockChatInProjectB]),
+		);
+	});
 });

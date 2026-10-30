@@ -5,21 +5,25 @@ title: External provisioners
 By default, the control plane runs [built-in provisioner daemons](../../../reference/cli/server/index.md#--provisioner-daemons), which execute `terraform` during workspace and template builds.
 However, there are often benefits to running external provisioner daemons:
 
-- **Secure build environments:** Run build jobs in isolated containers, preventing malicious templates from gaining sh access to the Coder host.
+- **Secure build environments:**
+  Run build jobs in isolated containers, preventing malicious templates from gaining sh access to the Coder host.
 
-- **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
+- **Isolate APIs:**
+  Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
   See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
 
-- **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
+- **Isolate secrets**:
+  Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
 
-- **Reduce control plane load**: External provisioners reduce load and build queue times from the control plane.
+- **Reduce control plane load**:
+  External provisioners reduce load and build queue times from the control plane.
   See [Scaling Coder](../../validate/scale-testing.md) for more details.
 
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
 Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
-Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
+Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
 
@@ -67,7 +71,7 @@ Keys are scoped to an organization, and optionally to a specific set of tags.
    coder provisioner start
    ```
 
-Keep reading to see instructions for running provisioners on Kubernetes/Docker/etc.
+Keep reading to see instructions for running provisioners on Kubernetes, Docker, and so on.
 
 ## User Tokens
 
@@ -151,8 +155,11 @@ See the [workspace tags documentation](../../../admin/templates/extending-templa
 A provisioner can run a given build job if one of the below is true:
 
 1. A job with no explicit tags can only be run on a provisioner with no explicit tags.
+
    This way you can introduce tagging into your deployment without disrupting existing provisioners and jobs.
-1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags (the provisioner could have additional tags).
+1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags.
+
+   The provisioner could have additional tags.
 
 The external provisioner in the above example can run build jobs in the same organization with tags:
 

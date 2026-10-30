@@ -10,7 +10,7 @@ import (
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
 // Any valid resource:action pair not in this set is considered internal-only
-// and must not be user-requestable.
+// and must not be user-requestable. Move removed entries to retiredScopes.
 var externalLowLevel = map[ScopeName]struct{}{
 	// Workspaces
 	"workspace:read":                {},
@@ -107,6 +107,22 @@ var externalComposite = map[ScopeName]struct{}{
 var scopeAliases = map[ScopeName]ScopeName{
 	"all":                 ScopeAll,
 	"application_connect": ScopeApplicationConnect,
+}
+
+// retiredScopes preserves compatibility with clients that still request removed
+// scopes alongside supported scopes.
+var retiredScopes = map[ScopeName]struct{}{
+	"task:create": {},
+	"task:read":   {},
+	"task:update": {},
+	"task:delete": {},
+	"task:*":      {},
+}
+
+// IsRetiredScope reports whether name was removed from the external catalog.
+func IsRetiredScope(name ScopeName) bool {
+	_, ok := retiredScopes[name]
+	return ok
 }
 
 // IsExternalScope returns true if the scope is public: the `all` and

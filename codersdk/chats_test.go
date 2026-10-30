@@ -272,6 +272,20 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.True(t, part.ContextFileAgentID.Valid)
 	})
 
+	t.Run("StripsInvokedSkillFields", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "deploy")
+		part.SkillBody = "Run scripts/deploy.sh."
+		part.SkillDir = "/home/coder/.agents/skills/deploy"
+		part.SkillWorkspaceID = uuid.New()
+		part.StripInternal()
+		assert.Empty(t, part.SkillBody)
+		assert.Empty(t, part.SkillDir)
+		assert.Equal(t, uuid.Nil, part.SkillWorkspaceID)
+		assert.Equal(t, codersdk.ChatSkillSourceWorkspace, part.SkillSource)
+		assert.Equal(t, "deploy", part.SkillName)
+	})
+
 	t.Run("NoopOnCleanPart", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessageText("hello")
@@ -319,7 +333,9 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
+		"skill_workspace_id":           "internal only, gates skill_dir in the prompt (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+		"skill_body":                   "internal only, stripped before API responses (typescript:\"-\")",
 	}
 	// Part types intentionally excluded from all generated variants.
 	// If you add a new part type, either reference it in a variants

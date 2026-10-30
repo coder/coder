@@ -180,6 +180,14 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 							providers={session.providers}
 							inputTokens={session.token_usage_summary.input_tokens}
 							outputTokens={session.token_usage_summary.output_tokens}
+							cacheReadTokens={
+								session.token_usage_summary.cache_read_input_tokens
+							}
+							cacheWriteTokens={
+								session.token_usage_summary.cache_write_input_tokens
+							}
+							costMicros={session.token_usage_summary.cost_micros}
+							hasUnpricedUsage={session.token_usage_summary.has_unpriced_usage}
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}

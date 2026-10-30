@@ -393,6 +393,13 @@ func marshalContextResourceBody(r *agentproto.ContextResource) (kind database.Wo
 		}
 		body, err = marshalBody(payload)
 		return database.WorkspaceAgentContextBodyKindMcpServer, body, err
+	case *agentproto.ContextResource_AcpHarness:
+		payload := b.AcpHarness
+		if payload == nil {
+			payload = &agentproto.ACPHarnessBody{}
+		}
+		body, err = marshalBody(payload)
+		return database.WorkspaceAgentContextBodyKindAcpHarness, body, err
 	case nil:
 		return "", nil, xerrors.Errorf("missing body variant; status %s requires a typed body", r.Status)
 	default:

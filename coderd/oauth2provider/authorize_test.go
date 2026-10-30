@@ -198,6 +198,17 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonUnknownScope)
 	})
 
+	t.Run("RetiredScopeDroppedNotGranted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "task:* "+scopeInCatalog)
+		defer resp.Body.Close()
+
+		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
+	})
+
 	t.Run("OmittedScopeDefaultsToAllowlist", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

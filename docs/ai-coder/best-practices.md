@@ -48,7 +48,7 @@ Look up the docs for the specific agent you're using to learn more about how to 
 In internal testing, we have seen significant improvements in agent performance when these tools are added via MCP.
 
 - [Playwright](https://github.com/microsoft/playwright-mcp): Instruct your agent to open a browser, and check its work by viewing output and taking screenshots.
-- [desktop-commander](https://github.com/wonderwhy-er/DesktopCommanderMCP): Instruct your agent to run long-running tasks (e.g. `npm run dev`) in the background instead of blocking the main thread.
+- [desktop-commander](https://github.com/wonderwhy-er/DesktopCommanderMCP): Instruct your agent to run long-running tasks (for example, `npm run dev`) in the background instead of blocking the main thread.
 
 ## Security & Permissions
 

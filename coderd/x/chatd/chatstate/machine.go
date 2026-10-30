@@ -67,13 +67,13 @@ type Tx struct {
 // is next written, so pass it to at most the first transition in a
 // callback. Writes made through the raw store are not reflected in it.
 type ChatSnapshot struct {
-	Chat      database.Chat
-	HasQueued bool
+	Chat  database.Chat
+	Queue QueueState
 }
 
 // State classifies the snapshot's execution state.
 func (s *ChatSnapshot) State() ExecutionState {
-	return ClassifyExecutionState(s.Chat, s.HasQueued, true)
+	return ClassifyExecutionState(s.Chat, s.Queue, true)
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -105,7 +105,7 @@ func (tx *Tx) loadState(snapshot *ChatSnapshot) (database.Chat, ExecutionState, 
 	return tx.readState()
 }
 
-// readState reads the current chat row and queue cardinality from the
+// readState reads the current chat row and queue state from the
 // active transaction and classifies the execution state. Returns
 // ErrChatNotFound if the chat row was deleted in this transaction (or
 // never existed).
@@ -117,11 +117,11 @@ func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 		}
 		return database.Chat{}, "", xerrors.Errorf("load chat: %w", err)
 	}
-	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
+	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
 	if err != nil {
-		return database.Chat{}, "", xerrors.Errorf("count queued messages: %w", err)
+		return database.Chat{}, "", xerrors.Errorf("load queue state: %w", err)
 	}
-	return chat, ClassifyExecutionState(chat, count > 0, true), nil
+	return chat, ClassifyExecutionState(chat, queue, true), nil
 }
 
 // requireFromAllowed loads the current state and validates t against
@@ -197,16 +197,16 @@ func (m *ChatMachine) Update(
 			}
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}
-		queued, err := store.CountChatQueuedMessages(ctx, m.chatID)
+		queue, err := LoadQueueState(ctx, store, m.chatID)
 		if err != nil {
-			return xerrors.Errorf("count queued messages: %w", err)
+			return xerrors.Errorf("load queue state: %w", err)
 		}
 		tx := &Tx{
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
 		}
-		if err := fn(tx, store, &ChatSnapshot{Chat: locked, HasQueued: queued > 0}); err != nil {
+		if err := fn(tx, store, &ChatSnapshot{Chat: locked, Queue: queue}); err != nil {
 			return err
 		}
 		// The callback may have written the chat, so publish a fresh read.

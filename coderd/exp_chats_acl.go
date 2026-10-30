@@ -135,6 +135,11 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
+	var dupErrs []codersdk.ValidationError
+	req.UserRoles, dupErrs = canonicalACLRoles("user_roles", req.UserRoles)
+	validErrs = append(validErrs, dupErrs...)
+	req.GroupRoles, dupErrs = canonicalACLRoles("group_roles", req.GroupRoles)
+	validErrs = append(validErrs, dupErrs...)
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update chat ACL.",
@@ -155,6 +160,8 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		if current.GroupACL == nil {
 			current.GroupACL = database.ChatACL{}
 		}
+		deleteNoncanonicalChatACLKeys(current.UserACL, req.UserRoles)
+		deleteNoncanonicalChatACLKeys(current.GroupACL, req.GroupRoles)
 		oldChat = current
 		oldChat.UserACL = maps.Clone(current.UserACL)
 
@@ -213,6 +220,22 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// deleteNoncanonicalChatACLKeys deletes entries whose keys spell the ID of a
+// principal in roles in a noncanonical form. Older servers stored request keys
+// as sent. RBAC matches keys as strings, so these entries grant nothing, and
+// the canonical keys in roles would never remove them.
+func deleteNoncanonicalChatACLKeys(entries database.ChatACL, roles map[string]codersdk.ChatRole) {
+	for rawID := range entries {
+		id, err := uuid.Parse(rawID)
+		if err != nil || id.String() == rawID {
+			continue
+		}
+		if _, ok := roles[id.String()]; ok {
+			delete(entries, rawID)
+		}
+	}
 }
 
 func (api *API) notifyChatShared(oldChat database.Chat, newChat database.Chat, initiator database.User) (int, error) {

@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/agent/x/agentacp"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -128,10 +129,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC214WithRole connects to the Agent API v2.14. The workspace
+	// ConnectRPC215WithRole connects to the Agent API v2.15. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC214WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC215WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -346,6 +347,8 @@ type agent struct {
 	toolCalls        *agenttoolcall.Table
 	desktopAPI       *agentdesktop.API
 	mcpManager       *agentmcp.Manager
+	acpManager       *agentacp.Manager
+	acpAPI           *agentacp.API
 	mcpAPI           *agentmcp.API
 	contextConfigAPI *agentcontextconfig.API
 	contextManager   *agentcontext.Manager
@@ -422,6 +425,7 @@ func (a *agent) init() {
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
 		Logger:      a.logger,
+		Clock:       a.clock,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
@@ -461,6 +465,8 @@ func (a *agent) init() {
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.acpManager = agentacp.NewManager(a.gracefulCtx, agentacp.Options{Logger: a.logger.Named("acp"), Clock: a.clock, Execer: a.execer, Filesystem: a.filesystem, EnvInfo: a.envInfo, UpdateEnv: a.updateCommandEnv, WorkingDir: workingDirFn})
+	a.acpAPI = agentacp.NewAPI(a.acpManager)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
@@ -482,11 +488,14 @@ func (a *agent) init() {
 		MCPCatalog: func() []agentcontext.MCPServerStatus {
 			return mcpCatalogToContext(a.mcpManager.Catalog())
 		},
+		MCPReconnect: a.mcpManager.Reconnect,
+		ACPResources: a.acpManager.ContextResources,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
 	// engine's catalog changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
+	a.acpManager.SetOnChange(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1008,7 +1017,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC214WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC215WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1367,6 +1376,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 
 				dur := time.Since(start).Seconds()
+				// Probe ACP harnesses before announcing readiness so the first
+				// context snapshot already includes their capabilities or errors.
+				a.acpManager.RunDiscovery()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 					if errors.Is(err, agentscripts.ErrTimeout) {
@@ -1550,6 +1562,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// using its basepath to construct a path based port proxy.
 	if manifest.VSCodePortProxyURI != "" {
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
+	}
+
+	// Older servers do not send the build ID.
+	if manifest.WorkspaceBuildID != uuid.Nil {
+		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
 	}
 
 	// Allow any of the current env to override what we defined above.
@@ -2291,6 +2308,9 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
 	}
 
+	if err := a.acpManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "close ACP manager", slog.Error(err))
+	}
 	if err := a.mcpManager.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
@@ -2354,6 +2374,14 @@ lifecycleWaitLoop:
 	err = a.logSender.WaitUntilEmpty(a.hardCtx)
 	if err != nil {
 		a.logger.Warn(context.Background(), "timed out waiting for all logs to be sent", slog.Error(err))
+	}
+
+	// Wait for the connections closed by this shutdown to report their
+	// disconnects, and for those reports to be sent, so coderd can record why
+	// each connection closed.
+	err = a.connectionReporter.waitUntilReported(a.hardCtx)
+	if err != nil {
+		a.logger.Warn(context.Background(), "timed out waiting for all connection reports to be sent", slog.Error(err))
 	}
 
 	a.hardCancel()

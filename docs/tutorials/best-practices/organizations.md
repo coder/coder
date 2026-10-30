@@ -93,7 +93,7 @@ Some examples of custom roles that can be created:
 - A system account that can push new templates from a git repo but cannot manage users or delete templates.
 
 We’re interested in identifying new use cases for custom roles.
-Please [create a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28orgs%29%3A+request+title+here&labels=["customer-feedback"]&body=please+enter+your+request+here) with your suggestion or request.
+[Create a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28orgs%29%3A+request+title+here&labels=["customer-feedback"]&body=please+enter+your+request+here) with your suggestion or request.
 
 <a id="managing-organizations-at-scale"></a>
 

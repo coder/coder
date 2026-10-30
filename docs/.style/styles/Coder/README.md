@@ -16,20 +16,22 @@ Planned coverage:
 - Weasel words
 - Compliance-claim wording
 - Em-dash and en-dash mirror in Vale
-- Inclusive-language substitutions
 - Product-voice rules
 
 ## Authoring a new rule
 
 1. Write a YAML file under this directory.
    Name it after the rule's intent, for example `InclusiveLanguage.yml` or `ProductVoice.yml`.
-2. Each rule's `message:` should link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor, so a contributor reading a Vale warning can jump straight to the guidance.
+2. Each rule's `message:` should link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor.
+
+   A contributor reading a Vale warning can then jump straight to the guidance.
 3. Land at `level: warning` first.
    Promote to `level: error` only after both conditions hold:
    - The rule is objectively correct (typo, brand-name casing, banned
      substitution).
    - The existing-content violation count for the rule reaches zero.
 4. A follow-up PR adds a parity CI check that verifies every rule here has a matching section in `style-guide/`.
+
    Add the section in the same PR as the rule.
 
 ## Reference

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { expect, waitFor, within } from "storybook/test";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -30,6 +31,9 @@ const meta: Meta<typeof ChartContainer> = {
 			<ChartContainer config={chartConfig}>
 				<AreaChart
 					accessibilityLayer
+					role="group"
+					aria-roledescription="chart"
+					title="Users"
 					data={chartData}
 					margin={{
 						left: 12,
@@ -72,4 +76,16 @@ const meta: Meta<typeof ChartContainer> = {
 export default meta;
 type Story = StoryObj<typeof ChartContainer>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chart = await canvas.findByRole("group", { name: "Users" });
+		const liveRegion = canvas.getByRole("status");
+
+		// Without formatters, the announcement uses the label, item name, and value.
+		chart.focus();
+		await waitFor(() =>
+			expect(liveRegion).toHaveTextContent(/^January Users 186$/),
+		);
+	},
+};

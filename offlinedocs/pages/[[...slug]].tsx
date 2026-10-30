@@ -104,6 +104,10 @@ const removeREADMEName = (path: string) => {
 // file.md -> ../file-next-to-file = ../file-next-to-file
 const transformLinkUriSource = (sourceFile: string) => {
 	return (href = "") => {
+		if (href.startsWith("#")) {
+			return href;
+		}
+
 		const isExternal = href.startsWith("http") || href.startsWith("https");
 		if (!isExternal) {
 			// Remove .md form the path
@@ -376,11 +380,42 @@ const MobileNavbar: React.FC<{ nav: Nav; version: string }> = ({
 };
 
 const slugifyTitle = (titleSource: ReactNode) => {
+	if (typeof titleSource === "string") {
+		return _.kebabCase(titleSource.toLowerCase());
+	}
+
 	if (Array.isArray(titleSource) && typeof titleSource[0] === "string") {
 		return _.kebabCase(titleSource[0].toLowerCase());
 	}
 
 	return undefined;
+};
+
+const createHeadingIdGenerator = () => {
+	const headingIds = new WeakMap<object, string>();
+	const usedIds = new Set<string>();
+
+	return (titleSource: ReactNode, node?: object) => {
+		const existingId = node && headingIds.get(node);
+		if (existingId !== undefined) {
+			return existingId;
+		}
+
+		const baseId = slugifyTitle(titleSource);
+		if (baseId === undefined) {
+			return undefined;
+		}
+
+		let id = baseId;
+		for (let suffix = 1; usedIds.has(id); suffix++) {
+			id = `${baseId}-${suffix}`;
+		}
+		usedIds.add(id);
+		if (node) {
+			headingIds.set(node, id);
+		}
+		return id;
+	};
 };
 
 const getImageUrl = (src: string | undefined) => {
@@ -398,6 +433,8 @@ const DocsPage: NextPage<{
 	title: string;
 	version: string;
 }> = ({ content, navigation, route, title, version }) => {
+	const headingId = createHeadingIdGenerator();
+
 	return (
 		<>
 			<Head>
@@ -491,36 +528,36 @@ const DocsPage: NextPage<{
 								remarkPlugins={[remarkGfm]}
 								urlTransform={transformLinkUriSource(route.path)}
 								components={{
-									h1: ({ children }) => (
+									h1: ({ children, node }) => (
 										<Heading
 											as="h1"
 											fontSize="4xl"
 											pt={10}
 											pb={2}
-											id={slugifyTitle(children)}
+											id={headingId(children, node)}
 										>
 											{children}
 										</Heading>
 									),
 
-									h2: ({ children }) => (
+									h2: ({ children, node }) => (
 										<Heading
 											as="h2"
 											fontSize="3xl"
 											pt={10}
 											pb={2}
-											id={slugifyTitle(children)}
+											id={headingId(children, node)}
 										>
 											{children}
 										</Heading>
 									),
-									h3: ({ children }) => (
+									h3: ({ children, node }) => (
 										<Heading
 											as="h3"
 											fontSize="2xl"
 											pt={10}
 											pb={2}
-											id={slugifyTitle(children)}
+											id={headingId(children, node)}
 										>
 											{children}
 										</Heading>

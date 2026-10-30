@@ -23,7 +23,11 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
-import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockAdvisorConfig,
+	MockChat,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockChatProject,
@@ -43,11 +47,11 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage from "./AgentChatPage";
-import AgentCreatePage from "./AgentCreatePage";
-import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsLayout from "./AgentSettingsLayout";
+import AgentChatPage from "./AgentChatPage/AgentChatPage";
+import AgentCreatePage from "./AgentCreatePage/AgentCreatePage";
+import AgentSettingsCompactionPage from "./AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage";
+import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage";
+import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
@@ -118,8 +122,7 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		showAdvisorSettings={false}
-		advisorConfigData={undefined}
+		advisorConfigData={MockAdvisorConfig}
 		isAdvisorConfigLoading={false}
 		isAdvisorConfigFetching={false}
 		isAdvisorConfigLoadError={false}
@@ -127,12 +130,6 @@ const AgentsRouteElement = () => (
 		isSavingAdvisorConfig={false}
 		isSaveAdvisorConfigError={false}
 		saveAdvisorConfigError={undefined}
-		showVirtualDesktopSettings={false}
-		computerUseProviderData={undefined}
-		isLoadingComputerUseProvider={false}
-		onSaveComputerUseProvider={fn()}
-		isSavingComputerUseProvider={false}
-		computerUseProviderSaveError={null}
 	/>
 );
 
@@ -271,6 +268,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		localStorage.removeItem(emptyInputStorageKey);
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
@@ -440,6 +438,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Default organization MCP")).length,
 		).toBeGreaterThan(0);
@@ -459,6 +460,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Second organization MCP")).length,
 		).toBeGreaterThan(0);
@@ -1055,7 +1059,6 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 	});
 
 const projectPageParameters = {
-	experiments: ["chat-projects"],
 	reactRouter: reactRouterParameters({
 		location: { path: `/agents/projects/${MockChatProject.id}` },
 		routing: [agentsRouting, aiSettingsRouting],

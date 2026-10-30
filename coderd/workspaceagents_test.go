@@ -1263,6 +1263,57 @@ func connectToCoordinatorAndFetchResumeToken(ctx context.Context, logger slog.Lo
 	return newResumeToken.Token, nil
 }
 
+// TestWorkspaceAgentManifestSecretsDuringStop checks that an agent whose
+// workspace has a pending stop build still receives its build secrets when
+// it reconnects, so shutdown scripts keep their credentials.
+func TestWorkspaceAgentManifestSecretsDuringStop(t *testing.T) {
+	t.Parallel()
+
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("build-value"), EnvName: "API_KEY"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+	buildSecretValue := func() string {
+		t.Helper()
+		conn, err := agentClient.ConnectRPC(ctx)
+		require.NoError(t, err)
+		defer conn.Close()
+		mp, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+		for _, secret := range mp.Secrets {
+			if secret.EnvName == "API_KEY" {
+				return string(secret.Value)
+			}
+		}
+		return ""
+	}
+	require.Equal(t, "build-value", buildSecretValue())
+
+	// With no provisioner the stop build stays pending while the agent from
+	// the start build is still running. A reconnect must keep its secrets.
+	closeDaemon.Close()
+	stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	require.Equal(t, "build-value", buildSecretValue())
+
+	coderdtest.NewProvisionerDaemon(t, api)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+}
+
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	t.Parallel()
 

@@ -18,6 +18,15 @@ import type {
   MessageScrollerVisibilityStore,
 } from "./types"
 
+// LOCAL CHANGE
+type RevealedItem = {
+  element: HTMLElement
+  // performance.now() time after which the row's growth no longer scrolls.
+  expiresAt: number
+  height: number
+  width: number
+}
+
 // Shared mutable ref bag for one MessageScroller, closed over by both the
 // controller and the commands so writes are visible across them without prop
 // threading. stateStore and visibilityStore fan out via useSyncExternalStore.
@@ -62,6 +71,9 @@ type MessageScrollerRefs = {
   // not start following. Every user scroll, scroll command, and new turn must
   // clear it. The anchor hold must not, so scrollToElement does not.
   followSuppressedRef: React.RefObject<boolean>
+  // LOCAL CHANGE: the row whose end a toggle scrolled into view, and its
+  // size then. scrollToElement and any scroll up clear it.
+  revealedItemRef: React.RefObject<RevealedItem | null>
 }
 
 // Builds the per-instance ref bag: the two external stores constructed once, and
@@ -125,6 +137,7 @@ function useMessageScrollerRefs({
   const handledScrollAnchorsRef = React.useRef(new WeakSet<HTMLElement>())
   // LOCAL CHANGE
   const followSuppressedRef = React.useRef(false)
+  const revealedItemRef = React.useRef<RevealedItem | null>(null)
 
   if (stateStoreRef.current === null) {
     stateStoreRef.current = createMessageScrollerStore(
@@ -177,6 +190,7 @@ function useMessageScrollerRefs({
     handledScrollAnchorsRef,
     // LOCAL CHANGE
     followSuppressedRef,
+    revealedItemRef,
   }
 }
 

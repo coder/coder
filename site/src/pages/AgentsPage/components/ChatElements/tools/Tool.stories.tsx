@@ -7,6 +7,12 @@ import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import {
+	MockACPSession,
+	MockACPSessionArgs,
+	MockACPSpawnArgs,
+	MockACPWaitResult,
+} from "#/testHelpers/acp";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
@@ -16,20 +22,18 @@ import {
 	MockWorkspaceBuild,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
+import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
-
-// 1x1 solid coral (#FF6B6B) PNG encoded as base64.
-const TEST_PNG_B64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
@@ -65,9 +69,34 @@ type ToolShowcaseItem = {
 	killedBySignal?: "kill" | "terminate";
 	parsedCommands?: readonly string[][];
 	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
+	providerExecuted?: boolean;
+	foundPages?: React.ComponentProps<typeof Tool>["foundPages"];
 };
 
 const allToolShowcaseItems: ToolShowcaseItem[] = [
+	{
+		name: ACPToolNames.SpawnAgent,
+		args: MockACPSpawnArgs,
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.WaitAgent,
+		args: MockACPSessionArgs,
+		result: MockACPWaitResult,
+	},
+	{
+		name: ACPToolNames.MessageAgent,
+		args: {
+			...MockACPSessionArgs,
+			message: "Check error handling.",
+		},
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.InterruptAgent,
+		args: MockACPSessionArgs,
+		result: { ...MockACPSessionArgs, ...MockACPSession, interrupted: true },
+	},
 	{
 		name: "execute",
 		args: { command: "pnpm check" },
@@ -216,7 +245,7 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "computer",
 		args: { action: "screenshot" },
-		result: { output: { type: "image", data: TEST_PNG_B64 } },
+		result: { output: { type: "image", data: MockPngBase64 } },
 	},
 	{
 		name: "read_skill",
@@ -295,6 +324,13 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 			activated: ["github__list_issues"],
 			total_deferred: 12,
 		},
+	},
+	{
+		name: "web_search",
+		args: { type: "search", queries: ["coder agents release notes"] },
+		result: {},
+		providerExecuted: true,
+		foundPages: [{ url: "https://coder.com/changelog", title: "" }],
 	},
 	{
 		name: "unknown_tool",
@@ -1411,7 +1447,7 @@ export const MCPToolMediaShapedTextResult: Story = {
 		...MCPToolImageResult.args,
 		isMedia: false,
 		result: {
-			data: TEST_PNG_B64,
+			data: MockPngBase64,
 			mime_type: "image/png",
 			source: "structured-content",
 		},
@@ -2017,7 +2053,7 @@ export const GenericToolFailed: Story = {
 
 export const GenericToolStringError: Story = {
 	args: {
-		name: "web_search",
+		name: "search_docs",
 		status: "error",
 		isError: true,
 		result: "Network unreachable",
@@ -2283,6 +2319,144 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 			error: "timed out waiting for agent",
 		},
 		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// web_search stories
+// ---------------------------------------------------------------------------
+
+// Anthropic emits the call before its search runs.
+export const WebSearchRunning: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "running",
+		args: { query: "coder workspace templates" },
+	},
+};
+
+// OpenAI found pages carry no titles, so pills show hostname plus path, or
+// the URL when it has no hostname. The ftp and data pages render as text, not
+// links. Padded, repeated, and empty queries are each listed once or not at
+// all.
+export const WebSearchQueriesAndFoundPages: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: {
+			type: "search",
+			queries: [
+				"coder agents release notes",
+				" coder ai gateway docs ",
+				"coder ai gateway docs",
+				"",
+			],
+		},
+		result: {},
+		foundPages: [
+			{ url: "https://coder.com/changelog", title: "" },
+			{ url: "https://coder.com/docs/ai-coder/ai-gateway", title: "" },
+			{ url: "ftp://example.com/release.txt", title: "" },
+			{ url: "data:text/html,unsafe", title: "" },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder agents/i }),
+		);
+	},
+};
+
+export const WebSearchNoQueries: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search" },
+		result: {},
+	},
+};
+
+// Anthropic keeps the query in the call args and titles its found pages.
+// A single query is listed too because the header truncates long ones.
+export const WebSearchAnthropicQuery: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { query: "coder workspace templates" },
+		result: {},
+		foundPages: [
+			{
+				url: "https://coder.com/docs/admin/templates",
+				title: "Templates | Coder Docs",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder workspace/i }),
+		);
+	},
+};
+
+export const WebSearchOpenPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: {},
+	},
+};
+
+export const WebSearchFindInPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: {
+			type: "find_in_page",
+			url: "https://coder.com/docs",
+			pattern: "templates",
+		},
+		result: {},
+	},
+};
+
+// The message stopped streaming before the search sent its result.
+export const WebSearchUnfinished: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search", queries: ["coder release notes"] },
+	},
+};
+
+export const WebSearchError: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "error",
+		isError: true,
+		args: { type: "search", queries: ["coder release notes"] },
+		result: { error: "web search failed: upstream timeout" },
+	},
+};
+
+export const WebSearchOpenPageError: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "error",
+		isError: true,
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: { error: "web search failed" },
 	},
 };
 
@@ -2910,6 +3084,8 @@ export const AllToolIconsTranscript: Story = {
 							parsedCommands={tool.parsedCommands}
 							subagentTitles={new Map()}
 							subagentVariants={tool.subagentVariants ?? new Map()}
+							providerExecuted={tool.providerExecuted}
+							foundPages={tool.foundPages}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -2985,6 +3161,8 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 								parsedCommands={tool.parsedCommands}
 								subagentTitles={new Map()}
 								subagentVariants={tool.subagentVariants ?? new Map()}
+								providerExecuted={tool.providerExecuted}
+								foundPages={tool.foundPages}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"
