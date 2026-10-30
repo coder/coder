@@ -209,6 +209,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Pubsub:                   opts.Pubsub,
 		Metrics:                  opts.LifecycleMetrics,
 	}
 
@@ -288,6 +289,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Log:         opts.Log,
 		Clock:       opts.Clock,
 		Database:    opts.Database,
+		Pubsub:      opts.Pubsub,
 		DirtyMarker: opts.ContextDirtyMarker,
 		Disabled:    opts.ContextSyncDisabled,
 	}

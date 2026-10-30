@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"math"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/quartz"
 )
 
@@ -247,6 +250,8 @@ func TestPushContextState(t *testing.T) {
 			api, dbm := makeAPI(t)
 			marker := &fakeDirtyMarker{}
 			api.DirtyMarker = marker
+			var published *atomic.Int32
+			api.Pubsub, published = subscribeMCPDiscovery(t, agentID)
 			expectInTx(dbm)
 			dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 				Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-b"}, nil)
@@ -259,6 +264,7 @@ func TestPushContextState(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, resp.GetAccepted())
 			require.Equal(t, 0, marker.called)
+			require.Zero(t, published.Load(), "a dropped push must not wake waiting chats")
 		})
 
 		t.Run("LegacyRequestAfterCurrentRunDropped", func(t *testing.T) {
@@ -303,7 +309,7 @@ func TestPushContextState(t *testing.T) {
 			require.True(t, resp.GetAccepted())
 		})
 
-		t.Run("DiscoveryChangeReportedToDirtyMarker", func(t *testing.T) {
+		t.Run("DiscoveryChangeReportedAndPublished", func(t *testing.T) {
 			t.Parallel()
 			for _, tc := range []struct {
 				name        string
@@ -331,6 +337,8 @@ func TestPushContextState(t *testing.T) {
 					api, dbm := makeAPI(t)
 					marker := &fakeDirtyMarker{}
 					api.DirtyMarker = marker
+					var published *atomic.Int32
+					api.Pubsub, published = subscribeMCPDiscovery(t, agentID)
 					expectInTx(dbm)
 					dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 						Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, nil)
@@ -351,6 +359,11 @@ func TestPushContextState(t *testing.T) {
 					require.True(t, resp.GetAccepted())
 					require.Equal(t, 1, marker.called)
 					require.Equal(t, tc.wantChanged, marker.gotDiscoveryChanged)
+					wantPublished := int32(0)
+					if tc.wantChanged {
+						wantPublished = 1
+					}
+					require.Equal(t, wantPublished, published.Load(), "only a discovery change wakes waiting chats")
 				})
 			}
 		})
@@ -882,6 +895,22 @@ func mcpServerResource(source, serverName, description string) *agentproto.Conte
 			},
 		},
 	}
+}
+
+// subscribeMCPDiscovery returns an in-memory pubsub and the number of
+// messages it has delivered on the agent's MCP discovery channel. The
+// in-memory pubsub delivers before Publish returns, so the count is
+// current as soon as the call under test returns.
+func subscribeMCPDiscovery(t *testing.T, agentID uuid.UUID) (pubsub.Pubsub, *atomic.Int32) {
+	t.Helper()
+	ps := pubsub.NewInMemory()
+	var published atomic.Int32
+	cancel, err := ps.Subscribe(coderdpubsub.WorkspaceAgentMCPDiscoveryChannel(agentID), func(context.Context, []byte) {
+		published.Add(1)
+	})
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+	return ps, &published
 }
 
 // fakeDirtyMarker is a test double for agentapi.ContextDirtyMarker. It records

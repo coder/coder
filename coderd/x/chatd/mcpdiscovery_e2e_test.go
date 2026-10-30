@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -28,6 +29,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -80,46 +83,59 @@ func newControllableMCPServer(t *testing.T, toolName string) *controllableMCPSer
 	return c
 }
 
-// mcpDiscoveryStore releases the held MCP fixture once chatd's discovery
-// wait has polled the snapshot twice from one context, proving the wait
-// ran before the fixture answered. Transactional publication reads must
-// not release the polling barrier.
+// mcpDiscoveryStore holds the agent's context push at pushGate, when set,
+// until the test releases it.
 type mcpDiscoveryStore struct {
 	database.Store
 	state *mcpDiscoveryBarrier
-	inTx  bool
 }
 
 type mcpDiscoveryBarrier struct {
 	sync.Mutex
 	armed       bool
-	lastRead    context.Context
 	release     func()
 	pushGate    chan struct{}
 	pushArrived chan struct{}
 	pushOnce    sync.Once
+	// delivered counts messages delivered to discovery waits.
+	delivered atomic.Int32
 }
 
 func (s *mcpDiscoveryStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return fn(&mcpDiscoveryStore{Store: tx, state: s.state, inTx: true})
+		return fn(&mcpDiscoveryStore{Store: tx, state: s.state})
 	}, opts)
 }
 
-func (s *mcpDiscoveryStore) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, id uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
-	snap, err := s.Store.GetLatestWorkspaceAgentContextSnapshot(ctx, id)
-	if !s.inTx {
-		s.state.Lock()
-		if s.state.armed {
-			if s.state.lastRead == ctx {
-				s.state.release()
-				s.state.armed = false
-			}
-			s.state.lastRead = ctx
-		}
-		s.state.Unlock()
+// mcpDiscoveryPubsub releases the held MCP fixture once chatd's discovery
+// wait subscribes to an agent's discovery channel, so the wait begins
+// before the fixture answers, and counts the messages that wake it.
+type mcpDiscoveryPubsub struct {
+	pubsub.Pubsub
+	state *mcpDiscoveryBarrier
+}
+
+func (p *mcpDiscoveryPubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (func(), error) {
+	discoveryPrefix := strings.TrimSuffix(coderdpubsub.WorkspaceAgentMCPDiscoveryChannel(uuid.Nil), uuid.Nil.String())
+	if !strings.HasPrefix(event, discoveryPrefix) {
+		return p.Pubsub.SubscribeWithErr(event, listener)
 	}
-	return snap, err
+	cancel, err := p.Pubsub.SubscribeWithErr(event, func(ctx context.Context, message []byte, err error) {
+		if err == nil {
+			p.state.delivered.Add(1)
+		}
+		listener(ctx, message, err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	p.state.Lock()
+	if p.state.armed {
+		p.state.release()
+		p.state.armed = false
+	}
+	p.state.Unlock()
+	return cancel, nil
 }
 
 func (s *mcpDiscoveryStore) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
@@ -176,6 +192,7 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 			rawDB, ps := dbtestutil.NewDB(t)
 			barrier := &mcpDiscoveryBarrier{pushArrived: make(chan struct{})}
 			db := &mcpDiscoveryStore{Store: rawDB, state: barrier}
+			ps = &mcpDiscoveryPubsub{Pubsub: ps, state: barrier}
 			dv := coderdtest.DeploymentValues(t)
 			tickCh := make(chan time.Time, 1)
 			statsCh := make(chan autobuild.Stats, 1)
@@ -386,8 +403,12 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 					}, testutil.WaitLong, testutil.IntervalFast)
 				}
 			}
+			// An armed barrier holds the fixture until a discovery wait
+			// subscribes, so only a published push can end that wait
+			// before the run's limit.
+			armed := !tc.settled && tc.unavailable == ""
 			barrier.Lock()
-			barrier.armed = !tc.settled && tc.unavailable == ""
+			barrier.armed = armed
 			barrier.Unlock()
 			input := []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Use the workspace MCP echo tool."}}
 			if tc.restart {
@@ -479,6 +500,9 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 				assert.True(t, lifecycleReported, "lifecycle tool result must report the discovery outcome")
 			}
 			assert.True(t, usable.invoked.Load(), "real MCP handler must be invoked")
+			if armed {
+				assert.Positive(t, barrier.delivered.Load(), "the agent's push must publish to the discovery wait")
+			}
 			if tc.sibling {
 				assert.False(t, ctrl.invoked.Load(), "the hung server must not be invoked")
 			}

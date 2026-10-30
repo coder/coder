@@ -18,6 +18,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/quartz"
 )
 
@@ -67,6 +68,8 @@ type ContextAPI struct {
 	Log       slog.Logger
 	Clock     quartz.Clock
 	Database  database.Store
+	// Pubsub carries workspace MCP discovery updates to waiting chats.
+	Pubsub pubsub.Pubsub
 	// DirtyMarker hydrates chats from, and marks chats dirty against, the
 	// snapshot persisted by a push. It is nil when chatd is not running,
 	// in which case PushContextState stays a pure write path.
@@ -171,8 +174,9 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	phase := mcpDiscoveryPhase(req.GetMcpDiscovery())
 
 	var (
-		accepted bool
-		staleRun bool
+		accepted            bool
+		staleRun            bool
+		mcpDiscoveryChanged bool
 	)
 	// publishDirty is captured from the final (committed) attempt and
 	// invoked after the transaction commits; ReadModifyUpdate may re-run
@@ -183,6 +187,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// state carried over from a rolled-back attempt.
 		accepted = false
 		staleRun = false
+		mcpDiscoveryChanged = false
 		publishDirty = nil
 
 		// The agent row is not locked, so a newer process's
@@ -207,7 +212,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		}
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
-		mcpDiscoveryChanged := true
+		mcpDiscoveryChanged = true
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			// No previous snapshot; first push always wins.
@@ -291,6 +296,9 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	// pinned context drifted from this push.
 	if publishDirty != nil {
 		publishDirty()
+	}
+	if mcpDiscoveryChanged {
+		publishMCPDiscoveryUpdate(ctx, a.Pubsub, a.Log, a.AgentID)
 	}
 
 	a.Log.Debug(ctx, "PushContextState accepted",

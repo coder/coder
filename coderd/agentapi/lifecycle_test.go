@@ -415,6 +415,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		serverNow := now
 		agent := agentStarting
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		ps, published := subscribeMCPDiscovery(t, agent.ID)
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -422,10 +423,18 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
+			Pubsub:      ps,
 			TimeNowFn:   func() time.Time { return serverNow },
 		}
+		// update applies a lifecycle report and checks the anchor it
+		// writes. Waiting chats are woken exactly when the anchor is set
+		// or cleared.
 		update := func(state agentproto.Lifecycle_State, wantAnchor sql.NullTime) {
 			t.Helper()
+			wantPublished := published.Load()
+			if wantAnchor != agent.McpDiscoveryStartedAt {
+				wantPublished++
+			}
 			dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 					require.Equal(t, wantAnchor, arg.McpDiscoveryStartedAt, "state %s", state)
@@ -441,6 +450,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				Lifecycle: &agentproto.Lifecycle{State: state, ChangedAt: timestamppb.New(agentChangedAt)},
 			})
 			require.NoError(t, err)
+			require.Equal(t, wantPublished, published.Load(), "state %s", state)
 		}
 
 		update(agentproto.Lifecycle_READY, sql.NullTime{Time: serverNow, Valid: true})
@@ -724,6 +734,7 @@ func TestUpdateStartup(t *testing.T) {
 		t.Parallel()
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		ps, published := subscribeMCPDiscovery(t, agent.ID)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -732,6 +743,7 @@ func TestUpdateStartup(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
+			Pubsub:      ps,
 			// Not used by UpdateStartup.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -766,6 +778,7 @@ func TestUpdateStartup(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, startup, resp)
+		require.EqualValues(t, 1, published.Load(), "a new agent run id wakes waiting chats")
 	})
 
 	t.Run("OversizedRunID", func(t *testing.T) {

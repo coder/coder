@@ -466,7 +466,7 @@ func (p *Server) buildTurnEnvironment(
 			// turn sees its tools. Timeouts fail open with whatever has
 			// been discovered.
 			if exposesWorkspaceMCP && agent.ID != uuid.Nil {
-				chattool.WaitForMCPDiscovery(ctx, p.db, agent.ID)
+				chattool.WaitForMCPDiscovery(ctx, p.db, p.pubsub, p.clock, agent.ID)
 			}
 
 			// API-created chats bind their agent lazily here, after
@@ -2631,7 +2631,7 @@ func (p *Server) appendRootChatTools(
 	}
 
 	waitForMCPDiscovery := func(ctx context.Context, agentID uuid.UUID) chattool.MCPDiscoveryOutcome {
-		return chattool.WaitForMCPDiscovery(ctx, p.db, agentID)
+		return chattool.WaitForMCPDiscovery(ctx, p.db, p.pubsub, p.clock, agentID)
 	}
 
 	tools = append(tools,

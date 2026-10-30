@@ -10,18 +10,18 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
-const (
-	// MCPDiscoveryWaitTimeout bounds how long chats wait for an agent
-	// run's workspace MCP discovery, measured from the run's
-	// workspace_agents.mcp_discovery_started_at. The anchor lives in the
-	// database, so every step, turn, chat, lifecycle tool, and replica
-	// shares the same limit for a run.
-	MCPDiscoveryWaitTimeout  = 15 * time.Second
-	mcpDiscoveryPollInterval = 500 * time.Millisecond
-)
+// MCPDiscoveryWaitTimeout bounds how long chats wait for an agent run's
+// workspace MCP discovery, measured from the run's
+// workspace_agents.mcp_discovery_started_at. The anchor lives in the
+// database, so every step, turn, chat, lifecycle tool, and replica shares
+// the same limit for a run.
+const MCPDiscoveryWaitTimeout = 15 * time.Second
 
 // MCPDiscoveryOutcome summarizes workspace MCP discovery for a tool result
 // so the model can explain an incomplete initialization. It describes
@@ -44,17 +44,33 @@ type MCPDiscoveryOutcome struct {
 // reports the outcome.
 type MCPDiscoveryWaiter func(ctx context.Context, agentID uuid.UUID) MCPDiscoveryOutcome
 
-// WaitForMCPDiscovery polls the agent's latest context snapshot until it
+// WaitForMCPDiscovery waits until the agent's latest context snapshot
 // reports complete discovery for the current agent process, or until the
 // run's limit (MCPDiscoveryWaitTimeout after mcp_discovery_started_at)
-// passes. It fails open: a database error, a legacy agent with no
-// completeness guarantee, startup scripts still running, a passed limit,
-// and cancellation all end the wait, and the caller continues with
-// whatever the pinned rows hold. A snapshot from a previous process (run
-// id mismatch) counts as no snapshot: only a current-process snapshot can
-// establish completeness.
-func WaitForMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UUID) MCPDiscoveryOutcome {
+// passes. It reads the state again whenever coderd publishes on the
+// agent's discovery channel. It fails open: a subscription or database
+// error, a legacy agent with no completeness guarantee, startup scripts
+// still running, a passed limit, and cancellation all end the wait, and
+// the caller continues with whatever the pinned rows hold. A snapshot from
+// a previous process (run id mismatch) counts as no snapshot: only a
+// current-process snapshot can establish completeness.
+func WaitForMCPDiscovery(ctx context.Context, db database.Store, ps pubsub.Pubsub, clock quartz.Clock, agentID uuid.UUID) MCPDiscoveryOutcome {
 	outcome := MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown}
+	// Subscribe before the first read so a write that commits between a
+	// read and the wait still wakes it. Any listener error, dropped
+	// messages included, may hide a change, so it also triggers a read.
+	changed := make(chan struct{}, 1)
+	unsubscribe, err := ps.SubscribeWithErr(coderdpubsub.WorkspaceAgentMCPDiscoveryChannel(agentID), func(context.Context, []byte, error) {
+		select {
+		case changed <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		return mcpDiscoveryReadFailed(ctx, outcome)
+	}
+	defer unsubscribe()
+
 	for {
 		// Snapshot first, agent row second: a restart between the two
 		// reads then shows up as a mismatch, whereas the reverse order
@@ -94,16 +110,18 @@ func WaitForMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UU
 			return summarizeMCPDiscovery(ctx, db, agentID, outcome)
 		}
 
-		remaining := time.Until(agent.McpDiscoveryStartedAt.Time.Add(MCPDiscoveryWaitTimeout))
+		remaining := clock.Until(agent.McpDiscoveryStartedAt.Time.Add(MCPDiscoveryWaitTimeout), "mcpDiscovery", "remaining")
 		if remaining <= 0 {
 			outcome.WaitTimedOut = true
 			return summarizeMCPDiscovery(ctx, db, agentID, outcome)
 		}
-		timer := time.NewTimer(min(mcpDiscoveryPollInterval, remaining))
+		timer := clock.NewTimer(remaining, "mcpDiscovery", "deadline")
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			return outcome
+		case <-changed:
+			timer.Stop()
 		case <-timer.C:
 		}
 	}

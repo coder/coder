@@ -18,6 +18,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
@@ -33,6 +34,8 @@ type LifecycleAPI struct {
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
+	// Pubsub carries workspace MCP discovery updates to waiting chats.
+	Pubsub pubsub.Pubsub
 
 	TimeNowFn       func() time.Time // defaults to dbtime.Now()
 	Metrics         *LifecycleMetrics
@@ -135,6 +138,9 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		}
 		return nil, xerrors.Errorf("update workspace agent lifecycle state: %w", err)
 	}
+	if mcpDiscoveryStartedAt != workspaceAgent.McpDiscoveryStartedAt {
+		publishMCPDiscoveryUpdate(ctx, a.Pubsub, a.Log, workspaceAgent.ID)
+	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
 		err = a.PublishWorkspaceUpdateFn(ctx, workspaceAgent.ID, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
@@ -228,6 +234,7 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)
 	}
+	publishMCPDiscoveryUpdate(ctx, a.Pubsub, a.Log, workspaceAgent.ID)
 
 	return req.Startup, nil
 }
