@@ -306,7 +306,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const overview = useChatOverview({ isRightPanelOpen: showSidebarPanel });
+	const { observeChat, ...overview } = useChatOverview({
+		isRightPanelOpen: showSidebarPanel,
+	});
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -787,7 +789,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<DesktopPanelContext value={desktopPanelCtx}>
-				<div className="@container/chat relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
+				<div
+					ref={observeChat}
+					className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]"
+				>
 					<div
 						className={cn(
 							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",

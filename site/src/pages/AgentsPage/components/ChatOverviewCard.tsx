@@ -32,7 +32,7 @@ export type ChatOverviewToggleProps = {
 	onToggle: () => void;
 };
 
-/** The top bar button that shows and hides the card, at the card's widths. */
+/** The top bar button that shows and hides the card. */
 export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
 	isOpen,
 	onToggle,
@@ -42,7 +42,7 @@ export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
 		size="icon"
 		onClick={onToggle}
 		className={cn(
-			"hidden size-7 text-content-secondary hover:text-content-primary @min-[84rem]/chat:inline-flex",
+			"size-7 text-content-secondary hover:text-content-primary",
 			isOpen && "bg-surface-secondary text-content-primary",
 		)}
 		aria-label="Toggle overview"
@@ -120,10 +120,9 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 				isHydratingMessages ||
 				earlierAttachmentsRequest.isLoading
 			}
+			earlierAttachmentsRequest={earlierAttachmentsRequest}
 			onOpenTarget={onOpenTarget}
-			// The 16rem card with its 1rem inset and 1rem gap fits beside the
-			// centered 48rem transcript from an 84rem chat on.
-			className="absolute top-full right-4 z-20 mt-2 hidden @min-[84rem]/chat:flex"
+			className="absolute top-full right-4 z-20 mt-2"
 		/>
 	);
 };

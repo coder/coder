@@ -13,7 +13,14 @@ import type {
 	ChatDiffStatus,
 	ChatStatus,
 } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { formatCostMicros } from "#/utils/currency";
+import type { EarlierAttachmentsRequest } from "../hooks/useChatAttachments";
 import { buildAgentChatPath } from "../utils/navigation";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
@@ -23,6 +30,7 @@ import {
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
 import { type DiffStats, type GitView, viewIdFor } from "./GitPanel/gitViews";
+import { RetryButton } from "./RetryButton";
 
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
@@ -65,6 +73,11 @@ type ChatOverviewCardViewProps = {
 	overview: ChatOverview;
 	/** Cost or messages are still loading, so an empty card is not final. */
 	isLoading?: boolean;
+	/** A failed request shows its error and a retry in Attachments. */
+	earlierAttachmentsRequest?: Pick<
+		EarlierAttachmentsRequest,
+		"error" | "isRetrying" | "retry"
+	>;
 	onOpenTarget: (target: OverviewTarget) => void;
 	className?: string;
 };
@@ -76,6 +89,7 @@ type ChatOverviewCardViewProps = {
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
 	isLoading = false,
+	earlierAttachmentsRequest,
 	onOpenTarget,
 	className,
 }) => {
@@ -86,7 +100,8 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 		overview.repos.length === 0 &&
 		overview.pullRequests.length === 0 &&
 		overview.subagents.length === 0 &&
-		overview.attachments.length === 0;
+		overview.attachments.length === 0 &&
+		!earlierAttachmentsRequest?.error;
 
 	return (
 		<aside
@@ -193,7 +208,23 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						onClick={() => onOpenTarget({ tabId: "summary" })}
 					/>
 				)}
-			/>
+			>
+				{earlierAttachmentsRequest?.error ? (
+					<ErrorAlert
+						error={earlierAttachmentsRequest.error}
+						showDebugDetail={false}
+						className="mt-1 p-3"
+						actions={
+							<RetryButton
+								variant="outline"
+								size="sm"
+								isRetrying={earlierAttachmentsRequest.isRetrying}
+								onRetry={earlierAttachmentsRequest.retry}
+							/>
+						}
+					/>
+				) : null}
+			</OverviewListSection>
 		</aside>
 	);
 };
@@ -291,24 +322,25 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 	);
 };
 
-type OverviewListSectionProps<T> = {
+type OverviewListSectionProps<T> = React.PropsWithChildren<{
 	title: string;
 	items: readonly T[];
 	render: (item: T) => React.ReactNode;
-};
+}>;
 
 /**
- * A titled list, or nothing when the list is empty. It shows the first rows
- * and a toggle for the rest. The toggle stays rendered in both states, so
- * keyboard focus stays on it.
+ * A titled list, or nothing when the list and `children` are empty. It
+ * shows the first rows and a toggle for the rest, then `children`. The toggle
+ * stays rendered in both states, so keyboard focus stays on it.
  */
 const OverviewListSection = <T,>({
 	title,
 	items,
 	render,
+	children,
 }: OverviewListSectionProps<T>) => {
 	const [expanded, setExpanded] = useState(false);
-	if (items.length === 0) {
+	if (items.length === 0 && !children) {
 		return null;
 	}
 	const hiddenCount = items.length - OVERVIEW_MAX_LIST_ROWS;
@@ -325,6 +357,7 @@ const OverviewListSection = <T,>({
 					{expanded ? "Show less" : `Show ${hiddenCount} more`}
 				</button>
 			)}
+			{children}
 		</OverviewSection>
 	);
 };
@@ -339,7 +372,11 @@ type OverviewRowProps = {
 	detail?: React.ReactNode;
 } & ({ onClick?: () => void; to?: never } | { to: string; onClick?: never });
 
-/** A button with `onClick`, a link with `to`, or plain text with neither. */
+/**
+ * A button with `onClick`, a link with `to`, or plain text with neither. Its
+ * label and subtitle truncate, so a tooltip shows them in full on hover and
+ * on keyboard focus.
+ */
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
 	iconClassName,
@@ -370,24 +407,35 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 		</>
 	);
 	const className =
-		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
+		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
 	const interactiveClassName = cn(
 		className,
-		"no-underline hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+		"no-underline hover:bg-surface-secondary",
 	);
-	if (to !== undefined) {
-		return (
+	const rowElement =
+		to !== undefined ? (
 			<Link to={to} className={interactiveClassName}>
 				{content}
 			</Link>
+		) : onClick ? (
+			<button type="button" onClick={onClick} className={interactiveClassName}>
+				{content}
+			</button>
+		) : (
+			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the plain-text row takes focus only so the keyboard can open its tooltip.
+			<div tabIndex={0} className={className}>
+				{content}
+			</div>
 		);
-	}
-	if (!onClick) {
-		return <div className={className}>{content}</div>;
-	}
 	return (
-		<button type="button" onClick={onClick} className={interactiveClassName}>
-			{content}
-		</button>
+		<Tooltip>
+			<TooltipTrigger asChild>{rowElement}</TooltipTrigger>
+			<TooltipContent side="left" className="max-w-xs">
+				<p className="m-0 break-words">{label}</p>
+				{subtitle && (
+					<p className="m-0 break-words text-content-secondary">{subtitle}</p>
+				)}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
