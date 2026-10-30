@@ -966,7 +966,7 @@ export const EditingMessage: Story = {
 	),
 };
 
-const pausedQueue: TypesGen.ChatQueuedMessage[] = [
+const mockPausedQueue: TypesGen.ChatQueuedMessage[] = [
 	{
 		...MockChatQueuedMessageUnderEdit,
 		id: 1,
@@ -984,7 +984,7 @@ const pausedQueue: TypesGen.ChatQueuedMessage[] = [
 export const PausedAtQueuedEdit: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages, "paused", pausedQueue)}
+			store={buildStoreWithMessages(editingMessages, "paused", mockPausedQueue)}
 			chat={{ status: "paused" }}
 			queuedMessageUnderEditID={1}
 		/>
@@ -995,7 +995,7 @@ export const PausedAtQueuedEdit: Story = {
 export const EditingQueuedMessageWhilePaused: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages, "paused", pausedQueue)}
+			store={buildStoreWithMessages(editingMessages, "paused", mockPausedQueue)}
 			chat={{ status: "paused" }}
 			queuedMessageUnderEditID={1}
 			editing={{

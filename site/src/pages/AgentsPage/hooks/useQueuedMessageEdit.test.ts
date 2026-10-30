@@ -16,12 +16,12 @@ import {
 	useQueuedMessageEdit,
 } from "./useQueuedMessageEdit";
 
-const row5 = { ...MockChatQueuedMessage, id: 5 };
-const row5Marked = { ...MockChatQueuedMessageUnderEdit, id: 5 };
-const row6 = { ...MockChatQueuedMessage, id: 6 };
-const row6Marked = { ...MockChatQueuedMessageUnderEdit, id: 6 };
+const mockRow5 = { ...MockChatQueuedMessage, id: 5 };
+const mockRow5Marked = { ...MockChatQueuedMessageUnderEdit, id: 5 };
+const mockRow6 = { ...MockChatQueuedMessage, id: 6 };
+const mockRow6Marked = { ...MockChatQueuedMessageUnderEdit, id: 6 };
 
-const idle: MarkerRequest = { isPending: false, variables: undefined };
+const mockIdle: MarkerRequest = { isPending: false, variables: undefined };
 const pendingBegin = (id: number): MarkerRequest => ({
 	isPending: true,
 	variables: { queuedMessageId: id, req: { editing: true } },
@@ -40,7 +40,7 @@ const history = (id: number) => ({ kind: "history", id }) as const;
 
 describe("the row shown as under edit", () => {
 	it.each([
-		["the marked row shows as under edit", 5, idle, 5],
+		["the marked row shows as under edit", 5, mockIdle, 5],
 		[
 			"a pending begin shows its row, even while another row is marked",
 			5,
@@ -67,7 +67,7 @@ describe("the row the composer edits", () => {
 			"an untouched composer follows the marked row",
 			"follow",
 			5,
-			idle,
+			mockIdle,
 			owner,
 			queued(5),
 		],
@@ -75,7 +75,7 @@ describe("the row the composer edits", () => {
 			"an untouched composer with no marked row edits nothing",
 			"follow",
 			null,
-			idle,
+			mockIdle,
 			owner,
 			null,
 		],
@@ -83,16 +83,16 @@ describe("the row the composer edits", () => {
 			"a viewer's untouched composer never follows the marked row",
 			"follow",
 			5,
-			idle,
+			mockIdle,
 			viewer,
 			null,
 		],
-		["a draft ignores the marked row", "draft", 5, idle, owner, null],
+		["a draft ignores the marked row", "draft", 5, mockIdle, owner, null],
 		[
 			"a history choice stays in effect",
 			history(3),
 			5,
-			idle,
+			mockIdle,
 			owner,
 			history(3),
 		],
@@ -100,7 +100,7 @@ describe("the row the composer edits", () => {
 			"a queued choice stays in effect while the server marks that row",
 			queued(5),
 			5,
-			idle,
+			mockIdle,
 			owner,
 			queued(5),
 		],
@@ -208,13 +208,13 @@ describe("useQueuedMessageEdit", () => {
 		const t = setup();
 		expect(t.result().composerTarget).toBeNull();
 
-		act(() => t.store.setQueuedMessages([row5Marked]));
+		act(() => t.store.setQueuedMessages([mockRow5Marked]));
 		expect(t.result().composerTarget).toEqual(queued(5));
 		expect(t.result().composerMode).toBe("follow");
 	});
 
 	it("Edit opens the composer and shows the row as under edit before the begin request settles", async () => {
-		const t = setup({ storeQueue: [row5] });
+		const t = setup({ storeQueue: [mockRow5] });
 
 		await t.beginEdit(5);
 		await waitFor(() => expect(t.patches).toHaveLength(1));
@@ -223,14 +223,14 @@ describe("useQueuedMessageEdit", () => {
 		]);
 		expect(t.result().composerTarget).toEqual(queued(5));
 
-		act(() => t.store.setQueuedMessages([row5Marked]));
+		act(() => t.store.setQueuedMessages([mockRow5Marked]));
 		await t.settle(t.patches[0], "resolve");
 		await waitFor(() => expect(t.result().markerStatus).toBe("success"));
 		expect(t.result().composerTarget).toEqual(queued(5));
 	});
 
 	it("a failed begin returns the composer to the row it followed before Edit", async () => {
-		const t = setup({ storeQueue: [row5, row6Marked] });
+		const t = setup({ storeQueue: [mockRow5, mockRow6Marked] });
 		await t.beginEdit(5);
 		expect(t.result().composerTarget).toEqual(queued(5));
 
@@ -241,7 +241,7 @@ describe("useQueuedMessageEdit", () => {
 	});
 
 	it("the failure of a begin that a later begin superseded does not affect the composer", async () => {
-		const t = setup({ storeQueue: [row5, row6] });
+		const t = setup({ storeQueue: [mockRow5, mockRow6] });
 		await t.beginEdit(5);
 		await t.beginEdit(6);
 		expect(t.result().composerTarget).toEqual(queued(6));

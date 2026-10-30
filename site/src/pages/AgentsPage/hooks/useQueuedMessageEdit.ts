@@ -25,9 +25,9 @@ const beginRequestedOn = (marker: MarkerRequest, id: number): boolean =>
 	marker.variables.req.editing === true;
 
 /**
- * The queued row rendered as under edit. A pending begin shows its row at
- * once and a pending end on the marked row hides it at once; otherwise the
- * store marker decides.
+ * The queued row rendered as under edit. A pending marker request applies
+ * before it settles, so the row reacts to Edit and Cancel edit without
+ * waiting for the server.
  */
 export const deriveQueuedMessageUnderEditID = (
 	serverMarkedID: number | null,
@@ -76,8 +76,8 @@ export const deriveComposerTarget = (
 };
 
 /**
- * Derives the queued-edit view from the store marker, the user's composer
- * choice and the latest marker request.
+ * Edit opens the row in the composer before the begin request settles; a
+ * refused begin restores the composer mode from before Edit.
  */
 export function useQueuedMessageEdit(deps: {
 	store: ChatStore;
@@ -120,9 +120,11 @@ export function useQueuedMessageEdit(deps: {
 		) {
 			return;
 		}
+
 		const editMode: EditingTarget = { kind: "queued", id };
 		setComposerMode(editMode);
 		setUnappliedEdit(editMode);
+
 		const applied = () =>
 			setUnappliedEdit((current) => (current === editMode ? null : current));
 		void deps

@@ -266,8 +266,6 @@ export const HeadUnderEdit: Story = {
 	},
 };
 
-// The chat is paused: Edit on the row behind the head is disabled and its
-// tooltip says why.
 export const PausedEditBehindHead: Story = {
 	args: {
 		queuedMessageUnderEditID: 1,

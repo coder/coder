@@ -54,6 +54,7 @@ export function useConversationEditingState(deps: {
 		targetContent,
 		onLoadedTargetChange,
 	} = deps;
+
 	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
 	// Holds the editor state of an open queued edit, so typed text survives
 	// a reload or a return to the chat until the edit ends.
@@ -64,6 +65,7 @@ export function useConversationEditingState(deps: {
 			localStorage.removeItem(queuedEditStorageKey(target.id));
 		}
 	};
+
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
@@ -96,7 +98,6 @@ export function useConversationEditingState(deps: {
 	// Counts target loads, so code that resumes after an await can tell
 	// whether another edit opened in the meantime.
 	const targetLoadCountRef = useRef(0);
-	// The draft the user had before the edit session opened.
 	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
 		null,
 	);
@@ -186,7 +187,9 @@ export function useConversationEditingState(deps: {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
 		}
+
 		removeQueuedEdit(loadedTarget?.target);
+
 		if (isEditorChanged() && (target === null || composerMode === "follow")) {
 			if (loadedTarget !== null) {
 				onLoadedTargetChange?.();
@@ -197,6 +200,7 @@ export function useConversationEditingState(deps: {
 			setComposerMode("draft");
 			return;
 		}
+
 		onLoadedTargetChange?.();
 		if (target === null) {
 			restoreDraftBeforeEdit();
@@ -205,6 +209,7 @@ export function useConversationEditingState(deps: {
 			}
 			return;
 		}
+
 		const { text, fileBlocks, editorState } =
 			getEditableContentPayload(targetContent);
 		if (draftBeforeEdit === null) {
@@ -226,6 +231,7 @@ export function useConversationEditingState(deps: {
 			loadEditorText(saved.text, saved.editorState);
 			loadedContentRef.current = { text, editorState };
 		}
+
 		setLoadedTarget({ target, text, fileBlocks: fileBlocks ?? noFileBlocks });
 		targetLoadCountRef.current++;
 	});
@@ -266,8 +272,6 @@ export function useConversationEditingState(deps: {
 		};
 	};
 
-	// Clears the input, the stored draft and, after a history send, the
-	// pre-edit draft.
 	const finalizeSuccessfulSend = (sentTarget: EditingTarget | undefined) => {
 		inputValueRef.current = "";
 		chatInputRef.current?.clear();

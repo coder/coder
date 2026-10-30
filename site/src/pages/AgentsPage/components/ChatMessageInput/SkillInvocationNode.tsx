@@ -181,8 +181,8 @@ export function $insertSkillInvocation(
 }
 
 /**
- * Serializes a sent message's text, skill chips and file-reference chips as
- * a composer draft.
+ * Returns the message as serialized Lexical editor state, the form the
+ * composer restores a draft from, so its chips survive the round trip.
  */
 export const serializeMessageDraft = (
 	content: readonly ChatMessagePart[],

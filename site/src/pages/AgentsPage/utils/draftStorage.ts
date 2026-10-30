@@ -118,12 +118,14 @@ export function getChipNodes(
 	if (!editorState) {
 		return [];
 	}
+
 	let root: SerializedNode | undefined;
 	try {
 		root = JSON.parse(editorState)?.root;
 	} catch {
 		return [];
 	}
+
 	const nodes: SerializedNode[] = [];
 	const collect = (node: SerializedNode) => {
 		if (node.type !== undefined && chipNodeTypes.has(node.type)) {
@@ -131,6 +133,7 @@ export function getChipNodes(
 		}
 		node.children?.forEach(collect);
 	};
+
 	if (root) {
 		collect(root);
 	}

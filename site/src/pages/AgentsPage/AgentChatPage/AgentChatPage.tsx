@@ -664,6 +664,7 @@ const AgentChatPage: React.FC = () => {
 		},
 		setQueuedMessageEditing,
 	});
+
 	const composerTargetContent = useChatSelector(store, (s) => {
 		if (composerTarget === null) {
 			return undefined;

@@ -39,7 +39,10 @@ import {
 	type MarkerRequest,
 } from "./useQueuedMessageEdit";
 
-const idleMarker: MarkerRequest = { isPending: false, variables: undefined };
+const mockIdleMarker: MarkerRequest = {
+	isPending: false,
+	variables: undefined,
+};
 const pendingBegin = (id: number): MarkerRequest => ({
 	isPending: true,
 	variables: { queuedMessageId: id, req: { editing: true } },
@@ -56,8 +59,6 @@ const skillPart = (name: string): ChatMessagePart => ({
 	skill_name: name,
 });
 
-// A row with a skill chip and a file-reference chip between text, as the
-// composer sends it.
 const contentWithChips: readonly ChatMessagePart[] = [
 	{ type: "text", text: "Use " },
 	skillPart("triage"),
@@ -157,13 +158,12 @@ const EditingWithEditor = ({
 	chatID: string;
 	contents: ReadonlyMap<number, readonly ChatMessagePart[]>;
 	ref: React.Ref<EditingHarnessHandle>;
-	// Called with each send and the composer parts the page reads with it.
 	onSend: (
 		options: SendChatTurnOptions,
 		composerParts: readonly ChatComposerContentPart[],
 	) => void;
-	// Called with the editing target of every commit, including commits a
-	// layout effect replaces before paint.
+	// Called with each editing target a commit shows, including ones a layout
+	// effect replaces before paint.
 	onCommit: (editingTarget: EditingTarget | null) => void;
 }) => {
 	const [chatInputRef] = useState(() => createRef<ChatMessageInputRef>());
@@ -193,7 +193,7 @@ const EditingWithEditor = ({
 	}));
 	useLayoutEffect(() => {
 		onCommit(editing.editingTarget);
-	});
+	}, [editing.editingTarget, onCommit]);
 	return (
 		<ChatMessageInput
 			ref={chatInputRef}
@@ -242,7 +242,7 @@ describe("useConversationEditingState", () => {
 		const resolvedChatID = args.length === 0 ? chatID : args[0];
 		const initialProps: ServerProps = {
 			serverMarkedID: null,
-			marker: idleMarker,
+			marker: mockIdleMarker,
 		};
 
 		const hook = renderHook(
@@ -280,7 +280,7 @@ describe("useConversationEditingState", () => {
 		) => {
 			contents.set(contentKey(target), textContent(text, fileBlocks));
 			if (target.kind === "queued") {
-				hook.rerender({ serverMarkedID: target.id, marker: idleMarker });
+				hook.rerender({ serverMarkedID: target.id, marker: mockIdleMarker });
 			}
 			hook.result.current.setComposerMode(target);
 		};
@@ -288,7 +288,7 @@ describe("useConversationEditingState", () => {
 		const markOnServer = (
 			id: number | null,
 			text = "queued text",
-			marker = idleMarker,
+			marker = mockIdleMarker,
 		) => {
 			if (id !== null) {
 				contents.set(contentKey({ kind: "queued", id }), textContent(text));
@@ -296,7 +296,8 @@ describe("useConversationEditingState", () => {
 			hook.rerender({ serverMarkedID: id, marker });
 		};
 
-		// Sets the content a row loads with, without marking it.
+		// Sets the content a row loads with, without the server marking it
+		// under edit.
 		const setRowContent = (target: EditingTarget, text: string) => {
 			contents.set(contentKey(target), textContent(text));
 		};
@@ -349,7 +350,7 @@ describe("useConversationEditingState", () => {
 				/>
 			</QueryClientProvider>
 		);
-		const view = render(ui({ serverMarkedID: null, marker: idleMarker }));
+		const view = render(ui({ serverMarkedID: null, marker: mockIdleMarker }));
 		const current = () => {
 			if (!handle.current) {
 				throw new Error("harness is not mounted");
@@ -370,10 +371,9 @@ describe("useConversationEditingState", () => {
 				);
 			}
 			await act(async () =>
-				view.rerender(ui({ serverMarkedID: id, marker: idleMarker })),
+				view.rerender(ui({ serverMarkedID: id, marker: mockIdleMarker })),
 			);
 		};
-		// Edit on a row as the page does it once the begin request settles.
 		const beginEdit = async (
 			id: number,
 			content: string | readonly ChatMessagePart[],
@@ -402,7 +402,6 @@ describe("useConversationEditingState", () => {
 				}),
 			);
 		};
-		// Types into the editor, and for "reverted" deletes it again.
 		const change = async (kind: "none" | "typed" | "reverted") => {
 			if (kind === "none") {
 				return;
@@ -538,7 +537,6 @@ describe("useConversationEditingState", () => {
 	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
 		const { result, unmount, beginEdit } = renderEditing();
 
-		// Simulate the user typing a draft via handleContentChange.
 		act(() => {
 			result.current.handleContentChange(
 				"work in progress",
@@ -996,7 +994,6 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("my draft", editorState, true);
 		});
 
-		// Start editing a history message.
 		act(() => {
 			beginEdit({ kind: "history", id: 42 }, "old message text");
 		});
@@ -1498,8 +1495,8 @@ describe("useConversationEditingState", () => {
 			},
 		);
 
-		// The editor is empty after the send; the stored draft it started from
-		// is no longer what it holds.
+		// The send resets the baseline, so the empty editor counts as unchanged
+		// although it differs from the stored draft it started from.
 		it("after a new message is sent, the empty composer follows a newly marked row", async () => {
 			localStorage.setItem(expectedKey, "saved draft");
 			const { unmount, current, editorText, markOnServer, change } =

@@ -31,7 +31,6 @@ type QueuedMessagesListProps = {
 	onEdit?: (id: number) => void;
 	onEndEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
-	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID: number | null;
 	// The queued row this composer edits, or null. It gets no Edit action; a
 	// row under edit elsewhere keeps Edit so this client can take it over.
@@ -208,6 +207,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 			queuedMessageUnderEditID,
 		);
 		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+
 		let badge: { label: string; tooltip: string } | undefined;
 		if (isUnderEdit) {
 			badge = {
@@ -220,6 +220,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				tooltip: "Waits for the edit above to finish.",
 			};
 		}
+
 		return {
 			id: message.id,
 			...getQueuedMessageInfo(message),
@@ -280,7 +281,6 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	// Delete and promote remove the row, so they hide it optimistically.
 	const runAction = async (
 		id: number,
 		action: QueuedMessageAction,
