@@ -97,6 +97,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionCompleteRequiresAction,
 	TransitionRecordGenerationAttempt,
 	TransitionRecordRetryState,
+	TransitionDeliverSteerMessages,
 	TransitionCommitStep,
 	TransitionEnterRequiresAction,
 	TransitionFinishInterruption,

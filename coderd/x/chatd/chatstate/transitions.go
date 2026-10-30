@@ -554,7 +554,8 @@ const (
 	// is empty.
 	BusyBehaviorQueue BusyBehavior = "queue"
 	// BusyBehaviorSteer stores the message in the steer lane. It is
-	// delivered when a turn or an interruption ends.
+	// delivered before the next assistant model call, or when a turn
+	// or an interruption ends.
 	BusyBehaviorSteer     BusyBehavior = "steer"
 	BusyBehaviorInterrupt BusyBehavior = "interrupt"
 )
@@ -1482,6 +1483,51 @@ func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGen
 	return RecordGenerationAttemptResult{
 		GenerationAttempt: value,
 	}, nil
+}
+
+// DeliverSteerMessagesInput is intentionally empty.
+type DeliverSteerMessagesInput struct{}
+
+// DeliverSteerMessagesResult is returned by [Tx.DeliverSteerMessages].
+type DeliverSteerMessagesResult struct {
+	// DeliveredMessages contains steer messages in position order.
+	DeliveredMessages []database.ChatMessage
+}
+
+// DeliverSteerMessages moves every steer row into history in position
+// order at a step boundary of a running turn. Queue rows stay queued
+// and the status does not change.
+func (tx *Tx) DeliverSteerMessages(_ DeliverSteerMessagesInput) (DeliverSteerMessagesResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionDeliverSteerMessages)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, err
+	}
+	if from == StateR0 {
+		return DeliverSteerMessagesResult{}, nil
+	}
+	queued, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, xerrors.Errorf("get queued messages: %w", err)
+	}
+	rows := steerLane(queued)
+	if len(rows) == 0 {
+		return DeliverSteerMessagesResult{}, nil
+	}
+	outstanding, err := outstandingToolCalls(tx.ctx, tx.store, chat, false)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, err
+	}
+	if len(outstanding) > 0 {
+		return DeliverSteerMessagesResult{}, newTransitionError(
+			TransitionDeliverSteerMessages, from,
+			"outstanding tool calls block steer delivery",
+		)
+	}
+	d, err := tx.deliverQueuedRows(chat, nil, rows)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, err
+	}
+	return DeliverSteerMessagesResult{DeliveredMessages: d.delivered}, nil
 }
 
 // RecordRetryStateInput configures [Tx.RecordRetryState].
