@@ -71,7 +71,9 @@ export const watchWorkspace = (
 export const watchChat = (
 	chatId: string,
 	afterMessageId?: number,
-): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
+): OneWayWebSocketApi<
+	TypesGen.ChatStreamEvent[] | TypesGen.ChatStreamChunk
+> => {
 	const params = new URLSearchParams();
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
