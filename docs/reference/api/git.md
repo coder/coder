@@ -18,6 +18,9 @@ curl -X GET http://coder-server:8080/api/v2/external-auth \
 
 `GET /api/v2/external-auth`
 
+Returns the external authentication providers configured for the deployment and your links to them.
+The call also tries to refresh each link's token, and the response reports whether each link is still `authenticated`.
+
 ### Example responses
 
 > 200 Response
@@ -55,11 +58,15 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 `GET /api/v2/external-auth/{externalauth}`
 
+Returns whether you are linked to an external authentication provider, such as GitHub or GitLab, and whether the link's token is still valid.
+The response also lists the provider's app installations, when it supports them, and whether the provider supports the device flow.
+Returns an unauthenticated result instead of an error when you have no link.
+
 ### Parameters
 
-| Name           | In   | Type           | Required | Description     |
-|----------------|------|----------------|----------|-----------------|
-| `externalauth` | path | string(string) | true     | Git Provider ID |
+| Name           | In   | Type           | Required | Description                                                                   |
+|----------------|------|----------------|----------|-------------------------------------------------------------------------------|
+| `externalauth` | path | string(string) | true     | ID of the external authentication provider, as configured for the deployment. |
 
 ### Example responses
 
@@ -117,11 +124,15 @@ curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 `DELETE /api/v2/external-auth/{externalauth}`
 
+Deletes your link to an external authentication provider.
+Coder then tries to revoke the token at the provider, and `token_revoked` says whether that worked.
+Returns `404` if you have no link to the provider.
+
 ### Parameters
 
-| Name           | In   | Type           | Required | Description     |
-|----------------|------|----------------|----------|-----------------|
-| `externalauth` | path | string(string) | true     | Git Provider ID |
+| Name           | In   | Type           | Required | Description                                                                   |
+|----------------|------|----------------|----------|-------------------------------------------------------------------------------|
+| `externalauth` | path | string(string) | true     | ID of the external authentication provider, as configured for the deployment. |
 
 ### Example responses
 
@@ -155,11 +166,15 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device 
 
 `GET /api/v2/external-auth/{externalauth}/device`
 
+Starts the device flow for an external authentication provider by requesting a device code from the provider.
+Show the `user_code` and `verification_uri` to the person linking their account, then call `POST /api/v2/external-auth/{externalauth}/device` with the `device_code` to finish.
+Returns `400` if the provider doesn't support the device flow.
+
 ### Parameters
 
-| Name           | In   | Type           | Required | Description     |
-|----------------|------|----------------|----------|-----------------|
-| `externalauth` | path | string(string) | true     | Git Provider ID |
+| Name           | In   | Type           | Required | Description                                                                   |
+|----------------|------|----------------|----------|-------------------------------------------------------------------------------|
+| `externalauth` | path | string(string) | true     | ID of the external authentication provider, as configured for the deployment. |
 
 ### Example responses
 
@@ -195,11 +210,15 @@ curl -X POST http://coder-server:8080/api/v2/external-auth/{externalauth}/device
 
 `POST /api/v2/external-auth/{externalauth}/device`
 
+Finishes the device flow by exchanging the `device_code` for a token and linking it to your account, which creates the link or replaces the existing one.
+Call it after the person has entered the `user_code` at the provider, and poll no faster than the `interval`, in seconds, that `GET /api/v2/external-auth/{externalauth}/device` returned.
+Returns `400` if the provider rejects the code, for example because authorization is still pending, or doesn't support the device flow.
+
 ### Parameters
 
-| Name           | In   | Type           | Required | Description          |
-|----------------|------|----------------|----------|----------------------|
-| `externalauth` | path | string(string) | true     | External Provider ID |
+| Name           | In   | Type           | Required | Description                                                                   |
+|----------------|------|----------------|----------|-------------------------------------------------------------------------------|
+| `externalauth` | path | string(string) | true     | ID of the external authentication provider, as configured for the deployment. |
 
 ### Responses
 
