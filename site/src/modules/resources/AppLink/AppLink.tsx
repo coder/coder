@@ -67,7 +67,7 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	const icon =
 		status.icon ??
 		(!iconError && (
-			<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
+			<BaseIcon app={app} alt="" onIconPathError={() => setIconError(true)} />
 		));
 
 	const canShare = app.sharing_level !== "owner";
@@ -105,7 +105,6 @@ export const AppLink: React.FC<AppLinkProps> = ({
 			type="button"
 			onClick={status.canClick ? link.onClick : undefined}
 			aria-disabled={!status.canClick || undefined}
-			className="aria-disabled:cursor-not-allowed"
 		>
 			{content}
 		</button>
