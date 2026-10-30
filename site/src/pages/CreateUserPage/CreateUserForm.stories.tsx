@@ -74,6 +74,16 @@ export const NoAvailableLoginTypes: Story = {
 	},
 };
 
+export const ServiceAccountRequiresPremium: Story = {
+	args: {
+		serviceAccountsEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByTestId("login-type-input"));
+	},
+};
+
 export const KeepsEmailForExternalLogin: Story = {
 	args: {
 		authMethods: MockAuthMethodsAll,

@@ -56,6 +56,7 @@ import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatPRMenuItems } from "./ChatsSidebar/tree/ChatPRMenuItems";
+import { MoveToProjectMenuItems } from "./MoveToProjectMenuItems";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -342,6 +343,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		? showUnarchiveAction ||
 			(!isArchived &&
 				(Boolean(onOpenRenameDialog) ||
+					showArchiveActions ||
 					showPinAction ||
 					showSubagentsToggle ||
 					showReadToggle))
@@ -383,8 +385,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const copyItems = [
 		<Item
 			key="id"
-			onSelect={() => {
-				void copyToClipboard(chat.id);
+			onSelect={async () => {
+				if (await copyToClipboard(chat.id)) {
+					toast.success("Chat ID copied to clipboard.");
+				}
 			}}
 		>
 			<HashIcon className="size-3.5" />
@@ -395,8 +399,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		copyItems.push(
 			<Item
 				key="branch"
-				onSelect={() => {
-					void copyToClipboard(branch);
+				onSelect={async () => {
+					if (await copyToClipboard(branch)) {
+						toast.success("Branch name copied to clipboard.");
+					}
 				}}
 			>
 				<GitBranchIcon className="size-3.5" />
@@ -475,6 +481,18 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							<SquarePenIcon className="size-3.5" />
 							Rename chat
 						</Item>
+					)}
+					{showArchiveActions && (
+						<MoveToProjectMenuItems
+							chat={chat}
+							blocked={isArchiveBlocked}
+							describedBy={archiveBlockedDescribedBy}
+							Item={Item}
+							Separator={Separator}
+							Sub={Sub}
+							SubTrigger={SubTrigger}
+							SubContent={SubContent}
+						/>
 					)}
 					{subagentToggle}
 					{readToggle}

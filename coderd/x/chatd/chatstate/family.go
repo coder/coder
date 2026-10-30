@@ -151,3 +151,95 @@ func SetFamilyArchived(
 	}
 	return familyChats, nil
 }
+
+// SetFamilyProjectInput configures [SetFamilyProject].
+type SetFamilyProjectInput struct {
+	// RootID identifies the family root. SetFamilyProject rejects
+	// calls for child chats with [ErrChatNotRoot] and unknown chats
+	// with [ErrChatNotFound].
+	RootID uuid.UUID
+	// ProjectID is the root chat's new project. NULL removes the chat
+	// from its project.
+	ProjectID uuid.NullUUID
+}
+
+// SetFamilyProject moves a root chat into a project, or out of its
+// project, inside one transaction. Every family member must be in W,
+// E0 or E1, or the move rolls back, so no step of the family runs with
+// the old project's memory tools after the move. Subagent chats have no
+// project and use the root's, so only the root's project_id changes.
+//
+// Like [SetFamilyArchived], it locks the root first and then each
+// member in GetChatFamilyIDsByRootID order, and it publishes only after
+// the commit. On success it returns one [database.Chat] per family
+// member, root first. A root already in the project changes nothing and
+// returns no chats; the check reads the locked row, so a move back to
+// the current project waits for a move still in flight.
+func SetFamilyProject(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	input SetFamilyProjectInput,
+) ([]database.Chat, error) {
+	if store == nil {
+		return nil, xerrors.New("chatstate: SetFamilyProject called with nil store")
+	}
+	if publisher == nil {
+		return nil, xerrors.New("chatstate: SetFamilyProject called with nil publisher")
+	}
+
+	buffer := NewPublishBuffer(publisher)
+	defer buffer.Discard()
+
+	var familyChats []database.Chat
+	err := store.InTx(func(tx database.Store) error {
+		// Child creation takes FOR SHARE on the root row, so holding this
+		// lock keeps new subagent chats out of the family during the move.
+		root, err := tx.GetChatByIDForUpdate(ctx, input.RootID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrChatNotFound
+			}
+			return xerrors.Errorf("lock root chat for move: %w", err)
+		}
+		if root.ParentChatID.Valid {
+			return ErrChatNotRoot
+		}
+		if root.ProjectID == input.ProjectID {
+			return nil
+		}
+		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
+		if err != nil {
+			return xerrors.Errorf("get chat family: %w", err)
+		}
+		familyChats = make([]database.Chat, 0, len(ids))
+		for _, id := range ids {
+			projectID := uuid.NullUUID{}
+			if id == input.RootID {
+				projectID = input.ProjectID
+			}
+			var chat database.Chat
+			machine := NewChatMachine(tx, buffer, id)
+			err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
+				result, err := state.SetProject(SetProjectInput{ProjectID: projectID})
+				if err != nil {
+					return err
+				}
+				chat = result.Chat
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			familyChats = append(familyChats, chat)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return familyChats, err
+	}
+	return familyChats, nil
+}

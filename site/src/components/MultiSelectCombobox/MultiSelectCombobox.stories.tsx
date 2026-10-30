@@ -88,6 +88,16 @@ export const WithIcons: Story = {
 	},
 };
 
+export const WithSelectedIcons: Story = {
+	args: {
+		value: organizations.map((org) => ({
+			label: org.display_name,
+			value: org.id,
+			icon: org.icon,
+		})),
+	},
+};
+
 export const SelectComboboxItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

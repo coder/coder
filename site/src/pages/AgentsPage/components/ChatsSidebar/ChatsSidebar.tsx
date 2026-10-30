@@ -104,13 +104,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	// The sidebar lists the user's projects across organizations.
-	const chatProjectsEnabled =
-		experiments.includes("chat-projects") &&
-		initialOrganizationId !== undefined;
+	const chatProjectsEnabled = initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -346,7 +344,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

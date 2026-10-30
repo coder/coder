@@ -28,7 +28,7 @@ This is required for storing data about your Coder deployment and resources.
 
 If you're in a public cloud such as [Google Cloud](https://cloud.google.com/sql/docs/postgres/), [AWS](https://aws.amazon.com/rds/postgresql/), [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql), you can use the managed PostgreSQL offerings they provide.
 Make sure that the PostgreSQL service is running and accessible from your cluster.
-It should be in the same network, same project, etc.
+It should be in the same network, same project, and so on.
 
 ### In-Cluster PostgreSQL (for proof of concepts)
 
@@ -123,7 +123,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.35.3
+        --version 2.38.0
     ```
 
   - **OCI Registry**
@@ -134,7 +134,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.35.3
+        --version 2.38.0
     ```
 
 - **Stable** Coder release:
@@ -147,7 +147,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.6
+        --version 2.37.5
     ```
 
   - **OCI Registry**
@@ -158,7 +158,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.6
+        --version 2.37.5
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`.

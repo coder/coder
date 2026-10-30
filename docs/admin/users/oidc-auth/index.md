@@ -2,14 +2,14 @@
 title: OpenID Connect
 ---
 
-The following steps through how to integrate any OpenID Connect provider (Okta,
-Active Directory, etc.) to Coder.
+The following steps through how to integrate any OpenID Connect provider (Okta, Active Directory, and so on) to Coder.
 
 ## Step 1: Set Redirect URI with your OIDC provider
 
 Your OIDC provider will ask you for the following parameter:
 
-- **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
+- **Redirect URI**:
+  Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder with the OpenID Connect credentials
 
@@ -24,75 +24,57 @@ CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 
 ## OIDC Claims
 
-When a user logs in for the first time via OIDC, Coder will merge both the
-claims from the ID token and the claims obtained from hitting the upstream
-provider's `userinfo` endpoint, and use the resulting data as a basis for
-creating a new user or looking up an existing user.
+When a user logs in for the first time via OIDC, Coder will merge both the claims from the ID token and the claims obtained from hitting the upstream provider's `userinfo` endpoint, and use the resulting data as a basis for creating a new user or looking up an existing user.
 
-To troubleshoot claims, set `CODER_LOG_FILTER=".*got oidc claims.*"` and follow the logs while
-signing in via OIDC as a new user. Coder will log the claim fields returned by
-the upstream identity provider in a message containing the string
-`got oidc claims`, as well as the user info returned.
+To troubleshoot claims, set `CODER_LOG_FILTER=".*got oidc claims.*"` and follow the logs while signing in via OIDC as a new user.
+Coder will log the claim fields returned by the upstream identity provider in a message containing the string `got oidc claims`, as well as the user info returned.
 
 > [!NOTE]
-> If you need to ensure that Coder only uses information from the ID
-> token and does not hit the UserInfo endpoint, you can set the configuration
-> option `CODER_OIDC_IGNORE_USERINFO=true`.
+> If you need to ensure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
 
 ### Email Addresses
 
-By default, Coder will look for the OIDC claim named `email` and use that value
-for the newly created user's email address.
+By default, Coder will look for the OIDC claim named `email` and use that value for the newly created user's email address.
 
-If your upstream identity provider users a different claim, you can set
-`CODER_OIDC_EMAIL_FIELD` to the desired claim.
+If your upstream identity provider users a different claim, you can set `CODER_OIDC_EMAIL_FIELD` to the desired claim.
 
 > [!NOTE]
-> If this field is not present, Coder will attempt to use the claim
-> field configured for `username` as an email address. If this field is not a
-> valid email address, OIDC logins will fail.
+> If this field is not present, Coder will attempt to use the claim field configured for `username` as an email address.
+> If this field is not a valid email address, OIDC logins will fail.
 
 ### Email Address Verification
 
-Coder requires all OIDC email addresses to be verified by default. If the
-`email_verified` claim is present in the token response from the identity
-provider, Coder will validate that its value is `true`. If needed, you can
-disable this behavior with the following setting:
+Coder requires all OIDC email addresses to be verified by default.
+If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
+If needed, you can disable this behavior with the following setting:
 
 ```dotenv
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
 > [!NOTE]
-> This will cause Coder to implicitly treat all OIDC emails as
-> "verified", regardless of what the upstream identity provider says.
+> This will cause Coder to implicitly treat all OIDC emails as "verified", regardless of what the upstream identity provider says.
 
 ### Usernames
 
-When a new user logs in via OIDC, Coder will by default use the value of the
-claim field named `preferred_username` as the username.
+When a new user logs in via OIDC, Coder will by default use the value of the claim field named `preferred_username` as the username.
 
-If your upstream identity provider uses a different claim, you can set
-`CODER_OIDC_USERNAME_FIELD` to the desired claim.
+If your upstream identity provider uses a different claim, you can set `CODER_OIDC_USERNAME_FIELD` to the desired claim.
 
 > [!NOTE]
-> If this claim is empty, the email address will be stripped of the
-> domain, and become the username (e.g. `example@coder.com` becomes `example`).
-> To avoid conflicts, Coder may also append a random word to the resulting
-> username.
+> If this claim is empty, the email address will be stripped of the domain, and become the username (for example, `example@coder.com` becomes `example`).
+> To avoid conflicts, Coder may also append a random word to the resulting username.
 
 ## OIDC Login Customization
 
-If you'd like to change the OpenID Connect button text and/or icon, you can
-configure them like so:
+If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
 
 ```dotenv
 CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
 CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
-To change the icon and text above the OpenID Connect button, see application
-name and logo url in [appearance](../../setup/appearance.md) settings.
+To change the icon and text above the OpenID Connect button, see application name and logo url in [appearance](../../setup/appearance.md) settings.
 
 ## Configure Refresh Tokens
 
@@ -129,8 +111,7 @@ The general steps to configure persistent user sessions are:
 
 ## Disable Built-in Authentication
 
-To remove email and password login, set the following environment variable on
-your Coder deployment:
+To remove email and password login, set the following environment variable on your Coder deployment:
 
 ```dotenv
 CODER_DISABLE_PASSWORD_AUTH=true
@@ -139,25 +120,17 @@ CODER_DISABLE_PASSWORD_AUTH=true
 ## SCIM
 
 > [!IMPORTANT]
-> SCIM is a Premium feature
-> ([learn more](https://coder.com/pricing#compare-plans)).
+> SCIM is a Premium feature ([learn more](https://coder.com/pricing#compare-plans)).
 >
-> Coder's SCIM 2.0 implementation is not a fully certified or guaranteed
-> implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
-> It is intended to cover common user provisioning and deprovisioning flows
-> with the major identity providers (Okta, Microsoft Entra ID, etc.). Specific
-> attributes, endpoints, or behaviors required by your IdP may not be
-> supported, and compatibility may change between releases. If you depend on
-> a specific SCIM behavior, [contact us](https://coder.com/contact) before
-> rolling it out broadly. See
-> [coder/coder#15830](https://github.com/coder/coder/issues/15830) for
-> tracked gaps and ongoing work.
+> Coder's SCIM 2.0 implementation is not a fully certified or guaranteed implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
+> It is intended to cover common user provisioning and deprovisioning flows with the major identity providers (Okta, Microsoft Entra ID, and so on).
+> Specific attributes, endpoints, or behaviors required by your IdP may not be supported, and compatibility may change between releases.
+> If you depend on a specific SCIM behavior, [contact us](https://coder.com/contact) before rolling it out broadly.
+> See [coder/coder#15830](https://github.com/coder/coder/issues/15830) for tracked gaps and ongoing work.
 
-Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
-authentication. Upon deactivation, users are
-[suspended](../index.md#suspend-a-user) and are not deleted.
-[Configure](../../setup/index.md) your SCIM application with an auth key and supply
-it to the control plane.
+Coder supports user provisioning and deprovisioning via SCIM 2.0 with header authentication.
+Upon deactivation, users are [suspended](../index.md#suspend-a-user) and are not deleted.
+[Configure](../../setup/index.md) your SCIM application with an auth key and supply it to the control plane.
 
 ```dotenv
 CODER_SCIM_AUTH_HEADER="your-api-key"
@@ -182,16 +155,17 @@ Changing it requires a restart of the control plane.
 
 Behavior notes:
 
-- Coder never hard-deletes users. `DELETE /scim/v2/Users/{id}` and deactivation (`active: false`) both [suspend](../index.md#suspend-a-user) the user.
+- Coder never hard-deletes users.
+  `DELETE /scim/v2/Users/{id}` and deactivation (`active: false`) both [suspend](../index.md#suspend-a-user) the user.
 - Re-activating or re-creating a previously suspended user places them in the dormant state, and they become active again on their next login.
-- Usernames are immutable. Attempts to change `userName` via `PUT` or `PATCH` return a `mutability` error.
+- Usernames are immutable.
+  Attempts to change `userName` via `PUT` or `PATCH` return a `mutability` error.
 
 The SCIM 2.0 handler will eventually become the default behavior.
 
 ## TLS
 
-If your OpenID Connect provider requires client TLS certificates for
-authentication, you can configure them like so:
+If your OpenID Connect provider requires client TLS certificates for authentication, you can configure them like so:
 
 ```dotenv
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem

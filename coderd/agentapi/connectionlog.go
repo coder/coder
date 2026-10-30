@@ -16,11 +16,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/sdk2db"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type ConnLogAPI struct {
-	AgentID          uuid.UUID
-	AgentName        string
+	AgentID   uuid.UUID
+	AgentName string
+	// WorkspaceBuildID is the build that created the agent.
+	WorkspaceBuildID uuid.UUID
 	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 	Workspace        *CachedWorkspaceFields
 	Database         database.Store
@@ -88,6 +91,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	logIP := database.ParseIP(logIPRaw) // will return null if invalid
 
 	reason := req.GetConnection().GetReason()
+	if action == database.ConnectionStatusDisconnected && reason == string(codersdk.DisconnectReasonServerShutdown) {
+		reason = a.workspaceShutdownReason(ctx, ws.ID, req.GetConnection())
+	}
 	clientSessionID := req.GetConnection().GetClientSessionId()
 	if !tracing.ValidSessionID(clientSessionID) {
 		clientSessionID = ""
@@ -138,4 +144,46 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (a *ConnLogAPI) workspaceShutdownReason(ctx context.Context, workspaceID uuid.UUID, connection *agentproto.Connection) string {
+	reason := string(codersdk.DisconnectReasonServerShutdown)
+	clientSessionID := connection.GetClientSessionId()
+	if !tracing.ValidSessionID(clientSessionID) {
+		clientSessionID = ""
+	}
+	logger := a.Log.With(
+		slog.F("workspace_id", workspaceID),
+		slog.F("connection_id", uuid.UUID(connection.GetId())),
+		slog.F("client_session_id", clientSessionID),
+	)
+
+	build, err := a.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+	if err != nil {
+		logger.Warn(ctx, "get shutdown workspace build", slog.Error(err))
+		return reason
+	}
+	// The agent stays connected after a newer build exists only while that
+	// build stops or deletes the workspace (see checkBuildIsLatest), so a newer
+	// build is the shutdown cause.
+	replaced := build.ID != a.WorkspaceBuildID
+	// A delayed report must not be attributed to a build requested after the
+	// connection closed.
+	requestedAfterClose := build.CreatedAt.After(connection.GetTimestamp().AsTime())
+	if !replaced || requestedAfterClose {
+		return reason
+	}
+
+	job, err := a.Database.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		logger.Warn(ctx, "get shutdown provisioner job", slog.Error(err))
+		return reason
+	}
+	// Queued, failed, and canceled jobs do not establish a shutdown cause.
+	active := job.JobStatus == database.ProvisionerJobStatusRunning ||
+		job.JobStatus == database.ProvisionerJobStatusSucceeded
+	if !active {
+		return reason
+	}
+	return string(codersdk.DisconnectReasonWorkspaceStopped)
 }

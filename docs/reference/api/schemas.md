@@ -153,7 +153,7 @@ title: Schemas
 | `message`              | string                                                               | false    |              |                                                                           |
 | `needs_user_attention` | boolean                                                              | false    |              | Deprecated: this field is unused and will be removed in a future version. |
 | `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                           |
-| `uri`                  | string                                                               | false    |              |                                                                           |
+| `uri`                  | string                                                               | false    |              | Only http, https, and file URIs are kept; others are dropped.             |
 
 ## agentsdk.PatchLogs
 
@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "thinking": [
     {
       "text": "string"
@@ -334,6 +341,8 @@ title: Schemas
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -367,6 +376,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
 | `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
@@ -505,6 +515,28 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgePricedModel
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                  |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer | false    |              |                                                                                              |
+| `cache_write_price` | integer | false    |              |                                                                                              |
+| `input_price`       | integer | false    |              |                                                                                              |
+| `model`             | string  | false    |              | Model is the priced model, either the requested model or the model reported by the provider. |
+| `output_price`      | integer | false    |              |                                                                                              |
 
 ## codersdk.AIBridgeProvider
 
@@ -720,6 +752,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "priced_model": {
+            "cache_read_price": 0,
+            "cache_write_price": 0,
+            "input_price": 0,
+            "model": "string",
+            "output_price": 0
+          },
           "thinking": [
             {
               "text": "string"
@@ -728,6 +767,8 @@ title: Schemas
           "token_usage": {
             "cache_read_input_tokens": 0,
             "cache_write_input_tokens": 0,
+            "cost_micros": 0,
+            "has_unpriced_usage": true,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -764,12 +805,21 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "prompt": "string",
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -782,6 +832,8 @@ title: Schemas
   "token_usage_summary": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -820,6 +872,8 @@ title: Schemas
 {
   "cache_read_input_tokens": 0,
   "cache_write_input_tokens": 0,
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -831,14 +885,16 @@ title: Schemas
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description |
-|----------------------------|---------|----------|--------------|-------------|
-| `cache_read_input_tokens`  | integer | false    |              |             |
-| `cache_write_input_tokens` | integer | false    |              |             |
-| `input_tokens`             | integer | false    |              |             |
-| `metadata`                 | object  | false    |              |             |
-| » `[any property]`         | any     | false    |              |             |
-| `output_tokens`            | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description                                                                             |
+|----------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `cache_read_input_tokens`  | integer | false    |              |                                                                                         |
+| `cache_write_input_tokens` | integer | false    |              |                                                                                         |
+| `cost_micros`              | integer | false    |              | Cost micros is the summed cost of the priced usage, in micro-units (1000000 is $1.00).  |
+| `has_unpriced_usage`       | boolean | false    |              | Has unpriced usage reports that some usage has no cost, so CostMicros is a lower bound. |
+| `input_tokens`             | integer | false    |              |                                                                                         |
+| `metadata`                 | object  | false    |              |                                                                                         |
+| » `[any property]`         | any     | false    |              |                                                                                         |
+| `output_tokens`            | integer | false    |              |                                                                                         |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
@@ -874,6 +930,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "thinking": [
         {
           "text": "string"
@@ -882,6 +945,8 @@ title: Schemas
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -918,12 +983,21 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "prompt": "string",
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -949,6 +1023,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1432,6 +1507,24 @@ None
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
 
+## codersdk.AdvisorConfig
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                       |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled is always true and cannot be changed.                                                     |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.        |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat turn. 0 means unlimited. |
+
 ## codersdk.AgentChatSendShortcut
 
 ```json
@@ -1572,7 +1665,7 @@ None
   "exit_code": 0,
   "stage": "init",
   "started_at": "2019-08-24T14:15:22Z",
-  "status": "string",
+  "status": "ok",
   "workspace_agent_id": "string",
   "workspace_agent_name": "string"
 }
@@ -1580,16 +1673,16 @@ None
 
 ### Properties
 
-| Name                   | Type                                         | Required | Restrictions | Description |
-|------------------------|----------------------------------------------|----------|--------------|-------------|
-| `display_name`         | string                                       | false    |              |             |
-| `ended_at`             | string                                       | false    |              |             |
-| `exit_code`            | integer                                      | false    |              |             |
-| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
-| `started_at`           | string                                       | false    |              |             |
-| `status`               | string                                       | false    |              |             |
-| `workspace_agent_id`   | string                                       | false    |              |             |
-| `workspace_agent_name` | string                                       | false    |              |             |
+| Name                   | Type                                                                       | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name`         | string                                                                     | false    |              |             |
+| `ended_at`             | string                                                                     | false    |              |             |
+| `exit_code`            | integer                                                                    | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage)                               | false    |              |             |
+| `started_at`           | string                                                                     | false    |              |             |
+| `status`               | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `workspace_agent_id`   | string                                                                     | false    |              |             |
+| `workspace_agent_name` | string                                                                     | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -2296,6 +2389,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2440,6 +2534,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2670,6 +2765,109 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
 | `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
+## codersdk.ChatAttachment
+
+```json
+{
+  "file": {
+    "data": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "media_type": "string",
+    "name": "string",
+    "type": "file"
+  },
+  "message_id": 0,
+  "part_index": 0,
+  "role": "user"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description                                                                                  |
+|--------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `file`       | [codersdk.ChatAttachmentFile](#codersdkchatattachmentfile) | false    |              |                                                                                              |
+| `message_id` | integer                                                    | false    |              |                                                                                              |
+| `part_index` | integer                                                    | false    |              | Part index is the file part's position in the message content the messages endpoint returns. |
+| `role`       | [codersdk.ChatAttachmentRole](#codersdkchatattachmentrole) | false    |              |                                                                                              |
+
+## codersdk.ChatAttachmentFile
+
+```json
+{
+  "data": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "media_type": "string",
+  "name": "string",
+  "type": "file"
+}
+```
+
+### Properties
+
+| Name         | Type                                                               | Required | Restrictions | Description                                                               |
+|--------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `data`       | string                                                             | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string. |
+| `file_id`    | string                                                             | false    |              | Omitted, not null, for an inline file.                                    |
+| `media_type` | string                                                             | false    |              |                                                                           |
+| `name`       | string                                                             | false    |              |                                                                           |
+| `type`       | [codersdk.ChatAttachmentFileType](#codersdkchatattachmentfiletype) | false    |              |                                                                           |
+
+## codersdk.ChatAttachmentFileType
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s) |
+|----------|
+| `file`   |
+
+## codersdk.ChatAttachmentRole
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `assistant`, `user` |
+
+## codersdk.ChatAttachmentsResponse
+
+```json
+{
+  "attachments": [
+    {
+      "file": {
+        "data": "string",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "media_type": "string",
+        "name": "string",
+        "type": "file"
+      },
+      "message_id": 0,
+      "part_index": 0,
+      "role": "user"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                        | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------|----------|--------------|-------------|
+| `attachments` | array of [codersdk.ChatAttachment](#codersdkchatattachment) | false    |              |             |
+
 ## codersdk.ChatAutoArchiveDaysResponse
 
 ```json
@@ -2779,6 +2977,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_name": "string",
       "source": "string",
+      "source_path": "string",
       "status": "ok",
       "tools": [
         {
@@ -2793,12 +2992,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
-|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
-| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
-| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
-| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                            |
+|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                               |
+| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                      |
+| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                |
+| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned workspace-context inventory, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
 
 ## codersdk.ChatContextResource
 
@@ -2810,6 +3009,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_description": "string",
   "skill_name": "string",
   "source": "string",
+  "source_path": "string",
   "status": "ok",
   "tools": [
     {
@@ -2829,7 +3029,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
 | `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
 | `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, the server name for an MCP server, or an ACP harness slug.                                                              |
+| `source_path`       | string                                                                   | false    |              | Source path is the configuration directory for an ACP harness.                                                                                                                                                                                                             |
 | `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
 | `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)            | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 
@@ -2843,9 +3044,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                |
-|---------------------------------------------------------|
-| `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+| Value(s)                                                               |
+|------------------------------------------------------------------------|
+| `acp_harness`, `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
 
 ## codersdk.ChatContextResourceStatus
 
@@ -3158,6 +3359,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
+  "skill_name": "string",
+  "skill_source": "personal",
   "start_line": 0,
   "text": "string",
   "type": "text",
@@ -3177,6 +3380,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                |
 | `file_id`                     | string                                                   | false    |              |                                                                                                                                                                |
 | `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                 |
+| `skill_name`                  | string                                                   | false    |              |                                                                                                                                                                |
+| `skill_source`                | [codersdk.ChatSkillSource](#codersdkchatskillsource)     | false    |              | The following fields are only set when Type is ChatInputPartTypeSkillInvocation. The server loads the skill as the chat owner when the message is sent.        |
 | `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                |
 | `text`                        | string                                                   | false    |              |                                                                                                                                                                |
 | `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                |
@@ -3196,9 +3401,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                     |
-|--------------------------------------------------------------|
-| `file`, `file-reference`, `text`, `workspace-file-reference` |
+| Value(s)                                                                         |
+|----------------------------------------------------------------------------------|
+| `file`, `file-reference`, `skill-invocation`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -3252,6 +3457,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -3348,6 +3554,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
+  "skill_source": "personal",
   "source_id": "string",
   "start_line": 0,
   "text": "string",
@@ -3399,8 +3606,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
-| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files, and shown to the model for an invoked workspace skill so it can run the skill's scripts.                                                                                                                                             |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
+| `skill_source`                 | [codersdk.ChatSkillSource](#codersdkchatskillsource)         | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
 | `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3425,9 +3633,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| Value(s)                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `skill-invocation`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3524,6 +3732,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3606,6 +3815,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -4381,9 +4591,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                          |
-|-------------------------------------------------------------------|
-| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `advisor`, `compaction`, `computer_use`, `explore`, `general`, `title_generation` |
 
 ## codersdk.ChatModelOverrideResponse
 
@@ -4854,22 +5064,139 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "permissions": {
+    "delete": true,
+    "share": true,
+    "update": true
+  },
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                   |
-|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string | false    |              |                                                                                               |
-| `description`     | string | false    |              |                                                                                               |
-| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string | false    |              |                                                                                               |
-| `name`            | string | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string | false    |              |                                                                                               |
-| `owner_id`        | string | false    |              |                                                                                               |
-| `updated_at`      | string | false    |              |                                                                                               |
+| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
+|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string                                                             | false    |              |                                                                                               |
+| `description`     | string                                                             | false    |              |                                                                                               |
+| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string                                                             | false    |              |                                                                                               |
+| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
+| `organization_id` | string                                                             | false    |              |                                                                                               |
+| `owner_id`        | string                                                             | false    |              |                                                                                               |
+| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
+| `updated_at`      | string                                                             | false    |              |                                                                                               |
+
+## codersdk.ChatProjectACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "use",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "use",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                            | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |             |
+
+## codersdk.ChatProjectGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "use",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatProjectRole](#codersdkchatprojectrole)  | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.ChatProjectInstructions
 
@@ -4925,6 +5252,66 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`                | string | false    |              |             |
 | `organization_id`     | string | false    |              |             |
 | `project_id`          | string | false    |              |             |
+
+## codersdk.ChatProjectPermissions
+
+```json
+{
+  "delete": true,
+  "share": true,
+  "update": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `delete` | boolean | false    |              |             |
+| `share`  | boolean | false    |              |             |
+| `update` | boolean | false    |              |             |
+
+## codersdk.ChatProjectRole
+
+```json
+"use"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| ``, `admin`, `use` |
+
+## codersdk.ChatProjectUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "use",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                 | Required | Restrictions | Description |
+|--------------|------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                               | false    |              |             |
+| `id`         | string                                               | true     |              |             |
+| `name`       | string                                               | false    |              |             |
+| `role`       | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `username`   | string                                               | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.ChatPrompt
 
@@ -5013,6 +5400,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -5071,6 +5459,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.ChatSkillSource
+
+```json
+"personal"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                  |
+|-------------------------------------------|
+| `org`, `personal`, `project`, `workspace` |
 
 ## codersdk.ChatStatus
 
@@ -5177,6 +5579,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -5257,6 +5660,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -5324,6 +5728,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -5440,6 +5845,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
+    "skill_source": "personal",
     "source_id": "string",
     "start_line": 0,
     "text": "string",
@@ -5656,6 +6062,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -5816,9 +6223,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `project_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ChatWorkspaceTTLResponse
 
@@ -5882,6 +6289,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "name": "string"
   },
   "ssh_info": {
+    "client_session_id": "string",
     "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
     "disconnect_reason": "string",
     "disconnect_time": "2019-08-24T14:15:22Z",
@@ -5979,6 +6387,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "name": "string"
       },
       "ssh_info": {
+        "client_session_id": "string",
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
@@ -6038,6 +6447,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "client_session_id": "string",
   "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
   "disconnect_reason": "string",
   "disconnect_time": "2019-08-24T14:15:22Z",
@@ -6049,6 +6459,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description                                                                                                                           |
 |---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `client_session_id` | string  | false    |              | Client session ID is set by the client and isn't guaranteed to be unique.                                                             |
 | `connection_id`     | string  | false    |              |                                                                                                                                       |
 | `disconnect_reason` | string  | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
 | `disconnect_time`   | string  | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
@@ -6191,6 +6602,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -6299,6 +6712,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -6380,6 +6794,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -6462,6 +6877,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -6726,6 +7142,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -7034,15 +7452,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "content": "string"
+  "action": true,
+  "content": "string",
+  "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
 
 ## codersdk.CreateTemplateRequest
 
@@ -7321,17 +7743,17 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description                                                                         |
-|--------------------|--------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------|
-| `email`            | string                                     | false    |              |                                                                                     |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
-| `name`             | string                                     | false    |              |                                                                                     |
-| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
-| `password`         | string                                     | false    |              |                                                                                     |
-| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                |
-| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
-| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
-| `username`         | string                                     | true     |              |                                                                                     |
+| Name               | Type                                       | Required | Restrictions | Description                                                                                                   |
+|--------------------|--------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------|
+| `email`            | string                                     | false    |              |                                                                                                               |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                                                     |
+| `name`             | string                                     | false    |              |                                                                                                               |
+| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of.                           |
+| `password`         | string                                     | false    |              |                                                                                                               |
+| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                                          |
+| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                                                |
+| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant. Service accounts default to UserStatusActive and can't be dormant. |
+| `username`         | string                                     | true     |              |                                                                                                               |
 
 ## codersdk.CreateUserSecretRequest
 
@@ -9327,6 +9749,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -9410,6 +9834,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -9491,6 +9916,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -9622,9 +10048,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -12288,7 +12714,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
 | `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
 | `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
 | `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
 | `user_id`              | string          | false    |              |                                                                                                                                                   |
 | `username`             | string          | false    |              |                                                                                                                                                   |
@@ -12764,6 +13190,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|----------|
 | `role`   | `read`   |
 
+## codersdk.OrganizationSkillPreferences
+
+```json
+{
+  "all_skills_disabled": true,
+  "disabled_skill_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                        |
+|------------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `all_skills_disabled`        | boolean         | false    |              | All skills disabled turns off every organization skill, including skills added later. DisabledSkillIDs is kept and applies again when it is false. |
+| `disabled_skill_ids`         | array of string | false    |              | Disabled skill ids lists the organization skills the member turned off.                                                                            |
+| `members_can_disable_skills` | boolean         | false    |              | Members can disable skills is the organization's setting.                                                                                          |
+
 ## codersdk.OrganizationSkillRole
 
 ```json
@@ -12777,6 +13223,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.OrganizationSkillSettings
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `members_can_disable_skills` | boolean | false    |              | Members can disable skills lets each organization member turn off organization skills for their own chats. |
 
 ## codersdk.OrganizationSkillUser
 
@@ -14360,9 +14820,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -14709,11 +15169,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "action": true,
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_invocable": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -14721,24 +15183,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `content`     | string  | false    |              |             |
-| `created_at`  | string  | false    |              |             |
-| `description` | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `id`          | string  | false    |              |             |
-| `name`        | string  | false    |              |             |
-| `updated_at`  | string  | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
+| `content`         | string  | false    |              |                                                                                                                                                           |
+| `created_at`      | string  | false    |              |                                                                                                                                                           |
+| `description`     | string  | false    |              |                                                                                                                                                           |
+| `enabled`         | boolean | false    |              |                                                                                                                                                           |
+| `id`              | string  | false    |              |                                                                                                                                                           |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
+| `name`            | string  | false    |              |                                                                                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                                                                                           |
 
 ## codersdk.SkillMetadata
 
 ```json
 {
+  "action": true,
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_invocable": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -14746,14 +15212,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `created_at`  | string  | false    |              |             |
-| `description` | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `id`          | string  | false    |              |             |
-| `name`        | string  | false    |              |             |
-| `updated_at`  | string  | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
+| `created_at`      | string  | false    |              |                                                                                                                                                           |
+| `description`     | string  | false    |              |                                                                                                                                                           |
+| `enabled`         | boolean | false    |              |                                                                                                                                                           |
+| `id`              | string  | false    |              |                                                                                                                                                           |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
+| `name`            | string  | false    |              |                                                                                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                                                                                           |
 
 ## codersdk.SlimRole
 
@@ -15114,43 +15582,31 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "display_name": "Visual Studio Code",
+  "display_name": "VS Code",
   "icon": "string",
+  "method": "ssh",
   "seconds": 80500,
+  "seconds_is_upper_bound": false,
   "slug": "vscode",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
-  "times_used": 2,
-  "type": "builtin"
+  "times_used": 2
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                   | Required | Restrictions | Description |
-|----------------|--------------------------------------------------------|----------|--------------|-------------|
-| `display_name` | string                                                 | false    |              |             |
-| `icon`         | string                                                 | false    |              |             |
-| `seconds`      | integer                                                | false    |              |             |
-| `slug`         | string                                                 | false    |              |             |
-| `template_ids` | array of string                                        | false    |              |             |
-| `times_used`   | integer                                                | false    |              |             |
-| `type`         | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |             |
-
-## codersdk.TemplateAppsType
-
-```json
-"builtin"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)         |
-|------------------|
-| `app`, `builtin` |
+| Name                     | Type                                                         | Required | Restrictions | Description                                                                                                                                  |
+|--------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `display_name`           | string                                                       | false    |              |                                                                                                                                              |
+| `icon`                   | string                                                       | false    |              |                                                                                                                                              |
+| `method`                 | [codersdk.ConnectionLogMethod](#codersdkconnectionlogmethod) | false    |              | Method is how the app connected. Method and Slug identify an app.                                                                            |
+| `seconds`                | integer                                                      | false    |              |                                                                                                                                              |
+| `seconds_is_upper_bound` | boolean                                                      | false    |              | Seconds is upper bound marks overflow usage that includes folded apps. Their overlap is not stored, so Seconds may overestimate active time. |
+| `slug`                   | string                                                       | false    |              |                                                                                                                                              |
+| `template_ids`           | array of string                                              | false    |              |                                                                                                                                              |
+| `times_used`             | integer                                                      | false    |              |                                                                                                                                              |
 
 ## codersdk.TemplateAutostartRequirement
 
@@ -15791,15 +16247,16 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "active_users": 22,
   "apps_usage": [
     {
-      "display_name": "Visual Studio Code",
+      "display_name": "VS Code",
       "icon": "string",
+      "method": "ssh",
       "seconds": 80500,
+      "seconds_is_upper_bound": false,
       "slug": "vscode",
       "template_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
-      "times_used": 2,
-      "type": "builtin"
+      "times_used": 2
     }
   ],
   "end_time": "2019-08-24T14:15:22Z",
@@ -15831,20 +16288,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "start_time": "2019-08-24T14:15:22Z",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ]
+  ],
+  "usage_total_seconds": 120000
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                        | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
-| `active_users`     | integer                                                                     | false    |              |             |
-| `apps_usage`       | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |             |
-| `end_time`         | string                                                                      | false    |              |             |
-| `parameters_usage` | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |             |
-| `start_time`       | string                                                                      | false    |              |             |
-| `template_ids`     | array of string                                                             | false    |              |             |
+| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                       |
+|-----------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `active_users`        | integer                                                                     | false    |              |                                                                                                                                   |
+| `apps_usage`          | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |                                                                                                                                   |
+| `end_time`            | string                                                                      | false    |              |                                                                                                                                   |
+| `parameters_usage`    | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |                                                                                                                                   |
+| `start_time`          | string                                                                      | false    |              |                                                                                                                                   |
+| `template_ids`        | array of string                                                             | false    |              |                                                                                                                                   |
+| `usage_total_seconds` | integer                                                                     | false    |              | Usage total seconds counts each user's active minutes once, even when apps overlap. Summed per-app seconds can exceed this total. |
 
 ## codersdk.TemplateInsightsResponse
 
@@ -15865,15 +16324,16 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_users": 22,
     "apps_usage": [
       {
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code",
         "icon": "string",
+        "method": "ssh",
         "seconds": 80500,
+        "seconds_is_upper_bound": false,
         "slug": "vscode",
         "template_ids": [
           "497f6eca-6276-4993-bfeb-53cbbbba6f08"
         ],
-        "times_used": 2,
-        "type": "builtin"
+        "times_used": 2
       }
     ],
     "end_time": "2019-08-24T14:15:22Z",
@@ -15905,7 +16365,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "start_time": "2019-08-24T14:15:22Z",
     "template_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
+    ],
+    "usage_total_seconds": 120000
   }
 }
 ```
@@ -16459,6 +16920,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------|--------|----------|--------------|-------------|
 | `id` | string | true     |              |             |
 
+## codersdk.UpdateAdvisorConfigRequest
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `max_output_tokens` | integer | false    |              |             |
+| `max_uses_per_run`  | integer | false    |              |             |
+
 ## codersdk.UpdateAppearanceConfig
 
 ```json
@@ -16807,6 +17284,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
 
+## codersdk.UpdateChatProjectACL
+
+```json
+{
+  "group_roles": {
+    "property1": "use",
+    "property2": "use"
+  },
+  "user_roles": {
+    "property1": "use",
+    "property2": "use"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                 | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `user_roles`       | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+
 ## codersdk.UpdateChatProjectInstructionsRequest
 
 ```json
@@ -16850,6 +17351,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
@@ -16865,6 +17367,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
+| `project_id`       | string                                         | false    |              | Project ID moves a root chat, and with it its subagent chats. - nil: no change. - uuid.Nil: remove the chat from its project. - other: move the chat into that project. The chat's owner must own   the project or have it shared with them, and the project must be   in the chat's organization. The server returns 409 while the chat or a subagent chat is not idle.                                                                |
 |`read`|boolean|false||Read moves the owner's read cursor, which drives HasUnread. - nil: no change. - true: mark every existing message as read. - false: clear the cursor so the chat reads as unread again.
 The cursor is owner-scoped, so only the chat owner may set this. Opening a chat's stream marks it read, so marking the chat the owner is currently viewing as unread does not persist.|
 |`title`|string|false||Title, when set, is stored as the user title even when its text is unchanged, so a generated title never replaces it afterwards. It is validated like CreateChatRequest.Title.|
@@ -17096,6 +17599,40 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `user_roles`       | object                                                           | false    |              |             |
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
 
+## codersdk.UpdateOrganizationSkillPreferencesRequest
+
+```json
+{
+  "all_skills_disabled": true,
+  "skills": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                  |
+|-----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `all_skills_disabled` | boolean | false    |              |                                                                                              |
+| `skills`              | object  | false    |              | Skills maps an organization skill ID to whether the skill is enabled for the member's chats. |
+| » `[any property]`    | boolean | false    |              |                                                                                              |
+
+## codersdk.UpdateOrganizationSkillSettingsRequest
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `members_can_disable_skills` | boolean | false    |              |             |
+
 ## codersdk.UpdateRoles
 
 ```json
@@ -17116,17 +17653,21 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ```json
 {
+  "action": true,
   "content": "string",
-  "enabled": true
+  "enabled": true,
+  "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `enabled` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
+| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
 
 ## codersdk.UpdateTemplateACL
 
@@ -19645,9 +20186,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                                             |
-|------------------------------------------------------|
-| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
+| Value(s)                                                                    |
+|-----------------------------------------------------------------------------|
+| `canceled`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -20155,7 +20696,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }

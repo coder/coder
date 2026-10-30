@@ -133,7 +133,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	if o.dumpOnFailure {
 		t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
 	}
-	// Unit tests should not retry serial transaction failures.
+	// Unit tests should not retry serial transaction failures. Transactions
+	// that set TxOptions.SerialMaxAttempts (for example, CommitQuota) bypass
+	// this setting.
 	db = database.New(sqlDB, database.WithSerialRetryCount(1))
 
 	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL, nil)
