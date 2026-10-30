@@ -714,7 +714,8 @@ const textOf = (content: readonly TypesGen.ChatMessagePart[] | undefined) => {
 	return part?.type === "text" ? part.text : "";
 };
 
-// A queued row the owner is editing, which the server does not send.
+// A queued row the owner is editing. The server promotes it only after the
+// edit ends.
 const underEdit = (
 	row: TypesGen.ChatQueuedMessage,
 ): TypesGen.ChatQueuedMessage => ({
