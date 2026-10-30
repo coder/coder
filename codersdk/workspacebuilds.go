@@ -92,6 +92,37 @@ type WorkspaceBuild struct {
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
 	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
+	// DeadlineChange explains the last change to Deadline, or is nil if it is
+	// unknown.
+	DeadlineChange *WorkspaceBuildDeadlineChange `json:"deadline_change,omitempty"`
+}
+
+// WorkspaceBuildDeadlineReason is why a build's deadline last changed.
+type WorkspaceBuildDeadlineReason string
+
+const (
+	// WorkspaceBuildDeadlineReasonBuild is the deadline set when the build
+	// completed.
+	WorkspaceBuildDeadlineReasonBuild WorkspaceBuildDeadlineReason = "build"
+	// WorkspaceBuildDeadlineReasonActivity is workspace activity extending the
+	// deadline.
+	WorkspaceBuildDeadlineReasonActivity WorkspaceBuildDeadlineReason = "activity"
+	// WorkspaceBuildDeadlineReasonUserChanged is a user setting the deadline.
+	WorkspaceBuildDeadlineReasonUserChanged WorkspaceBuildDeadlineReason = "user_changed"
+	// WorkspaceBuildDeadlineReasonAutostopDisabled is a user turning off
+	// autostop, leaving only the template's required stop.
+	WorkspaceBuildDeadlineReasonAutostopDisabled WorkspaceBuildDeadlineReason = "autostop_disabled"
+	// WorkspaceBuildDeadlineReasonTemplateSchedule is a template schedule
+	// change.
+	WorkspaceBuildDeadlineReasonTemplateSchedule WorkspaceBuildDeadlineReason = "template_schedule"
+)
+
+// WorkspaceBuildDeadlineChange explains the last change to a build's deadline.
+type WorkspaceBuildDeadlineChange struct {
+	Reason    WorkspaceBuildDeadlineReason   `json:"reason" enums:"build,activity,user_changed,autostop_disabled,template_schedule"`
+	ChangedAt time.Time                      `json:"changed_at" format:"date-time"`
+	ChangedBy *MinimalUser                   `json:"changed_by"`
+	Sources   []WorkspaceBuildDeadlineSource `json:"sources"`
 }
 
 // WorkspaceBuildDeadlineSourceType identifies activity that changed a deadline.
@@ -104,6 +135,15 @@ const (
 	WorkspaceBuildDeadlineSourceTypeChat         WorkspaceBuildDeadlineSourceType = "chat"
 	WorkspaceBuildDeadlineSourceTypeChatUpload   WorkspaceBuildDeadlineSourceType = "chat_upload"
 )
+
+// WorkspaceBuildDeadlineSource identifies one observed activity source.
+type WorkspaceBuildDeadlineSource struct {
+	Type        WorkspaceBuildDeadlineSourceType `json:"type" enums:"session_app,workspace_app,connection,chat,chat_upload"`
+	AppName     string                           `json:"app_name,omitempty"`
+	AppID       *uuid.UUID                       `json:"app_id,omitempty" format:"uuid"`
+	AgentID     *uuid.UUID                       `json:"agent_id,omitempty" format:"uuid"`
+	DisplayName string                           `json:"display_name"`
+}
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.

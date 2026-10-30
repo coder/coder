@@ -251,6 +251,51 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
+// WorkspaceBuildDeadlineChange presents a build's last deadline snapshot.
+func WorkspaceBuildDeadlineChange(build database.WorkspaceBuild) *codersdk.WorkspaceBuildDeadlineChange {
+	if !build.DeadlineReason.Valid {
+		return nil
+	}
+	change := &codersdk.WorkspaceBuildDeadlineChange{
+		Reason:    codersdk.WorkspaceBuildDeadlineReason(build.DeadlineReason.WorkspaceBuildDeadlineReason),
+		ChangedAt: build.DeadlineChangedAt.Time,
+		Sources:   make([]codersdk.WorkspaceBuildDeadlineSource, 0, len(build.DeadlineSources)),
+	}
+	if build.DeadlineChangedBy.Valid {
+		change.ChangedBy = &codersdk.MinimalUser{
+			ID:        build.DeadlineChangedBy.UUID,
+			Username:  build.DeadlineChangedByUsername,
+			Name:      build.DeadlineChangedByName,
+			AvatarURL: build.DeadlineChangedByAvatarUrl,
+		}
+	}
+	for _, source := range build.DeadlineSources {
+		converted := codersdk.WorkspaceBuildDeadlineSource{
+			Type:        source.Type,
+			AppName:     source.AppName,
+			DisplayName: source.DisplayName,
+		}
+		if source.AppID != uuid.Nil {
+			converted.AppID = new(source.AppID)
+		}
+		if source.AgentID != uuid.Nil {
+			converted.AgentID = new(source.AgentID)
+		}
+		switch source.Type {
+		case codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp:
+			converted.DisplayName, _, _ = codersdk.SessionAppPresentation(source.AppName)
+		case codersdk.WorkspaceBuildDeadlineSourceTypeConnection:
+			converted.DisplayName = "Open connection"
+		case codersdk.WorkspaceBuildDeadlineSourceTypeChat:
+			converted.DisplayName = "Coder Agents"
+		case codersdk.WorkspaceBuildDeadlineSourceTypeChatUpload:
+			converted.DisplayName = "Coder Agents file upload"
+		}
+		change.Sources = append(change.Sources, converted)
+	}
+	return change
+}
+
 func MinimalUser(user database.User) codersdk.MinimalUser {
 	return codersdk.MinimalUser{
 		ID:        user.ID,

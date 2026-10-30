@@ -3547,6 +3547,9 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, database.WorkspaceBuildDeadlineReasonAutostopDisabled, dbBuild.DeadlineReason.WorkspaceBuildDeadlineReason)
 		require.Equal(t, uuid.NullUUID{UUID: user.UserID, Valid: true}, dbBuild.DeadlineChangedBy)
+		require.NotNil(t, build.DeadlineChange)
+		require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonAutostopDisabled, build.DeadlineChange.Reason)
+		require.Equal(t, user.UserID, build.DeadlineChange.ChangedBy.ID)
 	})
 
 	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
@@ -3645,6 +3648,8 @@ func TestWorkspaceExtend(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.WorkspaceBuildDeadlineReasonBuild, initial.DeadlineReason.WorkspaceBuildDeadlineReason)
 	require.Equal(t, uuid.NullUUID{UUID: member.ID, Valid: true}, initial.DeadlineChangedBy)
+	require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonBuild, workspace.LatestBuild.DeadlineChange.Reason)
+	require.Equal(t, member.ID, workspace.LatestBuild.DeadlineChange.ChangedBy.ID)
 
 	// Updating the deadline should succeed
 	req := codersdk.PutExtendWorkspaceRequest{
@@ -3661,6 +3666,8 @@ func TestWorkspaceExtend(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.WorkspaceBuildDeadlineReasonUserChanged, changed.DeadlineReason.WorkspaceBuildDeadlineReason)
 	require.Equal(t, uuid.NullUUID{UUID: user.UserID, Valid: true}, changed.DeadlineChangedBy)
+	require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonUserChanged, updated.LatestBuild.DeadlineChange.Reason)
+	require.Equal(t, user.UserID, updated.LatestBuild.DeadlineChange.ChangedBy.ID)
 
 	require.NoError(t, otherAdminClient.PutExtendWorkspace(ctx, workspace.ID, req))
 	unchanged, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), changed.ID)
@@ -3680,6 +3687,9 @@ func TestWorkspaceExtend(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, otherAdmin.Username, deleted.DeadlineChangedByUsername)
 	require.Equal(t, replaced.DeadlineChangedBy, deleted.DeadlineChangedBy)
+	presented, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, otherAdmin.Username, presented.LatestBuild.DeadlineChange.ChangedBy.Username)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{

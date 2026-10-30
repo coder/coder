@@ -1614,6 +1614,7 @@ func (api *API) convertWorkspaceBuild(
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
 		HasExternalAgent:        hasExternalAgent,
+		DeadlineChange:          db2sdk.WorkspaceBuildDeadlineChange(build),
 	}, nil
 }
 
