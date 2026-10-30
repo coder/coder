@@ -84,17 +84,6 @@ const mobileDropdownVariables = [
 	"--mobile-dropdown-above-composer-max-height",
 ];
 
-// The jsdom matchMedia polyfill reports no query as matching, so tests run
-// at a desktop viewport unless they stub the below-md query.
-const stubViewportBelowMd = () => {
-	vi.stubGlobal("matchMedia", (query: string) => {
-		const result = originalMatchMedia(query);
-		return query === belowMdViewportMediaQuery
-			? { ...result, matches: true }
-			: result;
-	});
-};
-
 const modelOptions = [
 	{
 		id: "model-config-1",
@@ -1581,6 +1570,8 @@ describe("AgentChatInput", () => {
 	});
 
 	it("does not write mobile dropdown variables on the root element at desktop widths", async () => {
+		// jsdom's matchMedia polyfill matches no query, so this renders at a
+		// desktop width.
 		const user = userEvent.setup();
 		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
 
@@ -1599,7 +1590,7 @@ describe("AgentChatInput", () => {
 	});
 
 	it("writes mobile dropdown variables below the md breakpoint and removes them on unmount", () => {
-		stubViewportBelowMd();
+		stubViewport(true, belowMdViewportMediaQuery);
 
 		const { unmount } = renderInput(<AgentChatInput {...inputProps} />);
 		for (const name of mobileDropdownVariables) {
