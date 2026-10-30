@@ -888,6 +888,9 @@ const buildStoreWithMessages = (
 	const store = createChatStore();
 	store.upsertDurableMessages(msgs, 1);
 	store.applyServerChatStatus(status);
+	if (queuedMessages) {
+		store.setQueuedMessages(queuedMessages, 1);
+	}
 	return store;
 };
 

@@ -28,6 +28,7 @@ import {
 	type PendingAction,
 	selectMessagesByID,
 } from "./chatStore";
+import type { EditingTarget } from "./types";
 
 export type SubmitChatTurnParams = {
 	message: string;
@@ -281,7 +282,8 @@ export async function submitChatTurn(
 		return;
 	}
 
-	if (editedMessageID !== undefined) {
+	if (editingTarget?.kind === "history") {
+		const editedMessageID = editingTarget.id;
 		const originalEditedMessage = selectMessagesByID(store.getSnapshot()).get(
 			editedMessageID,
 		);
