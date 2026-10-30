@@ -15,6 +15,7 @@ import type { Chat, User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { toast } from "#/components/Toaster/toast";
 import { formatCostMicros } from "#/utils/currency";
@@ -58,7 +59,7 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary"
+			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
 		>
 			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
 		</Badge>
@@ -126,8 +127,30 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		},
 	});
 
-	return (
-		<li className="group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary">
+	const sharedMenuItemProps = {
+		chat,
+		canManage,
+		hasWorkspace: Boolean(workspaceId),
+		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		onPinAgent: () => pinMutation.mutate(chat.id),
+		onUnpinAgent: () => unpinMutation.mutate(chat.id),
+		onArchiveAgent: () => archiveMutation.mutate(chat.id),
+		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
+		onArchived: actions?.navigateAfterArchive,
+		onOpenRenameDialog: actions?.onOpenRenameDialog
+			? () => actions.onOpenRenameDialog?.(chat)
+			: undefined,
+	};
+
+	const row = (
+		<li
+			className={cn(
+				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary",
+				// A long press opens the context menu on touch screens, so it must
+				// not also select text.
+				actions && "select-none data-[state=open]:bg-surface-secondary",
+			)}
+		>
 			<Link
 				// Keeps the sidebar filters, which live in the query string.
 				to={{
@@ -156,33 +179,17 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					fallback={ownerName}
 					className={cn(
 						actions &&
-							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible [@media(hover:none)]:invisible",
+							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible group-data-[state=open]:invisible [@media(hover:none)]:invisible",
 					)}
 				/>
 				{actions && (
-					<ChatActionsMenu
-						chat={chat}
-						canManage={canManage}
-						hasWorkspace={Boolean(workspaceId)}
-						isArchiveBlocked={
-							!chatFamilyAllowsArchive(chat.status, chat.children)
-						}
-						onPinAgent={() => pinMutation.mutate(chat.id)}
-						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
-						onArchiveAgent={() => archiveMutation.mutate(chat.id)}
-						onUnarchiveAgent={() => unarchiveMutation.mutate(chat.id)}
-						onArchived={actions.navigateAfterArchive}
-						onOpenRenameDialog={
-							actions.onOpenRenameDialog
-								? () => actions.onOpenRenameDialog?.(chat)
-								: undefined
-						}
-					>
+					<ChatActionsMenu {...sharedMenuItemProps}>
 						<Button
 							variant="subtle"
 							size="icon"
-							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
 							aria-label={`Open chat actions for ${chat.title}`}
+							{...preventRowContextMenuProps}
 						>
 							<EllipsisVerticalIcon />
 						</Button>
@@ -190,5 +197,14 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 				)}
 			</div>
 		</li>
+	);
+
+	if (!actions) {
+		return row;
+	}
+	return (
+		<ChatActionsMenu {...sharedMenuItemProps} variant="context">
+			{row}
+		</ChatActionsMenu>
 	);
 };

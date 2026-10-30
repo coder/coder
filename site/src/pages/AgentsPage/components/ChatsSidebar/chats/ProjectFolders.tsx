@@ -12,6 +12,7 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
+	preventRowContextMenuProps,
 } from "#/components/ContextMenu/ContextMenu";
 import {
 	DropdownMenu,
@@ -257,24 +258,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
 									aria-label={`Open project actions for ${projectLabel}`}
-									// Keeps a right-click on this button from also
-									// opening the row's context menu.
-									onContextMenuCapture={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-									}}
-									onMouseDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
-									onPointerDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
+									{...preventRowContextMenuProps}
 								>
 									<EllipsisVerticalIcon />
 								</Button>

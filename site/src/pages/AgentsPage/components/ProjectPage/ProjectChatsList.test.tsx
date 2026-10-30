@@ -442,30 +442,46 @@ describe("ProjectChatsList", () => {
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 
-	it("archives a chat from its project row", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
-		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+	it.each(["dropdown", "context", "right-clicked dropdown"])(
+		"archives a chat from its project row's %s menu",
+		async (menu) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 
-		const outletContext = renderList();
+			const outletContext = renderList();
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open chat actions for Chat 0",
-			}),
-		);
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Archive agent" }),
-		);
+			if (menu === "context") {
+				await user.pointer({
+					target: await screen.findByRole("link", { name: /Chat 0/ }),
+					keys: "[MouseRight]",
+				});
+			} else {
+				const button = await screen.findByRole("button", {
+					name: "Open chat actions for Chat 0",
+				});
+				if (menu === "right-clicked dropdown") {
+					// Must not open the row's context menu, which would block
+					// the click below.
+					await user.pointer({ target: button, keys: "[MouseRight]" });
+				}
+				await user.click(button);
+			}
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Archive agent" }),
+			);
 
-		await waitFor(() => {
-			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
-				archived: true,
+			await waitFor(() => {
+				expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+					archived: true,
+				});
+				expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith(
+					"chat-0",
+				);
 			});
-			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
-		});
-		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
-	});
+			expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+		},
+	);
 
 	it("moves a chat to another project from its row menu", async () => {
 		const user = userEvent.setup();
