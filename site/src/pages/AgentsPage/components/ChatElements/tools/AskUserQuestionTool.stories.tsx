@@ -235,7 +235,7 @@ export const InteractiveSingleQuestionOther: Story = {
 		const canvas = within(canvasElement);
 		const submitButton = canvas.getByRole("button", { name: "Submit" });
 
-		const otherInput = canvas.getByRole("textbox", { name: /other response/i });
+		const otherInput = canvas.getByRole("textbox", { name: /something else/i });
 		await userEvent.click(otherInput);
 		expect(submitButton).toBeDisabled();
 
@@ -334,7 +334,7 @@ export const KeyboardOtherSubmit: Story = {
 		expect(submitButton).toBeDisabled();
 
 		await userEvent.tab();
-		const otherInput = canvas.getByRole("textbox", { name: /other response/i });
+		const otherInput = canvas.getByRole("textbox", { name: /something else/i });
 		expect(otherInput).toHaveFocus();
 
 		await userEvent.type(otherInput, "Custom approach");
@@ -377,7 +377,7 @@ export const OtherAnswerTyped: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(
-			canvas.getByRole("textbox", { name: /other response/i }),
+			canvas.getByRole("textbox", { name: /something else/i }),
 			"Use a canary rollout",
 		);
 	},
