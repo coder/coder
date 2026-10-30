@@ -30,6 +30,14 @@ export const Default: Story = {
 	},
 };
 
+export const WithLoadMore: Story = {
+	args: {
+		unreadCount: 2,
+		notifications: MockNotifications.slice(0, 3),
+		hasMoreNotifications: true,
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		unreadCount: 0,
@@ -96,7 +104,9 @@ export const OnMarkNotificationAsRead: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const notifications = body.getAllByRole("menuitem");
+		const notifications = within(
+			body.getByRole("list", { name: "Notifications" }),
+		).getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		await userEvent.click(secondNotification);
 		const markButton = body.getByRole("button", { name: /mark as read/i });

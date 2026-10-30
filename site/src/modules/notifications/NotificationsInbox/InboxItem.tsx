@@ -19,7 +19,7 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 	return (
 		<div
 			className="flex items-stretch gap-3 p-3 group"
-			role="menuitem"
+			role="listitem"
 			tabIndex={-1}
 		>
 			<div className="shrink-0">
