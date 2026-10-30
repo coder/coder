@@ -184,8 +184,9 @@ export const LicenseSeatConsumptionChart: React.FC<
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={(props) => (
 											<ChartTooltipContent
+												{...props}
 												className="font-medium text-content-secondary"
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
@@ -200,7 +201,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
