@@ -35,15 +35,10 @@ const pendingDraftWarning =
 const uploadedDraftWarning =
 	"This file is usable in this session, but it could not be saved as a draft.";
 
-type DraftUploadStatus = UploadState["status"];
-
 type DraftAttachmentView = {
 	clientId: string;
 	file: File;
-	fileId?: string;
-	status: DraftUploadStatus;
-	error?: string;
-	draftWarning?: string;
+	uploadState: UploadState;
 	previewUrl?: string;
 	previewUrlKind?: "blob" | "chatFile";
 	textContent?: string;
@@ -54,10 +49,7 @@ type UploadRegistrySnapshot = {
 	organizationId: string;
 	chatId: string;
 	file: File;
-	fileId?: string;
-	status: DraftUploadStatus;
-	error?: string;
-	draftWarning?: string;
+	uploadState: UploadState;
 	removed: boolean;
 };
 
@@ -69,10 +61,7 @@ type UploadRegistryEntry = {
 	chatId: string;
 	file: File;
 	generation: number;
-	status: DraftUploadStatus;
-	fileId?: string;
-	error?: string;
-	draftWarning?: string;
+	uploadState: UploadState;
 	removed: boolean;
 	uploadStarted: boolean;
 	subscribers: Set<UploadRegistrySubscriber>;
@@ -85,7 +74,8 @@ type UploadRegistryEntry = {
 const activeDraftUploads = new Map<string, UploadRegistryEntry>();
 
 const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
-	entry.status === "uploaded" || entry.status === "error";
+	entry.uploadState.status === "uploaded" ||
+	entry.uploadState.status === "error";
 
 const pruneTerminalRegistryEntry = (entry: UploadRegistryEntry) => {
 	if (entry.subscribers.size === 0 && isTerminalRegistryStatus(entry)) {
@@ -119,13 +109,15 @@ type DraftAttachmentPreview = Pick<
 
 const computePreview = (
 	file: File,
-	status: DraftUploadStatus,
-	fileId?: string,
+	state: UploadState,
 	current?: DraftAttachmentPreview,
 ): DraftAttachmentPreview => {
-	if (status === "uploaded") {
-		if (fileId && isRasterImageMediaType(file.type)) {
-			return { previewUrl: getChatFileURL(fileId), previewUrlKind: "chatFile" };
+	if (state.status === "uploaded") {
+		if (isRasterImageMediaType(file.type)) {
+			return {
+				previewUrl: getChatFileURL(state.fileId),
+				previewUrlKind: "chatFile",
+			};
 		}
 		return {};
 	}
@@ -143,10 +135,7 @@ const snapshotFromEntry = (
 	organizationId: entry.organizationId,
 	chatId: entry.chatId,
 	file: entry.file,
-	fileId: entry.fileId,
-	status: entry.status,
-	error: entry.error,
-	draftWarning: entry.draftWarning,
+	uploadState: entry.uploadState,
 	removed: entry.removed,
 });
 
@@ -176,7 +165,7 @@ const createRegistryEntry = (
 		chatId,
 		file,
 		generation: 1,
-		status: "pending",
+		uploadState: { status: "pending" },
 		removed: false,
 		uploadStarted: false,
 		subscribers: new Set(),
@@ -193,12 +182,12 @@ const persistUploadPayload = async (
 		const payload = await fileToDataURL(entry.file);
 		if (
 			!isCurrentGeneration(entry, generation) ||
-			entry.status === "uploaded"
+			entry.uploadState.status === "uploaded"
 		) {
 			return;
 		}
 		const result = upsertChatDraftAttachmentRecord({
-			status: entry.status === "pending" ? "pending" : "uploading",
+			status: entry.uploadState.status === "pending" ? "pending" : "uploading",
 			clientId: entry.clientId,
 			fileName: entry.file.name,
 			fileType: entry.file.type,
@@ -211,13 +200,19 @@ const persistUploadPayload = async (
 		if (result.ok || !isCurrentGeneration(entry, generation)) {
 			return;
 		}
-		entry.draftWarning = pendingDraftWarning;
+		entry.uploadState = {
+			...entry.uploadState,
+			draftWarning: pendingDraftWarning,
+		};
 		notifySubscribers(entry);
 	} catch {
 		if (!isCurrentGeneration(entry, generation)) {
 			return;
 		}
-		entry.draftWarning = pendingDraftWarning;
+		entry.uploadState = {
+			...entry.uploadState,
+			draftWarning: pendingDraftWarning,
+		};
 		notifySubscribers(entry);
 	}
 };
@@ -226,13 +221,16 @@ const persistUploadedRecord = (
 	entry: UploadRegistryEntry,
 	generation: number,
 ) => {
-	if (!entry.fileId || !isCurrentGeneration(entry, generation)) {
+	if (
+		entry.uploadState.status !== "uploaded" ||
+		!isCurrentGeneration(entry, generation)
+	) {
 		return;
 	}
 	const result = upsertChatDraftAttachmentRecord({
 		status: "uploaded",
 		clientId: entry.clientId,
-		fileId: entry.fileId,
+		fileId: entry.uploadState.fileId,
 		fileName: entry.file.name,
 		fileType: entry.file.type,
 		lastModified: entry.file.lastModified,
@@ -241,10 +239,13 @@ const persistUploadedRecord = (
 		chatId: entry.chatId,
 	});
 	if (result.ok) {
-		entry.draftWarning = undefined;
+		entry.uploadState = { ...entry.uploadState, draftWarning: undefined };
 		return;
 	}
-	entry.draftWarning = uploadedDraftWarning;
+	entry.uploadState = {
+		...entry.uploadState,
+		draftWarning: uploadedDraftWarning,
+	};
 };
 
 const beginUpload = (entry: UploadRegistryEntry) => {
@@ -253,7 +254,10 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 	}
 	entry.uploadStarted = true;
 	const generation = entry.generation;
-	entry.status = "uploading";
+	entry.uploadState = {
+		status: "uploading",
+		draftWarning: entry.uploadState.draftWarning,
+	};
 	notifySubscribers(entry);
 	void persistUploadPayload(entry, generation);
 	void (async () => {
@@ -265,9 +269,11 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			if (!isCurrentGeneration(entry, generation)) {
 				return;
 			}
-			entry.status = "uploaded";
-			entry.fileId = result.id;
-			entry.error = undefined;
+			entry.uploadState = {
+				status: "uploaded",
+				fileId: result.id,
+				draftWarning: entry.uploadState.draftWarning,
+			};
 			persistUploadedRecord(entry, generation);
 			if (isRasterImageMediaType(entry.file.type)) {
 				void fetch(getChatFileURL(result.id)).catch(() => undefined);
@@ -278,8 +284,11 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			if (!isCurrentGeneration(entry, generation)) {
 				return;
 			}
-			entry.status = "error";
-			entry.error = formatAgentAttachmentUploadError(error);
+			entry.uploadState = {
+				status: "error",
+				error: formatAgentAttachmentUploadError(error),
+				draftWarning: entry.uploadState.draftWarning,
+			};
 			notifySubscribers(entry);
 			pruneTerminalRegistryEntry(entry);
 		}
@@ -301,14 +310,15 @@ const viewsFromRestored = (
 	restored: readonly RestoredChatDraftAttachment[],
 ): DraftAttachmentView[] =>
 	restored.map(({ record, file }) => {
-		const status = record.status === "uploaded" ? "uploaded" : record.status;
-		const fileId = record.status === "uploaded" ? record.fileId : undefined;
+		const uploadState: UploadState =
+			record.status === "uploaded"
+				? { status: "uploaded", fileId: record.fileId }
+				: { status: record.status };
 		return {
 			clientId: record.clientId,
 			file,
-			fileId,
-			status,
-			...computePreview(file, status, fileId),
+			uploadState,
+			...computePreview(file, uploadState),
 		};
 	});
 
@@ -317,11 +327,8 @@ const viewFromSnapshot = (
 ): DraftAttachmentView => ({
 	clientId: snapshot.clientId,
 	file: snapshot.file,
-	fileId: snapshot.fileId,
-	status: snapshot.status,
-	error: snapshot.error,
-	draftWarning: snapshot.draftWarning,
-	...computePreview(snapshot.file, snapshot.status, snapshot.fileId),
+	uploadState: snapshot.uploadState,
+	...computePreview(snapshot.file, snapshot.uploadState),
 });
 
 const applySnapshot = (
@@ -343,22 +350,17 @@ const applySnapshot = (
 			return view;
 		}
 		found = true;
-		const nextPreview = computePreview(
-			snapshot.file,
-			snapshot.status,
-			snapshot.fileId,
-			{ previewUrl: view.previewUrl, previewUrlKind: view.previewUrlKind },
-		);
+		const nextPreview = computePreview(snapshot.file, snapshot.uploadState, {
+			previewUrl: view.previewUrl,
+			previewUrlKind: view.previewUrlKind,
+		});
 		if (view.previewUrl !== nextPreview.previewUrl) {
 			revokeBlobPreview(view);
 		}
 		return {
 			...view,
 			file: snapshot.file,
-			fileId: snapshot.fileId,
-			status: snapshot.status,
-			error: snapshot.error,
-			draftWarning: snapshot.draftWarning,
+			uploadState: snapshot.uploadState,
 			previewUrl: nextPreview.previewUrl,
 			previewUrlKind: nextPreview.previewUrlKind,
 		};
@@ -440,8 +442,8 @@ const queueTextContentReads = (
 ) => {
 	for (const view of candidateViews) {
 		if (
-			view.status === "error" ||
-			view.status === "uploaded" ||
+			view.uploadState.status === "error" ||
+			view.uploadState.status === "uploaded" ||
 			view.textContent !== undefined ||
 			view.file.type !== "text/plain" ||
 			view.file.size > maxTextPreviewSize
@@ -603,8 +605,12 @@ export function useChatDraftAttachments(
 					if (replaced) {
 						revokeBlobPreview(view);
 					}
+					const uploadState: UploadState = {
+						status: "error",
+						error: formatAgentAttachmentTooLargeError(replacement.size),
+					};
 					const previewState = replaced
-						? computePreview(replacement, "error")
+						? computePreview(replacement, uploadState)
 						: {
 								previewUrl: view.previewUrl,
 								previewUrlKind: view.previewUrlKind,
@@ -612,8 +618,7 @@ export function useChatDraftAttachments(
 					return {
 						...view,
 						file: replacement,
-						status: "error",
-						error: formatAgentAttachmentTooLargeError(replacement.size),
+						uploadState,
 						previewUrl: previewState.previewUrl,
 						previewUrlKind: previewState.previewUrlKind,
 					};
@@ -635,8 +640,16 @@ export function useChatDraftAttachments(
 					if (replaced) {
 						revokeBlobPreview(view);
 					}
+					const uploadState: UploadState = {
+						status: "error",
+						error: providerBudgetError(
+							providerSnapshot,
+							replacement.size,
+							budget,
+						),
+					};
 					const previewState = replaced
-						? computePreview(replacement, "error")
+						? computePreview(replacement, uploadState)
 						: {
 								previewUrl: view.previewUrl,
 								previewUrlKind: view.previewUrlKind,
@@ -644,12 +657,7 @@ export function useChatDraftAttachments(
 					return {
 						...view,
 						file: replacement,
-						status: "error",
-						error: providerBudgetError(
-							providerSnapshot,
-							replacement.size,
-							budget,
-						),
+						uploadState,
 						previewUrl: previewState.previewUrl,
 						previewUrlKind: previewState.previewUrlKind,
 					};
@@ -667,14 +675,14 @@ export function useChatDraftAttachments(
 					return view;
 				}
 				if (!replaced) {
-					return { ...view, status: "pending" };
+					return { ...view, uploadState: { status: "pending" } };
 				}
 				revokeBlobPreview(view);
-				const nextPreview = computePreview(replacement, "pending");
+				const nextPreview = computePreview(replacement, { status: "pending" });
 				return {
 					...view,
 					file: replacement,
-					status: "pending",
+					uploadState: { status: "pending" },
 					previewUrl: nextPreview.previewUrl,
 					previewUrlKind: nextPreview.previewUrlKind,
 				};
@@ -710,7 +718,7 @@ export function useChatDraftAttachments(
 			const baseView: DraftAttachmentView = {
 				clientId,
 				file,
-				status: "pending",
+				uploadState: { status: "pending" },
 			};
 			const needsResize = imageNeedsResize(file, budget);
 			// Non-image files over the upload cap are rejected.
@@ -719,24 +727,29 @@ export function useChatDraftAttachments(
 			if (file.size > MaxChatFileSizeBytes && !needsResize) {
 				nextViews.push({
 					...baseView,
-					status: "error",
-					error: formatAgentAttachmentTooLargeError(file.size),
+					uploadState: {
+						status: "error",
+						error: formatAgentAttachmentTooLargeError(file.size),
+					},
 				});
 				continue;
 			}
 			if (needsResize) {
 				// Commit synchronously with "processing" so the
 				// send gate blocks dispatch until resize finishes.
-				const view = {
+				const view: DraftAttachmentView = {
 					...baseView,
-					status: "processing" as const,
-					...computePreview(file, "processing"),
+					uploadState: { status: "processing" },
+					...computePreview(file, { status: "processing" }),
 				};
 				nextViews.push(view);
 				resizeJobs.push({ clientId, file });
 				continue;
 			}
-			const view = { ...baseView, ...computePreview(file, "pending") };
+			const view = {
+				...baseView,
+				...computePreview(file, { status: "pending" }),
+			};
 			const entry = createRegistryEntry(clientId, organizationId, chatId, file);
 			subscribeToEntry(entry, subscriptionsRef, subscriber);
 			nextViews.push(view);
@@ -809,12 +822,7 @@ export function useChatDraftAttachments(
 	const previewUrls = new Map<File, string>();
 	const textContents = new Map<File, string>();
 	for (const view of views) {
-		uploadStates.set(view.file, {
-			status: view.status,
-			fileId: view.fileId,
-			error: view.error,
-			draftWarning: view.draftWarning,
-		});
+		uploadStates.set(view.file, view.uploadState);
 		if (view.previewUrl) {
 			previewUrls.set(view.file, view.previewUrl);
 		}
