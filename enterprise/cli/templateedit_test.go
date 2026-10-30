@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestTemplateEdit(t *testing.T) {
@@ -311,5 +313,118 @@ func TestTemplateEdit(t *testing.T) {
 		templateACL, err = ownerClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
 		assertFieldsFn(t, template, templateACL)
+	})
+
+	t.Run("ConfirmPromptForWorkspaceImpactingChange", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, conf := newCLI(t, "templates", "edit", template.Name, "--dormancy-threshold", "48h")
+		clitest.SetupConfig(t, templateAdmin, conf)
+
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t).Named("stdin"), inv)
+
+		execDone := make(chan error, 1)
+		go func() {
+			execDone <- inv.WithContext(ctx).Run()
+		}()
+
+		stdout.ExpectMatch(ctx, "existing workspaces")
+		stdout.ExpectMatch(ctx, "Dormancy threshold: 0s -> 48h0m0s")
+		stdout.ExpectMatch(ctx, "Apply these changes?")
+		stdin.WriteLine("yes")
+
+		require.NoError(t, <-execDone)
+
+		template, err := templateAdmin.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, (48 * time.Hour).Milliseconds(), template.TimeTilDormantMillis)
+	})
+
+	t.Run("SkipPromptWithYes", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+		inv, conf := newCLI(t, "templates", "edit", template.Name, "--dormancy-threshold", "48h", "-y")
+		clitest.SetupConfig(t, templateAdmin, conf)
+		var stdout, stderr bytes.Buffer
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
+
+		err := inv.Run()
+		require.NoError(t, err)
+		// The change summary goes to stderr so scripted stdout is unchanged.
+		require.NotContains(t, stdout.String(), "existing workspaces")
+		require.Contains(t, stderr.String(), "Dormancy threshold: 0s -> 48h0m0s")
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		template, err = templateAdmin.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, (48 * time.Hour).Milliseconds(), template.TimeTilDormantMillis)
+	})
+
+	t.Run("NoPromptForCosmeticChange", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+		// No -y flag: if this cosmetic change prompted for confirmation, the
+		// command would block on stdin and this test would time out.
+		inv, conf := newCLI(t, "templates", "edit", template.Name, "--display-name", "idc")
+		clitest.SetupConfig(t, templateAdmin, conf)
+
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		template, err = templateAdmin.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, "idc", template.DisplayName)
 	})
 }
