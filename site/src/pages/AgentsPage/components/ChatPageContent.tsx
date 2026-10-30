@@ -329,12 +329,10 @@ type ChatPageInputProps = {
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds: readonly string[];
 	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 };
@@ -378,12 +376,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	onWorkspaceChange,
 	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
@@ -833,12 +829,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
-			onMCPAuthComplete={onMCPAuthComplete}
 			workspaceSkills={workspaceSkills}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}
-			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
 			canConfigureAgentSetup={canConfigureAgentSetup}

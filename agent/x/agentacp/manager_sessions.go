@@ -69,6 +69,7 @@ func (m *Manager) initializeAndRegisterSession(req sessionInitRequest) (*Session
 	}
 	s, err := startSessionRuntime(m.ctx, cfg, req, sessionRuntimeOptions{
 		launch: launchOptions{
+			logger:  m.logger,
 			clock:   m.clock,
 			execer:  m.execer,
 			envInfo: m.envInfo,

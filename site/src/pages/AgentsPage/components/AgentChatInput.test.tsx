@@ -8,19 +8,32 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
+import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
-import { mobileViewportMediaQuery } from "#/utils/mobile";
+import {
+	createTestQueryClient,
+	renderWithRouter,
+} from "#/testHelpers/renderHelpers";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
+import {
+	belowMdViewportMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -45,12 +58,13 @@ const mockedUseSpeechRecognition = vi.mocked(useSpeechRecognition);
 // implementation rather than a previous stub.
 const originalMatchMedia = window.matchMedia;
 
-const stubViewport = (isMobile: boolean) => {
+const stubViewport = (
+	matches: boolean,
+	mediaQuery = mobileViewportMediaQuery,
+) => {
 	vi.stubGlobal("matchMedia", (query: string) => {
 		const result = originalMatchMedia(query);
-		return query === mobileViewportMediaQuery
-			? { ...result, matches: isMobile }
-			: result;
+		return query === mediaQuery ? { ...result, matches } : result;
 	});
 };
 
@@ -123,7 +137,9 @@ const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
 const renderInput = (children: React.ReactNode) => {
-	return render(<AppProviders>{children}</AppProviders>);
+	return render(<AppProviders>{children}</AppProviders>, {
+		wrapper: MemoryRouter,
+	});
 };
 
 beforeAll(() => {
@@ -200,6 +216,10 @@ describe("AgentChatInput", () => {
 		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
 			{ ...MockSkill, name: "release-notes" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey("org-1"),
+			MockOrganizationSkillPreferences,
+		);
 
 		render(
 			<AppProviders queryClient={queryClient}>
@@ -209,6 +229,7 @@ describe("AgentChatInput", () => {
 					chatOrganizationId="org-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -242,6 +263,10 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
@@ -258,6 +283,7 @@ describe("AgentChatInput", () => {
 					chatProjectId="project-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -293,7 +319,7 @@ describe("AgentChatInput", () => {
 			</AppProviders>
 		);
 
-		const { rerender } = render(renderInput(true));
+		const { rerender } = render(renderInput(true), { wrapper: MemoryRouter });
 		await screen.findByRole("textbox", { name: "Chat message" });
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 
@@ -340,7 +366,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("removes a selected MCP server from the group", async () => {
+	it("turns a server off from the group pill's menu", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -354,8 +380,8 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
@@ -364,7 +390,37 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("enables an unselected MCP server from the plus menu while the group is collapsed", async () => {
+	it("keeps keyboard focus in the menu through the below-md submenus", async () => {
+		const user = userEvent.setup();
+		stubViewport(true, belowMdViewportMediaQuery);
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={vi.fn()}
+				workspaceOptions={[MockWorkspace]}
+				onWorkspaceChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		(await screen.findByRole("button", { name: /MCP servers/ })).focus();
+		await user.keyboard("{Enter}");
+		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(screen.getByRole("button", { name: /MCP servers/ })).toHaveFocus();
+
+		screen.getByRole("button", { name: "Attach workspace" }).focus();
+		await user.keyboard("{Enter}");
+		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(
+			screen.getByRole("button", { name: "Attach workspace" }),
+		).toHaveFocus();
+	});
+
+	it("enables an unselected MCP server from the MCP servers submenu", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -378,6 +434,9 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user.click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
@@ -388,25 +447,54 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("keeps two active MCP servers as individual pills", async () => {
+	it("announces a disconnected always-on server as always on", async () => {
+		const user = userEvent.setup();
+		const mockDisconnectedSentryMCP = {
+			...mockSentryMCP,
+			auth_connected: false,
+		};
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockDisconnectedSentryMCP, mockLinearMCP]}
+				selectedMCPServerIds={[mockDisconnectedSentryMCP.id, mockLinearMCP.id]}
+				onMCPSelectionChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		const menu = await screen.findByRole("group", { name: "MCP servers" });
+		expect(menu).toHaveTextContent(/Sentry\s*Always on/);
+		expect(
+			within(menu).getByRole("img", { name: "Not connected" }),
+		).toBeInTheDocument();
+	});
+
+	it("turns a server on from the empty MCP pill", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
 				mcpServers={[mockLinearMCP, mockGitHubMCP]}
-				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
+				selectedMCPServerIds={[]}
 				onMCPSelectionChange={onMCPSelectionChange}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
+		await user.click(screen.getByRole("button", { name: "Add MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Enable Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockLinearMCP.id]);
 	});
 
-	it("excludes selected MCP servers that still need OAuth from the group", async () => {
-		const user = userEvent.setup();
-		const onMCPSelectionChange = vi.fn();
+	it("excludes selected MCP servers that still need OAuth from the pill count", () => {
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
@@ -416,15 +504,11 @@ describe("AgentChatInput", () => {
 					mockLinearMCP.id,
 					mockGitHubMCPNeedingAuth.id,
 				]}
-				onMCPSelectionChange={onMCPSelectionChange}
+				onMCPSelectionChange={vi.fn()}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([
-			mockSentryMCP.id,
-			mockGitHubMCPNeedingAuth.id,
-		]);
+		expect(screen.getByRole("button", { name: "2 MCPs" })).toBeInTheDocument();
 	});
 
 	it("allows viewing a disabled MCP group without changing its selection", async () => {
@@ -442,11 +526,57 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
+	});
+
+	it("opens MCP connections settings with a way back to the chat", async () => {
+		const user = userEvent.setup();
+		const onSettingsState = vi.fn();
+		const SettingsPage = () => {
+			onSettingsState(useLocation().state);
+			return null;
+		};
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/agents/:chatId",
+						element: (
+							<AgentChatInput
+								{...inputProps}
+								chatOrganizationId="org-1"
+								mcpServers={[mockLinearMCP]}
+								selectedMCPServerIds={[]}
+								onMCPSelectionChange={vi.fn()}
+							/>
+						),
+					},
+					{
+						path: "/agents/settings/mcp-connections",
+						element: <SettingsPage />,
+					},
+				],
+				{ initialEntries: ["/agents/chat-1?tab=git"] },
+			),
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Manage MCP connections" }),
+		);
+		await waitFor(() =>
+			expect(onSettingsState).toHaveBeenCalledWith({
+				from: "/agents/chat-1?tab=git",
+				organizationId: "org-1",
+			}),
+		);
 	});
 
 	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
@@ -658,7 +788,7 @@ describe("AgentChatInput", () => {
 				<AgentChatInput {...inputProps} inputRef={inputRef} />
 			</AppProviders>
 		);
-		const { rerender } = render(input());
+		const { rerender } = render(input(), { wrapper: MemoryRouter });
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
 		act(() => inputRef.current?.insertSkill("project", "triage"));
 		const chip = {

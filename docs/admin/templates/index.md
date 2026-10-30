@@ -1,5 +1,5 @@
 ---
-title: Template
+title: Templates
 ---
 
 Templates are written in [Terraform](https://developer.hashicorp.com/terraform/intro) and define the underlying infrastructure that all Coder workspaces run on.

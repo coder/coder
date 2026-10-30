@@ -23,6 +23,7 @@ import {
 } from "#/api/queries/userSkills";
 import type {
 	CreateSkillRequest,
+	OrganizationSkillPreferences,
 	Skill,
 	SkillMetadata,
 	UpdateSkillRequest,
@@ -386,6 +387,39 @@ export const organizationSkillsScope = (
 	update: (queryClient) => updateOrganizationSkill(queryClient, organizationId),
 	remove: (queryClient) => deleteOrganizationSkill(queryClient, organizationId),
 });
+
+/**
+ * Returns the organization skills that load into the member's chats, mirroring
+ * GetOrganizationSkillMemberPreferencesRow.Excludes in Go. A list with enabled
+ * skills stays undefined until the preferences load.
+ */
+export const activeOrganizationSkills = (
+	skills: readonly SkillMetadata[] | undefined,
+	preferences: OrganizationSkillPreferences | undefined,
+): SkillMetadata[] | undefined => {
+	const enabledSkills = skills?.filter((skill) => skill.enabled);
+
+	// Without enabled skills there is nothing to opt out of.
+	if (!enabledSkills || enabledSkills.length === 0) {
+		return enabledSkills;
+	}
+
+	if (!preferences) {
+		return undefined;
+	}
+
+	if (!preferences.members_can_disable_skills) {
+		return enabledSkills;
+	}
+
+	if (preferences.all_skills_disabled) {
+		return [];
+	}
+
+	return enabledSkills.filter(
+		(skill) => !preferences.disabled_skill_ids.includes(skill.id),
+	);
+};
 
 /** Adapts a project's skill queries to SkillsScope; mutations refresh its list. */
 export const projectSkillsScope = (

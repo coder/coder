@@ -257,6 +257,10 @@ func TestAPISessionRecoveryWriteDeadline(t *testing.T) {
 				var result workspacesdk.ACPMessageResponse
 				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 				require.Equal(t, workspacesdk.ACPMessageOutcomePrompt, result.Outcome)
+				// Prompt completion waits for preceding updates, so cleanup can
+				// close the harness without racing notification handlers.
+				completed := awaitTestSession(t, m, info.ID)
+				require.Equal(t, workspacesdk.ACPSessionStatusIdle, completed.Session.Status)
 			case "interrupt":
 				// Restoring an idle session must return its conflict response.
 				require.Contains(t, response.Body.String(), "interrupt in idle")

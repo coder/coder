@@ -1669,6 +1669,7 @@ func TestTools(t *testing.T) {
 			offset    *int64
 			content   string
 			linesRead int
+			note      string
 			error     string
 		}{
 			{
@@ -1689,6 +1690,23 @@ func TestTools(t *testing.T) {
 				offset:    ptr.Ref[int64](2),
 				content:   "2\ttwo",
 				linesRead: 1,
+				note:      "Showing lines 2-2 of 3. To read more, call this tool again with offset=3.",
+			},
+			{
+				name:      "Offset0Limit1",
+				path:      filePath,
+				limit:     ptr.Ref[int64](1),
+				offset:    ptr.Ref[int64](0),
+				content:   "1\tone",
+				linesRead: 1,
+				note:      "Showing lines 1-1 of 3. To read more, call this tool again with offset=2.",
+			},
+			{
+				name:      "Offset2ReadsToEnd",
+				path:      filePath,
+				offset:    ptr.Ref[int64](2),
+				content:   "2\ttwo\n3\tthree",
+				linesRead: 2,
 			},
 		}
 
@@ -1710,6 +1728,7 @@ func TestTools(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.content, resp.Content)
 				require.Equal(t, tt.linesRead, resp.LinesRead)
+				require.Equal(t, tt.note, resp.Note)
 				require.Equal(t, 3, resp.TotalLines)
 			})
 		}

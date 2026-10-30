@@ -3,7 +3,9 @@ import Confetti from "react-confetti";
 import { Link as RouterLink } from "react-router";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature, UserStatusChangeCount } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -33,6 +35,10 @@ type Props = {
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
+	licensesError?: unknown;
+	isRetryingLicenses?: boolean;
+	onRetryLicenses?: () => void;
+	canViewLicenses: boolean;
 	isRemovingLicense: boolean;
 	isRefreshing: boolean;
 	removeLicense: (licenseId: number) => void;
@@ -49,6 +55,10 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 	userLimitActual,
 	userLimitLimit,
 	licenses,
+	licensesError,
+	isRetryingLicenses = false,
+	onRetryLicenses,
+	canViewLicenses,
 	isRemovingLicense,
 	isRefreshing,
 	removeLicense,
@@ -109,6 +119,26 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 			<div className="flex flex-col gap-4">
 				{isLoading && <Skeleton height={78} />}
 
+				{!isLoading && Boolean(licensesError) && (
+					<ErrorAlert
+						error={licensesError}
+						actions={
+							onRetryLicenses && (
+								<Button
+									variant="outline"
+									size="sm"
+									type="button"
+									disabled={isRetryingLicenses}
+									onClick={onRetryLicenses}
+								>
+									<Spinner loading={isRetryingLicenses} />
+									Retry
+								</Button>
+							)
+						}
+					/>
+				)}
+
 				{!isLoading && licenses && licenses?.length > 0 && (
 					<div className="flex flex-col gap-8 licenses">
 						{[...(licenses ?? [])]
@@ -132,35 +162,47 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 					</div>
 				)}
 
-				{!isLoading && licenses?.length === 0 && (
-					<div className="min-h-[240px] flex items-center justify-center rounded-lg border border-solid border-border p-12">
-						<div className="flex flex-col gap-2 items-center">
-							<div className="flex flex-col gap-1 items-center">
-								<span className="text-base">
-									You don&apos;t have any licenses!
-								</span>
-								<span className="text-content-secondary text-center max-w-[464px] mt-2">
-									You&apos;re missing out on high availability, RBAC, quotas,
-									and much more. Contact{" "}
-									<Link
-										href={CONTACT_SALES_LINK}
-										className="m-0 p-0 text-base"
-										showExternalIcon={false}
-									>
-										sales
-									</Link>{" "}
-									or{" "}
-									<RouterLink
-										to="/deployment/premium"
-										className="m-0 p-0 text-content-link"
-									>
-										request a trial license
-									</RouterLink>{" "}
-									to get started.
-								</span>
-							</div>
-						</div>
-					</div>
+				{!isLoading && !canViewLicenses && (
+					<EmptyState
+						message="You don't have permission to view licenses"
+						description="Contact your deployment administrator for access."
+					/>
+				)}
+
+				{!isLoading && canViewLicenses && licenses?.length === 0 && (
+					<EmptyState
+						className="rounded-lg border border-solid border-border"
+						message="No licenses yet"
+						description={
+							<>
+								Add a license to unlock high availability, RBAC, quotas, and
+								more.{" "}
+								<Link
+									href={CONTACT_SALES_LINK}
+									className="m-0 p-0 text-sm"
+									showExternalIcon={false}
+								>
+									Contact sales
+								</Link>{" "}
+								or{" "}
+								<RouterLink
+									to="/deployment/premium"
+									className="m-0 p-0 text-content-link"
+								>
+									request a trial license
+								</RouterLink>{" "}
+								to get started.
+							</>
+						}
+						cta={
+							<Button asChild>
+								<RouterLink to="/deployment/licenses/add">
+									<PlusIcon />
+									Add a license
+								</RouterLink>
+							</Button>
+						}
+					/>
 				)}
 
 				{licenses && licenses.length > 0 && (

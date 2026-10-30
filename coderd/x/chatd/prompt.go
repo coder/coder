@@ -15,6 +15,11 @@ An error status is often recoverable. When message_agent is available, use it to
 If you lose track of your spawned agents, call list_agents to recover them before finishing.
 </subagent-orchestration>`
 
+const acpSubagentPromptBlock = `<acp-subagents>
+Workspace-local ACP subagents are available through the internal acp_* tools. The acp_spawn_agent schema lists the configured harness_id values and their supported configuration options. Use that schema to identify available harnesses.
+Use acp_spawn_agent to delegate a task and acp_wait_agent to collect its response. Use acp_message_agent for follow-up tasks in an idle session and acp_interrupt_agent to stop a running turn, then acp_wait_agent to observe completion.
+</acp-subagents>`
+
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 
 const workspaceDetachedAwarenessBase = `This chat started without an attached workspace. Follow subsequent workspace tool results and context for its current state.

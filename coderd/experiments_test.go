@@ -124,7 +124,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("rules per user", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
-		cfg.Experiments = []string{"foo", string(codersdk.ExperimentMCPToolSearch)}
+		cfg.Experiments = []string{"foo", string(codersdk.ExperimentExample)}
 		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: cfg,
 		})
@@ -154,14 +154,15 @@ func Test_Experiments(t *testing.T) {
 			Mode:      experimentrules.ModeCondition,
 			Condition: fmt.Sprintf("user.username == %q", member.Username),
 		})
-		writeRule(codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: experimentrules.ModeOff})
 		requireExperiments(memberClient, "foo", codersdk.ExperimentExample)
 		requireExperiments(ownerClient, "foo")
+		writeRule(codersdk.ExperimentExample, experimentrules.Rule{Mode: experimentrules.ModeOff})
+		requireExperiments(memberClient, "foo")
 
 		// Inherit restores the startup default.
-		writeRule(codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: experimentrules.ModeInherit})
-		requireExperiments(memberClient, "foo", codersdk.ExperimentMCPToolSearch, codersdk.ExperimentExample)
-		requireExperiments(ownerClient, "foo", codersdk.ExperimentMCPToolSearch)
+		writeRule(codersdk.ExperimentExample, experimentrules.Rule{Mode: experimentrules.ModeInherit})
+		requireExperiments(memberClient, "foo", codersdk.ExperimentExample)
+		requireExperiments(ownerClient, "foo", codersdk.ExperimentExample)
 
 		// The personalized result must not be cached.
 		res, err := memberClient.Request(ctx, http.MethodGet, "/api/v2/experiments", nil)

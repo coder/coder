@@ -115,13 +115,10 @@ const createOrgMemberCheck = {
 export const CreateUserForm: React.FC<CreateUserFormProps> = (props) => {
 	const availableLoginTypes = (
 		["password", "oidc", "github", "none"] as const
-	).filter((key) => {
-		if (key === "none") {
-			return props.serviceAccountsEnabled;
-		}
-		return props.authMethods[key].enabled;
-	});
-	const defaultLoginType = availableLoginTypes[0];
+	).filter((key) => key === "none" || props.authMethods[key].enabled);
+	const defaultLoginType = availableLoginTypes.find(
+		(key) => key !== "none" || props.serviceAccountsEnabled,
+	);
 
 	if (!defaultLoginType) {
 		return (
@@ -169,6 +166,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 	onSubmit,
 	onCancel,
 	showOrganizations,
+	serviceAccountsEnabled,
 	availableRoles,
 	rolesLoading,
 	rolesError,
@@ -310,10 +308,13 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 									<SelectContent>
 										{availableLoginTypes.map((key) => {
 											const opt = loginTypeOptions[key];
+											const requiresPremium =
+												key === "none" && !serviceAccountsEnabled;
 											return (
 												<SelectPrimitive.Item
 													key={key}
 													value={key}
+													disabled={requiresPremium}
 													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
 												>
 													<span className="absolute right-2 top-2 flex items-center justify-center">
@@ -326,7 +327,9 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 															{opt.label}
 														</SelectPrimitive.ItemText>
 														<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
-															{opt.description}
+															{requiresPremium
+																? `Requires a Premium license. ${opt.description}`
+																: opt.description}
 														</span>
 													</div>
 												</SelectPrimitive.Item>
