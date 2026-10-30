@@ -1,37 +1,49 @@
 // Command docsredirectscheck validates docs/redirects.json, the list of
-// redirects the documentation website applies for pages that have moved or
-// been removed.
+// redirects the documentation websites apply for pages that have moved or been
+// removed.
 //
 // Each rule is {"source", "destination", "permanent"?}. Sources and internal
-// destinations are full site paths starting with /docs/, written in the small
-// subset of Next.js path syntax the website accepts: an exact path, a trailing
-// "/:name*", or a trailing "/:name(.*)". A destination may also be an
-// http(s) URL.
+// destinations are routes relative to the docs root, such as
+// "admin/old-page". A source may end in "/*", which matches the prefix and
+// everything beneath it, and a destination may then end in "/*" to carry the
+// match across. The destination "/" is the docs root, and an external
+// destination is an https URL under github.com/coder/ or coder.com/.
 //
 // It fails when:
 //
-//   - the file is not a JSON array of well-formed rules;
+//   - the file is not a JSON array of well-formed rules, or uses the old
+//     absolute "/docs/..." form;
 //   - a source or destination is outside the supported syntax;
 //   - an internal destination is not a page in docs/manifest.json;
 //   - a source is a live docs page, which would hide a page readers can reach;
-//   - two rules share a source, or rules form a chain or a loop.
+//   - two rules share a source, a rule can never apply, or rules form a chain
+//     or a loop;
+//   - a route that worked on the base branch or on the live site no longer
+//     resolves, as a page or through a rule.
 //
-// It also warns, without failing, when a pull request removes routes from
-// docs/manifest.json and leaves docs/redirects.json alone, since pages are
-// sometimes removed on purpose.
+// The removed-route check compares against three sources: the base branch's
+// docs/manifest.json, the live page list for the target branch, and the base
+// branch's redirect sources. The live page list is read over the network, and
+// failing to read it is an infrastructure failure, not a pass. It is skipped
+// when the change leaves docs/manifest.json and docs/redirects.json as they are
+// on the base branch, because the change cannot affect the result then, and
+// when the target branch's docs version is not published yet. Pass -offline to
+// skip it locally.
 //
 // A missing docs/redirects.json passes. Everything it checks about routes is
-// derived from docs/manifest.json the same way the website derives it.
+// derived from docs/manifest.json the same way the websites derive it.
 //
 // Usage:
 //
-//	docsredirectscheck [-manifest path] [-redirects path] [-base rev]
+//	docsredirectscheck [-manifest path] [-redirects path] [-base rev] [-branch name] [-offline]
 //
 // Exit status is 0 when the file is valid or absent, 1 when it has problems,
 // and 2 when the check itself could not run.
 package main
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -39,9 +51,20 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/signal"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
+)
+
+// Repository-relative paths compared across revisions. They are fixed,
+// independent of the -manifest and -redirects flags, because git addresses
+// files by their place in the repository.
+const (
+	manifestRepoPath  = "docs/manifest.json"
+	redirectsRepoPath = "docs/redirects.json"
 )
 
 type options struct {
@@ -49,22 +72,30 @@ type options struct {
 	redirectsPath string
 	// base is the git revision the change under review started from. Empty
 	// means derive it from the environment.
-	base   string
-	git    gitReader
+	base string
+	// branch is the branch the change targets, which selects the live page
+	// list. Empty means derive it from the environment.
+	branch string
+	// offline skips the live page list.
+	offline bool
+	git     gitReader
+	fetch   fetcher
+	// wait pauses between attempts to read the live page list. It returns
+	// early with an error when the context is done.
+	wait   func(context.Context, time.Duration) error
 	getenv func(string) string
 	stdout io.Writer
 	stderr io.Writer
 }
 
-// gitReader is the slice of git the advisory check needs, so tests can supply
+// gitReader is the slice of git the removed-route check needs, so tests can supply
 // a fake repository.
 type gitReader interface {
 	// HasRev reports whether rev resolves to a commit.
 	HasRev(rev string) bool
-	// Show returns the contents of path at rev.
+	// Show returns the contents of path at rev. The error wraps
+	// fs.ErrNotExist when rev has no such file.
 	Show(rev, path string) ([]byte, error)
-	// Changed reports whether path differs between rev and the working tree.
-	Changed(rev, path string) (bool, error)
 }
 
 type execGit struct{}
@@ -87,39 +118,41 @@ func (execGit) Show(rev, path string) ([]byte, error) {
 	if !validRev(rev) {
 		return nil, xerrors.Errorf("invalid revision %q", rev)
 	}
+	// ls-tree tells a missing file apart from other failures by its output
+	// rather than by git's localized error text. --full-tree makes path
+	// relative to the repository root, as it is for git show.
+	listed, err := exec.Command("git", "ls-tree", "--full-tree", "--name-only", rev, "--", path).Output() //nolint:gosec // rev is checked by validRev and no shell is involved.
+	if err != nil {
+		return nil, xerrors.Errorf("git ls-tree %s: %w", rev, err)
+	}
+	if len(bytes.TrimSpace(listed)) == 0 {
+		return nil, xerrors.Errorf("%s does not exist at %s: %w", path, rev, fs.ErrNotExist)
+	}
 	return exec.Command("git", "show", rev+":"+path).Output() //nolint:gosec // rev is checked by validRev and no shell is involved.
-}
-
-func (execGit) Changed(rev, path string) (bool, error) {
-	if !validRev(rev) {
-		return false, xerrors.Errorf("invalid revision %q", rev)
-	}
-	err := exec.Command("git", "diff", "--quiet", rev, "--", path).Run() //nolint:gosec // rev is checked by validRev and no shell is involved.
-	if err == nil {
-		return false, nil
-	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-		return true, nil
-	}
-	return false, err
 }
 
 func main() {
 	o := options{
 		git:    execGit{},
+		fetch:  newHTTPFetcher(),
+		wait:   sleepContext,
 		getenv: os.Getenv,
 		stdout: os.Stdout,
 		stderr: os.Stderr,
 	}
 	flag.StringVar(&o.manifestPath, "manifest", manifestRepoPath, "path to the docs manifest")
 	flag.StringVar(&o.redirectsPath, "redirects", redirectsRepoPath, "path to the redirects file")
-	flag.StringVar(&o.base, "base", "", "git revision the change started from, for the removed-route warning (default: the pull request base in GitHub Actions)")
+	flag.StringVar(&o.base, "base", "", "git revision the change started from, for the removed-route check (default: the pull request base in GitHub Actions)")
+	flag.StringVar(&o.branch, "branch", "", "branch the change targets, which selects the live page list (default: the pull request base or the pushed branch in GitHub Actions)")
+	flag.BoolVar(&o.offline, "offline", false, "skip the live page list, which needs network access")
 	flag.Parse()
-	os.Exit(run(o))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	code := run(ctx, o)
+	stop()
+	os.Exit(code)
 }
 
-func run(o options) int {
+func run(ctx context.Context, o options) int {
 	manifestData, err := os.ReadFile(o.manifestPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(o.stderr, "cannot read manifest %s: %v\n", o.manifestPath, err)
@@ -157,7 +190,12 @@ func run(o options) int {
 		}
 	}
 
-	runAdvisory(o, live, rules)
+	switch checkRemovedRoutes(ctx, o, docsFiles{manifest: manifestData, redirects: redirectsData}, live, rules) {
+	case 2:
+		return 2
+	case 1:
+		code = 1
+	}
 	return code
 }
 
@@ -166,4 +204,172 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// annotation formats a GitHub Actions workflow command. The message must stay
+// on one line, so the characters the runner treats as delimiters are escaped.
+func annotation(level, file, title, message string) string {
+	escapeData := strings.NewReplacer("%", "%25", "\r", "%0D", "\n", "%0A")
+	escapeProperty := strings.NewReplacer("%", "%25", "\r", "%0D", "\n", "%0A", ":", "%3A", ",", "%2C")
+	return fmt.Sprintf("::%s file=%s,title=%s::%s", level, escapeProperty.Replace(file), escapeProperty.Replace(title), escapeData.Replace(message))
+}
+
+// targetBranch returns the branch the change targets: -branch, the pull
+// request base, or the pushed branch.
+func targetBranch(o options) string {
+	for _, b := range []string{o.branch, o.getenv("GITHUB_BASE_REF"), o.getenv("GITHUB_REF_NAME")} {
+		if b != "" {
+			return b
+		}
+	}
+	return ""
+}
+
+// docsFiles holds the contents of docs/manifest.json and docs/redirects.json
+// at one revision. A missing redirects file is nil.
+type docsFiles struct {
+	manifest  []byte
+	redirects []byte
+}
+
+// equal reports whether two revisions have the same docs files, ignoring line
+// endings so a CRLF checkout compares equal to the LF blob in git.
+func (d docsFiles) equal(other docsFiles) bool {
+	normalize := func(b []byte) []byte { return bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")) }
+	return bytes.Equal(normalize(d.manifest), normalize(other.manifest)) &&
+		bytes.Equal(normalize(d.redirects), normalize(other.redirects))
+}
+
+// checkRemovedRoutes fails when a route that worked before the change no
+// longer resolves. Routes that must keep working are the base branch's
+// manifest routes, the live page list of the target branch, and the base
+// branch's redirect sources. Each part that cannot be gathered is skipped with
+// a note, except a live page list that cannot be read, which is an
+// infrastructure failure (exit status 2) and never a pass.
+//
+// The live page list is not read when the change leaves the docs files as they
+// are on the base branch: the result would be the same as on the base branch,
+// so a coder.com outage does not block changes that do not touch the docs.
+func checkRemovedRoutes(ctx context.Context, o options, head docsFiles, live routeSet, rules []rule) int {
+	note := func(format string, args ...any) {
+		_, _ = fmt.Fprintf(o.stdout, "removed-route check: "+format+"\n", args...)
+	}
+	inv := inventory{}
+	var (
+		baseLive  routeSet
+		unchanged bool
+	)
+
+	base := o.base
+	if base == "" && o.getenv("GITHUB_BASE_REF") != "" {
+		// On a pull request, actions/checkout checks out the merge commit, whose
+		// first parent is exactly the base the change merges into.
+		base = "HEAD^1"
+	}
+	switch {
+	case base == "":
+		note("base branch not compared: not a pull request run (pass -base <rev> to enable)")
+	case !o.git.HasRev(base):
+		note("base branch not compared: revision %q is not available (shallow checkout?)", base)
+	default:
+		var baseFiles *docsFiles
+		baseLive, baseFiles = addBaseRoutes(o, base, inv, note)
+		unchanged = baseFiles != nil && head.equal(*baseFiles)
+	}
+
+	switch {
+	case o.offline:
+		note("live page list skipped (-offline)")
+	case unchanged:
+		note("live page list skipped: %s and %s are unchanged from %s", manifestRepoPath, redirectsRepoPath, base)
+	default:
+		branch := targetBranch(o)
+		segment, ok := versionSegment(branch)
+		if !ok {
+			if branch == "" {
+				note("live page list skipped: cannot tell the target branch (pass -branch main or -branch release/X.Y)")
+			} else {
+				note("live page list skipped: branch %q has no published docs version", branch)
+			}
+			break
+		}
+		url := fmt.Sprintf(liveListURLFormat, segment)
+		routes, err := fetchLiveRoutes(ctx, o.fetch, url, segment, o.wait)
+		if errors.Is(err, errNotPublished) {
+			note("live page list skipped: %s answered 404, so docs version %s is not published yet", url, segment)
+			break
+		}
+		if err != nil {
+			_, _ = fmt.Fprintf(o.stderr, "cannot read the live page list, so the removed-route check could not run: %v\n", err)
+			_, _ = fmt.Fprintln(o.stderr, "Re-run the job. Use -offline to skip the live page list when running locally.")
+			return 2
+		}
+		for _, route := range routes {
+			inv.add(route, "the live page list "+url)
+		}
+	}
+
+	missing := missingRoutes(inv, newResolver(live, baseLive, rules))
+	if len(missing) == 0 {
+		if len(inv) > 0 {
+			note("%d %s", len(inv), plural(len(inv), "route still resolves", "routes still resolve"))
+		}
+		return 0
+	}
+
+	actions := o.getenv("GITHUB_ACTIONS") == "true"
+	redirectsFile := filepath.ToSlash(redirectsRepoPath)
+	for _, m := range missing {
+		msg := m.message()
+		_, _ = fmt.Fprintln(o.stderr, msg)
+		if actions {
+			_, _ = fmt.Fprintln(o.stdout, annotation("error", redirectsFile, "Docs route no longer resolves", msg))
+		}
+	}
+	_, _ = fmt.Fprintf(o.stderr, "%d docs %s. To keep the old URLs working, paste these rules at the top of %s:\n", len(missing), plural(len(missing), "route no longer resolves", "routes no longer resolve"), redirectsFile)
+	for _, m := range missing {
+		_, _ = fmt.Fprintf(o.stderr, "  %s,\n", m.rule())
+	}
+	_, _ = fmt.Fprintln(o.stderr, `Point a rule at "/" or another page when its page was removed on purpose.`)
+	return 1
+}
+
+// addBaseRoutes adds the base branch's manifest routes and redirect sources to
+// the inventory. It returns the base branch's live routes, or nil when the
+// base manifest could not be read, and the base branch's docs files, or nil
+// when either could not be read.
+func addBaseRoutes(o options, base string, inv inventory, note func(string, ...any)) (routeSet, *docsFiles) {
+	manifestData, err := o.git.Show(base, manifestRepoPath)
+	if err != nil {
+		note("base manifest not compared: cannot read %s at %s: %v", manifestRepoPath, base, err)
+		return nil, nil
+	}
+	baseManifest, err := parseManifest(manifestData)
+	if err != nil {
+		note("base manifest not compared: %s at %s is not a valid manifest: %v", manifestRepoPath, base, err)
+		return nil, nil
+	}
+	baseLive := liveRoutes(baseManifest)
+	for route, file := range baseLive {
+		origin := manifestRepoPath + " on the base branch"
+		if file != "" {
+			origin = file + " on the base branch"
+		}
+		inv.add(route, origin)
+	}
+	files := docsFiles{manifest: manifestData}
+	redirectsData, err := o.git.Show(base, redirectsRepoPath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		// A missing redirects file at the base means no rules yet.
+	case err != nil:
+		note("base redirect sources not compared: cannot read %s at %s: %v", redirectsRepoPath, base, err)
+		return baseLive, nil
+	default:
+		files.redirects = redirectsData
+		for _, route := range baseRuleSources(redirectsData) {
+			inv.add(route, "a rule in "+redirectsRepoPath+" on the base branch")
+		}
+	}
+	return baseLive, &files
 }
