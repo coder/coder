@@ -1188,6 +1188,10 @@ func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 		{name: "duplicate key without hooks", input: `{"path":"/tmp/allowed.txt","path":"/tmp/secret.txt"}`, wantErr: "repeats the key"},
 		{name: "schema mismatch", input: `{}`, wantErr: "missing properties", hooksEnabled: true},
 		{name: "schema mismatch without hooks", input: `{}`, wantErr: "missing properties"},
+		// null decodes into a nil offset and lets read_file run, but the
+		// schema requires an integer when offset is present.
+		{name: "null offset", input: `{"path":"/tmp/allowed.txt","offset":null}`, wantErr: `want "integer"`, hooksEnabled: true},
+		{name: "null offset without hooks", input: `{"path":"/tmp/allowed.txt","offset":null}`, wantErr: `want "integer"`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1195,6 +1199,7 @@ func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps := dbtestutil.NewDB(t)
 			var modelCalls atomic.Int32
+			var modelSawValidationError atomic.Bool
 			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse("title")
@@ -1203,6 +1208,11 @@ func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 					chunk := chattest.OpenAIToolCallChunk("read_file", tt.input)
 					chunk.Choices[0].ToolCalls[0].ID = "call_invalid"
 					return chattest.OpenAIStreamingResponse(chunk)
+				}
+				for _, message := range req.Messages {
+					if message.Role == "tool" && strings.Contains(message.Content, "input is invalid") {
+						modelSawValidationError.Store(true)
+					}
 				}
 				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 			})
@@ -1218,8 +1228,16 @@ func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockConn := agentconnmock.NewMockAgentConn(ctrl)
 			setupToolExecutionAgentConn(t, mockConn)
+			var toolCalls atomic.Int32
 			mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Times(0)
+				Do(func(_ context.Context, path string, offset, limit int64, _ workspacesdk.ReadFileLinesLimits) {
+					t.Logf("read_file executed: path=%q offset=%d limit=%d", path, offset, limit)
+					toolCalls.Add(1)
+				}).
+				Return(workspacesdk.ReadFileLinesResponse{
+					Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+				}, nil).
+				AnyTimes()
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -1245,6 +1263,7 @@ func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 			require.NoError(t, err)
 			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
+			require.Zero(t, toolCalls.Load(), "schema-invalid input must not reach the workspace tool")
 			require.Zero(t, hookCalls.Load())
 			result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
 			require.True(t, result.IsError)
@@ -1255,6 +1274,7 @@ func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 			require.Contains(t, failure.Error, "input is invalid")
 			require.Contains(t, failure.Error, tt.wantErr)
 			require.Equal(t, int32(2), modelCalls.Load())
+			require.True(t, modelSawValidationError.Load(), "the model must receive the validation error")
 			updated, err := db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
 			require.False(t, updated.LastError.Valid)
