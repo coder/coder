@@ -69,7 +69,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
 		TransitionSetProject:           {StateE1},
-		TransitionSendMessage:          {StateR1},
+		TransitionSendMessage:          {StateR0, StateR1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
