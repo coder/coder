@@ -393,8 +393,8 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Param before query int false "Not used. The route ignores this parameter."
-// @Param after query int false "ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more."
+// @Param before query int false "Not used. The server ignores this parameter."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of `0` or more."
 // @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive. Not supported with `format=text`."
 // @Param no_compression query bool false "When present, turns off WebSocket compression. It only applies with `follow`."
 // @Param format query string false "Log output format, either `json` or `text`. The default is `json`, and `text` returns plain text with RFC3339 timestamps and ANSI colors. `text` isn't supported with `follow`." Enums(json,text)
@@ -1026,7 +1026,8 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 
 // @Summary Delete devcontainer for workspace agent
 // @Description Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.
-// @Description Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Returns `409` while the dev container is starting, stopping, or deleting.
 // @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID delete-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
@@ -1118,7 +1119,8 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 
 // @Summary Recreate devcontainer for workspace agent
 // @Description Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.
-// @Description Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+// @Description Returns `409` while the dev container is starting, stopping, or deleting.
 // @Description A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 // @ID recreate-devcontainer-for-workspace-agent
 // @Security CoderSessionToken

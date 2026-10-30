@@ -84,7 +84,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 Creates an organization and adds you to it as a member without extra roles.
 `display_name` defaults to `name`, and `default` is a reserved name.
-Requires permission to create organizations, which the Owner role has, and a Premium license.
+Requires permission to create organizations, which the Owner role has.
+Requires a Premium license.
 
 > Body parameter
 
@@ -196,7 +197,8 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 Deletes an organization.
 The call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
-Requires permission to delete the organization, which the Owner and Organization Admin roles have, and a Premium license.
+Requires permission to delete the organization, which the Owner and Organization Admin roles have.
+Requires a Premium license.
 
 ### Parameters
 
@@ -245,7 +247,8 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 Updates an organization's name, display name, description, icon, or default member roles.
 Fields you leave out keep their current values, and `default` is a reserved name.
-Requires permission to update the organization, which the Owner and Organization Admin roles have, and a Premium license.
+Requires permission to update the organization, which the Owner and Organization Admin roles have.
+Requires a Premium license.
 
 > Body parameter
 
@@ -314,14 +317,14 @@ Requires permission to read the organization's provisioner jobs, which the Owner
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                          |
-|----------------|-------|--------------|----------|--------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                    |
-| `limit`        | query | integer      | false    | Maximum number of jobs to return. The default is `50`, and `0` returns all jobs.     |
-| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                            |
-| `status`       | query | string       | false    | Filter results by status                                                             |
-| `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
-| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                          |
+| Name           | In    | Type         | Required | Description                                                                            |
+|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                      |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default is `50`, and `0` returns all results. |
+| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                              |
+| `status`       | query | string       | false    | Filter results by status                                                               |
+| `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)   |
+| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                            |
 
 #### Enumerated Values
 

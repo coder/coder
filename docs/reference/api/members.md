@@ -229,7 +229,8 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.
 Permissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.
-Requires permission to update custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
+Requires permission to update custom organization roles, which the Owner and Organization Admin roles have.
+Requires a Premium license.
 
 > Body parameter
 
@@ -366,7 +367,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 Creates a custom role in an organization with the given organization permissions.
 The name can't match a built-in role, and the request can't include site, user, or organization member permissions.
-Requires permission to create custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
+Requires permission to create custom organization roles, which the Owner and Organization Admin roles have.
+Requires a Premium license.
 
 > Body parameter
 
@@ -501,7 +503,8 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 `DELETE /api/v2/organizations/{organization}/members/roles/{roleName}`
 
 Deletes a custom role from an organization.
-Requires permission to delete custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
+Requires permission to delete custom organization roles, which the Owner and Organization Admin roles have.
+Requires a Premium license.
 
 ### Parameters
 
@@ -824,7 +827,7 @@ Requires permission to read all of the organization's members, which the Owner, 
 |----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
 | `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
-| `after_id`     | query | string(uuid) | false    | User ID of the last member on the previous page. Returns the members after it, which pages faster than `offset`.                                                                                                                                                                                         |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                              |
 | `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                              |
 | `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                      |
 

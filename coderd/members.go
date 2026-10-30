@@ -282,7 +282,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Tags Members
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
-// @Param after_id query string false "User ID of the last member on the previous page. Returns the members after it, which pages faster than `offset`." format(uuid)
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} []codersdk.PaginatedMembersResponse

@@ -335,7 +335,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 
 // @Summary Get external auth by template version
 // @Description Returns the external authentication providers a template version uses and whether the user is authenticated with each.
-// @Description Setting `user_id` to another user requires permission to create workspaces for that user.
+// @Description Setting `user_id` to another user requires permission to create workspaces for that user, which the Owner and Organization Admin roles have.
 // @ID get-external-auth-by-template-version
 // @Security CoderSessionToken
 // @Produce json
@@ -720,8 +720,8 @@ func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.R
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Param jobID path string true "ID of the dry-run job, returned when you created the dry run." format(uuid)
 // @Param before query int false "Not used. The server ignores this parameter."
-// @Param after query int false "Return only logs with an ID greater than this value. Use the `id` of the last log you received to get newer logs."
-// @Param follow query bool false "When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is `false`."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID."
+// @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes."
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs [get]
@@ -2031,8 +2031,8 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Param before query int false "Not used. The server ignores this parameter."
-// @Param after query int false "Return only logs with an ID greater than this value. Use the `id` of the last log you received to get newer logs."
-// @Param follow query bool false "When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is `false`."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID."
+// @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes."
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /api/v2/templateversions/{templateversion}/logs [get]

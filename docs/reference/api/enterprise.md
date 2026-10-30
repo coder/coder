@@ -1628,7 +1628,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 `GET /api/v2/oauth2-provider/apps`
 
 Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.
-Any member can list applications, but listing another user's authorizations requires the Owner role.
+Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens, which the Owner role has.
 Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 
 ### Parameters
@@ -4781,7 +4781,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional `CRON_TZ=` prefix, for example `CRON_TZ=UTC 0 0 * * *`.
 Returns `403` when the deployment doesn't let users set their own schedule, which `--allow-custom-quiet-hours=false` controls.
-You can update your own schedule, and updating another user's schedule requires the Owner or User Admin role.
+You can update your own schedule, and updating another user's schedule requires permission to update that user's personal data, which the Owner and User Admin roles have.
 Requires a Premium license.
 
 > Body parameter

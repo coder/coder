@@ -56,7 +56,7 @@ func writeExceedsCaller(ctx context.Context, rw http.ResponseWriter, err error) 
 // @Summary Create token API key
 // @Description Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.
 // @Description Without `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.
-// @Description The token can't grant more than the key you call with, and creating a token for another user requires the Owner role.
+// @Description The token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user, which the Owner role has.
 // @ID create-token-api-key
 // @Security CoderSessionToken
 // @Accept json
@@ -205,7 +205,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Create new session key
 // @Description Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.
-// @Description The new key can't grant more than the key you call with, and creating a key for another user requires the Owner role.
+// @Description The new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user, which the Owner role has.
 // @ID create-new-session-key
 // @Security CoderSessionToken
 // @Produce json
@@ -265,7 +265,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get API key by ID
 // @Description Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.
 // @Description The response never includes the key secret.
-// @Description You can read your own API keys, and reading another user's keys requires the Owner role.
+// @Description You can read your own API keys, and reading another user's keys requires permission to read that user's API keys, which the Owner role has.
 // @ID get-api-key-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -297,7 +297,7 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get API key by token name
 // @Description Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.
 // @Description The response never includes the token secret.
-// @Description You can read your own tokens, and reading another user's tokens requires the Owner role.
+// @Description You can read your own tokens, and reading another user's tokens requires permission to read that user's API keys, which the Owner role has.
 // @ID get-api-key-by-token-name
 // @Security CoderSessionToken
 // @Produce json
@@ -334,7 +334,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get user tokens
 // @Description Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
-// @Description Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires the Owner role.
+// @Description Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys, which the Owner role has.
 // @Description Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
 // @ID get-user-tokens
 // @Security CoderSessionToken
@@ -421,7 +421,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Delete API key
 // @Description Deletes an API key by its ID, so the key can no longer authenticate requests.
-// @Description You can delete your own API keys, and deleting another user's key requires the Owner role.
+// @Description You can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys, which the Owner role has.
 // @ID delete-api-key
 // @Security CoderSessionToken
 // @Tags Users
@@ -467,7 +467,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Summary Expire API key
 // @Description Expires an API key immediately by setting its expiry to now, which keeps the key's record.
 // @Description Does nothing when the key has already expired.
-// @Description You can expire your own API keys, and expiring another user's key requires the Owner role.
+// @Description You can expire your own API keys, and expiring another user's key requires permission to update that user's API keys, which the Owner role has.
 // @ID expire-api-key
 // @Security CoderSessionToken
 // @Tags Users

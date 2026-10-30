@@ -25,7 +25,8 @@ import (
 // @Summary Insert a custom organization role
 // @Description Creates a custom role in an organization with the given organization permissions.
 // @Description The name can't match a built-in role, and the request can't include site, user, or organization member permissions.
-// @Description Requires permission to create custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
+// @Description Requires permission to create custom organization roles, which the Owner and Organization Admin roles have.
+// @Description Requires a Premium license.
 // @ID insert-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
@@ -95,7 +96,8 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update a custom organization role
 // @Description Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.
 // @Description Permissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.
-// @Description Requires permission to update custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
+// @Description Requires permission to update custom organization roles, which the Owner and Organization Admin roles have.
+// @Description Requires a Premium license.
 // @ID update-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
@@ -188,7 +190,8 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Delete a custom organization role
 // @Description Deletes a custom role from an organization.
-// @Description Requires permission to delete custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.
+// @Description Requires permission to delete custom organization roles, which the Owner and Organization Admin roles have.
+// @Description Requires a Premium license.
 // @ID delete-a-custom-organization-role
 // @Security CoderSessionToken
 // @Produce json

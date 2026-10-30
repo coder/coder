@@ -2974,7 +2974,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns 100 results.",
+                        "description": "Maximum number of results to return. A value of ` + "`" + `0` + "`" + ` returns up to ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
                         "in": "query",
                         "required": true
@@ -6774,7 +6774,7 @@ const docTemplate = `{
         },
         "/api/v2/init-script/{os}/{arch}": {
             "get": {
-                "description": "Returns the script that downloads the Coder agent binary from the deployment and starts it, for the given operating system and architecture.\nThe script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the ` + "`" + `init_script` + "`" + ` of a ` + "`" + `coder_agent` + "`" + ` from the same script.\nDoesn't require a session token, and returns ` + "`" + `400` + "`" + ` for an operating system and architecture pair that Coder doesn't support.",
+                "description": "Returns the script that downloads the workspace agent binary from the deployment and starts it, for the given operating system and architecture.\nThe script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the ` + "`" + `init_script` + "`" + ` of a ` + "`" + `coder_agent` + "`" + ` from the same script.\nDoesn't require a session token, and returns ` + "`" + `400` + "`" + ` for an operating system and architecture pair that Coder doesn't support.",
                 "produces": [
                     "text/plain"
                 ],
@@ -7700,7 +7700,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps": {
             "get": {
-                "description": "Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set ` + "`" + `user_id` + "`" + `.\nAny member can list applications, but listing another user's authorizations requires the Owner role.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
+                "description": "Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set ` + "`" + `user_id` + "`" + `.\nAny member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens, which the Owner role has.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -8089,7 +8089,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates an organization and adds you to it as a member without extra roles.\n` + "`" + `display_name` + "`" + ` defaults to ` + "`" + `name` + "`" + `, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to create organizations, which the Owner role has, and a Premium license.",
+                "description": "Creates an organization and adds you to it as a member without extra roles.\n` + "`" + `display_name` + "`" + ` defaults to ` + "`" + `name` + "`" + `, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to create organizations, which the Owner role has.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8163,7 +8163,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes an organization.\nThe call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than ` + "`" + `Everyone` + "`" + `, or more than one member.\nRequires permission to delete the organization, which the Owner and Organization Admin roles have, and a Premium license.",
+                "description": "Deletes an organization.\nThe call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than ` + "`" + `Everyone` + "`" + `, or more than one member.\nRequires permission to delete the organization, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8196,7 +8196,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Updates an organization's name, display name, description, icon, or default member roles.\nFields you leave out keep their current values, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to update the organization, which the Owner and Organization Admin roles have, and a Premium license.",
+                "description": "Updates an organization's name, display name, description, icon, or default member roles.\nFields you leave out keep their current values, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to update the organization, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9665,7 +9665,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Replaces the display name and permissions of an existing custom role, identified by ` + "`" + `name` + "`" + ` in the request body.\nPermissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.\nRequires permission to update custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.",
+                "description": "Replaces the display name and permissions of an existing custom role, identified by ` + "`" + `name` + "`" + ` in the request body.\nPermissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.\nRequires permission to update custom organization roles, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9714,7 +9714,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a custom role in an organization with the given organization permissions.\nThe name can't match a built-in role, and the request can't include site, user, or organization member permissions.\nRequires permission to create custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.",
+                "description": "Creates a custom role in an organization with the given organization permissions.\nThe name can't match a built-in role, and the request can't include site, user, or organization member permissions.\nRequires permission to create custom organization roles, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9765,7 +9765,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles/{roleName}": {
             "delete": {
-                "description": "Deletes a custom role from an organization.\nRequires permission to delete custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.",
+                "description": "Deletes a custom role from an organization.\nRequires permission to delete custom organization roles, which the Owner and Organization Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10336,7 +10336,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID of the last member on the previous page. Returns the members after it, which pages faster than ` + "`" + `offset` + "`" + `.",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
@@ -10506,7 +10506,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Maximum number of jobs to return. The default is ` + "`" + `50` + "`" + `, and ` + "`" + `0` + "`" + ` returns all jobs.",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `, and ` + "`" + `0` + "`" + ` returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -11630,7 +11630,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with ` + "`" + `reconciliation_paused` + "`" + `.\nReturns ` + "`" + `304 Not Modified` + "`" + ` when the settings are unchanged.\nRequires a Premium license and permission to update deployment configuration, which the Owner role has.",
+                "description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with ` + "`" + `reconciliation_paused` + "`" + `.\nReturns ` + "`" + `304 Not Modified` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration, which the Owner role has.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13103,13 +13103,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return only logs with an ID greater than this value. Use the ` + "`" + `id` + "`" + ` of the last log you received to get newer logs.",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is ` + "`" + `false` + "`" + `.",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -13313,7 +13313,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/external-auth": {
             "get": {
-                "description": "Returns the external authentication providers a template version uses and whether the user is authenticated with each.\nSetting ` + "`" + `user_id` + "`" + ` to another user requires permission to create workspaces for that user.",
+                "description": "Returns the external authentication providers a template version uses and whether the user is authenticated with each.\nSetting ` + "`" + `user_id` + "`" + ` to another user requires permission to create workspaces for that user, which the Owner and Organization Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -13385,13 +13385,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return only logs with an ID greater than this value. Use the ` + "`" + `id` + "`" + ` of the last log you received to get newer logs.",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is ` + "`" + `false` + "`" + `.",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -14687,7 +14687,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys": {
             "post": {
-                "description": "Creates a session API key for the user, like the one the CLI uses to log in, and returns it in ` + "`" + `key` + "`" + `.\nThe new key can't grant more than the key you call with, and creating a key for another user requires the Owner role.",
+                "description": "Creates a session API key for the user, like the one the CLI uses to log in, and returns it in ` + "`" + `key` + "`" + `.\nThe new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -14722,7 +14722,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens": {
             "get": {
-                "description": "Lists the user's API tokens, leaving out expired tokens unless ` + "`" + `include_expired` + "`" + ` is ` + "`" + `true` + "`" + `.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires the Owner role.\nSet ` + "`" + `include_all` + "`" + ` to ` + "`" + `true` + "`" + ` to list the tokens of every user you can read instead of only this user's.",
+                "description": "Lists the user's API tokens, leaving out expired tokens unless ` + "`" + `include_expired` + "`" + ` is ` + "`" + `true` + "`" + `.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys, which the Owner role has.\nSet ` + "`" + `include_all` + "`" + ` to ` + "`" + `true` + "`" + ` to list the tokens of every user you can read instead of only this user's.",
                 "produces": [
                     "application/json"
                 ],
@@ -14764,7 +14764,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates an API token for the user and returns it in ` + "`" + `key` + "`" + `, with the scopes, allow list, and lifetime you request.\nWithout ` + "`" + `lifetime` + "`" + `, the token lasts for the deployment's default token lifetime, and ` + "`" + `lifetime` + "`" + ` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.\nThe token can't grant more than the key you call with, and creating a token for another user requires the Owner role.",
+                "description": "Creates an API token for the user and returns it in ` + "`" + `key` + "`" + `, with the scopes, allow list, and lifetime you request.\nWithout ` + "`" + `lifetime` + "`" + `, the token lasts for the deployment's default token lifetime, and ` + "`" + `lifetime` + "`" + ` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.\nThe token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14846,7 +14846,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens/{keyname}": {
             "get": {
-                "description": "Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.\nThe response never includes the token secret.\nYou can read your own tokens, and reading another user's tokens requires the Owner role.",
+                "description": "Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.\nThe response never includes the token secret.\nYou can read your own tokens, and reading another user's tokens requires permission to read that user's API keys, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -14889,7 +14889,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/{keyid}": {
             "get": {
-                "description": "Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.\nThe response never includes the key secret.\nYou can read your own API keys, and reading another user's keys requires the Owner role.",
+                "description": "Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.\nThe response never includes the key secret.\nYou can read your own API keys, and reading another user's keys requires permission to read that user's API keys, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -14930,7 +14930,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes an API key by its ID, so the key can no longer authenticate requests.\nYou can delete your own API keys, and deleting another user's key requires the Owner role.",
+                "description": "Deletes an API key by its ID, so the key can no longer authenticate requests.\nYou can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys, which the Owner role has.",
                 "tags": [
                     "Users"
                 ],
@@ -14967,7 +14967,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/{keyid}/expire": {
             "put": {
-                "description": "Expires an API key immediately by setting its expiry to now, which keeps the key's record.\nDoes nothing when the key has already expired.\nYou can expire your own API keys, and expiring another user's key requires the Owner role.",
+                "description": "Expires an API key immediately by setting its expiry to now, which keeps the key's record.\nDoes nothing when the key has already expired.\nYou can expire your own API keys, and expiring another user's key requires permission to update that user's API keys, which the Owner role has.",
                 "tags": [
                     "Users"
                 ],
@@ -15422,7 +15422,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional ` + "`" + `CRON_TZ=` + "`" + ` prefix, for example ` + "`" + `CRON_TZ=UTC 0 0 * * *` + "`" + `.\nReturns ` + "`" + `403` + "`" + ` when the deployment doesn't let users set their own schedule, which ` + "`" + `--allow-custom-quiet-hours=false` + "`" + ` controls.\nYou can update your own schedule, and updating another user's schedule requires the Owner or User Admin role.\nRequires a Premium license.",
+                "description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional ` + "`" + `CRON_TZ=` + "`" + ` prefix, for example ` + "`" + `CRON_TZ=UTC 0 0 * * *` + "`" + `.\nReturns ` + "`" + `403` + "`" + ` when the deployment doesn't let users set their own schedule, which ` + "`" + `--allow-custom-quiet-hours=false` + "`" + ` controls.\nYou can update your own schedule, and updating another user's schedule requires permission to update that user's personal data, which the Owner and User Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16803,7 +16803,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
             "delete": {
-                "description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace, and returns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
+                "description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nReturns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "tags": [
                     "Agents"
                 ],
@@ -16840,7 +16840,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
-                "description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns ` + "`" + `202` + "`" + ` while the rebuild runs.\nRequires permission to update the workspace, and returns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
+                "description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns ` + "`" + `202` + "`" + ` while the rebuild runs.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nReturns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -17005,13 +17005,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Not used. The route ignores this parameter.",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of ` + "`" + `0` + "`" + ` or more.",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of ` + "`" + `0` + "`" + ` or more.",
                         "name": "after",
                         "in": "query"
                     },
@@ -17108,13 +17108,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Not used. The route ignores this parameter.",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of ` + "`" + `0` + "`" + ` or more.",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of ` + "`" + `0` + "`" + ` or more.",
                         "name": "after",
                         "in": "query"
                     },
@@ -17364,7 +17364,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Has no effect. The server ignores this parameter.",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
@@ -17376,7 +17376,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Streams new logs over a WebSocket until the build's job finishes. The server checks only that the parameter is present, so any value turns streaming on, including ` + "`" + `false` + "`" + `.",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -18705,7 +18705,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/port-share": {
             "get": {
-                "description": "Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.\nRequires permission to read the workspace, which the workspace owner and the Owner role have.",
+                "description": "Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.\nRequires permission to read the workspace, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "produces": [
                     "application/json"
                 ],
@@ -18739,7 +18739,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Shares a port on one of a workspace's agents at the given ` + "`" + `share_level` + "`" + `, or updates the share if the port is already shared.\nThe ` + "`" + `port` + "`" + ` must be from 9 to 65535, the ` + "`" + `share_level` + "`" + ` is ` + "`" + `authenticated` + "`" + `, ` + "`" + `organization` + "`" + `, or ` + "`" + `public` + "`" + `, and the ` + "`" + `protocol` + "`" + ` is ` + "`" + `http` + "`" + ` or ` + "`" + `https` + "`" + `.\nRequires permission to update the workspace, which the workspace owner and the Owner role have, and with a Premium license the template's ` + "`" + `max_port_share_level` + "`" + ` limits the levels you can set.",
+                "description": "Shares a port on one of a workspace's agents at the given ` + "`" + `share_level` + "`" + `, or updates the share if the port is already shared.\nThe ` + "`" + `port` + "`" + ` must be from 9 to 65535, the ` + "`" + `share_level` + "`" + ` is ` + "`" + `authenticated` + "`" + `, ` + "`" + `organization` + "`" + `, or ` + "`" + `public` + "`" + `, and the ` + "`" + `protocol` + "`" + ` is ` + "`" + `http` + "`" + ` or ` + "`" + `https` + "`" + `.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.\nWith a Premium license, the template's ` + "`" + `max_port_share_level` + "`" + ` limits the levels you can set.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18785,7 +18785,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Stops sharing a port on one of a workspace's agents.\nReturns ` + "`" + `404` + "`" + ` if the port isn't shared.\nRequires permission to update the workspace, which the workspace owner and the Owner role have.",
+                "description": "Stops sharing a port on one of a workspace's agents.\nReturns ` + "`" + `404` + "`" + ` if the port isn't shared.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],

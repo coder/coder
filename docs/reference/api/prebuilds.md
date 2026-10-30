@@ -55,7 +55,8 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
 
 Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with `reconciliation_paused`.
 Returns `304 Not Modified` when the settings are unchanged.
-Requires a Premium license and permission to update deployment configuration, which the Owner role has.
+Requires permission to update deployment configuration, which the Owner role has.
+Requires a Premium license.
 
 > Body parameter
 

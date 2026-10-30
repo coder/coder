@@ -45,8 +45,8 @@ func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Param before query int false "Not used. The route ignores this parameter."
-// @Param after query int false "ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more."
+// @Param before query int false "Not used. The server ignores this parameter."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of `0` or more."
 // @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive."
 // @Param no_compression query bool false "When present, turns off WebSocket compression. It only applies with `follow`."
 // @Success 200 {array} codersdk.WorkspaceAgentLog

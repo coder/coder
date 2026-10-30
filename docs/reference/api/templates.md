@@ -2405,8 +2405,8 @@ Without `follow`, the call returns the logs recorded so far, and you can pass th
 | `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
 | `jobID`           | path  | string(uuid) | true     | ID of the dry-run job, returned when you created the dry run.                                                                               |
 | `before`          | query | integer      | false    | Not used. The server ignores this parameter.                                                                                                |
-| `after`           | query | integer      | false    | Return only logs with an ID greater than this value. Use the `id` of the last log you received to get newer logs.                           |
-| `follow`          | query | boolean      | false    | When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is `false`.                   |
+| `after`           | query | integer      | false    | ID of the last log you already have. Returns only the logs with a higher ID.                                                                |
+| `follow`          | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.                |
 | `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
 
 #### Enumerated Values
@@ -3010,7 +3010,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 `GET /api/v2/templateversions/{templateversion}/external-auth`
 
 Returns the external authentication providers a template version uses and whether the user is authenticated with each.
-Setting `user_id` to another user requires permission to create workspaces for that user.
+Setting `user_id` to another user requires permission to create workspaces for that user, which the Owner and Organization Admin roles have.
 
 ### Parameters
 
@@ -3083,8 +3083,8 @@ Without `follow`, the call returns the logs recorded so far, and you can pass th
 |-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
 | `before`          | query | integer      | false    | Not used. The server ignores this parameter.                                                                                                |
-| `after`           | query | integer      | false    | Return only logs with an ID greater than this value. Use the `id` of the last log you received to get newer logs.                           |
-| `follow`          | query | boolean      | false    | When present, upgrades the connection to a WebSocket that streams logs as they are written, even if the value is `false`.                   |
+| `after`           | query | integer      | false    | ID of the last log you already have. Returns only the logs with a higher ID.                                                                |
+| `follow`          | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.                |
 | `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
 
 #### Enumerated Values

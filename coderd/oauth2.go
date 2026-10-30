@@ -16,7 +16,7 @@ import (
 
 // @Summary Get OAuth2 applications.
 // @Description Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set `user_id`.
-// @Description Any member can list applications, but listing another user's authorizations requires the Owner role.
+// @Description Any member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens, which the Owner role has.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID get-oauth2-applications
 // @Security CoderSessionToken

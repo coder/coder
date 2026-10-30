@@ -1046,9 +1046,9 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
-// @Param before query int false "Has no effect. The server ignores this parameter."
+// @Param before query int false "Not used. The server ignores this parameter."
 // @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID."
-// @Param follow query bool false "Streams new logs over a WebSocket until the build's job finishes. The server checks only that the parameter is present, so any value turns streaming on, including `false`."
+// @Param follow query bool false "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes."
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /api/v2/workspacebuilds/{workspacebuild}/logs [get]

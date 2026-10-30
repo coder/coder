@@ -773,7 +773,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
 `POST /api/v2/users/{user}/keys`
 
 Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.
-The new key can't grant more than the key you call with, and creating a key for another user requires the Owner role.
+The new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user, which the Owner role has.
 
 ### Parameters
 
@@ -813,7 +813,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 `GET /api/v2/users/{user}/keys/tokens`
 
 Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
-Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires the Owner role.
+Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys, which the Owner role has.
 Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
 
 ### Parameters
@@ -907,7 +907,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.
 Without `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.
-The token can't grant more than the key you call with, and creating a token for another user requires the Owner role.
+The token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user, which the Owner role has.
 
 > Body parameter
 
@@ -968,7 +968,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 
 Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.
 The response never includes the token secret.
-You can read your own tokens, and reading another user's tokens requires the Owner role.
+You can read your own tokens, and reading another user's tokens requires permission to read that user's API keys, which the Owner role has.
 
 ### Parameters
 
@@ -1028,7 +1028,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.
 The response never includes the key secret.
-You can read your own API keys, and reading another user's keys requires the Owner role.
+You can read your own API keys, and reading another user's keys requires permission to read that user's API keys, which the Owner role has.
 
 ### Parameters
 
@@ -1086,7 +1086,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 `DELETE /api/v2/users/{user}/keys/{keyid}`
 
 Deletes an API key by its ID, so the key can no longer authenticate requests.
-You can delete your own API keys, and deleting another user's key requires the Owner role.
+You can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys, which the Owner role has.
 
 ### Parameters
 
@@ -1118,7 +1118,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/keys/{keyid}/expire \
 
 Expires an API key immediately by setting its expiry to now, which keeps the key's record.
 Does nothing when the key has already expired.
-You can expire your own API keys, and expiring another user's key requires the Owner role.
+You can expire your own API keys, and expiring another user's key requires permission to update that user's API keys, which the Owner role has.
 
 ### Parameters
 

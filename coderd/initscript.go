@@ -15,7 +15,7 @@ import (
 )
 
 // @Summary Get agent init script
-// @Description Returns the script that downloads the Coder agent binary from the deployment and starts it, for the given operating system and architecture.
+// @Description Returns the script that downloads the workspace agent binary from the deployment and starts it, for the given operating system and architecture.
 // @Description The script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the `init_script` of a `coder_agent` from the same script.
 // @Description Doesn't require a session token, and returns `400` for an operating system and architecture pair that Coder doesn't support.
 // @ID get-agent-init-script

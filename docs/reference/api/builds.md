@@ -612,13 +612,13 @@ Without `follow`, the response is a JSON array of logs, or plain text when `form
 
 ### Parameters
 
-| Name             | In    | Type    | Required | Description                                                                                                                                                                 |
-|------------------|-------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `workspacebuild` | path  | string  | true     | Workspace build ID                                                                                                                                                          |
-| `before`         | query | integer | false    | Has no effect. The server ignores this parameter.                                                                                                                           |
-| `after`          | query | integer | false    | ID of the last log you already have. Returns only the logs with a higher ID.                                                                                                |
-| `follow`         | query | boolean | false    | Streams new logs over a WebSocket until the build's job finishes. The server checks only that the parameter is present, so any value turns streaming on, including `false`. |
-| `format`         | query | string  | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.                                 |
+| Name             | In    | Type    | Required | Description                                                                                                                                 |
+|------------------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspacebuild` | path  | string  | true     | Workspace build ID                                                                                                                          |
+| `before`         | query | integer | false    | Not used. The server ignores this parameter.                                                                                                |
+| `after`          | query | integer | false    | ID of the last log you already have. Returns only the logs with a higher ID.                                                                |
+| `follow`         | query | boolean | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.                |
+| `format`         | query | string  | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
 
 #### Enumerated Values
 

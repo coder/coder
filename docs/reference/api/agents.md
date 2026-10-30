@@ -971,7 +971,8 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/
 `DELETE /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}`
 
 Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.
-Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Returns `409` while the dev container is starting, stopping, or deleting.
 A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 
 ### Parameters
@@ -1003,7 +1004,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
 `POST /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
 Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.
-Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
+Returns `409` while the dev container is starting, stopping, or deleting.
 A workspace proxy can authenticate with its proxy token in the `Coder-External-Proxy-Token` header instead.
 
 ### Parameters
@@ -1247,8 +1249,8 @@ A workspace proxy can authenticate with its proxy token in the `Coder-External-P
 | Name             | In    | Type         | Required | Description                                                                                                                                                                     |
 |------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                                                                              |
-| `before`         | query | integer      | false    | Not used. The route ignores this parameter.                                                                                                                                     |
-| `after`          | query | integer      | false    | ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more.                                             |
+| `before`         | query | integer      | false    | Not used. The server ignores this parameter.                                                                                                                                    |
+| `after`          | query | integer      | false    | ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of `0` or more.                                                   |
 | `follow`         | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive. Not supported with `format=text`.                          |
 | `no_compression` | query | boolean      | false    | When present, turns off WebSocket compression. It only applies with `follow`.                                                                                                   |
 | `format`         | query | string       | false    | Log output format, either `json` or `text`. The default is `json`, and `text` returns plain text with RFC3339 timestamps and ANSI colors. `text` isn't supported with `follow`. |
@@ -1351,13 +1353,13 @@ A workspace proxy can authenticate with its proxy token in the `Coder-External-P
 
 ### Parameters
 
-| Name             | In    | Type         | Required | Description                                                                                                                         |
-|------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------------------------------|
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                                  |
-| `before`         | query | integer      | false    | Not used. The route ignores this parameter.                                                                                         |
-| `after`          | query | integer      | false    | ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more. |
-| `follow`         | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive.                |
-| `no_compression` | query | boolean      | false    | When present, turns off WebSocket compression. It only applies with `follow`.                                                       |
+| Name             | In    | Type         | Required | Description                                                                                                                   |
+|------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                            |
+| `before`         | query | integer      | false    | Not used. The server ignores this parameter.                                                                                  |
+| `after`          | query | integer      | false    | ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of `0` or more. |
+| `follow`         | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive.          |
+| `no_compression` | query | boolean      | false    | When present, turns off WebSocket compression. It only applies with `follow`.                                                 |
 
 ### Example responses
 

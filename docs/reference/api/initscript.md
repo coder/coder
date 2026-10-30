@@ -17,7 +17,7 @@ curl -X GET http://coder-server:8080/api/v2/init-script/{os}/{arch}
 
 `GET /api/v2/init-script/{os}/{arch}`
 
-Returns the script that downloads the Coder agent binary from the deployment and starts it, for the given operating system and architecture.
+Returns the script that downloads the workspace agent binary from the deployment and starts it, for the given operating system and architecture.
 The script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the `init_script` of a `coder_agent` from the same script.
 Doesn't require a session token, and returns `400` for an operating system and architecture pair that Coder doesn't support.
 
