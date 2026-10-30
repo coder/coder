@@ -220,7 +220,6 @@ func TestExecuteLocalTools_BatchRuntime(t *testing.T) {
 		name            string
 		tools           []tool
 		unbilled        map[string]bool
-		aliases         map[string]string
 		calls           []fantasy.ToolCallContent
 		steps           []step
 		wantRuntime     time.Duration
@@ -291,28 +290,6 @@ func TestExecuteLocalTools_BatchRuntime(t *testing.T) {
 			},
 			wantRuntime:     0,
 			wantBilledCalls: 0,
-		},
-		{
-			name: "AliasNamesClassifyAsCalled",
-			tools: []tool{
-				{name: "execute", response: fantasy.NewTextResponse("done")},
-				{name: "interrupt_agent", response: fantasy.NewTextResponse("stopped")},
-			},
-			aliases: map[string]string{"close_agent": "interrupt_agent"},
-			unbilled: map[string]bool{
-				"interrupt_agent": true,
-				"close_agent":     true,
-			},
-			calls: []fantasy.ToolCallContent{
-				{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
-				{ToolCallID: "call-legacy", ToolName: "close_agent", Input: "{}"},
-			},
-			steps: []step{
-				{advance: 10 * time.Second, finish: "execute", releases: 1},
-				{advance: 50 * time.Second, finish: "interrupt_agent", releases: 1},
-			},
-			wantRuntime:     10 * time.Second,
-			wantBilledCalls: 1,
 		},
 		{
 			name: "DuplicateToolCallIDsKeepOccurrenceCompletions",
@@ -417,7 +394,6 @@ func TestExecuteLocalTools_BatchRuntime(t *testing.T) {
 			resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
 				Tools:             tools,
 				ActiveTools:       activeTools,
-				ToolNameAliases:   tc.aliases,
 				UnbilledToolNames: tc.unbilled,
 				ToolCalls:         tc.calls,
 			})

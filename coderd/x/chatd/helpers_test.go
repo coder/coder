@@ -16,8 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
-	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -312,15 +310,12 @@ func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store, opt
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	evaluator, err := experiments.New(testutil.Logger(t), experimentstest.Store{}, nil)
-	require.NoError(t, err)
 	server, err := New(ps, Config{
-		Logger:              testutil.Logger(t),
-		Database:            db,
-		ReplicaID:           uuid.New(),
-		Clock:               cfg.clock,
-		Limits:              cfg.limits,
-		ExperimentEvaluator: evaluator,
+		Logger:    testutil.Logger(t),
+		Database:  db,
+		ReplicaID: uuid.New(),
+		Clock:     cfg.clock,
+		Limits:    cfg.limits,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = server.Close() })

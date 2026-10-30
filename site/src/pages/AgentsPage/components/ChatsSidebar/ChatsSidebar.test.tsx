@@ -11,7 +11,15 @@ import { HttpResponse, http } from "msw";
 import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	onTestFinished,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -152,6 +160,33 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
+	beforeEach(() => {
+		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
+	});
+
+	it("requests an open folder's chats with the sidebar's filters", async () => {
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([]);
+			}),
+		);
+
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(requests).toHaveLength(1));
+		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
+		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+	});
+
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
 		const mockOtherProject = {
@@ -444,6 +479,53 @@ describe("ChatsSidebar projects", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
 		await waitFor(() => expect(requestCount).toBe(2));
+	});
+
+	it("moves focus to the folder toggle when a folder retry succeeds", async () => {
+		// Fake timers skip the folder query's retry backoff.
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		let isFolderLoadFailing = true;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", () =>
+				isFolderLoadFailing
+					? HttpResponse.json({ message: "Chats unavailable" }, { status: 500 })
+					: HttpResponse.json([
+							buildChat({
+								id: "retried-project-chat",
+								title: "Retried project chat",
+								project_id: MockChatProject.id,
+							}),
+						]),
+			),
+		);
+
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+		await act(() => vi.advanceTimersByTimeAsync(10_000));
+		const retryButton = await screen.findByRole("button", {
+			name: `Retry loading chats in ${MockChatProject.name}`,
+		});
+		isFolderLoadFailing = false;
+		retryButton.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", {
+					name: `Collapse ${MockChatProject.name}`,
+				}),
+			).toHaveFocus(),
+		);
 	});
 
 	it("deletes the viewed project and its drafts, then leaves its page", async () => {
@@ -1725,30 +1807,39 @@ const toggleSubmenuOption = async (
 };
 
 describe("ChatsSidebar filters", () => {
-	it("applies the archived checkbox", async () => {
-		const user = userEvent.setup();
-		const onSidebarFiltersChange = vi.fn();
+	it.each([
+		["active", "Archived", "archived"],
+		["archived", "Active", "active"],
+	] as const)(
+		"switches from %s to %s chats",
+		async (initialStatus, label, archiveStatus) => {
+			const user = userEvent.setup();
+			const onSidebarFiltersChange = vi.fn();
 
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					sidebarFilters={defaultSidebarFilters}
-					onSidebarFiltersChange={onSidebarFiltersChange}
-				/>
-			</Wrapper>,
-		);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						sidebarFilters={{
+							...defaultSidebarFilters,
+							archiveStatus: initialStatus,
+						}}
+						onSidebarFiltersChange={onSidebarFiltersChange}
+					/>
+				</Wrapper>,
+			);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(
-			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
-		);
+			await user.click(screen.getByRole("button", { name: "Filter agents" }));
+			await user.click(
+				await screen.findByRole("menuitemradio", { name: label }),
+			);
 
-		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
-			...defaultSidebarFilters,
-			archiveStatus: "archived",
-		});
-	});
+			expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+				...defaultSidebarFilters,
+				archiveStatus,
+			});
+		},
+	);
 
 	it("clears only result filters when applied filters return no agents", async () => {
 		const user = userEvent.setup();
@@ -1851,7 +1942,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await toggleSubmenuOption(user, "Status", "Working");
+		await toggleSubmenuOption(user, "Chat status", "Working");
 		await toggleSubmenuOption(user, /Source/, "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
@@ -1909,7 +2000,9 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Reset filters" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,

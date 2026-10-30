@@ -23,6 +23,7 @@ import {
 	isTextPreviewAttachmentMediaType,
 } from "./AttachmentBlocks";
 import { AttachmentDownloadLink } from "./AttachmentDownloadLink";
+import { useFileProbes } from "./FileProbeContext";
 import type { MessageAttachment } from "./messageHelpers";
 
 type AttachmentFile = MessageAttachment["file"];
@@ -50,18 +51,22 @@ type AttachmentDialogProps = ReturnType<
 type ViewableFileCardProps = {
 	file: AttachmentFile;
 	href: string;
-	onView: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** Shown in place of the file type badge. */
 	tile?: React.ReactNode;
 	/** Shown under the name in place of "View file". */
 	status?: string | null;
-	/**
-	 * The file is gone: the button keeps focus but no longer views or
-	 * downloads it.
-	 */
-	expired?: boolean;
 	ref?: React.RefCallback<HTMLElement>;
-};
+} & (
+	| {
+			onView: (event: React.MouseEvent<HTMLButtonElement>) => void;
+			/**
+			 * The file is gone: the button keeps focus but no longer views or
+			 * downloads it.
+			 */
+			expired?: boolean;
+	  }
+	| { onView?: undefined; expired: true }
+);
 
 /**
  * Speech input matches visible text, so the button's accessible name keeps
@@ -149,31 +154,45 @@ type AttachmentCardProps = {
 	attachment: MessageAttachment;
 };
 
+type ExpirableAttachmentCardProps = AttachmentCardProps & { expired: boolean };
+
 /**
- * A thumbnail that fails to load swaps the card for a download card, since
- * the viewer would show the same broken image.
+ * A ref for every card a component swaps between, so when a swap removes the
+ * focused card, the new card takes focus instead of the page body. An open
+ * viewer holds focus in its portal, so `isViewing` counts as focus.
  */
-const ImageAttachmentCard: React.FC<AttachmentCardProps> = ({
-	attachment: { file, href },
-}) => {
-	const [hasFailed, setHasFailed] = useState(false);
-	const viewer = useAttachmentViewer();
+const useSwapFocusRef = (isViewing = false) => {
 	const hadFocusRef = useRef(false);
-	// Both cards take this ref, so when the swap removes the focused card,
-	// the download card takes focus instead of the page body.
-	const swapFocusRef = (node: HTMLElement) => {
+	return (node: HTMLElement) => {
 		if (hadFocusRef.current && document.activeElement === document.body) {
-			node.focus();
+			// The expired card's ref is its wrapper, which holds its button.
+			(node.querySelector("button") ?? node).focus();
 		}
 		// React runs ref cleanups before it removes the node, so focus inside
 		// it has not fallen to the page body yet.
 		return () => {
-			// An open viewer holds focus in its portal instead.
-			hadFocusRef.current =
-				viewer.isViewing || node.contains(document.activeElement);
+			hadFocusRef.current = isViewing || node.contains(document.activeElement);
 		};
 	};
+};
 
+/**
+ * A thumbnail that fails to load swaps the card for a download card, since
+ * the viewer would show the same broken image.
+ */
+const ImageAttachmentCard: React.FC<ExpirableAttachmentCardProps> = ({
+	attachment: { file, href },
+	expired,
+}) => {
+	const [hasFailed, setHasFailed] = useState(false);
+	const viewer = useAttachmentViewer();
+	const swapFocusRef = useSwapFocusRef(viewer.isViewing);
+
+	if (expired) {
+		return (
+			<ViewableFileCard file={file} href={href} expired ref={swapFocusRef} />
+		);
+	}
 	if (hasFailed) {
 		return (
 			<FileCard
@@ -226,6 +245,7 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 	fileId,
 }) => {
 	const viewer = useAttachmentViewer();
+	const { hasExpired, markExpired } = useFileProbes();
 	const textQuery = useQuery(chatFileText(fileId));
 	const loadError = textQuery.isError
 		? getTextAttachmentErrorMessage(textQuery.error)
@@ -236,7 +256,7 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 			<ViewableFileCard
 				file={file}
 				href={href}
-				expired={isExpiredFileError(textQuery.error)}
+				expired={hasExpired(fileId) || isExpiredFileError(textQuery.error)}
 				tile={
 					textQuery.isLoading ? (
 						<Spinner size="sm" loading className="text-content-secondary" />
@@ -250,9 +270,12 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 					if (textQuery.data !== undefined) {
 						return;
 					}
-					void textQuery.refetch().then(({ isError }) => {
+					void textQuery.refetch().then(({ isError, error }) => {
 						if (isError) {
 							viewer.close();
+						}
+						if (isExpiredFileError(error)) {
+							markExpired(fileId);
 						}
 					});
 				}}
@@ -265,6 +288,27 @@ const StoredTextAttachmentCard: React.FC<StoredTextAttachmentCardProps> = ({
 				/>
 			)}
 		</>
+	);
+};
+
+const DownloadFileCard: React.FC<ExpirableAttachmentCardProps> = ({
+	attachment: { file, href },
+	expired,
+}) => {
+	const swapFocusRef = useSwapFocusRef();
+	if (expired) {
+		return (
+			<ViewableFileCard file={file} href={href} expired ref={swapFocusRef} />
+		);
+	}
+	return (
+		<FileCard
+			block={file}
+			href={href}
+			expired={false}
+			fullWidth
+			ref={swapFocusRef}
+		/>
 	);
 };
 
@@ -291,17 +335,26 @@ const InlineTextAttachmentCard: React.FC<InlineTextAttachmentCardProps> = ({
 };
 
 /**
- * Previews images and text files, and offers other files as downloads. For a
- * stored text file, it loads the text only on view, and a 404 marks the card
- * expired, with no view or download, while that response stays cached.
+ * Previews images and text files, and offers other files as downloads. A
+ * stored text file loads its text only on view. Expired files get an expired
+ * card with no view or download, and inside a FileProbeProvider a stored text
+ * file's 404 marks the file expired for the whole timeline.
  */
 export const MessageAttachmentCard: React.FC<AttachmentCardProps> = ({
 	attachment,
 }) => {
-	const { file, href } = attachment;
+	const { file } = attachment;
+	const { hasExpired } = useFileProbes();
+	const isKnownExpired = file.file_id !== undefined && hasExpired(file.file_id);
+
+	// Cards take expiry as a prop, not an early return here, so a focused card
+	// keeps focus when its file expires.
 	if (isRasterImageMediaType(file.media_type)) {
-		return <ImageAttachmentCard attachment={attachment} />;
+		return (
+			<ImageAttachmentCard attachment={attachment} expired={isKnownExpired} />
+		);
 	}
+
 	const storedTextFileId = getStoredTextFileId(file);
 	if (storedTextFileId) {
 		return (
@@ -311,10 +364,12 @@ export const MessageAttachmentCard: React.FC<AttachmentCardProps> = ({
 			/>
 		);
 	}
+
 	if (isTextPreviewAttachmentMediaType(file.media_type) && file.data) {
 		return (
 			<InlineTextAttachmentCard attachment={attachment} data={file.data} />
 		);
 	}
-	return <FileCard block={file} href={href} expired={false} fullWidth />;
+
+	return <DownloadFileCard attachment={attachment} expired={isKnownExpired} />;
 };

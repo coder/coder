@@ -1102,7 +1102,6 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							saveMCPSelection(organizationId, ids);
 						}
 					}}
-					onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 					workspaceOptions={filteredWorkspaces}
 					selectedWorkspaceId={effectiveWorkspaceId}
 					// Do not persist a workspace until its organization is authorized.

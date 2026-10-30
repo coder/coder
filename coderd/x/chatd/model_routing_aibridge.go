@@ -457,28 +457,6 @@ func (p *Server) resolveModelRouteForConfig(
 	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type), modelConfig.Model)
 }
 
-func (p *Server) resolveModelRouteForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (aiGatewayModelRoute, error) {
-	provider, err := p.aiProviderForProviderType(ctx, providerType)
-	if err != nil {
-		return aiGatewayModelRoute{}, err
-	}
-	// This path serves hardcoded computer-use defaults (openai or
-	// anthropic), never bedrock, so the model name is not needed for
-	// format inference. An empty model makes bedrock infer OpenAI format,
-	// which is harmless because bedrock cannot reach this path.
-	return p.resolveAIGatewayRoute(
-		ctx,
-		ownerID,
-		provider,
-		chatprovider.NormalizeProvider(providerType),
-		"",
-	)
-}
-
 func (p *Server) gatewayProviderForConfig(
 	ctx context.Context,
 	modelConfig database.ChatModelConfig,
@@ -491,28 +469,4 @@ func (p *Server) gatewayProviderForConfig(
 		)
 	}
 	return p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
-}
-
-func (p *Server) aiProviderForProviderType(
-	ctx context.Context,
-	providerType string,
-) (database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return database.AIProvider{}, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if !provider.Enabled {
-			continue
-		}
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		return provider, nil
-	}
-	return database.AIProvider{}, xerrors.Errorf(
-		"AI Gateway routing requires a usable AI provider for provider type %q",
-		providerType,
-	)
 }
