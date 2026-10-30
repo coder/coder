@@ -74,7 +74,7 @@ const encodeTerminalPayload = (payload: Record<string, number | string>) => {
 	return new TextEncoder().encode(JSON.stringify(payload));
 };
 
-export const WorkspaceTerminal = ({
+export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	ref,
 	agentId,
 	operatingSystem,
@@ -97,7 +97,7 @@ export const WorkspaceTerminal = ({
 	loading = false,
 	errorMessage,
 	testId,
-}: WorkspaceTerminalProps) => {
+}) => {
 	const scopeId = useId();
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
