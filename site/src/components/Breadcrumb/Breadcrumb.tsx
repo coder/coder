@@ -62,6 +62,10 @@ export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	);
 };
 
+/**
+ * Non-link crumb label. Pass `aria-current="page"` only when it names the
+ * current page.
+ */
 export const BreadcrumbPage: React.FC<React.ComponentProps<"span">> = ({
 	className,
 	...props
