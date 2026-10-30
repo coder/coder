@@ -957,10 +957,7 @@ func TestCreateChildSubagentChatResolvesOrganizationSystemPrompt(t *testing.T) {
 	require.NoError(t, err)
 
 	childTexts := systemTexts(child.ID)
-	require.Greater(t, len(childTexts), 2)
-	require.Equal(t, strings.Replace(DefaultSystemPrompt, subagentOrchestrationPromptBlock, "", 1), childTexts[0])
-	require.Equal(t, orgPrompt, childTexts[1])
-	require.NotContains(t, childTexts[2:], orgPrompt)
+	require.Equal(t, []string{strings.Replace(DefaultSystemPrompt, subagentOrchestrationPromptBlock, "", 1), orgPrompt}, childTexts)
 	require.Equal(t, parentTexts, systemTexts(parent.ID))
 	require.NotContains(t, parentTexts, orgPrompt)
 }

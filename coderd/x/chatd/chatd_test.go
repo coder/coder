@@ -767,187 +767,132 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	require.Empty(t, queued)
 }
 
-func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
-	t.Parallel()
-
-	t.Run("WithWorkspace", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		server := newTestServer(t, db, ps, uuid.New())
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		tpl := dbgen.Template(t, db, database.Template{
-			CreatedBy:       user.ID,
-			OrganizationID:  org.ID,
-			ActiveVersionID: tv.ID,
-		})
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID:     org.ID,
-			OwnerID:            user.ID,
-			WorkspaceID:        uuid.NullUUID{UUID: workspace.ID, Valid: true},
-			Title:              "test-with-workspace",
-			ModelConfigID:      model.ID,
-			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-		})
-		require.NoError(t, err)
-
-		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-		require.NoError(t, err)
-
-		var workspaceMsg *database.ChatMessage
-		for _, msg := range messages {
-			if msg.Role == database.ChatMessageRoleSystem {
-				content := string(msg.Content.RawMessage)
-				if strings.Contains(content, "attached to a workspace") {
-					workspaceMsg = &msg
-					break
-				}
-			}
-		}
-		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
-		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
-		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
-	})
-
-	t.Run("WithoutWorkspace", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		server := newTestServer(t, db, ps, uuid.New())
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID:     org.ID,
-			OwnerID:            user.ID,
-			Title:              "test-without-workspace",
-			ModelConfigID:      model.ID,
-			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-		})
-		require.NoError(t, err)
-
-		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-		require.NoError(t, err)
-
-		var workspaceMsg *database.ChatMessage
-		for _, msg := range messages {
-			if msg.Role == database.ChatMessageRoleSystem {
-				content := string(msg.Content.RawMessage)
-				if strings.Contains(content, "This chat started without an attached workspace") {
-					workspaceMsg = &msg
-					break
-				}
-			}
-		}
-		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
-		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
-		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
-		workspaceContent := string(workspaceMsg.Content.RawMessage)
-		require.Contains(t, workspaceContent, "missing tools, skills, MCPs, or context prevent progress")
-		require.Contains(t, workspaceContent, "create a suitable workspace with create_workspace")
-		require.NotContains(t, workspaceContent, "start_workspace")
-		require.Contains(t, workspaceContent, "Use the workspace's available context and capabilities to continue the user's request")
-		require.NotContains(t, workspaceContent, "Do not create or start a workspace by default")
-	})
-}
-
 // TestWorkspaceAwarenessFollowsWorkspaceBinding changes the workspace
 // binding between turns, as PATCH /chats/{chat} does, and checks that each
 // request states the binding when the request was built.
 func TestWorkspaceAwarenessFollowsWorkspaceBinding(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-
-	var (
-		requests   []recordedOpenAIRequest
-		requestsMu sync.Mutex
-	)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(t, req))
-		requestsMu.Unlock()
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "", func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "workspace-awareness-binding",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-
-	sendAfterBinding := func(workspaceID uuid.NullUUID, text string) {
-		_, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-			ID:          chat.ID,
-			WorkspaceID: workspaceID,
-		})
-		require.NoError(t, err)
-		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:  chat.ID,
-			Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
-		})
-		require.NoError(t, err)
-		waitForChatProcessed(ctx, t, db, chat.ID, server)
+	tests := []struct {
+		name string
+		// savedTexts are the system rows the chat is created with.
+		savedTexts []string
+	}{
+		{name: "NewChat"},
+		// Chats created before turns built awareness hold a saved copy.
+		{name: "ChatWithSavedAwareness", savedTexts: chatd.LegacyWorkspaceAwarenessTexts()},
 	}
-	sendAfterBinding(uuid.NullUUID{UUID: ws.ID, Valid: true}, "second")
-	sendAfterBinding(uuid.NullUUID{}, "third")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 3)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
 
-	want := []string{chatd.WorkspaceDetachedAwareness, chatd.WorkspaceAttachedAwareness, chatd.WorkspaceDetachedAwareness}
-	for i, req := range recorded {
-		var system strings.Builder
-		for _, msg := range req.Messages {
-			if msg.Role == "system" {
-				_, _ = system.WriteString(msg.Content + "\n")
+			var (
+				requests   []recordedOpenAIRequest
+				requestsMu sync.Mutex
+			)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				requestsMu.Lock()
+				requests = append(requests, recordOpenAIRequest(t, req))
+				requestsMu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+			factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+			server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "", func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+			})
+
+			var chatID uuid.UUID
+			if tt.savedTexts == nil {
+				chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+					OwnerID:        user.ID,
+					OrganizationID: org.ID,
+					Title:          "workspace-awareness-binding",
+					ModelConfigID:  model.ID,
+				})
+				require.NoError(t, err)
+				chatID = chat.ID
+			} else {
+				saved := make([]chatstate.Message, 0, len(tt.savedTexts))
+				for _, text := range tt.savedTexts {
+					content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+					require.NoError(t, err)
+					saved = append(saved, chatstate.Message{
+						Role:           database.ChatMessageRoleSystem,
+						Content:        content,
+						Visibility:     database.ChatMessageVisibilityModel,
+						ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+						ContentVersion: chatprompt.CurrentContentVersion,
+					})
+				}
+				created, err := chatstate.CreateChat(dbauthz.AsSystemRestricted(ctx), db, ps, chatstate.CreateChatInput{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					LastModelConfigID: model.ID,
+					Title:             "workspace-awareness-binding",
+					MCPServerIDs:      []uuid.UUID{},
+					ClientType:        database.ChatClientTypeApi,
+					InitialStatus:     database.ChatStatusWaiting,
+					InitialMessages:   saved,
+				})
+				require.NoError(t, err)
+				chatID = created.Chat.ID
 			}
-		}
-		other := chatd.WorkspaceAttachedAwareness
-		if want[i] == other {
-			other = chatd.WorkspaceDetachedAwareness
-		}
-		require.Equal(t, 1, strings.Count(system.String(), want[i]), "request %d", i)
-		require.NotContains(t, system.String(), other, "request %d", i)
-		require.NotContains(t, system.String(), "This chat started without an attached workspace", "request %d", i)
+
+			sendAfterBinding := func(workspaceID uuid.NullUUID, text string) {
+				_, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID:          chatID,
+					WorkspaceID: workspaceID,
+				})
+				require.NoError(t, err)
+				_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+					ChatID:  chatID,
+					Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+				})
+				require.NoError(t, err)
+				waitForChatProcessed(ctx, t, db, chatID, server)
+			}
+			sendAfterBinding(uuid.NullUUID{}, "first")
+			sendAfterBinding(uuid.NullUUID{UUID: ws.ID, Valid: true}, "second")
+			sendAfterBinding(uuid.NullUUID{}, "third")
+
+			requestsMu.Lock()
+			recorded := append([]recordedOpenAIRequest(nil), requests...)
+			requestsMu.Unlock()
+			require.Len(t, recorded, 3)
+
+			want := []string{chatd.WorkspaceDetachedAwareness, chatd.WorkspaceAttachedAwareness, chatd.WorkspaceDetachedAwareness}
+			for i, req := range recorded {
+				var system strings.Builder
+				for _, msg := range req.Messages {
+					if msg.Role == "system" {
+						_, _ = system.WriteString(msg.Content + "\n")
+					}
+				}
+				require.Equal(t, 1, strings.Count(system.String(), want[i]), "request %d", i)
+				for _, stale := range append([]string{chatd.WorkspaceAttachedAwareness, chatd.WorkspaceDetachedAwareness}, tt.savedTexts...) {
+					if stale != want[i] {
+						require.NotContains(t, system.String(), stale, "request %d", i)
+					}
+				}
+			}
+		})
 	}
 }
 
 // TestCreateChatWithoutInitialUserContent verifies that chats created
-// without initial user content start idle in `waiting` with system
-// messages only, so no worker picks them up before the first message.
-// APIKeyID is not required because no user message is inserted.
+// without initial user content start idle in `waiting` without a user
+// message, so no worker picks them up before the first message.
+// APIKeyID is not required because no user message is inserted. Without
+// system prompts the chat has no history until its first message.
 func TestCreateChatWithoutInitialUserContent(t *testing.T) {
 	t.Parallel()
 
@@ -956,6 +901,7 @@ func TestCreateChatWithoutInitialUserContent(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
+	require.NoError(t, db.UpsertChatIncludeDefaultSystemPrompt(ctx, false))
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -965,13 +911,20 @@ func TestCreateChatWithoutInitialUserContent(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
+	require.Zero(t, chat.HistoryVersion)
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.NotEmpty(t, messages, "system messages are still inserted")
-	for _, msg := range messages {
-		require.Equal(t, database.ChatMessageRoleSystem, msg.Role, "no user message on an empty create")
-	}
+	require.Empty(t, messages)
+
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+	})
+	require.NoError(t, err)
+	require.False(t, result.Queued)
+	require.Equal(t, database.ChatStatusRunning, result.Chat.Status)
+	require.Equal(t, result.Chat.SnapshotVersion, result.Chat.HistoryVersion)
 }
 
 // TestSendMessageFirstUserTurnFallbackTitle verifies that the first
@@ -4162,13 +4115,13 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 			}
 		}
 		if i == 0 {
-			require.Contains(t, systemContent, chatd.WorkspaceDetachedAwareness)
+			require.Equal(t, 1, strings.Count(systemContent, chatd.WorkspaceDetachedAwareness))
 			require.NotContains(t, systemContent, instruction)
 			require.NotContains(t, systemContent, skillName)
 			require.NotContains(t, call.Offered, mcpToolName)
 			continue
 		}
-		require.Contains(t, systemContent, chatd.WorkspaceAttachedAwareness)
+		require.Equal(t, 1, strings.Count(systemContent, chatd.WorkspaceAttachedAwareness))
 		require.NotContains(t, systemContent, chatd.WorkspaceDetachedAwareness)
 		require.Contains(t, systemContent, "<workspace-context>")
 		require.Contains(t, systemContent, instruction)

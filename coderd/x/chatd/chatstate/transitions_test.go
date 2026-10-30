@@ -101,6 +101,44 @@ func TestTransitionCreate_NToW(t *testing.T) {
 	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
 }
 
+// TestTransitionCreate_NToWWithoutMessages verifies that a waiting chat
+// can be created without history, keeps history_version 0 until its
+// first message, and starts running with that message.
+func TestTransitionCreate_NToWWithoutMessages(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID:    f.Org.ID,
+		OwnerID:           f.User.ID,
+		LastModelConfigID: f.Model.ID,
+		Title:             "t",
+		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	require.Empty(t, res.InitialMessages)
+	require.Equal(t, int64(1), res.Chat.SnapshotVersion)
+	require.Equal(t, int64(0), res.Chat.HistoryVersion, "no message has been inserted")
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, res.Chat.ID))
+	require.False(t, f.Pub.hasOwnership(), "waiting chat is not runnable, must not publish an ownership hint")
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, res.Chat.ID)
+	err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, serr := tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage("first", f.User.ID, f.Model.ID),
+			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+		})
+		return serr
+	})
+	require.NoError(t, err)
+	after, err := f.DB.GetChatByID(ctx, res.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, res.Chat.ID))
+	require.Equal(t, after.SnapshotVersion, after.HistoryVersion, "the first message sets history_version")
+}
+
 // TestCreateChat_RejectsInvalidInitialStatus verifies that CreateChat
 // only accepts waiting or running as the initial status. The zero
 // value defaults to running (see CreateChatInput), so only explicit

@@ -600,7 +600,7 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 // chatstate.CreateChat. With initial user content the new chat starts
 // in `running` status and ownership hints wake chat workers. Without
 // initial user content the chat is created idle in `waiting` status
-// with system messages only; the first SendMessage starts generation.
+// without a user message; the first SendMessage starts generation.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
@@ -706,16 +706,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
-	workspaceAwareness := savedWorkspaceDetachedAwareness
-	if opts.WorkspaceID.Valid {
-		workspaceAwareness = savedWorkspaceAttachedAwareness
-	}
-	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText(workspaceAwareness),
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
-	}
 	var initialMessages []chatstate.Message
 	if deploymentPrompt != "" {
 		deploymentContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -744,7 +734,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
-	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
 	if len(contentParts) > 0 {
 		userContent, marshalErr := chatprompt.MarshalParts(contentParts)
 		if marshalErr != nil {
