@@ -67,9 +67,9 @@ Spend is shown where it is actionable:
   the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
 
-For organization spend exports, refer to [AI Gateway spend export](../../ai-gateway/cost-controls.md#spend-export).
+For organization spend exports, refer to [AI Gateway spend export](../../../ai-governance/ai-gateway/cost-controls.md#spend-export).
 
-The AI Gateway [sessions views](../../ai-gateway/audit.md#navigate-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.
+The AI Gateway [sessions views](../../../ai-governance/ai-gateway/audit.md#navigate-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.
 
-AI Gateway data is subject to its own [retention period](../../ai-gateway/monitoring.md#data-retention), 60&nbsp;days by default, which is configured independently of chat retention.
+AI Gateway data is subject to its own [retention period](../../../ai-governance/ai-gateway/monitoring.md#data-retention), 60&nbsp;days by default, which is configured independently of chat retention.
 Spend for requests older than that period is no longer reported, so a chat for which gateway records have been pruned reports no cost.

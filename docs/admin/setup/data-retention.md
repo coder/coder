@@ -37,7 +37,7 @@ You can configure retention policies using CLI flags, environment variables, or 
 
 > [!NOTE]
 > AI Gateway retention is configured separately from other retention settings.
-> See [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention) for detailed configuration options.
+> See [AI Gateway Setup](../../ai-governance/ai-gateway/setup.md#data-retention) for detailed configuration options.
 
 ### Duration Format
 
@@ -129,7 +129,7 @@ Setting `--workspace-agent-logs-retention=7d` deletes logs for agents that haven
 AI Gateway retention applies to interception records and all related data, including token usage, prompts, and tool invocations.
 The default of 60&nbsp;days provides a reasonable balance between storage costs and the ability to analyze usage patterns.
 
-For details on what data is retained, see the [AI Gateway Data Retention](../../ai-coder/ai-gateway/setup.md#data-retention) documentation.
+For details on what data is retained, see the [AI Gateway Data Retention](../../ai-governance/ai-gateway/setup.md#data-retention) documentation.
 
 ## Best Practices
 
@@ -202,6 +202,6 @@ To monitor retention activity, enable debug logging or search your logs for entr
 
 - [Audit Logs](../security/audit-logs.md): Learn about Audit Logs and manual purge procedures.
 - [Connection Logs](../monitoring/connection-logs.md): Learn about Connection Logs and monitoring.
-- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for centralized LLM and MCP proxy management.
-- [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention): Configure AI Gateway data retention.
-- [AI Gateway Monitoring](../../ai-coder/ai-gateway/monitoring.md): Monitor AI Gateway usage and metrics.
+- [AI Gateway](../../ai-governance/ai-gateway/index.md): Learn about AI Gateway for centralized LLM and MCP proxy management.
+- [AI Gateway Setup](../../ai-governance/ai-gateway/setup.md#data-retention): Configure AI Gateway data retention.
+- [AI Gateway Monitoring](../../ai-governance/ai-gateway/monitoring.md): Monitor AI Gateway usage and metrics.

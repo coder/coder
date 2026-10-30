@@ -11,7 +11,7 @@ export const AIBridgeHelpPopover: React.FC = () => {
 				AI Gateway is a smart gateway for AI that provides centralized
 				management, auditing, and attribution for LLM usage.
 				<br />
-				<Link size="sm" href={docs("/ai-coder/ai-gateway")}>
+				<Link size="sm" href={docs("/ai-governance/ai-gateway")}>
 					Read the docs
 				</Link>
 			</TooltipMessage>

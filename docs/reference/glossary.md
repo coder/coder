@@ -32,7 +32,7 @@ Refer to the [Agent API reference](./agent-api/index.md).
 A process-level firewall that enforces domain and verb allowlists on AI agent processes inside a workspace and streams audit logs to `coderd`.
 It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
 This feature requires a Premium license.
-Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
+Refer to [Agent Firewall](../ai-governance/agent-firewall/index.md).
 
 ### Agent Relay
 
@@ -47,18 +47,18 @@ Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
 It was previously named AI Bridge and runs the `aibridged` component in memory inside `coderd`.
 This feature requires a Premium license.
-Refer to [AI Gateway](../ai-coder/ai-gateway/index.md).
+Refer to [AI Gateway](../ai-governance/ai-gateway/index.md).
 
 ### AI Gateway Proxy
 
 An HTTP proxy component, `aibridgeproxyd`, for AI clients that cannot override their base URL, such as GitHub Copilot.
 This feature requires a Premium license.
-Refer to [AI Gateway Proxy](../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
+Refer to [AI Gateway Proxy](../ai-governance/ai-gateway/ai-gateway-proxy/index.md).
 
 ### AI Governance
 
 Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall.
-Refer to [AI Governance](../ai-coder/ai-governance.md).
+Refer to [AI Governance](../ai-governance/index.md).
 
 ### Air-gapped deployment
 

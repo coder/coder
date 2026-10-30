@@ -257,7 +257,14 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   Changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
 - **Feature states are marked in navigation metadata.**
-  The page's route in `docs/manifest/` must include its state, such as `state: [premium]` or `state: [beta]`.
+  A route in `docs/manifest/` carries the feature's state, such as `state: [premium]` or `state: [beta]`.
+  A state on a route applies to the route and all of its descendants, so put it on the highest route it applies to.
+  Add a state to a descendant only when it differs from what the descendant inherits, such as an early access subfeature inside a Premium feature.
+  Do not repeat an ancestor's state on a descendant; `make lint/docs-manifest` fails when a route repeats a state an ancestor already sets.
+  The sidebar shows the state pill on the ancestor and on descendants whose state differs.
+  Every page shows its full state, including inherited states, as a pill under the title.
+  Inherited pills render only on a docs site built with the docs-engine change that adds state inheritance.
+  For a worked example, refer to [Feature states](https://github.com/coder/coder/blob/main/contributing/documentation.md#feature-states) in the contributor guide.
   Do not add a feature-state suffix to the page title or H1.
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:

@@ -205,7 +205,7 @@ export const SessionSummaryTable = ({
 							<Link
 								size="sm"
 								href={docs(
-									"/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated",
+									"/ai-governance/ai-gateway/cost-controls#how-spend-is-calculated",
 								)}
 								target="_blank"
 								rel="noreferrer"

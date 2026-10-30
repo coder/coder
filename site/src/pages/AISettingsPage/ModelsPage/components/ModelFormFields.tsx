@@ -306,7 +306,7 @@ export const ModelFormFields: React.FC<{
 								Model prices are managed by AI Gateway.{" "}
 								<Link
 									href={docs(
-										"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+										"/ai-governance/ai-gateway/cost-controls#configure-model-prices",
 									)}
 									size="sm"
 								>

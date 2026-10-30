@@ -195,7 +195,9 @@ Review only the user-facing part of a mixed diff.
 
 - **Sidebar:** `docs/manifest/**/*.yml` is the navigation source. Each file holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
 - **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`, and `docs/reference/api/*.md` comes from Swagger comments in Go. Suggest edits to the source.
-- **Feature states:** a staged feature carries `state:` on its route in `docs/manifest/**/*.yml`, such as `state: [premium]`. Titles and H1s carry no state suffix.
+- **Feature states:** a staged feature carries `state:` on its highest route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
+  Descendants inherit it and set `state:` only for a state they add.
+  Titles and H1s carry no state suffix.
 - **Redirects:** `docs/redirects.json`. A rename or move updates every inbound link and adds a redirect in the same PR. There is no `docs/_redirects` file.
 - **Glossary:** `docs/reference/glossary.md`. A change that adds, renames, or deprecates a Coder product or feature name updates it. Refer to [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 - **Callouts:** GitHub-Flavored Markdown alerts, such as `> [!NOTE]`.
