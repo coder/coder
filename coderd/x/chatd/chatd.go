@@ -1716,7 +1716,7 @@ func (p *Server) trackWorkspaceUsage(
 		// approx. 333 CTE queries/second. A cheap fix for this could
 		// be to heartbeat every Nth query. Leaving as potential future
 		// low-hanging fruit if needed.
-		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{}, workspacestats.ActivityBumpReasonChatHeartbeat)
+		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{}, database.WorkspaceBuildDeadlineSource{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChat})
 	}
 	return wsID
 }

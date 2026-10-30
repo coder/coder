@@ -4911,6 +4911,73 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 	}
 }
 
+type WorkspaceBuildDeadlineReason string
+
+const (
+	WorkspaceBuildDeadlineReasonBuild            WorkspaceBuildDeadlineReason = "build"
+	WorkspaceBuildDeadlineReasonActivity         WorkspaceBuildDeadlineReason = "activity"
+	WorkspaceBuildDeadlineReasonUserChanged      WorkspaceBuildDeadlineReason = "user_changed"
+	WorkspaceBuildDeadlineReasonAutostopDisabled WorkspaceBuildDeadlineReason = "autostop_disabled"
+	WorkspaceBuildDeadlineReasonTemplateSchedule WorkspaceBuildDeadlineReason = "template_schedule"
+)
+
+func (e *WorkspaceBuildDeadlineReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceBuildDeadlineReason(s)
+	case string:
+		*e = WorkspaceBuildDeadlineReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceBuildDeadlineReason: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceBuildDeadlineReason struct {
+	WorkspaceBuildDeadlineReason WorkspaceBuildDeadlineReason `json:"workspace_build_deadline_reason"`
+	Valid                        bool                         `json:"valid"` // Valid is true if WorkspaceBuildDeadlineReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceBuildDeadlineReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceBuildDeadlineReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceBuildDeadlineReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceBuildDeadlineReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceBuildDeadlineReason), nil
+}
+
+func (e WorkspaceBuildDeadlineReason) Valid() bool {
+	switch e {
+	case WorkspaceBuildDeadlineReasonBuild,
+		WorkspaceBuildDeadlineReasonActivity,
+		WorkspaceBuildDeadlineReasonUserChanged,
+		WorkspaceBuildDeadlineReasonAutostopDisabled,
+		WorkspaceBuildDeadlineReasonTemplateSchedule:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceBuildDeadlineReasonValues() []WorkspaceBuildDeadlineReason {
+	return []WorkspaceBuildDeadlineReason{
+		WorkspaceBuildDeadlineReasonBuild,
+		WorkspaceBuildDeadlineReasonActivity,
+		WorkspaceBuildDeadlineReasonUserChanged,
+		WorkspaceBuildDeadlineReasonAutostopDisabled,
+		WorkspaceBuildDeadlineReasonTemplateSchedule,
+	}
+}
+
 type WorkspaceSecretSource string
 
 const (
@@ -7091,27 +7158,34 @@ type WorkspaceAppStatus struct {
 	Uri         sql.NullString          `db:"uri" json:"uri"`
 }
 
-// Joins in the username + avatar url of the initiated by user.
+// Joins build initiator and deadline actor presentation.
 type WorkspaceBuild struct {
-	ID                       uuid.UUID           `db:"id" json:"id"`
-	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID              uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID        uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber              int32               `db:"build_number" json:"build_number"`
-	Transition               WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID              uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	JobID                    uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                 time.Time           `db:"deadline" json:"deadline"`
-	Reason                   BuildReason         `db:"reason" json:"reason"`
-	DailyCost                int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline              time.Time           `db:"max_deadline" json:"max_deadline"`
-	TemplateVersionPresetID  uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasExternalAgent         sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
-	NotifiedAutostopDeadline time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
-	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername      string              `db:"initiator_by_username" json:"initiator_by_username"`
-	InitiatorByName          string              `db:"initiator_by_name" json:"initiator_by_name"`
+	ID                         uuid.UUID                        `db:"id" json:"id"`
+	CreatedAt                  time.Time                        `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time                        `db:"updated_at" json:"updated_at"`
+	WorkspaceID                uuid.UUID                        `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID          uuid.UUID                        `db:"template_version_id" json:"template_version_id"`
+	BuildNumber                int32                            `db:"build_number" json:"build_number"`
+	Transition                 WorkspaceTransition              `db:"transition" json:"transition"`
+	InitiatorID                uuid.UUID                        `db:"initiator_id" json:"initiator_id"`
+	JobID                      uuid.UUID                        `db:"job_id" json:"job_id"`
+	Deadline                   time.Time                        `db:"deadline" json:"deadline"`
+	Reason                     BuildReason                      `db:"reason" json:"reason"`
+	DailyCost                  int32                            `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline                time.Time                        `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID    uuid.NullUUID                    `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasExternalAgent           sql.NullBool                     `db:"has_external_agent" json:"has_external_agent"`
+	NotifiedAutostopDeadline   time.Time                        `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	DeadlineReason             NullWorkspaceBuildDeadlineReason `db:"deadline_reason" json:"deadline_reason"`
+	DeadlineChangedAt          sql.NullTime                     `db:"deadline_changed_at" json:"deadline_changed_at"`
+	DeadlineChangedBy          uuid.NullUUID                    `db:"deadline_changed_by" json:"deadline_changed_by"`
+	DeadlineSources            WorkspaceBuildDeadlineSources    `db:"deadline_sources" json:"deadline_sources"`
+	InitiatorByAvatarUrl       string                           `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername        string                           `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName            string                           `db:"initiator_by_name" json:"initiator_by_name"`
+	DeadlineChangedByAvatarUrl string                           `db:"deadline_changed_by_avatar_url" json:"deadline_changed_by_avatar_url"`
+	DeadlineChangedByUsername  string                           `db:"deadline_changed_by_username" json:"deadline_changed_by_username"`
+	DeadlineChangedByName      string                           `db:"deadline_changed_by_name" json:"deadline_changed_by_name"`
 }
 
 // Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
@@ -7166,6 +7240,14 @@ type WorkspaceBuildTable struct {
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
 	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	// Why deadline last changed. NULL for builds whose deadline predates this column.
+	DeadlineReason NullWorkspaceBuildDeadlineReason `db:"deadline_reason" json:"deadline_reason"`
+	// When deadline last changed.
+	DeadlineChangedAt sql.NullTime `db:"deadline_changed_at" json:"deadline_changed_at"`
+	// User who caused the last deadline change, when known.
+	DeadlineChangedBy uuid.NullUUID `db:"deadline_changed_by" json:"deadline_changed_by"`
+	// Typed activity sources of the last deadline change.
+	DeadlineSources WorkspaceBuildDeadlineSources `db:"deadline_sources" json:"deadline_sources"`
 }
 
 type WorkspaceLatestBuild struct {

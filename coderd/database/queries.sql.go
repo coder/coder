@@ -35,16 +35,16 @@ WITH latest AS (
 				-- Sadly we can't define 'activity_bump_interval' above since
 				-- it won't be available for this CASE statement, so we have to
 				-- copy the cast twice.
-				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > $1 :: timestamptz
+				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > $2 :: timestamptz
 				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
 					-- relevant. If autostart is > 0 and in the past, then
 					-- that is a mistake by the caller.
-					AND $1 > NOW()
+					AND $2 > NOW()
 					THEN
 					-- Extend to the autostart, then add the activity bump
-					(($1 :: timestamptz) - NOW()) + CASE
+					(($2 :: timestamptz) - NOW()) + CASE
 						WHEN templates.allow_user_autostop
 					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
@@ -63,25 +63,36 @@ WITH latest AS (
 	JOIN templates
 		ON templates.id = workspaces.template_id
 	WHERE
-		workspace_builds.workspace_id = $2::uuid
+		workspace_builds.workspace_id = $3::uuid
 		-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
 		-- are managed by the reconciliation loop and not subject to activity bumping
 	  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
+), bump AS (
+	SELECT
+		latest.build_id, latest.build_deadline, latest.build_max_deadline, latest.build_transition, latest.job_completed_at, latest.activity_bump, latest.ttl_interval,
+		-- Capping keeps the workspace_builds_deadline_below_max_deadline check
+		-- satisfied; a zero max deadline means no cap.
+		CASE
+			WHEN latest.build_max_deadline = '0001-01-01 00:00:00+00'
+			THEN NOW() + latest.ttl_interval
+			ELSE LEAST(NOW() + latest.ttl_interval, latest.build_max_deadline)
+		END AS target_deadline
+	FROM latest
 )
 UPDATE
 	workspace_builds wb
 SET
 	updated_at = NOW(),
-	deadline = CASE
-		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		-- Never reduce the deadline from activity.
-		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
-		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
-	END
-FROM latest l
+	deadline = l.target_deadline,
+	deadline_reason = 'activity',
+	deadline_changed_at = NOW(),
+	deadline_changed_by = NULL,
+	deadline_sources = $1
+FROM bump l
 WHERE wb.id = l.build_id
+AND l.target_deadline > wb.deadline
 AND l.job_completed_at IS NOT NULL
 AND l.activity_bump > 0
 AND l.build_transition = 'start'
@@ -91,8 +102,9 @@ AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
 
 type ActivityBumpWorkspaceParams struct {
-	NextAutostart time.Time `db:"next_autostart" json:"next_autostart"`
-	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	DeadlineSources WorkspaceBuildDeadlineSources `db:"deadline_sources" json:"deadline_sources"`
+	NextAutostart   time.Time                     `db:"next_autostart" json:"next_autostart"`
+	WorkspaceID     uuid.UUID                     `db:"workspace_id" json:"workspace_id"`
 }
 
 // Bumps the workspace deadline by the template's configured "activity_bump"
@@ -101,13 +113,15 @@ type ActivityBumpWorkspaceParams struct {
 // the workspace was to autostart from a stopped state.
 //
 // Max deadline is respected, and the deadline will never be bumped past it.
-// The deadline will never decrease.
+// The deadline will never decrease. A bump that moves it records the activity
+// reason and sources; other bumps are skipped.
+// We only bump if the deadline moves forward.
 // We only bump if the template has an activity bump duration set.
 // We only bump if the raw interval is positive and non-zero.
 // We only bump if workspace shutdown is manual.
 // We only bump when 5% of the deadline has elapsed.
 func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error {
-	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, arg.NextAutostart, arg.WorkspaceID)
+	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, arg.DeadlineSources, arg.NextAutostart, arg.WorkspaceID)
 	return err
 }
 
@@ -36940,7 +36954,7 @@ const getAuthenticatedWorkspaceAgentAndBuildByAuthToken = `-- name: GetAuthentic
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
-	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_external_agent, workspace_build_with_user.notified_autostop_deadline, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name
+	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_external_agent, workspace_build_with_user.notified_autostop_deadline, workspace_build_with_user.deadline_reason, workspace_build_with_user.deadline_changed_at, workspace_build_with_user.deadline_changed_by, workspace_build_with_user.deadline_sources, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name, workspace_build_with_user.deadline_changed_by_avatar_url, workspace_build_with_user.deadline_changed_by_username, workspace_build_with_user.deadline_changed_by_name
 FROM
 	workspace_agents
 JOIN
@@ -37082,9 +37096,16 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 		&i.WorkspaceBuild.TemplateVersionPresetID,
 		&i.WorkspaceBuild.HasExternalAgent,
 		&i.WorkspaceBuild.NotifiedAutostopDeadline,
+		&i.WorkspaceBuild.DeadlineReason,
+		&i.WorkspaceBuild.DeadlineChangedAt,
+		&i.WorkspaceBuild.DeadlineChangedBy,
+		&i.WorkspaceBuild.DeadlineSources,
 		&i.WorkspaceBuild.InitiatorByAvatarUrl,
 		&i.WorkspaceBuild.InitiatorByUsername,
 		&i.WorkspaceBuild.InitiatorByName,
+		&i.WorkspaceBuild.DeadlineChangedByAvatarUrl,
+		&i.WorkspaceBuild.DeadlineChangedByUsername,
+		&i.WorkspaceBuild.DeadlineChangedByName,
 	)
 	return i, err
 }
@@ -40556,7 +40577,7 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 }
 
 const getActiveWorkspaceBuildsByTemplateID = `-- name: GetActiveWorkspaceBuildsByTemplateID :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_external_agent, wb.notified_autostop_deadline, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_external_agent, wb.notified_autostop_deadline, wb.deadline_reason, wb.deadline_changed_at, wb.deadline_changed_by, wb.deadline_sources, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name, wb.deadline_changed_by_avatar_url, wb.deadline_changed_by_username, wb.deadline_changed_by_name
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -40612,9 +40633,16 @@ func (q *sqlQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, t
 			&i.TemplateVersionPresetID,
 			&i.HasExternalAgent,
 			&i.NotifiedAutostopDeadline,
+			&i.DeadlineReason,
+			&i.DeadlineChangedAt,
+			&i.DeadlineChangedBy,
+			&i.DeadlineSources,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.DeadlineChangedByAvatarUrl,
+			&i.DeadlineChangedByUsername,
+			&i.DeadlineChangedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -40711,7 +40739,7 @@ func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, a
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40742,9 +40770,16 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.TemplateVersionPresetID,
 		&i.HasExternalAgent,
 		&i.NotifiedAutostopDeadline,
+		&i.DeadlineReason,
+		&i.DeadlineChangedAt,
+		&i.DeadlineChangedBy,
+		&i.DeadlineSources,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.DeadlineChangedByAvatarUrl,
+		&i.DeadlineChangedByUsername,
+		&i.DeadlineChangedByName,
 	)
 	return i, err
 }
@@ -40807,7 +40842,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT
 	DISTINCT ON (workspace_id)
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40842,9 +40877,16 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.TemplateVersionPresetID,
 			&i.HasExternalAgent,
 			&i.NotifiedAutostopDeadline,
+			&i.DeadlineReason,
+			&i.DeadlineChangedAt,
+			&i.DeadlineChangedBy,
+			&i.DeadlineSources,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.DeadlineChangedByAvatarUrl,
+			&i.DeadlineChangedByUsername,
+			&i.DeadlineChangedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -40861,7 +40903,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40890,16 +40932,23 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.TemplateVersionPresetID,
 		&i.HasExternalAgent,
 		&i.NotifiedAutostopDeadline,
+		&i.DeadlineReason,
+		&i.DeadlineChangedAt,
+		&i.DeadlineChangedBy,
+		&i.DeadlineSources,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.DeadlineChangedByAvatarUrl,
+		&i.DeadlineChangedByUsername,
+		&i.DeadlineChangedByName,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40928,16 +40977,23 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.TemplateVersionPresetID,
 		&i.HasExternalAgent,
 		&i.NotifiedAutostopDeadline,
+		&i.DeadlineReason,
+		&i.DeadlineChangedAt,
+		&i.DeadlineChangedBy,
+		&i.DeadlineSources,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.DeadlineChangedByAvatarUrl,
+		&i.DeadlineChangedByUsername,
+		&i.DeadlineChangedByName,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -40970,9 +41026,16 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.TemplateVersionPresetID,
 		&i.HasExternalAgent,
 		&i.NotifiedAutostopDeadline,
+		&i.DeadlineReason,
+		&i.DeadlineChangedAt,
+		&i.DeadlineChangedBy,
+		&i.DeadlineSources,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+		&i.DeadlineChangedByAvatarUrl,
+		&i.DeadlineChangedByUsername,
+		&i.DeadlineChangedByName,
 	)
 	return i, err
 }
@@ -41144,7 +41207,7 @@ func (q *sqlQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, sinc
 
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -41216,9 +41279,16 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 			&i.TemplateVersionPresetID,
 			&i.HasExternalAgent,
 			&i.NotifiedAutostopDeadline,
+			&i.DeadlineReason,
+			&i.DeadlineChangedAt,
+			&i.DeadlineChangedBy,
+			&i.DeadlineSources,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.DeadlineChangedByAvatarUrl,
+			&i.DeadlineChangedByUsername,
+			&i.DeadlineChangedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -41234,7 +41304,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, initiator_by_avatar_url, initiator_by_username, initiator_by_name FROM workspace_build_with_user WHERE created_at > $1
+SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_external_agent, notified_autostop_deadline, deadline_reason, deadline_changed_at, deadline_changed_by, deadline_sources, initiator_by_avatar_url, initiator_by_username, initiator_by_name, deadline_changed_by_avatar_url, deadline_changed_by_username, deadline_changed_by_name FROM workspace_build_with_user WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
@@ -41263,9 +41333,16 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 			&i.TemplateVersionPresetID,
 			&i.HasExternalAgent,
 			&i.NotifiedAutostopDeadline,
+			&i.DeadlineReason,
+			&i.DeadlineChangedAt,
+			&i.DeadlineChangedBy,
+			&i.DeadlineSources,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
 			&i.InitiatorByName,
+			&i.DeadlineChangedByAvatarUrl,
+			&i.DeadlineChangedByUsername,
+			&i.DeadlineChangedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -41364,11 +41441,15 @@ UPDATE
 SET
 	deadline = $1::timestamptz,
 	max_deadline = $2::timestamptz,
-	updated_at = $3::timestamptz
+	updated_at = $3::timestamptz,
+	deadline_reason = CASE WHEN workspace_builds.deadline IS DISTINCT FROM $1::timestamptz THEN $4::workspace_build_deadline_reason ELSE workspace_builds.deadline_reason END,
+	deadline_changed_at = CASE WHEN workspace_builds.deadline IS DISTINCT FROM $1::timestamptz THEN $3::timestamptz ELSE workspace_builds.deadline_changed_at END,
+	deadline_changed_by = CASE WHEN workspace_builds.deadline IS DISTINCT FROM $1::timestamptz THEN $5::uuid ELSE workspace_builds.deadline_changed_by END,
+	deadline_sources = CASE WHEN workspace_builds.deadline IS DISTINCT FROM $1::timestamptz THEN '[]'::jsonb ELSE workspace_builds.deadline_sources END
 FROM
 	workspaces
 WHERE
-	workspace_builds.id = $4::uuid
+	workspace_builds.id = $6::uuid
 	AND workspace_builds.workspace_id = workspaces.id
 	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
 	-- are managed by the reconciliation loop, not the lifecycle executor which handles
@@ -41377,17 +41458,23 @@ WHERE
 `
 
 type UpdateWorkspaceBuildDeadlineByIDParams struct {
-	Deadline    time.Time `db:"deadline" json:"deadline"`
-	MaxDeadline time.Time `db:"max_deadline" json:"max_deadline"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	ID          uuid.UUID `db:"id" json:"id"`
+	Deadline          time.Time                    `db:"deadline" json:"deadline"`
+	MaxDeadline       time.Time                    `db:"max_deadline" json:"max_deadline"`
+	UpdatedAt         time.Time                    `db:"updated_at" json:"updated_at"`
+	DeadlineReason    WorkspaceBuildDeadlineReason `db:"deadline_reason" json:"deadline_reason"`
+	DeadlineChangedBy uuid.NullUUID                `db:"deadline_changed_by" json:"deadline_changed_by"`
+	ID                uuid.UUID                    `db:"id" json:"id"`
 }
 
+// Records why the deadline changed only when it changes, so rewriting the same
+// deadline keeps the previous explanation.
 func (q *sqlQuerier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildDeadlineByID,
 		arg.Deadline,
 		arg.MaxDeadline,
 		arg.UpdatedAt,
+		arg.DeadlineReason,
+		arg.DeadlineChangedBy,
 		arg.ID,
 	)
 	return err

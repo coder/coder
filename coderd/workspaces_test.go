@@ -3497,15 +3497,16 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx         = testutil.Context(t, testutil.WaitLong)
-			client, db  = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user        = coderdtest.CreateFirstUser(t, client)
-			version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_           = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			deadline    = 8 * time.Hour
-			maxDeadline = 10 * time.Hour
-			workspace   = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			ctx             = testutil.Context(t, testutil.WaitLong)
+			client, db      = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user            = coderdtest.CreateFirstUser(t, client)
+			memberClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			version         = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template        = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			deadline        = 8 * time.Hour
+			maxDeadline     = 10 * time.Hour
+			workspace       = coderdtest.CreateWorkspace(t, memberClient, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.TTLMillis = ptr.Ref(deadline.Milliseconds())
 			})
 			build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -3521,10 +3522,11 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		initialDeadline := dbJob.CompletedAt.Time.Add(deadline)
 		expectedMaxDeadline := dbJob.CompletedAt.Time.Add(maxDeadline)
 		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          build.ID,
-			Deadline:    initialDeadline,
-			MaxDeadline: expectedMaxDeadline,
-			UpdatedAt:   dbtime.Now(),
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             build.ID,
+			Deadline:       initialDeadline,
+			MaxDeadline:    expectedMaxDeadline,
+			UpdatedAt:      dbtime.Now(),
 		})
 		require.NoError(t, err)
 
@@ -3541,6 +3543,10 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.WithinDuration(t, build.Deadline.Time, expectedMaxDeadline, time.Second)
 		require.True(t, build.MaxDeadline.Valid)
 		require.WithinDuration(t, build.MaxDeadline.Time, expectedMaxDeadline, time.Second)
+		dbBuild, err = db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), build.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.WorkspaceBuildDeadlineReasonAutostopDisabled, dbBuild.DeadlineReason.WorkspaceBuildDeadlineReason)
+		require.Equal(t, uuid.NullUUID{UUID: user.UserID, Valid: true}, dbBuild.DeadlineChangedBy)
 	})
 
 	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
@@ -3614,14 +3620,16 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 func TestWorkspaceExtend(t *testing.T) {
 	t.Parallel()
 	var (
-		ttl         = 8 * time.Hour
-		newDeadline = time.Now().Add(ttl + time.Hour).UTC()
-		client      = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user        = coderdtest.CreateFirstUser(t, client)
-		version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_           = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace   = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		ttl                          = 8 * time.Hour
+		newDeadline                  = time.Now().Add(ttl + time.Hour).UTC()
+		client, db                   = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user                         = coderdtest.CreateFirstUser(t, client)
+		memberClient, member         = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		otherAdminClient, otherAdmin = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		version                      = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_                            = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template                     = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace                    = coderdtest.CreateWorkspace(t, memberClient, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
 		})
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -3633,6 +3641,10 @@ func TestWorkspaceExtend(t *testing.T) {
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "fetch provisioned workspace")
 	oldDeadline := workspace.LatestBuild.Deadline.Time
+	initial, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.WorkspaceBuildDeadlineReasonBuild, initial.DeadlineReason.WorkspaceBuildDeadlineReason)
+	require.Equal(t, uuid.NullUUID{UUID: member.ID, Valid: true}, initial.DeadlineChangedBy)
 
 	// Updating the deadline should succeed
 	req := codersdk.PutExtendWorkspaceRequest{
@@ -3645,6 +3657,29 @@ func TestWorkspaceExtend(t *testing.T) {
 	updated, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
 	require.WithinDuration(t, newDeadline, updated.LatestBuild.Deadline.Time, time.Minute)
+	changed, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), updated.LatestBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.WorkspaceBuildDeadlineReasonUserChanged, changed.DeadlineReason.WorkspaceBuildDeadlineReason)
+	require.Equal(t, uuid.NullUUID{UUID: user.UserID, Valid: true}, changed.DeadlineChangedBy)
+
+	require.NoError(t, otherAdminClient.PutExtendWorkspace(ctx, workspace.ID, req))
+	unchanged, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), changed.ID)
+	require.NoError(t, err)
+	require.Equal(t, changed.DeadlineReason, unchanged.DeadlineReason)
+	require.Equal(t, changed.DeadlineChangedAt, unchanged.DeadlineChangedAt)
+	require.Equal(t, changed.DeadlineChangedBy, unchanged.DeadlineChangedBy)
+	require.Equal(t, changed.DeadlineSources, unchanged.DeadlineSources)
+
+	require.NoError(t, otherAdminClient.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{Deadline: newDeadline.Add(time.Minute)}))
+	replaced, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), changed.ID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: otherAdmin.ID, Valid: true}, replaced.DeadlineChangedBy)
+
+	require.NoError(t, client.DeleteUser(ctx, otherAdmin.ID))
+	deleted, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), changed.ID)
+	require.NoError(t, err)
+	require.Equal(t, otherAdmin.Username, deleted.DeadlineChangedByUsername)
+	require.Equal(t, replaced.DeadlineChangedBy, deleted.DeadlineChangedBy)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{

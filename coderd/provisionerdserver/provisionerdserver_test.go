@@ -2295,10 +2295,12 @@ func TestCompleteJob(t *testing.T) {
 		t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
 
 		cases := []struct {
-			name         string
-			now          time.Time
-			workspaceTTL time.Duration
-			transition   database.WorkspaceTransition
+			name             string
+			now              time.Time
+			workspaceTTL     time.Duration
+			transition       database.WorkspaceTransition
+			buildReason      database.BuildReason
+			unknownInitiator bool
 
 			// These fields are only used when testing max deadline.
 			userQuietHoursSchedule      string
@@ -2331,6 +2333,24 @@ func TestCompleteJob(t *testing.T) {
 				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
 				workspaceTTL:                time.Hour,
 				transition:                  database.WorkspaceTransitionStart,
+				expectedDeadline:            now.Add(time.Hour),
+				expectedMaxDeadline:         time.Time{},
+			},
+			{
+				name:             "UnknownInitiatorWorkspaceTTL",
+				now:              now,
+				workspaceTTL:     time.Hour,
+				transition:       database.WorkspaceTransitionStart,
+				unknownInitiator: true,
+				expectedDeadline: now.Add(time.Hour),
+			},
+			{
+				name:                        "AutostartWorkspaceTTL",
+				now:                         now,
+				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+				workspaceTTL:                time.Hour,
+				transition:                  database.WorkspaceTransitionStart,
+				buildReason:                 database.BuildReasonAutostart,
 				expectedDeadline:            now.Add(time.Hour),
 				expectedMaxDeadline:         time.Time{},
 			},
@@ -2454,14 +2474,18 @@ func TestCompleteJob(t *testing.T) {
 					})),
 					OrganizationID: pd.OrganizationID,
 				})
+				initiatorID := user.ID
+				if c.unknownInitiator {
+					initiatorID = uuid.New()
+				}
 				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 					ID:                buildID,
 					JobID:             job.ID,
 					WorkspaceID:       workspaceTable.ID,
-					InitiatorID:       user.ID,
+					InitiatorID:       initiatorID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
-					Reason:            database.BuildReasonInitiator,
+					Reason:            c.buildReason,
 				})
 				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					OrganizationID: pd.OrganizationID,
@@ -2539,6 +2563,12 @@ func TestCompleteJob(t *testing.T) {
 					require.WithinDuration(t, c.expectedMaxDeadline, workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
 					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
 				}
+
+				wantChangedBy := uuid.NullUUID{UUID: user.ID, Valid: true}
+				if c.buildReason == database.BuildReasonAutostart || c.unknownInitiator {
+					wantChangedBy = uuid.NullUUID{}
+				}
+				require.Equal(t, wantChangedBy, workspaceBuild.DeadlineChangedBy, "deadline changed by")
 
 				require.Len(t, auditor.AuditLogs(), 1)
 				var additionalFields audit.AdditionalFields

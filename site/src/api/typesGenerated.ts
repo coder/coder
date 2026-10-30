@@ -12873,6 +12873,17 @@ export interface WorkspaceBuild {
 }
 
 // From codersdk/workspacebuilds.go
+export type WorkspaceBuildDeadlineSourceType =
+	| "chat"
+	| "chat_upload"
+	| "connection"
+	| "session_app"
+	| "workspace_app";
+
+export const WorkspaceBuildDeadlineSourceTypes: WorkspaceBuildDeadlineSourceType[] =
+	["chat", "chat_upload", "connection", "session_app", "workspace_app"];
+
+// From codersdk/workspacebuilds.go
 /**
  * WorkspaceBuildDebugEventRequest is the request body for
  * POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.

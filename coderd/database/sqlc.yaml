@@ -210,6 +210,12 @@ sql:
               import: "github.com/shopspring/decimal"
               type: "NullDecimal"
               package: "decimal"
+          - column: "workspace_builds.deadline_sources"
+            go_type:
+              type: "WorkspaceBuildDeadlineSources"
+          - column: "workspace_build_with_user.deadline_sources"
+            go_type:
+              type: "WorkspaceBuildDeadlineSources"
         rename:
           connection_log_method_ssh: ConnectionLogMethodSSH
           connection_log_method_reconnecting_pty: ConnectionLogMethodReconnectingPTY

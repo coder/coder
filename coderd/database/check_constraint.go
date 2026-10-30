@@ -103,6 +103,8 @@ const (
 	CheckWorkspaceBuildOrchestrationsNextRetryAfterCheck     CheckConstraint = "workspace_build_orchestrations_next_retry_after_check"     // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsStatusCheck             CheckConstraint = "workspace_build_orchestrations_status_check"               // workspace_build_orchestrations
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
+	CheckWorkspaceBuildsDeadlineChangeCheck                  CheckConstraint = "workspace_builds_deadline_change_check"                    // workspace_builds
+	CheckWorkspaceBuildsDeadlineSourcesCheck                 CheckConstraint = "workspace_builds_deadline_sources_check"                   // workspace_builds
 	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
 	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
 	CheckWorkspaceSecretsRequiresTarget                      CheckConstraint = "workspace_secrets_requires_target"                         // workspace_secrets
