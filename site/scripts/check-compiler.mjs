@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { transformSync } from "@babel/core";
+import { transformSync } from "oxc-transform-react";
 
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
