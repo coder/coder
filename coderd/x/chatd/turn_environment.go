@@ -499,7 +499,7 @@ func (p *Server) buildTurnEnvironment(
 		var err error
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		fileResolver := p.chatFileResolver(model)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, withoutSavedWorkspaceAwareness(promptRows[:pendingRowsStart]), fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, withoutLegacyWorkspaceAwareness(promptRows[:pendingRowsStart]), fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
