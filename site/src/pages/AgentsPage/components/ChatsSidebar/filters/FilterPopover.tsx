@@ -36,10 +36,10 @@ import {
 import { getChatStatusDisplay } from "../tree/statusConfig";
 
 const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
-	draft: "PR Draft",
-	open: "PR Open",
-	merged: "PR Merged",
-	closed: "PR Closed",
+	draft: "Draft",
+	open: "Open",
+	merged: "Merged",
+	closed: "Closed",
 	none: "No PR",
 };
 
@@ -249,7 +249,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 						{modifiedFilterCount > 0 && ` (${modifiedFilterCount})`}
 					</span>
 				</DropdownMenuLabel>
-				<FilterSubmenu label="PR" summary={prSummary}>
+				<FilterSubmenu label="PR status" summary={prSummary}>
 					{AGENT_PR_STATUS_ORDER.map((status) => (
 						<FilterSubmenuCheckboxItem
 							key={status}
@@ -264,7 +264,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 					))}
 				</FilterSubmenu>
 
-				<FilterSubmenu label="Status" summary={chatSummary}>
+				<FilterSubmenu label="Chat status" summary={chatSummary}>
 					{CHAT_STATUS_OPTIONS.map((option) => (
 						<FilterSubmenuCheckboxItem
 							key={option.value}

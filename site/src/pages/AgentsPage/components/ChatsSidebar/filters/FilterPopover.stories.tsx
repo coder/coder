@@ -70,7 +70,7 @@ export const ChatStatusSubmenu: Story = {
 		const user = await openFilterMenu(canvasElement);
 		await user.click(
 			await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
-				name: "Status",
+				name: "Chat status",
 			}),
 		);
 	},
@@ -84,7 +84,7 @@ export const PrStatusSubmenu: Story = {
 		const user = await openFilterMenu(canvasElement);
 		await user.click(
 			await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
-				name: "PR",
+				name: "PR status",
 			}),
 		);
 	},

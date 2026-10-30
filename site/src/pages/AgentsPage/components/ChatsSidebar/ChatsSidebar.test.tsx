@@ -1942,7 +1942,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await toggleSubmenuOption(user, "Status", "Working");
+		await toggleSubmenuOption(user, "Chat status", "Working");
 		await toggleSubmenuOption(user, /Source/, "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
