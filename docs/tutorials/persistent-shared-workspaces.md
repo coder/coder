@@ -50,6 +50,9 @@ coder users create \
   --service-account
 ```
 
+Git in the workspace uses the service account's identity and credentials for every shared user.
+To set up repository access and let users commit as themselves, refer to [Git identity and credentials](../user-guides/shared-workspaces.md#git-identity-and-credentials).
+
 ## 2. Generate an API token for the service account
 
 Generate a long-lived API token so you can create and manage workspaces on behalf of the service account:
