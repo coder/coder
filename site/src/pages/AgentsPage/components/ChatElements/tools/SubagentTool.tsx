@@ -106,10 +106,6 @@ function getSubagentLabel(
 	);
 }
 
-/**
- * Resolves the leading icon for a sub-agent row from its tool and
- * sub-agent status.
- */
 const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
 	toolStatus: ToolStatus;
@@ -220,8 +216,11 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
-					{/* Failure states are shown only by the leading icon. */}
-					{toolStatus === "running" && <ToolCall.Status />}
+					{/* Spinner only: the leading icon shows failures, and a failed call
+					    keeps toolStatus "running" while its sub-agent still runs. */}
+					{toolStatus === "running" && !isError && !isTimeout && (
+						<ToolCall.Status />
+					)}
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (
