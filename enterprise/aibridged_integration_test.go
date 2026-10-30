@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -818,4 +819,30 @@ func TestIntegrationResolvedOrganization(t *testing.T) {
 	}
 	require.Equal(t, tokens[0].CostMicros.Int64, spendSince(groupB.ID))
 	require.EqualValues(t, groupASpendMicros, spendSince(groupA.ID))
+
+	// When: a delegated chatd request carries org B as the chat's
+	// organization, it resolves to org B instead of org A through the
+	// effective group, so it is under budget.
+	delegatedKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	delegatedCtx := agplaibridge.WithDelegatedAPIKeyID(ctx, delegatedKey.ID)
+	delegatedCtx = agplaibridge.WithDelegatedAttribution(delegatedCtx, agplaibridge.Attribution{OrganizationID: groupB.OrganizationID})
+	req, err := http.NewRequestWithContext(delegatedCtx, http.MethodPost, "/openai/v1/chat/completions",
+		bytes.NewBufferString(`{"messages":[{"role":"user","content":"hi"}],"model":"gpt-4.1"}`))
+	require.NoError(t, err)
+	req.Header.Add("Accept", "application/json")
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Then: the interception records org B with the chatd source.
+	interceptions, err = db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Len(t, interceptions, 2)
+	idx := slices.IndexFunc(interceptions, func(i database.AIBridgeInterception) bool { return i.ID != intc.ID })
+	require.NotEqual(t, -1, idx)
+	require.Equal(t, uuid.NullUUID{UUID: groupB.OrganizationID, Valid: true}, interceptions[idx].OrganizationID)
+	require.Equal(t, database.NullAIBridgeInterceptionOrganizationSource{
+		AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceChatd,
+		Valid:                                  true,
+	}, interceptions[idx].OrganizationSource)
 }

@@ -187,6 +187,10 @@ message IsAuthorizedRequest {
   // exists, has not expired, and belongs to a non-deleted non-system user.
   // Mutually exclusive with key.
   string key_id = 2;
+  // UUID of the chat's organization, set by delegated chatd requests. The
+  // server resolves the request to it after checking that the user is a
+  // member. Only valid together with key_id.
+  string chat_organization_id = 3;
 }
 
 message IsAuthorizedResponse {

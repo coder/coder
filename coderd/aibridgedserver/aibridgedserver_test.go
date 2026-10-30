@@ -676,6 +676,105 @@ func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
 	}
 }
 
+// TestAuthorization_ChatOrgResolution verifies that a delegated chatd request
+// resolves to the chat's organization when the user is still a live member of
+// it, and that the chat organization is rejected anywhere else.
+func TestAuthorization_ChatOrgResolution(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// configure mutates state after the user joins org. It returns the
+		// request to authorize with.
+		configure func(t *testing.T, db database.Store, org database.Organization, key database.APIKey, token string) *proto.IsAuthorizedRequest
+		wantErr   error
+	}{
+		{
+			name: "delegated request resolves chat org",
+			configure: func(_ *testing.T, _ database.Store, org database.Organization, key database.APIKey, _ string) *proto.IsAuthorizedRequest {
+				return &proto.IsAuthorizedRequest{KeyId: key.ID, ChatOrganizationId: org.ID.String()}
+			},
+		},
+		{
+			name: "user no longer a member of chat org",
+			configure: func(t *testing.T, db database.Store, org database.Organization, key database.APIKey, _ string) *proto.IsAuthorizedRequest {
+				require.NoError(t, db.DeleteOrganizationMember(t.Context(), database.DeleteOrganizationMemberParams{
+					OrganizationID: org.ID,
+					UserID:         key.UserID,
+				}))
+				return &proto.IsAuthorizedRequest{KeyId: key.ID, ChatOrganizationId: org.ID.String()}
+			},
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
+		},
+		{
+			name: "deleted chat org",
+			configure: func(t *testing.T, db database.Store, org database.Organization, key database.APIKey, _ string) *proto.IsAuthorizedRequest {
+				require.NoError(t, db.UpdateOrganizationDeletedByID(t.Context(), database.UpdateOrganizationDeletedByIDParams{
+					ID:        org.ID,
+					UpdatedAt: dbtime.Now(),
+				}))
+				return &proto.IsAuthorizedRequest{KeyId: key.ID, ChatOrganizationId: org.ID.String()}
+			},
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
+		},
+		{
+			// Only in-process delegated callers can set the chat organization.
+			name: "chat org with key",
+			configure: func(_ *testing.T, _ database.Store, org database.Organization, _ database.APIKey, token string) *proto.IsAuthorizedRequest {
+				return &proto.IsAuthorizedRequest{Key: token, ChatOrganizationId: org.ID.String()}
+			},
+			wantErr: aibridgedserver.ErrInvalidChatOrganization,
+		},
+		{
+			name: "malformed chat org",
+			configure: func(_ *testing.T, _ database.Store, _ database.Organization, key database.APIKey, _ string) *proto.IsAuthorizedRequest {
+				return &proto.IsAuthorizedRequest{KeyId: key.ID, ChatOrganizationId: "not-a-uuid"}
+			},
+			wantErr: aibridgedserver.ErrInvalidChatOrganization,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+			key, token := dbgen.APIKey(t, rawDB, database.APIKey{UserID: user.ID})
+			req := tt.configure(t, rawDB, org, key, token)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(ctx, req)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, user.ID.String(), resp.GetOwnerId())
+			require.Equal(t, org.ID.String(), resp.GetOrganizationId())
+			require.Equal(t, string(database.AibridgeInterceptionOrganizationSourceChatd), resp.GetOrganizationSource())
+		})
+	}
+}
+
 // TestAuthorization_EffectiveGroupOrgResolution verifies that a request
 // without a workspace resolves to the organization of the user's site-wide
 // effective group, on both the direct and the delegated path. It runs against

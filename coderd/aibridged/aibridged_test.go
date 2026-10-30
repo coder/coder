@@ -454,6 +454,9 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 	tests := []struct {
 		name      string
 		delegated bool
+		// chatOrgID is the chat organization chatd sets on a delegated
+		// request. It must be forwarded to IsAuthorized.
+		chatOrgID uuid.UUID
 		orgID     string
 		source    string
 		// wantOrg is the organization expected on the context. It is ignored
@@ -474,6 +477,14 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 			orgID:     orgID.String(),
 			source:    "effective_group",
 			wantOrg:   agplaibridge.RequestOrganization{ID: orgID, Source: "effective_group"},
+		},
+		{
+			name:      "delegated chat",
+			delegated: true,
+			chatOrgID: orgID,
+			orgID:     orgID.String(),
+			source:    "chatd",
+			wantOrg:   agplaibridge.RequestOrganization{ID: orgID, Source: "chatd"},
 		},
 		{
 			name:          "none",
@@ -514,12 +525,20 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 
 			srv, client, pool := newTestServer(t)
 			ownerID := uuid.New()
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
-				OwnerId:            ownerID.String(),
-				ApiKeyId:           uuid.NewString(),
-				OrganizationId:     tt.orgID,
-				OrganizationSource: tt.source,
-			}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+					wantChatOrgID := ""
+					if tt.chatOrgID != uuid.Nil {
+						wantChatOrgID = tt.chatOrgID.String()
+					}
+					require.Equal(t, wantChatOrgID, in.GetChatOrganizationId())
+					return &proto.IsAuthorizedResponse{
+						OwnerId:            ownerID.String(),
+						ApiKeyId:           uuid.NewString(),
+						OrganizationId:     tt.orgID,
+						OrganizationSource: tt.source,
+					}, nil
+				})
 			// A rejected request never reaches the budget check or the pool,
 			// so no expectations are set for them.
 			if !tt.wantForbidden {
@@ -541,6 +560,7 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 			ctx := t.Context()
 			if tt.delegated {
 				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, "delegated-key")
+				ctx = agplaibridge.WithDelegatedAttribution(ctx, agplaibridge.Attribution{OrganizationID: tt.chatOrgID})
 			}
 			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil).WithContext(ctx)
 			if !tt.delegated {
