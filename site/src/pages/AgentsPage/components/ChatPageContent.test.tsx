@@ -530,6 +530,28 @@ describe("ChatPageTimeline question dock", () => {
 		);
 	});
 
+	it("keeps focus on the panel header as it collapses and expands", async () => {
+		const user = userEvent.setup();
+		renderChatPageTimeline(vi.fn());
+		within(getQuestionDock())
+			.getByRole("button", { name: "Scope", expanded: true })
+			.focus();
+		await user.keyboard("{Enter}");
+		expect(
+			within(getQuestionDock()).getByRole("button", {
+				name: "Scope",
+				expanded: false,
+			}),
+		).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(
+			within(getQuestionDock()).getByRole("button", {
+				name: "Scope",
+				expanded: true,
+			}),
+		).toHaveFocus();
+	});
+
 	it("locks the dock's draft while a history edit is open", async () => {
 		const user = userEvent.setup();
 		const onSendAskUserQuestionResponse = vi.fn();
