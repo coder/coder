@@ -61,9 +61,10 @@ type CreateChatResult struct {
 	InitialMessages []database.ChatMessage
 }
 
-// CreateChat creates a brand new chat with initial history in a single
-// transaction. It is package-level rather than a method on [ChatMachine]
-// because no chat-scoped machine can exist before the chat row is written.
+// CreateChat creates a brand new chat and its initial history, if any, in
+// a single transaction. It is package-level rather than a method on
+// [ChatMachine] because no chat-scoped machine can exist before the chat
+// row is written.
 //
 // Validation:
 //   - InitialMessages must be non-empty unless InitialStatus is `waiting`.
