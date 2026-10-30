@@ -1502,6 +1502,11 @@
 					"state": ["premium"]
 				},
 				{
+					"title": "Migrate from Ona (formerly Gitpod)",
+					"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
+					"path": "./tutorials/migrate-from-ona.md"
+				},
+				{
 					"title": "Google Cloud to AWS federation",
 					"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
 					"path": "./tutorials/gcp-to-aws.md"
