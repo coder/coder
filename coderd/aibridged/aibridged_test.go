@@ -40,6 +40,21 @@ func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
 	return pool
 }
 
+// testOrganizationID is the organization the mocked IsAuthorized resolves.
+// coderd sends one with every authorized response from v1.6.
+var testOrganizationID = uuid.NewString()
+
+// authorizedResponse returns an IsAuthorized response for a fresh user and key
+// that carries a resolved organization.
+func authorizedResponse() *proto.IsAuthorizedResponse {
+	return &proto.IsAuthorizedResponse{
+		OwnerId:            uuid.NewString(),
+		ApiKeyId:           uuid.NewString(),
+		OrganizationId:     testOrganizationID,
+		OrganizationSource: "effective_group",
+	}
+}
+
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
 	return newTestServerWithDialer(t, nil, nil)
@@ -295,7 +310,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "budget exceeded",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				// Authorization passes.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authorizedResponse(), nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: new(int64(1_000)),
@@ -308,7 +323,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "budget check failed",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				// Authorization passes.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authorizedResponse(), nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
 			expectedErr:    aibridged.ErrBudgetCheck,
@@ -320,7 +335,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "pool instance",
 			applyMocksFn: func(client *mock.MockDRPCClient, pool *mock.MockPooler) {
 				// Should pass authorization and budget check.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authorizedResponse(), nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 				// But fail when acquiring a pool instance.
 				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
@@ -395,10 +410,12 @@ func TestServeHTTP_ActorIdentity(t *testing.T) {
 				Email:    "verified@example.test",
 			}
 			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
-				OwnerId:  ownerID.String(),
-				ApiKeyId: verified.APIKeyID,
-				Username: verified.Username,
-				Email:    verified.Email,
+				OwnerId:            ownerID.String(),
+				ApiKeyId:           verified.APIKeyID,
+				Username:           verified.Username,
+				Email:              verified.Email,
+				OrganizationId:     testOrganizationID,
+				OrganizationSource: "effective_group",
 			}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
@@ -427,7 +444,9 @@ func TestServeHTTP_ActorIdentity(t *testing.T) {
 
 // TestServeHTTP_ResolvedOrganization verifies that aibridged passes the
 // organization coderd resolved in IsAuthorized to the budget check and onto
-// the handler context, and rejects a malformed or half-set organization.
+// the handler context, and rejects a missing, malformed or half-set
+// organization before the budget check, so no request falls back to site-wide
+// budget and cost.
 func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 	t.Parallel()
 
@@ -437,8 +456,9 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 		delegated bool
 		orgID     string
 		source    string
-		// wantOrg is nil when no organization is expected on the context.
-		wantOrg *agplaibridge.RequestOrganization
+		// wantOrg is the organization expected on the context. It is ignored
+		// when wantForbidden is set.
+		wantOrg agplaibridge.RequestOrganization
 		// wantForbidden means the request is rejected before the budget check.
 		wantForbidden bool
 	}{
@@ -446,18 +466,23 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 			name:    "workspace",
 			orgID:   orgID.String(),
 			source:  "workspace",
-			wantOrg: &agplaibridge.RequestOrganization{ID: orgID, Source: "workspace"},
+			wantOrg: agplaibridge.RequestOrganization{ID: orgID, Source: "workspace"},
 		},
 		{
 			name:      "delegated effective group",
 			delegated: true,
 			orgID:     orgID.String(),
 			source:    "effective_group",
-			wantOrg:   &agplaibridge.RequestOrganization{ID: orgID, Source: "effective_group"},
+			wantOrg:   agplaibridge.RequestOrganization{ID: orgID, Source: "effective_group"},
 		},
 		{
-			// No organization resolved: the budget check stays site-wide.
-			name: "none",
+			name:          "none",
+			wantForbidden: true,
+		},
+		{
+			name:          "delegated none",
+			delegated:     true,
+			wantForbidden: true,
 		},
 		{
 			name:          "id without source",
@@ -498,25 +523,17 @@ func TestServeHTTP_ResolvedOrganization(t *testing.T) {
 			// A rejected request never reaches the budget check or the pool,
 			// so no expectations are set for them.
 			if !tt.wantForbidden {
-				var wantBudgetOrgID string
-				if tt.wantOrg != nil {
-					wantBudgetOrgID = tt.wantOrg.ID.String()
-				}
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
 						require.Equal(t, ownerID.String(), in.GetUserId())
-						require.Equal(t, wantBudgetOrgID, in.GetOrganizationId())
+						require.Equal(t, tt.wantOrg.ID.String(), in.GetOrganizationId())
 						return &proto.IsBudgetExceededResponse{}, nil
 					})
 				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						got, ok := agplaibridge.RequestOrganizationFromContext(r.Context())
-						if tt.wantOrg == nil {
-							require.False(t, ok, "no organization expected on the context")
-						} else {
-							require.True(t, ok, "organization expected on the context")
-							require.Equal(t, *tt.wantOrg, got)
-						}
+						require.True(t, ok, "organization expected on the context")
+						require.Equal(t, tt.wantOrg, got)
 						w.WriteHeader(http.StatusNoContent)
 					}), nil)
 			}
@@ -574,9 +591,11 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 						assert.Equal(t, testKeyID, in.GetKeyId(), "handler must use KeyId for delegated requests")
 						assert.Empty(t, in.GetKey(), "handler must not set Key for delegated requests")
 						return &proto.IsAuthorizedResponse{
-							OwnerId:  uuid.NewString(),
-							ApiKeyId: testKeyID,
-							Username: "u",
+							OwnerId:            uuid.NewString(),
+							ApiKeyId:           testKeyID,
+							Username:           "u",
+							OrganizationId:     testOrganizationID,
+							OrganizationSource: "effective_group",
 						}, nil
 					})
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
@@ -608,9 +627,11 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 			},
 			applyMocks: func(t *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
-					OwnerId:  uuid.NewString(),
-					ApiKeyId: testKeyID,
-					Username: "u",
+					OwnerId:            uuid.NewString(),
+					ApiKeyId:           testKeyID,
+					Username:           "u",
+					OrganizationId:     testOrganizationID,
+					OrganizationSource: "effective_group",
 				}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
 				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
@@ -698,9 +719,11 @@ func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 			assert.Equal(t, testKeyID, in.GetKeyId(), "delegated identity must be carried in KeyId")
 			assert.Empty(t, in.GetKey(), "Key must not be set on delegated requests")
 			return &proto.IsAuthorizedResponse{
-				OwnerId:  uuid.NewString(),
-				ApiKeyId: testKeyID,
-				Username: "u",
+				OwnerId:            uuid.NewString(),
+				ApiKeyId:           testKeyID,
+				Username:           "u",
+				OrganizationId:     testOrganizationID,
+				OrganizationSource: "effective_group",
 			}, nil
 		})
 	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
@@ -751,9 +774,11 @@ func TestServeHTTP_DelegatedAPIKey_Integration(t *testing.T) {
 			assert.Equal(t, testKeyID, in.GetKeyId())
 			assert.Empty(t, in.GetKey())
 			return &proto.IsAuthorizedResponse{
-				OwnerId:  uuid.NewString(),
-				ApiKeyId: testKeyID,
-				Username: "u",
+				OwnerId:            uuid.NewString(),
+				ApiKeyId:           testKeyID,
+				Username:           "u",
+				OrganizationId:     testOrganizationID,
+				OrganizationSource: "effective_group",
 			}, nil
 		})
 	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
@@ -842,7 +867,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			srv, client, pool := newTestServer(t)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authorizedResponse(), nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 
@@ -1165,10 +1190,7 @@ func TestRouting(t *testing.T) {
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
-				OwnerId:  uuid.NewString(),
-				ApiKeyId: uuid.NewString(),
-			}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authorizedResponse(), nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
 			// This is the only recording we really care about in this test. This is called before the provider-specific logic processes
@@ -1246,7 +1268,7 @@ func TestServeHTTP_StripInternalHeaders(t *testing.T) {
 			srv, client, pool := newTestServer(t)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authorizedResponse(), nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 

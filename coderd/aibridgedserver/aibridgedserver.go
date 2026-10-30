@@ -60,6 +60,7 @@ var (
 	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
 	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
 	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
+	ErrNoOrganization            = xerrors.New("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -893,10 +894,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
 		return nil, err
 	}
-	if org.ID.Valid {
-		resp.OrganizationId = org.ID.UUID.String()
-		resp.OrganizationSource = string(org.Source.AIBridgeInterceptionOrganizationSource)
-	}
+	resp.OrganizationId = org.ID.String()
+	resp.OrganizationSource = string(org.Source)
 	return resp, nil
 }
 
@@ -984,8 +983,11 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 	if err != nil {
 		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
 	}
-	// The organization comes from IsAuthorized. Empty means site-wide
-	// resolution, as sent by gateways older than v1.6.
+	// The organization is the one IsAuthorized resolved for this request, and
+	// the gateway sends it back unchanged. It is trusted to be valid and to
+	// contain the user, so it is not checked again here. From v1.6 a gateway
+	// always sends it. Only gateways older than v1.6 send it empty, which
+	// means site-wide resolution.
 	var organizationID uuid.NullUUID
 	if raw := in.GetOrganizationId(); raw != "" {
 		id, err := uuid.Parse(raw)

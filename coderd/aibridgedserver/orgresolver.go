@@ -29,11 +29,10 @@ type orgResolverInput struct {
 	ChatID uuid.NullUUID
 }
 
-// resolvedOrganization is the organization a request acts in. Source is valid
-// exactly when ID is valid.
+// resolvedOrganization is the organization a request acts in.
 type resolvedOrganization struct {
-	ID     uuid.NullUUID
-	Source database.NullAIBridgeInterceptionOrganizationSource
+	ID     uuid.UUID
+	Source database.AIBridgeInterceptionOrganizationSource
 }
 
 // resolveOrganization determines the organization an AI Gateway request acts
@@ -48,8 +47,9 @@ type resolvedOrganization struct {
 //  2. A chat resolves to the chat's organization (AIGOV-713).
 //  3. Otherwise, the organization of the user's site-wide effective group.
 //
-// The result is empty when the user has no effective group, for example when
-// they belong to no live organization.
+// Every AI Gateway request is scoped to an organization, so it returns
+// [ErrNoOrganization] when none resolves, for example when the user belongs to
+// no live organization.
 func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, in orgResolverInput) (resolvedOrganization, error) {
 	if in.WorkspaceID.Valid && in.ChatID.Valid {
 		return resolvedOrganization{}, ErrAmbiguousOrganizationInput
@@ -60,7 +60,7 @@ func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, in o
 		if err != nil {
 			return resolvedOrganization{}, err
 		}
-		return newResolvedOrganization(orgID, database.AibridgeInterceptionOrganizationSourceWorkspace), nil
+		return resolvedOrganization{ID: orgID, Source: database.AibridgeInterceptionOrganizationSourceWorkspace}, nil
 	}
 
 	group, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, userID, uuid.NullUUID{}, s.budgetPolicy)
@@ -68,16 +68,9 @@ func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, in o
 		return resolvedOrganization{}, xerrors.Errorf("resolve effective AI group for user %s: %w", userID, err)
 	}
 	if !ok {
-		return resolvedOrganization{}, nil
+		return resolvedOrganization{}, ErrNoOrganization
 	}
-	return newResolvedOrganization(group.OrganizationID, database.AibridgeInterceptionOrganizationSourceEffectiveGroup), nil
-}
-
-func newResolvedOrganization(id uuid.UUID, source database.AIBridgeInterceptionOrganizationSource) resolvedOrganization {
-	return resolvedOrganization{
-		ID:     uuid.NullUUID{UUID: id, Valid: true},
-		Source: database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
-	}
+	return resolvedOrganization{ID: group.OrganizationID, Source: database.AibridgeInterceptionOrganizationSourceEffectiveGroup}, nil
 }
 
 // workspaceOrganization returns the organization of workspaceID. It rejects the

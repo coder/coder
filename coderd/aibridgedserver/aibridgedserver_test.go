@@ -693,11 +693,24 @@ func TestAuthorization_EffectiveGroupOrgResolution(t *testing.T) {
 		groupA           database.Group
 	}
 
+	// removeAllMemberships removes the user from every organization they
+	// belong to, so no organization can resolve.
+	removeAllMemberships := func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID {
+		for _, org := range []database.Organization{f.orgA, f.orgC} {
+			require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+				OrganizationID: org.ID,
+				UserID:         f.user.ID,
+			}))
+		}
+		return uuid.Nil
+	}
+
 	tests := []struct {
 		name      string
 		delegated bool
 		// configure adjusts the fixture and returns the organization the
-		// request should resolve to, or uuid.Nil for none.
+		// request should resolve to, or uuid.Nil when the request must be
+		// rejected with ErrNoOrganization.
 		configure func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID
 	}{
 		{
@@ -735,18 +748,16 @@ func TestAuthorization_EffectiveGroupOrgResolution(t *testing.T) {
 			},
 		},
 		{
-			// A user in no live organization resolves no organization and is
-			// still authorized.
-			name: "no membership",
-			configure: func(ctx context.Context, t *testing.T, db database.Store, f fixture) uuid.UUID {
-				for _, org := range []database.Organization{f.orgA, f.orgC} {
-					require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
-						OrganizationID: org.ID,
-						UserID:         f.user.ID,
-					}))
-				}
-				return uuid.Nil
-			},
+			// A user in no live organization resolves no organization, so the
+			// request is rejected rather than falling back to site-wide budget
+			// and cost.
+			name:      "no membership",
+			configure: removeAllMemberships,
+		},
+		{
+			name:      "delegated no membership",
+			delegated: true,
+			configure: removeAllMemberships,
 		},
 		{
 			// Delegated requests carry no workspace, so they take the same
@@ -813,14 +824,14 @@ func TestAuthorization_EffectiveGroupOrgResolution(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := srv.IsAuthorized(ctx, req)
+			if wantOrgID == uuid.Nil {
+				require.ErrorIs(t, err, aibridgedserver.ErrNoOrganization)
+				require.Nil(t, resp)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, f.user.ID.String(), resp.GetOwnerId())
 			require.Empty(t, resp.GetWorkspaceId())
-			if wantOrgID == uuid.Nil {
-				require.Empty(t, resp.GetOrganizationId())
-				require.Empty(t, resp.GetOrganizationSource())
-				return
-			}
 			require.Equal(t, wantOrgID.String(), resp.GetOrganizationId())
 			require.Equal(t, string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup), resp.GetOrganizationSource())
 		})

@@ -1277,14 +1277,16 @@ type IsAuthorizedResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	OwnerId        string `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	ApiKeyId       string `protobuf:"bytes,2,opt,name=api_key_id,json=apiKeyId,proto3" json:"api_key_id,omitempty"`
-	Username       string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
-	WorkspaceId    string `protobuf:"bytes,4,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"` // UUID. Empty when workspace attribution is unknown.
-	Email          string `protobuf:"bytes,5,opt,name=email,proto3" json:"email,omitempty"`
-	OrganizationId string `protobuf:"bytes,6,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"` // UUID. Empty when no organization could be resolved for the request.
+	OwnerId     string `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	ApiKeyId    string `protobuf:"bytes,2,opt,name=api_key_id,json=apiKeyId,proto3" json:"api_key_id,omitempty"`
+	Username    string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	WorkspaceId string `protobuf:"bytes,4,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"` // UUID. Empty when workspace attribution is unknown.
+	Email       string `protobuf:"bytes,5,opt,name=email,proto3" json:"email,omitempty"`
+	// UUID. Always set from v1.6, which rejects a request when no organization
+	// resolves. Earlier versions leave it empty in that case.
+	OrganizationId string `protobuf:"bytes,6,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 	// How organization_id was chosen, as an aibridge_interception_organization_source
-	// value. Empty exactly when organization_id is empty.
+	// value. Set exactly when organization_id is set.
 	OrganizationSource string `protobuf:"bytes,7,opt,name=organization_source,json=organizationSource,proto3" json:"organization_source,omitempty"`
 }
 
@@ -1376,7 +1378,8 @@ type IsBudgetExceededRequest struct {
 
 	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // UUID
 	// UUID of the organization from IsAuthorizedResponse. The budget is resolved
-	// inside this organization. Empty means site-wide resolution.
+	// inside this organization. Always set from v1.6. Only gateways older than
+	// v1.6 send it empty, which means site-wide resolution.
 	OrganizationId string `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 }
 
