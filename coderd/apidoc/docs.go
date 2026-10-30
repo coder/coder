@@ -5442,6 +5442,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/coordinator": {
             "get": {
+                "description": "Returns an HTML debug page for the tailnet coordinator, which connects workspace agents and clients, including the peers and tunnels it tracks.\nRequires permission to read debug information, which the Owner role has.",
                 "produces": [
                     "text/html"
                 ],
@@ -5524,6 +5525,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/health": {
             "get": {
+                "description": "Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.\nReturns a cached report while it's newer than the healthcheck refresh interval.\nRequires permission to read debug information, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -5535,7 +5537,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "boolean",
-                        "description": "Force a healthcheck to run",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to run a new healthcheck instead of returning the cached report.",
                         "name": "force",
                         "in": "query"
                     }
@@ -5557,6 +5559,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/health/settings": {
             "get": {
+                "description": "Returns the deployment's health settings, which list the health sections that administrators dismissed in ` + "`" + `dismissed_healthchecks` + "`" + `.\nRequires permission to read debug information, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -5580,6 +5583,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the deployment's health settings with the sections listed in ` + "`" + `dismissed_healthchecks` + "`" + `, and returns ` + "`" + `204` + "`" + ` when the settings don't change.\nRequires permission to update the deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5593,7 +5597,7 @@ const docTemplate = `{
                 "operationId": "update-health-settings",
                 "parameters": [
                     {
-                        "description": "Update health settings",
+                        "description": "Health settings to save. ` + "`" + `dismissed_healthchecks` + "`" + ` lists the health sections to dismiss, from ` + "`" + `DERP` + "`" + `, ` + "`" + `AccessURL` + "`" + `, ` + "`" + `Websocket` + "`" + `, ` + "`" + `Database` + "`" + `, ` + "`" + `WorkspaceProxy` + "`" + `, and ` + "`" + `ProvisionerDaemons` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5773,6 +5777,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/tailnet": {
             "get": {
+                "description": "Returns an HTML debug page for the tailnet connection that the Coder server uses to reach workspace agents.\nRequires permission to read debug information, which the Owner role has.",
                 "produces": [
                     "text/html"
                 ],
