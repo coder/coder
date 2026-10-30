@@ -1,11 +1,16 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
-/** @internal Exported for testing. */
+/**
+ * Restores the store to a snapshot taken before an optimistic request.
+ * With baselineFence, the queue is restored only while the queue
+ * convergence fence still has that value.
+ */
 export const restoreOptimisticRequestSnapshot = (
 	store: Pick<
 		ChatStore,
 		| "batch"
+		| "getQueueConvergenceFence"
 		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
@@ -15,9 +20,16 @@ export const restoreOptimisticRequestSnapshot = (
 		ChatStoreState,
 		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
 	>,
+	baselineFence?: number,
 ): void => {
 	store.batch(() => {
-		store.setQueuedMessages(snapshot.queuedMessages);
+		// A queue update received during the request is newer than the snapshot.
+		if (
+			baselineFence === undefined ||
+			store.getQueueConvergenceFence() === baselineFence
+		) {
+			store.setQueuedMessages(snapshot.queuedMessages);
+		}
 		store.setChatStatus(snapshot.chatStatus);
 		store.setStreamState(snapshot.streamState);
 		store.setStreamError(snapshot.streamError);
@@ -31,17 +43,23 @@ export const restoreOptimisticRequestSnapshot = (
  * actual user message is delivered via SSE or the messages REST endpoint.
  * Suppress the promoted ID so the transient reordered queue published by
  * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
- *
- * @internal Exported for testing.
+ * visible queue. On API error, the suppression is lifted and the state is
+ * restored with restoreOptimisticRequestSnapshot. If a queue update arrived
+ * during the request, the queue is then refetched into the store and the
+ * messages cache, because that update was filtered through the suppression
+ * and lacks the promoted row the server still holds. A failed refetch
+ * writes the snapshot instead.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
 	store: Pick<
 		ChatStore,
+		| "applyAuthoritativeQueuedMessages"
 		| "batch"
 		| "clearStreamError"
 		| "clearStreamState"
+		| "getActiveChatID"
+		| "getQueueConvergenceFence"
 		| "getSnapshot"
 		| "setChatStatus"
 		| "setQueuedMessages"
@@ -51,6 +69,12 @@ export const runPromoteQueuedMessage = async (params: {
 		| "unsuppressQueuedMessageID"
 	>;
 	promoteQueuedMessage: (id: number) => Promise<void>;
+	fetchQueueConvergence: (
+		chatID: string,
+	) => Promise<TypesGen.ChatMessagesResponse>;
+	setCacheQueuedMessages: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	) => void;
 	agentId: string;
 	clearChatErrorReason: (chatID: string) => void;
 	onError: (error: unknown) => void;
@@ -59,6 +83,8 @@ export const runPromoteQueuedMessage = async (params: {
 		id,
 		store,
 		promoteQueuedMessage,
+		fetchQueueConvergence,
+		setCacheQueuedMessages,
 		agentId,
 		clearChatErrorReason,
 		onError,
@@ -73,13 +99,67 @@ export const runPromoteQueuedMessage = async (params: {
 		store.clearStreamError();
 		store.setChatStatus("running");
 	});
+	const baselineFence = store.getQueueConvergenceFence();
 	clearChatErrorReason(agentId);
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {
 		store.unsuppressQueuedMessageID(id);
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+		restoreOptimisticRequestSnapshot(store, previousSnapshot, baselineFence);
 		onError(error);
+		if (
+			store.getActiveChatID() === agentId &&
+			store.getQueueConvergenceFence() !== baselineFence
+		) {
+			const refetchFence = store.getQueueConvergenceFence();
+			let queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
+			try {
+				queuedMessages =
+					(await fetchQueueConvergence(agentId)).queued_messages ?? [];
+			} catch {
+				queuedMessages = undefined;
+			}
+			// A queue update or chat switch during the refetch is newer.
+			if (
+				store.getActiveChatID() === agentId &&
+				store.getQueueConvergenceFence() === refetchFence
+			) {
+				if (queuedMessages) {
+					store.applyAuthoritativeQueuedMessages(queuedMessages);
+				} else {
+					store.setQueuedMessages(previousSnapshot.queuedMessages);
+				}
+				setCacheQueuedMessages(store.getSnapshot().queuedMessages);
+			}
+		}
+		throw error;
+	}
+};
+
+/**
+ * Removes a queued message optimistically and deletes it. On failure the
+ * queue is restored unless a queue update arrived during the request.
+ */
+export const runDeleteQueuedMessage = async (params: {
+	id: number;
+	store: Pick<
+		ChatStore,
+		"getQueueConvergenceFence" | "getSnapshot" | "setQueuedMessages"
+	>;
+	deleteQueuedMessage: (id: number) => Promise<unknown>;
+}): Promise<void> => {
+	const { id, store, deleteQueuedMessage } = params;
+	const previousQueuedMessages = store.getSnapshot().queuedMessages;
+	const baselineFence = store.getQueueConvergenceFence();
+	store.setQueuedMessages(
+		previousQueuedMessages.filter((message) => message.id !== id),
+	);
+	try {
+		await deleteQueuedMessage(id);
+	} catch (error) {
+		if (store.getQueueConvergenceFence() === baselineFence) {
+			store.setQueuedMessages(previousQueuedMessages);
+		}
 		throw error;
 	}
 };
