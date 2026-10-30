@@ -1,0 +1,100 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { renderComponent } from "#/testHelpers/renderHelpers";
+import {
+	type ChatOverview,
+	ChatOverviewCardView,
+	type OverviewTarget,
+} from "./ChatOverviewCardView";
+
+const mockChatOverview: ChatOverview = {
+	cost: { total_cost_micros: 1_250_000, unpriced_request_count: 0 },
+	isSubagent: false,
+	repos: [
+		{
+			root: "/repo",
+			branch: "ci/queue-only-jobs",
+			additions: 82,
+			deletions: 33,
+		},
+	],
+	pullRequests: [
+		{
+			number: "123",
+			status: { ...MockChatDiffStatus, pull_request_title: "Queue jobs" },
+		},
+	],
+	attachments: [
+		{
+			key: "1:0",
+			role: "assistant",
+			file: { type: "file", media_type: "text/html", name: "plan.html" },
+			href: "/files/plan.html",
+		},
+	],
+};
+
+const renderCard = (overview = mockChatOverview) => {
+	const onOpenTarget = vi.fn<(target: OverviewTarget) => void>();
+	renderComponent(
+		<ChatOverviewCardView overview={overview} onOpenTarget={onOpenTarget} />,
+	);
+	return { onOpenTarget };
+};
+
+describe("ChatOverviewCardView", () => {
+	it.each<{ name: RegExp; tab: OverviewTarget["tabId"] }>([
+		{ name: /Cost/, tab: "summary" },
+		{ name: /ci\/queue-only-jobs/, tab: "git" },
+		{ name: /#123 Queue jobs/, tab: "git" },
+		{ name: /plan\.html/, tab: "summary" },
+	])("opens the $tab tab from the row named $name", async ({ name, tab }) => {
+		const user = userEvent.setup();
+		const { onOpenTarget } = renderCard();
+
+		await user.click(screen.getByRole("button", { name }));
+
+		expect(onOpenTarget).toHaveBeenCalledExactlyOnceWith({ tabId: tab });
+	});
+
+	it("opens nothing from a repository without changes", async () => {
+		const user = userEvent.setup();
+		const { onOpenTarget } = renderCard({
+			...mockChatOverview,
+			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+		});
+
+		await user.click(screen.getByText("main"));
+
+		expect(screen.queryByRole("button", { name: /main/ })).toBeNull();
+		expect(onOpenTarget).not.toHaveBeenCalled();
+	});
+
+	it("shows a row's full label in a tooltip on hover", async () => {
+		const user = userEvent.setup();
+		renderCard();
+
+		const row = screen.getByRole("button", { name: /#123 Queue jobs/ });
+		await user.hover(row);
+
+		await waitFor(() =>
+			expect(row).toHaveAccessibleDescription("#123 Queue jobs"),
+		);
+	});
+
+	it("opens the tooltip of a repository without changes from the keyboard", async () => {
+		const user = userEvent.setup();
+		renderCard({
+			...mockChatOverview,
+			cost: undefined,
+			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+		});
+
+		await user.tab();
+
+		await waitFor(() =>
+			expect(document.activeElement).toHaveAccessibleDescription("main"),
+		);
+	});
+});
