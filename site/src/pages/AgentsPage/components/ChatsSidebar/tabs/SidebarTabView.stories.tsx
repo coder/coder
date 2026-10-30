@@ -3,8 +3,7 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
-import type { SidebarTab } from "./SidebarTabView";
-import { SidebarTabView } from "./SidebarTabView";
+import { SidebarTab, SidebarTabView } from "./SidebarTabView";
 
 const makePanelContent = (label: string) => (
 	<div className="flex h-full items-center justify-center p-6 text-sm text-content-secondary">
@@ -27,20 +26,34 @@ const makeBadge = (additions: number, deletions: number) => (
 	</span>
 );
 
-const gitTab: SidebarTab = {
-	id: "git",
-	label: "Git",
-	badge: makeBadge(42, 7),
-	content: makePanelContent("Git"),
-};
+const gitTab = (
+	<SidebarTab id="git" label="Git" badge={makeBadge(42, 7)}>
+		{makePanelContent("Git")}
+	</SidebarTab>
+);
+
+const addTabButton = (disabled?: boolean) => (
+	<Button
+		variant="outline"
+		size="icon"
+		onClick={fn()}
+		disabled={disabled}
+		aria-label="New terminal tab"
+		title="New terminal tab"
+		className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
+	>
+		<PlusIcon className="size-3.5" />
+	</Button>
+);
 
 const meta: Meta<typeof SidebarTabView> = {
 	title: "pages/AgentsPage/SidebarTabView",
 	component: SidebarTabView,
 	args: {
-		tabs: [gitTab],
-		effectiveTabId: "git",
+		children: gitTab,
+		activeTabId: "git",
 		onActiveTabChange: fn(),
+		isPanelOpen: true,
 		isExpanded: false,
 		onToggleExpanded: fn(),
 	},
@@ -59,28 +72,35 @@ export const GitWithBadge: Story = {};
 
 export const GitNoBadge: Story = {
 	args: {
-		tabs: [{ ...gitTab, badge: undefined }],
+		children: (
+			<SidebarTab id="git" label="Git">
+				{makePanelContent("Git")}
+			</SidebarTab>
+		),
 	},
 };
 
 export const MultipleTabs: Story = {
 	args: {
-		tabs: [
-			gitTab,
-			{ id: "preview", label: "Preview", content: makePanelContent("Preview") },
+		children: [
+			<SidebarTab key="git" id="git" label="Git" badge={makeBadge(42, 7)}>
+				{makePanelContent("Git")}
+			</SidebarTab>,
+			<SidebarTab key="preview" id="preview" label="Preview">
+				{makePanelContent("Preview")}
+			</SidebarTab>,
 		],
 	},
 };
 
 export const EmptyState: Story = {
 	args: {
-		tabs: [],
+		children: [],
 	},
 };
 
 export const ExpandedWithTitle: Story = {
 	args: {
-		tabs: [gitTab],
 		isExpanded: true,
 		chatTitle: "Fix authentication bug",
 	},
@@ -94,9 +114,6 @@ export const ExpandedWithTitle: Story = {
 };
 
 export const NarrowPanel: Story = {
-	args: {
-		tabs: [gitTab],
-	},
 	decorators: [
 		(Story) => (
 			<div style={{ height: 500, width: 360 }}>
@@ -109,32 +126,16 @@ export const NarrowPanel: Story = {
 export const CloseableTabs: Story = {
 	render: function CloseableTabs() {
 		const [activeTabId, setActiveTabId] = useState("terminal-2");
-		const [tabs, setTabs] = useState<SidebarTab[]>([
-			gitTab,
-			{
-				id: "terminal",
-				label: "Terminal",
-				content: makePanelContent("Terminal"),
-			},
-			{ id: "summary", label: "Summary", content: makePanelContent("Summary") },
-			...Array.from({ length: 8 }, (_, index) => ({
-				id: `terminal-${index + 2}`,
-				label: `Terminal ${index + 2}`,
-				content: makePanelContent(`Terminal ${index + 2}`),
-			})),
-		]);
+		const [terminalIds, setTerminalIds] = useState(() =>
+			Array.from({ length: 8 }, (_, index) => `terminal-${index + 2}`),
+		);
 
-		const handleCloseTab = (tabId: string) => {
-			const visibleTabIds = tabs.map((tab) => tab.id);
-			const remainingTabIds = visibleTabIds.filter((id) => id !== tabId);
-			const closedTabIndex = visibleTabIds.indexOf(tabId);
-			setTabs(tabs.filter((tab) => tab.id !== tabId));
+		const handleCloseTab = (
+			tabId: string,
+			nextActiveTabId: string | undefined,
+		) => {
+			setTerminalIds(terminalIds.filter((id) => id !== tabId));
 
-			if (activeTabId !== tabId) {
-				return;
-			}
-			const nextActiveTabId =
-				remainingTabIds[Math.min(closedTabIndex, remainingTabIds.length - 1)];
 			if (nextActiveTabId) {
 				setActiveTabId(nextActiveTabId);
 			}
@@ -142,37 +143,43 @@ export const CloseableTabs: Story = {
 
 		return (
 			<SidebarTabView
-				tabs={tabs.map((tab) => ({
-					...tab,
-					onClose: tab.id.startsWith("terminal-")
-						? () => handleCloseTab(tab.id)
-						: undefined,
-				}))}
-				effectiveTabId={activeTabId}
+				activeTabId={activeTabId}
 				onActiveTabChange={setActiveTabId}
+				isPanelOpen
 				isExpanded={false}
 				onToggleExpanded={() => {}}
-				addTabControl={
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={fn()}
-						aria-label="New terminal tab"
-						title="New terminal tab"
-						className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
-					>
-						<PlusIcon className="size-3.5" />
-					</Button>
-				}
-			/>
+				addTabControl={() => addTabButton()}
+			>
+				{gitTab}
+				<SidebarTab id="terminal" label="Terminal">
+					{makePanelContent("Terminal")}
+				</SidebarTab>
+				<SidebarTab id="summary" label="Summary">
+					{makePanelContent("Summary")}
+				</SidebarTab>
+				{terminalIds.map((id) => {
+					const label = `Terminal ${id.slice("terminal-".length)}`;
+
+					return (
+						<SidebarTab
+							key={id}
+							id={id}
+							label={label}
+							onClose={(next) => handleCloseTab(id, next)}
+						>
+							{makePanelContent(label)}
+						</SidebarTab>
+					);
+				})}
+			</SidebarTabView>
 		);
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 
-		// Close Terminal 3 then the active Terminal 2. The fixture's
-		// close-then-select-neighbor logic activates Terminal 4.
+		// Close Terminal 3 then the active Terminal 2. Closing the active tab
+		// selects its neighbor, Terminal 4.
 		await user.click(
 			canvas.getByRole("button", { name: "Close Terminal 3 tab" }),
 		);
@@ -185,19 +192,6 @@ export const CloseableTabs: Story = {
 
 export const AddTabControlDisabled: Story = {
 	args: {
-		tabs: [gitTab],
-		addTabControl: (
-			<Button
-				variant="outline"
-				size="icon"
-				onClick={fn()}
-				disabled
-				aria-label="New terminal tab"
-				title="New terminal tab"
-				className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
-			>
-				<PlusIcon className="size-3.5" />
-			</Button>
-		),
+		addTabControl: () => addTabButton(true),
 	},
 };

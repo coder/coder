@@ -41,6 +41,7 @@ import {
 import { originRepoLabel } from "../../utils/originRepoLabel";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { useSidebarTab } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
 	type DiffStyle,
@@ -140,8 +141,6 @@ type GitPanelProps = {
 	 * itself.
 	 */
 	onRefresh: () => boolean;
-	/** Whether the panel is in expanded/fullscreen mode. */
-	isExpanded: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading: boolean;
 	remoteDiffStats?: readonly ChatDiffStatus[];
@@ -298,13 +297,13 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	chatId,
 	repositories,
 	onRefresh,
-	isExpanded,
 	isGitStatusLoading,
 	remoteDiffStats,
 	primaryDiffStatus,
 	chatInputRef,
 	everDirty,
 }) => {
+	const { isExpanded } = useSidebarTab();
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 

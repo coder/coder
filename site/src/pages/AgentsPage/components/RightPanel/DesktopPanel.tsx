@@ -12,6 +12,7 @@ import {
 	useDesktopConnection,
 } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
+import { useSidebarTab } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 import {
 	DesktopWorkspaceState,
@@ -25,21 +26,20 @@ type DesktopPanelProps = {
 	workspace: Workspace;
 	/** Absent while the workspace is stopped or rebuilding. */
 	workspaceAgent: WorkspaceAgent | undefined;
-	/** When true the panel is the active sidebar tab. */
-	isVisible: boolean;
 };
 
 export const DesktopPanel: React.FC<DesktopPanelProps> = ({
 	chatId,
 	workspace,
 	workspaceAgent,
-	isVisible,
 }) => {
+	const { isActive } = useSidebarTab();
+
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
 	// switched away.
 	const [activated, setActivated] = useState(false);
-	if (isVisible && !activated) {
+	if (isActive && !activated) {
 		setActivated(true);
 	}
 
@@ -47,7 +47,7 @@ export const DesktopPanel: React.FC<DesktopPanelProps> = ({
 		useStartDesktopWorkspace(workspace);
 
 	const [isControlling, setIsControlling] = useState(false);
-	if (!isVisible && isControlling) {
+	if (!isActive && isControlling) {
 		setIsControlling(false);
 	}
 
@@ -66,7 +66,7 @@ export const DesktopPanel: React.FC<DesktopPanelProps> = ({
 		scaleViewport: scaleMode === "fit",
 	});
 
-	useZoomShortcuts(setScaleMode, isVisible);
+	useZoomShortcuts(setScaleMode, isActive);
 
 	// Listen for BroadcastChannel messages from the pop-out window.
 	useEffect(() => {

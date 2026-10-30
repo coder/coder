@@ -5,6 +5,7 @@ import { API } from "#/api/api";
 import { chatDebugRunKey, chatDebugRunsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { SidebarTabStateContext } from "../../ChatsSidebar/tabs/SidebarTabView";
 import { DebugPanel } from "./DebugPanel";
 import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 
@@ -498,7 +499,6 @@ const meta: Meta<typeof DebugPanel> = {
 	component: DebugPanel,
 	args: {
 		chatId: CHAT_ID,
-		isVisible: true,
 	},
 	beforeEach: (ctx) => {
 		const real = Date.now;
@@ -565,9 +565,15 @@ export const Empty: Story = {
 };
 
 export const Disabled: Story = {
-	args: {
-		isVisible: false,
-	},
+	decorators: [
+		(Story) => (
+			<SidebarTabStateContext
+				value={{ isActive: false, isPanelOpen: true, isExpanded: false }}
+			>
+				<Story />
+			</SidebarTabStateContext>
+		),
+	],
 };
 
 export const ErrorState: Story = {

@@ -1,0 +1,18 @@
+import type { Workspace } from "#/api/typesGenerated";
+import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
+import type { WorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { useSidebarTab } from "../ChatsSidebar/tabs/SidebarTabView";
+
+type AppPanelProps = {
+	workspace: Workspace;
+	app: WorkspaceAppWithAgent;
+};
+
+/** An embedded workspace app, shown while its tab is active. */
+export const AppPanel: React.FC<AppPanelProps> = ({ workspace, app }) => {
+	const { isActive } = useSidebarTab();
+
+	return (
+		<WorkspaceAppFrame workspace={workspace} app={app} active={isActive} />
+	);
+};

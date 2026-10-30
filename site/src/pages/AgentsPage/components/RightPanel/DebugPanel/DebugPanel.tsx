@@ -19,6 +19,7 @@ import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { useSidebarTab } from "../../ChatsSidebar/tabs/SidebarTabView";
 import { DebugRunList } from "./DebugRunList";
 import {
 	buildChatDebugExport,
@@ -30,7 +31,6 @@ import {
 
 type DebugPanelProps = {
 	chatId: string;
-	isVisible: boolean;
 	download?: DownloadDebugFile;
 };
 
@@ -100,9 +100,10 @@ const fetchDebugRunDetailsForExport = async (
 
 export const DebugPanel: React.FC<DebugPanelProps> = ({
 	chatId,
-	isVisible,
 	download = saveAs,
 }) => {
+	const { isActive, isPanelOpen } = useSidebarTab();
+	const isVisible = isPanelOpen && isActive;
 	const runsQuery = useQuery({
 		...chatDebugRuns(chatId),
 		enabled: isVisible,

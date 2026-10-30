@@ -20,6 +20,7 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
+import { SidebarTabStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
 
 const ROOT_CHAT_ID = "root-chat-id";
 
@@ -75,7 +76,6 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	parameters: { features: ["aibridge"] satisfies TypesGen.FeatureName[] },
 	args: {
 		chatId: MockChat.id,
-		isVisible: true,
 		hasMoreMessages: false,
 		isHydratingMessages: false,
 	},
@@ -185,7 +185,15 @@ export const ChatError: Story = {
 };
 
 export const NotVisible: Story = {
-	args: { isVisible: false },
+	decorators: [
+		(Story) => (
+			<SidebarTabStateContext
+				value={{ isActive: false, isPanelOpen: true, isExpanded: false }}
+			>
+				<Story />
+			</SidebarTabStateContext>
+		),
+	],
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
