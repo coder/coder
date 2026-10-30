@@ -30,10 +30,19 @@ const (
 )
 
 // ProviderResolver maps a git remote origin to the gitprovider
-// that handles it. Returns nil if no provider matches.
-type ProviderResolver func(ctx context.Context, origin string) gitprovider.Provider
+// that handles it. Returns (nil, nil) if no configured provider
+// matches the origin, and ErrProviderUnimplemented if one matches
+// but its git type has no implementation. Any other error is
+// reported as the row error and retried after DiffStatusTTL.
+type ProviderResolver func(ctx context.Context, origin string) (gitprovider.Provider, error)
 
 var ErrNoTokenAvailable = xerrors.New("no token available")
+
+// ErrProviderUnimplemented indicates the origin matched a configured
+// provider whose git type Coder does not implement yet. Unlike a
+// misconfigured origin, an operator cannot fix this, so the worker
+// parks the row until an implementation ships.
+var ErrProviderUnimplemented = xerrors.New("git provider not implemented")
 
 // ErrStalePullRequest indicates the row's stored PR belongs to a
 // previous branch and the current branch has none.
@@ -164,9 +173,11 @@ func (r *Refresher) Refresh(
 	// duplicate resolution for rows in the same group.
 	var resolved []resolvedGroup
 	for key, indices := range groups {
-		provider := r.providers(ctx, key.origin)
-		if provider == nil {
-			err := xerrors.Errorf("no provider for origin %q", key.origin)
+		provider, err := r.providers(ctx, key.origin)
+		if err == nil && provider == nil {
+			err = xerrors.Errorf("no provider for origin %q", key.origin)
+		}
+		if err != nil {
 			for _, i := range indices {
 				results[i].Error = err
 			}
