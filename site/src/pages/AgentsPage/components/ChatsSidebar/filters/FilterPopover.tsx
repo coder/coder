@@ -240,26 +240,35 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				aria-label="Filter agents"
 				className="min-w-56"
 			>
-				<DropdownMenuLabel>Grouping</DropdownMenuLabel>
-				<DropdownMenuRadioGroup
-					value={filters.groupBy}
-					onValueChange={setGroupBy}
-				>
-					{GROUP_OPTIONS.map((option) => {
-						const Icon = option.icon;
-						return (
-							<DropdownMenuRadioItem
-								key={option.value}
-								value={option.value}
-								className="gap-2 [&>svg]:size-icon-sm"
-								onSelect={keepMenuOpen}
-							>
-								<Icon />
-								{option.label}
-							</DropdownMenuRadioItem>
-						);
-					})}
-				</DropdownMenuRadioGroup>
+				<DropdownMenuSub>
+					<DropdownMenuSubTrigger>
+						<div className="flex items-center justify-between gap-2 flex-1">
+							<span>Group by</span>
+							<span className="text-content-primary">{GROUP_OPTIONS.find((o) => o.value === filters.groupBy)?.label}</span>
+						</div>
+					</DropdownMenuSubTrigger>
+					<DropdownMenuSubContent>
+						<DropdownMenuRadioGroup
+							value={filters.groupBy}
+							onValueChange={setGroupBy}
+						>
+							{GROUP_OPTIONS.map((option) => {
+								const Icon = option.icon;
+								return (
+									<DropdownMenuRadioItem
+										key={option.value}
+										value={option.value}
+										className="gap-2 [&>svg]:size-icon-sm"
+										onSelect={keepMenuOpen}
+									>
+										<Icon />
+										{option.label}
+									</DropdownMenuRadioItem>
+								);
+							})}
+						</DropdownMenuRadioGroup>
+					</DropdownMenuSubContent>
+				</DropdownMenuSub>
 
 				<DropdownMenuSeparator />
 
