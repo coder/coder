@@ -150,7 +150,7 @@ In either list, you can download the files, and open PNG, JPEG, GIF, and WebP im
 On a wide screen, a chat shows an overview card in its top-right corner while the right panel is closed.
 The card lists the chat's cost, the uncommitted changes in each repository, the pull requests, the subagents that are not idle, and the attachments.
 The cost appears when the deployment has the AI Gateway entitlement and the chat has sent at least one model request.
-A repository without uncommitted changes shows zero added and zero deleted lines.
+A repository without uncommitted changes shows zero added and zero deleted lines, and you cannot select it.
 
 Select a row to open the matching tab in the right panel, or select a subagent to open its chat.
 The card returns when you close the right panel.

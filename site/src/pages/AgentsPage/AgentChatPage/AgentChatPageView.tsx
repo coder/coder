@@ -38,7 +38,6 @@ import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
 import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
-import { useEmbedContext } from "../components/EmbedContext";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
@@ -50,10 +49,7 @@ import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import {
-	getPersistedOverviewCardOpen,
-	savePersistedOverviewCardOpen,
-} from "../utils/overviewCardStorage";
+import { useChatOverview } from "../hooks/useChatOverview";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -309,16 +305,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const [chatFullWidth] = useChatFullWidth();
-	const { isEmbedded } = useEmbedContext();
-	const canShowOverview = !showSidebarPanel && !chatFullWidth && !isEmbedded;
-	const [isOverviewOpen, setIsOverviewOpen] = useState(
-		getPersistedOverviewCardOpen,
-	);
-	const toggleOverview = () => {
-		savePersistedOverviewCardOpen(!isOverviewOpen);
-		setIsOverviewOpen(!isOverviewOpen);
-	};
+	const overview = useChatOverview({ isRightPanelOpen: showSidebarPanel });
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -810,11 +797,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onToggleSidebar: () =>
 										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
-								overview={
-									canShowOverview
-										? { isOpen: isOverviewOpen, onToggle: toggleOverview }
-										: undefined
-								}
+								overview={overview.toggle}
 							/>
 							{modelCatalogError != null && (
 								<ErrorAlert error={modelCatalogError} />
@@ -846,14 +829,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 								}}
 							/>
-							{canShowOverview && isOverviewOpen && (
+							{overview.isCardShown && (
 								<ChatOverviewCard
 									chat={chat}
 									store={store}
 									repositories={gitWatcher.repositories}
 									hasMoreMessages={hasMoreMessages}
 									isHydratingMessages={isHydratingMessages}
-									onOpenTab={activateRightPanelTab}
+									onOpenTarget={(target) => activateRightPanelTab(target.tabId)}
 								/>
 							)}
 						</div>
