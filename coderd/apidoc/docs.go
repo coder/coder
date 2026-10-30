@@ -3335,6 +3335,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/auto-archive-days": {
             "get": {
+                "description": "Returns the number of days of inactivity after which Coder Agents archives a chat automatically.\nThe default, ` + "`" + `0` + "`" + `, turns off auto-archive. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3358,6 +3359,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `.\nThe value ` + "`" + `0` + "`" + ` turns off auto-archive. Requires permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3368,7 +3370,7 @@ const docTemplate = `{
                 "operationId": "update-chat-auto-archive-days",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Auto-archive window. ` + "`" + `auto_archive_days` + "`" + ` is the number of inactive days, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `, and ` + "`" + `0` + "`" + ` turns off auto-archive.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3391,6 +3393,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/debug-logging": {
             "get": {
+                "description": "Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -3414,6 +3417,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets whether users can turn on chat debug logging for their own chats with ` + "`" + `PUT /api/v2/chats/config/user-debug-logging` + "`" + `.\nRequires permission to update deployment configuration, which the Owner role has. While ` + "`" + `--chat-debug-logging-enabled` + "`" + ` forces debug logging on, users can't change their own setting.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3424,7 +3428,7 @@ const docTemplate = `{
                 "operationId": "update-chat-debug-logging-setting",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Debug logging gate. ` + "`" + `allow_users` + "`" + ` is ` + "`" + `true` + "`" + ` to let users opt in to debug logging for their own chats.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3447,6 +3451,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/debug-retention-days": {
             "get": {
+                "description": "Returns the number of days Coder Agents keeps chat debug runs before deleting them.\nThe default is ` + "`" + `30` + "`" + `, and ` + "`" + `0` + "`" + ` turns off the cleanup. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3470,6 +3475,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the number of days Coder Agents keeps chat debug runs before deleting them, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `.\nThe value ` + "`" + `0` + "`" + ` turns off the cleanup. Requires permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3480,7 +3486,7 @@ const docTemplate = `{
                 "operationId": "update-chat-debug-retention-days",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Debug retention window. ` + "`" + `debug_retention_days` + "`" + ` is the number of days to keep debug runs, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `, and ` + "`" + `0` + "`" + ` turns off the cleanup.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3503,6 +3509,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/personal-model-overrides": {
             "get": {
+                "description": "Returns whether users can choose their own models for their chats instead of the organization defaults.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -3526,6 +3533,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets whether users can choose their own models for their chats instead of the organization defaults.\nPersonal model overrides are off by default. Requires permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3536,7 +3544,7 @@ const docTemplate = `{
                 "operationId": "update-chat-personal-model-override-settings",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Personal model override gate. ` + "`" + `allow_users` + "`" + ` is ` + "`" + `true` + "`" + ` to let users set personal model overrides.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3559,6 +3567,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/plan-mode-instructions": {
             "get": {
+                "description": "Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.\nRequires permission to update deployment configuration, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -3582,6 +3591,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.\nRequires permission to update deployment configuration, which the Owner role has. The ` + "`" + `CODER_CHAT_MAX_PROMPT_BYTES` + "`" + ` option limits their size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3592,7 +3602,7 @@ const docTemplate = `{
                 "operationId": "update-chat-plan-mode-instructions",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Plan mode instructions to store, in ` + "`" + `plan_mode_instructions` + "`" + `. They replace the current instructions.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3677,6 +3687,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/system-prompt": {
             "get": {
+                "description": "Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.\nRequires permission to update deployment configuration, which the Owner role has.",
                 "produces": [
                     "application/json"
                 ],
@@ -3700,6 +3711,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.\nRequires permission to update deployment configuration, which the Owner role has. The ` + "`" + `CODER_CHAT_MAX_PROMPT_BYTES` + "`" + ` option limits the prompt size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3710,7 +3722,7 @@ const docTemplate = `{
                 "operationId": "update-chat-system-prompt",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "System prompt in ` + "`" + `system_prompt` + "`" + `. Set ` + "`" + `include_default_system_prompt` + "`" + ` to choose whether the built-in default prompt is also used, or omit it to keep the current choice.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3841,6 +3853,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/user-debug-logging": {
             "get": {
+                "description": "Returns whether chat debug logging is on for you, whether you can change it, and whether the deployment forces it on.\nUse it to decide whether to show a debug logging toggle.",
                 "produces": [
                     "application/json"
                 ],
@@ -3864,6 +3877,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Turns chat debug logging on or off for your own chats.\nIt returns ` + "`" + `403` + "`" + ` unless an administrator allowed user opt-in with ` + "`" + `PUT /api/v2/chats/config/debug-logging` + "`" + `, and ` + "`" + `409` + "`" + ` while the deployment forces debug logging on.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3874,7 +3888,7 @@ const docTemplate = `{
                 "operationId": "update-user-chat-debug-logging-setting",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Your debug logging choice. ` + "`" + `debug_logging_enabled` + "`" + ` is ` + "`" + `true` + "`" + ` to record debug logs for your chats.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3897,6 +3911,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/user-prompt": {
             "get": {
+                "description": "Returns your custom chat prompt, which Coder Agents adds to your chats as your own instructions.\nThe prompt is empty when you haven't set one.",
                 "produces": [
                     "application/json"
                 ],
@@ -3920,6 +3935,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets your custom chat prompt, replacing the stored one, and returns the stored value.\nThe prompt applies only to your chats. The ` + "`" + `CODER_CHAT_MAX_PROMPT_BYTES` + "`" + ` option limits its size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3933,7 +3949,7 @@ const docTemplate = `{
                 "operationId": "update-user-chat-custom-prompt",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Custom prompt in ` + "`" + `custom_prompt` + "`" + `. It replaces your current custom prompt.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3959,6 +3975,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/workspace-ttl": {
             "get": {
+                "description": "Returns the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.\nThe value ` + "`" + `0` + "`" + `, which is the default, means the setting is off and the template's own autostop setting applies. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3982,6 +3999,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.\nThe value must be ` + "`" + `0` + "`" + `, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3992,7 +4010,7 @@ const docTemplate = `{
                 "operationId": "update-chat-workspace-time-to-live",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Workspace time to live. ` + "`" + `workspace_ttl_ms` + "`" + ` is in milliseconds, and ` + "`" + `0` + "`" + ` turns the setting off.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8250,6 +8268,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/chats/config/system-prompt": {
             "get": {
+                "description": "Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.\nRequires permission to read the organization's chat model configuration, which the Owner, Auditor, Organization Admin, and Organization Auditor roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -8262,7 +8281,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8283,6 +8302,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.\nRequires permission to update the organization's chat model configuration, which the Owner and Organization Admin roles have. The ` + "`" + `CODER_CHAT_MAX_PROMPT_BYTES` + "`" + ` option limits their size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8295,13 +8315,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "Organization instructions in ` + "`" + `system_prompt` + "`" + `. They replace the current instructions.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8425,6 +8445,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/chats/models": {
             "get": {
+                "description": "Lists the chat models in an organization that you can read, and descriptors of the AI providers that show whether each is available to you.\nRequests that use a scoped API token need the ` + "`" + `chat_model_config:read` + "`" + ` scope. Provider descriptors never include API keys.",
                 "produces": [
                     "application/json"
                 ],
@@ -8436,7 +8457,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization name or ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8457,6 +8478,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.\nRequires permission to create chat model configurations in the organization, which the Owner and Organization Admin roles have. The provider must exist and be enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8471,13 +8493,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization name or ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Model",
+                        "description": "Model to create. ` + "`" + `ai_provider_id` + "`" + `, ` + "`" + `model` + "`" + `, and a positive ` + "`" + `context_limit` + "`" + ` are required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
