@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { OverviewTarget } from "../components/ChatOverviewCardView";
 import { useEmbedContext } from "../components/EmbedContext";
+import type { GitViewRequest } from "../components/GitPanel/gitViews";
 import {
 	getPersistedOverviewCardOpen,
 	savePersistedOverviewCardOpen,
@@ -28,7 +29,7 @@ export const useChatOverview = ({
 		target: OverviewTarget;
 	}>();
 	const canShow = !isRightPanelOpen && !chatFullWidth && !isEmbedded;
-	const gitViewRequest =
+	const gitViewRequest: GitViewRequest | undefined =
 		request?.target.tabId === "git"
 			? { id: request.id, view: request.target.view }
 			: undefined;

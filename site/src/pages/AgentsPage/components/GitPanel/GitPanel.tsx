@@ -53,13 +53,11 @@ import {
 	computeRepoStats,
 	type DiffStats,
 	type GitView,
+	type GitViewRequest,
 	repoBranchLabel,
 	repoLabel,
 	viewIdFor,
 } from "./gitViews";
-
-/** A request from outside the panel to show `view`, once per `id`. */
-type GitViewRequest = { id: number; view: GitView };
 
 // A keyless row predates the keyed schema and the API cannot select
 // it: an empty selector means the primary ref. Only a keyless primary
