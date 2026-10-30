@@ -170,7 +170,7 @@ describe("AskUserQuestionTool", () => {
 		await user.tab();
 		await user.tab();
 		expect(otherRadio).not.toBeChecked();
-		await user.click(screen.getByRole("textbox", { name: /other response/i }));
+		await user.click(screen.getByRole("textbox", { name: /something else/i }));
 		expect(otherRadio).toBeChecked();
 	});
 
@@ -204,7 +204,7 @@ describe("AskUserQuestionTool", () => {
 		await user.keyboard("3");
 		expect(radios[2]).toBeChecked();
 		expect(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 		).toHaveFocus();
 	});
 
@@ -225,7 +225,7 @@ describe("AskUserQuestionTool", () => {
 		);
 
 		await user.type(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 			"2",
 		);
 		expect(screen.getByRole("radio", { name: "Other" })).toBeChecked();
@@ -259,6 +259,48 @@ describe("AskUserQuestionTool", () => {
 		);
 		expect(onSubmitAnswer).not.toHaveBeenCalled();
 
+		await user.click(
+			screen.getByRole("radio", { name: "Ship it dark behind a flag." }),
+		);
+		await user.keyboard("{Enter}");
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"1. Implementation Approach: Use incremental migrations.\n2. Rollout: Ship it dark behind a flag.",
+		);
+	});
+
+	it("answers every question of a set that grew while it streamed", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		const queryClient = createTestQueryClient();
+		const renderTool = (
+			props: Partial<React.ComponentProps<typeof AskUserQuestionTool>>,
+		) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionTool
+					questions={mockTwoQuestions}
+					status="running"
+					isError={false}
+					{...props}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = renderComponent(
+			renderTool({ questions: [questions[0]] }),
+		);
+		rerender(renderTool({}));
+		rerender(
+			renderTool({
+				status: "completed",
+				isChatCompleted: true,
+				isLatestAskUserQuestion: true,
+				onSubmitAnswer,
+			}),
+		);
+
+		await user.click(
+			screen.getByRole("radio", { name: "Use incremental migrations." }),
+		);
+		await user.keyboard("{Enter}");
 		await user.click(
 			screen.getByRole("radio", { name: "Ship it dark behind a flag." }),
 		);
@@ -331,7 +373,7 @@ describe("AskUserQuestionTool", () => {
 		);
 		const firstRender = renderComponent(<DraftQuestion />);
 		await user.type(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 			"Two migrations",
 		);
 		await user.click(screen.getByRole("button", { name: "Next" }));
@@ -342,7 +384,7 @@ describe("AskUserQuestionTool", () => {
 		expect(backButton).toBeEnabled();
 		await user.click(backButton);
 		expect(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 		).toHaveValue("Two migrations");
 		await user.click(screen.getByRole("button", { name: "Next" }));
 		await user.click(screen.getByRole("button", { name: "Submit" }));
@@ -354,7 +396,7 @@ describe("AskUserQuestionTool", () => {
 		);
 		expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
 		expect(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 		).toHaveValue("");
 	});
 
@@ -379,7 +421,7 @@ describe("AskUserQuestionTool", () => {
 		);
 		const { rerender } = renderComponent(<DraftQuestion />);
 		await user.type(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 			"Later",
 		);
 		expect(localStorage).toHaveLength(1);
