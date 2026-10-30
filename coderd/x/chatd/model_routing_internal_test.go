@@ -1053,7 +1053,8 @@ func openaiRoundTrip(t *testing.T, fn func(*http.Request)) roundTripFunc {
 
 // TestNewModelAttributionImmutablePerRequest verifies that a chat retaining the
 // same synthetic API key receives attribution from its current workspace
-// binding. Detaching and reattaching must not retain an earlier workspace ID.
+// binding and its organization. Detaching and reattaching must not retain an
+// earlier workspace ID.
 func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
 	t.Parallel()
 
@@ -1061,7 +1062,8 @@ func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
 	provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
 	wsID1 := uuid.New()
 	wsID2 := uuid.New()
-	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	orgID := uuid.New()
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: orgID}
 	workspaceBindings := []uuid.NullUUID{
 		{UUID: wsID1, Valid: true},
 		{},
@@ -1069,14 +1071,15 @@ func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
 	}
 
 	type seenRequest struct {
-		apiKeyID    string
-		workspaceID uuid.UUID
+		apiKeyID       string
+		workspaceID    uuid.UUID
+		organizationID uuid.UUID
 	}
 	seen := make(chan seenRequest, len(workspaceBindings))
 	factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
 		apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
 		attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
-		seen <- seenRequest{apiKeyID: apiKeyID, workspaceID: attr.WorkspaceID}
+		seen <- seenRequest{apiKeyID: apiKeyID, workspaceID: attr.WorkspaceID, organizationID: attr.OrganizationID}
 	})}
 	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
 	call := fantasy.Call{Prompt: []fantasy.Message{{
@@ -1097,8 +1100,8 @@ func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
 		got = append(got, <-seen)
 	}
 	require.Equal(t, []seenRequest{
-		{apiKeyID: sharedAPIKeyID, workspaceID: wsID1},
-		{apiKeyID: sharedAPIKeyID, workspaceID: uuid.Nil},
-		{apiKeyID: sharedAPIKeyID, workspaceID: wsID2},
+		{apiKeyID: sharedAPIKeyID, workspaceID: wsID1, organizationID: orgID},
+		{apiKeyID: sharedAPIKeyID, workspaceID: uuid.Nil, organizationID: orgID},
+		{apiKeyID: sharedAPIKeyID, workspaceID: wsID2, organizationID: orgID},
 	}, got)
 }
