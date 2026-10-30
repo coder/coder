@@ -129,3 +129,10 @@ type DRPCAgentClient214 interface {
 type DRPCAgentClient215 interface {
 	DRPCAgentClient214
 }
+
+// DRPCAgentClient216 is the Agent API at v2.16. It adds agent_run_id to
+// Startup, and agent_run_id and mcp_discovery to PushContextStateRequest. No
+// new RPCs.
+type DRPCAgentClient216 interface {
+	DRPCAgentClient215
+}
