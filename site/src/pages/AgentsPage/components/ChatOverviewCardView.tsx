@@ -13,6 +13,11 @@ import type {
 	ChatDiffStatus,
 	ChatStatus,
 } from "#/api/typesGenerated";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { formatCostMicros } from "#/utils/currency";
 import { buildAgentChatPath } from "../utils/navigation";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
@@ -334,7 +339,11 @@ type OverviewRowProps = {
 	detail?: React.ReactNode;
 } & ({ onClick?: () => void; to?: never } | { to: string; onClick?: never });
 
-/** A button with `onClick`, a link with `to`, or plain text with neither. */
+/**
+ * A button with `onClick`, a link with `to`, or plain text with neither. Its
+ * label and subtitle truncate, so a tooltip shows them in full on hover and
+ * on keyboard focus.
+ */
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
 	iconClassName,
@@ -365,24 +374,35 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 		</>
 	);
 	const className =
-		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
+		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
 	const interactiveClassName = cn(
 		className,
-		"no-underline hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+		"no-underline hover:bg-surface-secondary",
 	);
-	if (to !== undefined) {
-		return (
+	const rowElement =
+		to !== undefined ? (
 			<Link to={to} className={interactiveClassName}>
 				{content}
 			</Link>
+		) : onClick ? (
+			<button type="button" onClick={onClick} className={interactiveClassName}>
+				{content}
+			</button>
+		) : (
+			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the plain-text row takes focus only so the keyboard can open its tooltip.
+			<div tabIndex={0} className={className}>
+				{content}
+			</div>
 		);
-	}
-	if (!onClick) {
-		return <div className={className}>{content}</div>;
-	}
 	return (
-		<button type="button" onClick={onClick} className={interactiveClassName}>
-			{content}
-		</button>
+		<Tooltip>
+			<TooltipTrigger asChild>{rowElement}</TooltipTrigger>
+			<TooltipContent side="left" className="max-w-xs">
+				<p className="m-0 break-words">{label}</p>
+				{subtitle && (
+					<p className="m-0 break-words text-content-secondary">{subtitle}</p>
+				)}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
