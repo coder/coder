@@ -1807,30 +1807,39 @@ const toggleSubmenuOption = async (
 };
 
 describe("ChatsSidebar filters", () => {
-	it("applies the archived checkbox", async () => {
-		const user = userEvent.setup();
-		const onSidebarFiltersChange = vi.fn();
+	it.each([
+		["active", "Archived", "archived"],
+		["archived", "Active", "active"],
+	] as const)(
+		"switches from %s to %s chats",
+		async (initialStatus, label, archiveStatus) => {
+			const user = userEvent.setup();
+			const onSidebarFiltersChange = vi.fn();
 
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					sidebarFilters={defaultSidebarFilters}
-					onSidebarFiltersChange={onSidebarFiltersChange}
-				/>
-			</Wrapper>,
-		);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						sidebarFilters={{
+							...defaultSidebarFilters,
+							archiveStatus: initialStatus,
+						}}
+						onSidebarFiltersChange={onSidebarFiltersChange}
+					/>
+				</Wrapper>,
+			);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(
-			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
-		);
+			await user.click(screen.getByRole("button", { name: "Filter agents" }));
+			await user.click(
+				await screen.findByRole("menuitemradio", { name: label }),
+			);
 
-		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
-			...defaultSidebarFilters,
-			archiveStatus: "archived",
-		});
-	});
+			expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+				...defaultSidebarFilters,
+				archiveStatus,
+			});
+		},
+	);
 
 	it("clears only result filters when applied filters return no agents", async () => {
 		const user = userEvent.setup();

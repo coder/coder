@@ -160,13 +160,6 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 		});
 	};
 
-	const setArchived = (checked: boolean) => {
-		onFiltersChange({
-			...filters,
-			archiveStatus: checked ? "archived" : "active",
-		});
-	};
-
 	const setSource = (source: AgentSourceFilter, checked: boolean) => {
 		const nextSources = checked
 			? AGENT_SOURCE_ORDER.filter(
@@ -311,14 +304,27 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				>
 					Unread
 				</DropdownMenuCheckboxItem>
-				<DropdownMenuCheckboxItem
-					checked={filters.archiveStatus === "archived"}
-					onCheckedChange={(checked) => setArchived(checked === true)}
-					onSelect={keepMenuOpen}
-					className="[&>span]:right-3.5"
+				<DropdownMenuRadioGroup
+					aria-label="Chat archive status"
+					value={filters.archiveStatus}
+					onValueChange={(value) => {
+						if (value === "active" || value === "archived") {
+							onFiltersChange({ ...filters, archiveStatus: value });
+						}
+					}}
+					className="mt-2 flex gap-1 rounded-lg bg-surface-secondary p-1"
 				>
-					Archived
-				</DropdownMenuCheckboxItem>
+					{["active", "archived"].map((status) => (
+						<DropdownMenuRadioItem
+							key={status}
+							value={status}
+							onSelect={keepMenuOpen}
+							className="flex-1 justify-center rounded-sm px-2 py-1 data-[state=checked]:bg-surface-tertiary focus-visible:ring-2 focus-visible:ring-content-link [&>span]:hidden"
+						>
+							{status === "active" ? "Active" : "Archived"}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					className="justify-center"
