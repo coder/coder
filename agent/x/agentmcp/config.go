@@ -63,6 +63,9 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 		if strings.Contains(name, ToolNameSep) || strings.HasPrefix(name, "_") || strings.HasSuffix(name, "_") {
 			return nil, xerrors.Errorf("server name %q in %q contains reserved separator %q or leading/trailing underscore", name, path, ToolNameSep)
 		}
+		if len(name) > maxServerNameBytes {
+			return nil, xerrors.Errorf("server name in %q is %d bytes, exceeds %d byte cap", path, len(name), maxServerNameBytes)
+		}
 
 		transport := inferTransport(entry)
 

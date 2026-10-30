@@ -31,9 +31,11 @@
 // Live MCP server tool lists come from the shared MCP engine in
 // agent/x/agentmcp, which owns the single set of MCP server connections
 // used for both tool discovery and tool-call execution. This package
-// reads that engine's catalog through the injected MCPCatalog option and
-// surfaces the servers and their tools as KindMCPServer resources, so
-// MCP servers are pushed to coderd alongside instruction files and
-// skills. The engine notifies this package through the Manager's Trigger
-// when its catalog changes, driving a re-resolve and re-push.
+// samples that engine's discovery report once per resolve through the
+// injected MCPReport option and surfaces the servers and their tools as
+// KindMCPServer resources and config-level failures as KindMCPConfig
+// error overlays, so MCP servers are pushed to coderd alongside
+// instruction files and skills. The engine notifies this package through
+// the Manager's Trigger when its report changes, driving a re-resolve and
+// re-push.
 package agentcontext

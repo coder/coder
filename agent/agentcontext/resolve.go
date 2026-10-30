@@ -118,11 +118,10 @@ type Resolver struct {
 	// DefaultMaxResources if zero.
 	MaxResources int
 	// MCPResources, when non-nil, is consulted after the
-	// filesystem pass and returns the KindMCPServer resources
-	// for live MCP servers. It must not block: the resolver
-	// calls it on every re-resolve. In production the manager
-	// wires this to its MCP runner's snapshot; tests inject a
-	// closure directly.
+	// filesystem pass and returns additional KindMCPServer
+	// resources. It must not block: the resolver calls it on
+	// every re-resolve. Production passes the engine's report to
+	// ResolveContextWithMCP instead; tests inject a closure here.
 	MCPResources func() []Resource
 	// ACPResources returns cached harness metadata; it must never launch processes.
 	ACPResources func() []Resource
@@ -156,6 +155,14 @@ func (r *Resolver) Resolve(roots []ScanRoot) Snapshot {
 // Snapshot: a canceled context returns an empty Snapshot with
 // SnapshotError set to the context error.
 func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapshot {
+	return r.ResolveContextWithMCP(ctx, roots, MCPReport{})
+}
+
+// ResolveContextWithMCP is ResolveContext with a pre-sampled MCP
+// discovery report. The caller samples the report once, before the
+// filesystem walk, so the KindMCPServer resources and the KindMCPConfig
+// error overlay in one Snapshot describe a single engine state.
+func (r *Resolver) ResolveContextWithMCP(ctx context.Context, roots []ScanRoot, mcp MCPReport) Snapshot {
 	res := r.normalize()
 	resources, snapErrs := res.walk(ctx, roots)
 	if err := ctx.Err(); err != nil {
@@ -164,12 +171,18 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	resources = deduplicateSkills(resources)
 	resources, totalBytes := res.applyCaps(resources)
 
-	// Append discovered resources after the filesystem caps so providers
-	// cannot crowd out instruction files. MCP resources take priority over ACP.
-	startIdx := len(resources)
+	// MCP server resources are appended after the filesystem caps
+	// are applied so a runaway MCP server cannot crowd out
+	// instruction files, but they are built first so the config
+	// error overlay can see every source the snapshot will carry.
+	// MCP resources take priority over ACP.
+	mcpResources := buildMCPServerResources(mcp.Servers)
 	if r.MCPResources != nil {
-		resources = append(resources, r.MCPResources()...)
+		mcpResources = append(mcpResources, r.MCPResources()...)
 	}
+	resources = applyMCPConfigErrors(resources, mcp.ConfigErrors, mcpResources)
+	startIdx := len(resources)
+	resources = append(resources, mcpResources...)
 	if r.ACPResources != nil {
 		for _, harness := range r.ACPResources() {
 			if harness.SizeBytes > res.MaxResourceBytes {

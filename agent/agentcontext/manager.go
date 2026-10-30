@@ -38,13 +38,13 @@ type ManagerOptions struct {
 	// Tests use this to inject MCP resources (via
 	// Resolver.MCPResources) and tighten caps.
 	Resolver *Resolver
-	// MCPCatalog, when non-nil, supplies the per-server MCP snapshot
-	// the Manager surfaces as KindMCPServer resources on every
-	// resolve. The agent injects the shared MCP engine's catalog here
-	// so discovery and execution use one set of server connections.
-	// It is ignored when the resolver already has an MCP provider
-	// (e.g. a test injecting one via Resolver).
-	MCPCatalog func() []MCPServerStatus
+	// MCPReport, when non-nil, supplies the MCP engine's discovery
+	// report. The Manager samples it exactly once per resolve, before
+	// the filesystem walk, and surfaces it as KindMCPServer resources
+	// and KindMCPConfig error overlays. The agent injects the shared
+	// MCP engine here so discovery and execution use one set of
+	// server connections.
+	MCPReport func() MCPReport
 	// MCPReconnect runs at the start of Resync to reconnect MCP
 	// servers that failed or stopped responding.
 	MCPReconnect func(context.Context) error
@@ -73,6 +73,7 @@ type Manager struct {
 	allowedRoots []string
 	resolver     *Resolver
 	debounce     time.Duration
+	mcpReport    func() MCPReport
 	mcpReconnect func(context.Context) error
 
 	mu      sync.Mutex
@@ -145,6 +146,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		allowedRoots: append([]string(nil), opts.AllowedRoots...),
 		resolver:     resolver,
 		debounce:     debounce,
+		mcpReport:    opts.MCPReport,
 		mcpReconnect: opts.MCPReconnect,
 		sources:      make([]Source, 0),
 		sourceIndex:  make(map[string]int),
@@ -157,18 +159,6 @@ func NewManager(opts ManagerOptions) *Manager {
 
 	if resolver.ACPResources == nil {
 		resolver.ACPResources = opts.ACPResources
-	}
-
-	// Surface the shared MCP engine's catalog as KindMCPServer
-	// resources unless the resolver already has a provider (tests
-	// inject one via Resolver). The engine owns the connection
-	// lifecycle and notifies this Manager via Trigger when its
-	// catalog changes (see agent wiring). Wire it before SetReady runs
-	// the first resolve.
-	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
-		resolver.MCPResources = func() []Resource {
-			return buildMCPServerResources(opts.MCPCatalog())
-		}
 	}
 
 	for _, s := range opts.InitialSources {
@@ -478,7 +468,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveContextWithMCP(ctx, roots, m.sampleMCPReport())
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot whose SnapshotError is set to
@@ -537,6 +527,16 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		}
 	}
 	return snap, nil
+}
+
+// sampleMCPReport reads the MCP engine's report once. Both resolve
+// paths call it before the filesystem walk so a single sample feeds
+// every MCP-derived field of the resulting Snapshot.
+func (m *Manager) sampleMCPReport() MCPReport {
+	if m.mcpReport == nil {
+		return MCPReport{}
+	}
+	return m.mcpReport()
 }
 
 // signal triggers a re-resolve. Sends are non-blocking; the
@@ -665,7 +665,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := resolver.ResolveContextWithMCP(ctx, roots, m.sampleMCPReport())
 	if err := ctx.Err(); err != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot. Publishing it would replace the live

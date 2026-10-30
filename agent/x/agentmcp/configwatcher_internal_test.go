@@ -295,7 +295,7 @@ func TestWatcher_DualAgentLateConfigWarmsCatalog(t *testing.T) {
 
 	// Reading the catalog never blocks on a reload.
 	start := time.Now()
-	_ = m.Catalog()
+	_ = m.Report()
 	require.Less(t, time.Since(start), testutil.WaitShort,
 		"reading the catalog must not block on watcher reload")
 }
