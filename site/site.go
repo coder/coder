@@ -274,6 +274,10 @@ type htmlState struct {
 	UserSecretFilePathEnabled string
 	Permissions               string
 	Organizations             string
+
+	// ThemeClass is the base theme class rendered on <html> so the first
+	// paint uses the user's theme before ThemeProvider mounts.
+	ThemeClass string
 }
 
 type csrfState struct {
@@ -385,6 +389,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	if tmpl == nil {
 		return nil, xerrors.Errorf("template %q not found", filePath)
 	}
+	state.ThemeClass = themeClass(codersdk.UserAppearanceSettings{})
 
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
@@ -476,6 +481,7 @@ func (h *Handler) populateHTMLState(
 	userAppearance codersdk.UserAppearanceSettings,
 ) {
 	var wg sync.WaitGroup
+	state.ThemeClass = themeClass(userAppearance)
 	wg.Go(func() {
 		data, err := json.Marshal(db2sdk.User(user, orgIDs))
 		if err == nil {
@@ -762,6 +768,48 @@ func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 		return cfg.ApplicationName
 	}
 	return "Coder"
+}
+
+// themeClass returns the base theme class that ThemeProvider applies for
+// these settings (see site/src/theme/themeMode.ts). It returns "" when the
+// class depends on the OS color scheme, which the server cannot know.
+func themeClass(s codersdk.UserAppearanceSettings) string {
+	// Theme names are "<scheme>" or "<scheme>-<palette>".
+	scheme := func(name, fallback string) string {
+		prefix, _, _ := strings.Cut(name, "-")
+		if prefix == "light" || prefix == "dark" {
+			return prefix
+		}
+		return fallback
+	}
+	preference, _, _ := strings.Cut(s.ThemePreference, "-")
+	if s.ThemeMode == codersdk.ThemeModeSync ||
+		(s.ThemeMode != codersdk.ThemeModeSingle && preference == "auto") {
+		// The OS color scheme picks the light or dark slot.
+		if light := scheme(s.ThemeLight, "light"); light == scheme(s.ThemeDark, "dark") {
+			return light
+		}
+		return ""
+	}
+	return scheme(s.ThemePreference, "dark")
+}
+
+// LightThemeColorMedia and DarkThemeColorMedia are the media queries of the
+// light and dark theme-color metas in index.html. A pinned theme enables only
+// its own meta, and a theme that follows the OS leaves the choice to the OS.
+func (s htmlState) LightThemeColorMedia() string { return s.themeColorMedia("light") }
+
+func (s htmlState) DarkThemeColorMedia() string { return s.themeColorMedia("dark") }
+
+func (s htmlState) themeColorMedia(scheme string) string {
+	switch s.ThemeClass {
+	case "":
+		return "(prefers-color-scheme: " + scheme + ")"
+	case scheme:
+		return "all"
+	default:
+		return "not all"
+	}
 }
 
 // OnlyFiles returns a new fs.FS that only contains files. If a directory is
