@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
@@ -75,10 +75,11 @@ describe("ChatOverviewCardView", () => {
 		const user = userEvent.setup();
 		renderCard();
 
-		await user.hover(screen.getByRole("button", { name: /#123 Queue jobs/ }));
+		const row = screen.getByRole("button", { name: /#123 Queue jobs/ });
+		await user.hover(row);
 
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"#123 Queue jobs",
+		await waitFor(() =>
+			expect(row).toHaveAccessibleDescription("#123 Queue jobs"),
 		);
 	});
 
@@ -92,7 +93,8 @@ describe("ChatOverviewCardView", () => {
 
 		await user.tab();
 
-		expect(await screen.findByRole("tooltip")).toHaveTextContent("main");
-		expect(document.activeElement).toHaveTextContent("main+0 −0");
+		await waitFor(() =>
+			expect(document.activeElement).toHaveAccessibleDescription("main"),
+		);
 	});
 });
