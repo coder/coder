@@ -35,6 +35,7 @@ export type UsersTableProps = {
 	isLoading: boolean;
 	users: readonly TypesGen.User[] | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
+	isLoadingGroups: boolean;
 	/**
 	 * Used to disable the UI of actions that users cannot perform on themselves,
 	 * like delete.
@@ -80,6 +81,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	isLoading,
 	users,
 	groupsByUserId,
+	isLoadingGroups,
 	me,
 	canEditUsers,
 	canViewActivity,
@@ -106,7 +108,10 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 
 			<UserRoleCell roles={user.roles} />
 
-			<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
+			<UserGroupsCell
+				isLoading={isLoadingGroups}
+				userGroups={groupsByUserId && (groupsByUserId.get(user.id) ?? [])}
+			/>
 
 			<TableCell
 				className={cn(
