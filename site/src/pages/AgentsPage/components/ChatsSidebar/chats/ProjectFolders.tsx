@@ -241,14 +241,26 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<NavLink
 							to={projectPath}
 							aria-label={projectLabel}
-							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
+							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
 						>
-							<ChatProjectIcon
-								project={project}
-								expanded={expanded}
-								className="size-4"
-							/>
-							<span className="flex-1 truncate">{project.name}</span>
+							{({ isActive }) => (
+								<>
+									<ChatProjectIcon
+										project={project}
+										expanded={expanded}
+										className="size-4 stroke-[1.75]"
+									/>
+									<span
+										className={cn(
+											"flex-1 truncate text-content-primary",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+										)}
+									>
+										{project.name}
+									</span>
+								</>
+							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
