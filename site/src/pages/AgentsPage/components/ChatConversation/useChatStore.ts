@@ -26,6 +26,7 @@ import {
 	type ChatStoreState,
 	createChatStore,
 	isActiveChatStatus,
+	selectOldestStoredMessageID,
 	selectShownError,
 	selectStreamState,
 } from "./chatStore";
@@ -119,7 +120,7 @@ export const useChatStore = (
 		isError: hasFetchMoreError,
 	} = useMutation({
 		mutationFn: async () => {
-			const oldestID = store.getSnapshot().orderedMessageIDs[0];
+			const oldestID = selectOldestStoredMessageID(store.getSnapshot());
 			if (oldestID === undefined) {
 				return;
 			}
