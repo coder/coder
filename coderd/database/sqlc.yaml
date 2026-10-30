@@ -291,6 +291,7 @@ sql:
           cors_behavior: CorsBehavior
           aibridge_interception: AIBridgeInterception
           aibridge_interception_error_type: AIBridgeInterceptionErrorType
+          aibridge_interception_organization_source: AIBridgeInterceptionOrganizationSource
           aibridge_tool_usage: AIBridgeToolUsage
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
@@ -313,6 +314,7 @@ sql:
           mcp_server_tool_snapshots: MCPServerToolSnapshots
           mcp_server_config_id: MCPServerConfigID
           mcp_server_ids: MCPServerIDs
+          disabled_skill_ids: DisabledSkillIDs
           max_file_links: MaxFileLinks
           icon_url: IconURL
           oauth2_client_id: OAuth2ClientID

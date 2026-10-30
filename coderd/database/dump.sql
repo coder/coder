@@ -42,6 +42,12 @@ CREATE TYPE aibridge_interception_error_type AS ENUM (
     'unknown'
 );
 
+CREATE TYPE aibridge_interception_organization_source AS ENUM (
+    'workspace',
+    'chatd',
+    'effective_group'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -1843,7 +1849,10 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
     error_message character varying(1024),
-    workspace_id uuid
+    workspace_id uuid,
+    organization_id uuid,
+    organization_source aibridge_interception_organization_source,
+    CONSTRAINT aibridge_interceptions_organization_source_check CHECK (((organization_id IS NULL) = (organization_source IS NULL)))
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1873,6 +1882,10 @@ COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal ups
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.workspace_id IS 'The workspace in which the agent ran. NULL when no workspace context is available.';
+
+COMMENT ON COLUMN aibridge_interceptions.organization_id IS 'The organization the interception was attributed to. NULL when no organization was resolved.';
+
+COMMENT ON COLUMN aibridge_interceptions.organization_source IS 'How organization_id was chosen. NULL exactly when organization_id is NULL.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -2294,7 +2307,7 @@ CREATE TABLE chat_organization_model_overrides (
     context text NOT NULL,
     model_config_id uuid NOT NULL,
     reasoning_effort text,
-    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text, 'computer_use'::text])))
 );
 
 CREATE TABLE chat_organization_system_prompts (
@@ -3101,6 +3114,24 @@ COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: H
 
 COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
 
+CREATE TABLE organization_member_disabled_skills (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    skill_id uuid NOT NULL
+);
+
+COMMENT ON TABLE organization_member_disabled_skills IS 'Organization skills that a member turned off for their own chats. Applied only while organizations.members_can_disable_skills is true.';
+
+CREATE TABLE organization_member_skill_settings (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    all_skills_disabled boolean DEFAULT false NOT NULL
+);
+
+COMMENT ON TABLE organization_member_skill_settings IS 'Per-member organization skill settings. Applied only while organizations.members_can_disable_skills is true.';
+
+COMMENT ON COLUMN organization_member_skill_settings.all_skills_disabled IS 'Whether the member turned off every organization skill, including skills added later. Per-skill choices in organization_member_disabled_skills are kept and apply again when this is false.';
+
 CREATE TABLE organizations (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -3112,12 +3143,15 @@ CREATE TABLE organizations (
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
-    default_org_member_roles text[] NOT NULL
+    default_org_member_roles text[] NOT NULL,
+    members_can_disable_skills boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
 
 COMMENT ON COLUMN organizations.default_org_member_roles IS 'Roles granted to every member of this organization at request time. The set is unioned into each member''s effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.';
+
+COMMENT ON COLUMN organizations.members_can_disable_skills IS 'Whether organization members can turn off organization skills for their own chats. While false, member choices are kept but ignored.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
@@ -4786,6 +4820,12 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skills_pkey PRIMARY KEY (organization_id, user_id, skill_id);
+
+ALTER TABLE ONLY organization_member_skill_settings
+    ADD CONSTRAINT organization_member_skill_settings_pkey PRIMARY KEY (organization_id, user_id);
+
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -5052,6 +5092,8 @@ CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions U
 
 CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
 
+CREATE INDEX idx_aibridge_interceptions_organization_id ON aibridge_interceptions USING btree (organization_id) WHERE (organization_id IS NOT NULL);
+
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
 CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
@@ -5223,6 +5265,8 @@ CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING 
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
+
+CREATE INDEX idx_organization_member_disabled_skills_skill_id ON organization_member_disabled_skills USING btree (skill_id);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
@@ -5509,6 +5553,9 @@ ALTER TABLE ONLY ai_seat_state
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
 
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
@@ -5760,6 +5807,15 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skill_organization_id_user_id_fkey FOREIGN KEY (organization_id, user_id) REFERENCES organization_members(organization_id, user_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_skill_settings
+    ADD CONSTRAINT organization_member_skill_settings_organization_id_user_id_fkey FOREIGN KEY (organization_id, user_id) REFERENCES organization_members(organization_id, user_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

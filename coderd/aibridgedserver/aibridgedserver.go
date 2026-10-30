@@ -82,9 +82,9 @@ type store interface {
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
 	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
 	GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error)
-	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
-	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
-	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg database.GetUserAIBudgetOverrideWithOrganizationParams) (database.GetUserAIBudgetOverrideWithOrganizationRow, error)
+	GetHighestGroupAIBudgetByUser(ctx context.Context, arg database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error)
@@ -264,6 +264,14 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
 	}
 
+	organizationID, organizationSource, err := interceptionOrganization(in)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid organization attribution in interception request, storing none",
+			slog.F("organization_id", in.GetOrganizationId()),
+			slog.F("organization_source", in.GetOrganizationSource()),
+			slog.Error(err))
+	}
+
 	if s.structuredLogging {
 		fields := []slog.Field{
 			slog.F("record_type", recorder.RecordTypeInterceptionStart),
@@ -282,6 +290,12 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		}
 		if workspaceID.Valid {
 			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
+		}
+		if organizationID.Valid {
+			fields = append(fields,
+				slog.F("organization_id", organizationID.UUID),
+				slog.F("organization_source", organizationSource.AIBridgeInterceptionOrganizationSource),
+			)
 		}
 		s.logger.Info(ctx, recorder.InterceptionLogMarker, fields...)
 	}
@@ -304,6 +318,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 		WorkspaceID:                 workspaceID,
+		OrganizationID:              organizationID,
+		OrganizationSource:          organizationSource,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -959,6 +975,30 @@ func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID u
 	return uuid.NullUUID{UUID: id, Valid: true}, nil
 }
 
+// interceptionOrganization parses the optional organization attribution. It
+// returns both values valid or neither, so an invalid pair never fails the record.
+// It checks only the format. The caller must send an existing organization: a
+// well-formed ID for an unknown organization passes here and fails the foreign
+// key on insert.
+func interceptionOrganization(in *proto.RecordInterceptionRequest) (uuid.NullUUID, database.NullAIBridgeInterceptionOrganizationSource, error) {
+	rawID, rawSource := in.GetOrganizationId(), in.GetOrganizationSource()
+	if rawID == "" && rawSource == "" {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, nil
+	}
+
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("invalid organization ID: %w", err)
+	}
+	source := database.AIBridgeInterceptionOrganizationSource(rawSource)
+	if !source.Valid() {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("unknown organization source %q", rawSource)
+	}
+	return uuid.NullUUID{UUID: id, Valid: true},
+		database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+		nil
+}
+
 // IsBudgetExceeded reports whether the user's AI spend has reached their
 // effective limit over [periodStart, now], where periodStart is the start of
 // the current deployment-configured budget period.
@@ -1026,7 +1066,7 @@ type userAIBudget struct {
 //     overages, not build an accounting system.
 //   - Fail-open is acceptable for this case.
 func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAIBudget, error) {
-	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, uuid.NullUUID{}, s.budgetPolicy)
 	if err != nil {
 		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
 	}

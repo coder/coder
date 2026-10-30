@@ -38,14 +38,6 @@ var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of c
 // agent is still working and the wait can be retried.
 var ErrSubagentWaitTimeout = xerrors.New("timed out waiting for delegated subagent completion")
 
-// subagentToolNameAliases maps deprecated subagent tool names to their
-// current names so historical close_agent calls in chat history still
-// dispatch to interrupt_agent without advertising the old name in the
-// tool list.
-var subagentToolNameAliases = map[string]string{
-	"close_agent": "interrupt_agent",
-}
-
 // subagentStatusError wraps a subagent that reached error status. It
 // carries the chat and report so callers can surface a structured,
 // recoverable-aware payload instead of a bare tool error.
