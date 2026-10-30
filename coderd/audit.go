@@ -42,7 +42,7 @@ const auditLogCountCap = 2000
 // @Produce json
 // @Tags Audit
 // @Param q query string false "Search query made of `key:value` terms separated by spaces, matched case-insensitively. A term with no key filters by `resource_type`. Keys: `resource_type`, `resource_id`, `resource_target` (the resource's name), `action`, `username` (or `me`), `email`, `organization` (ID or name), `date_from` and `date_to` (inclusive, as `YYYY-MM-DD`), `build_reason`, and `request_id`."
-// @Param limit query int true "Maximum number of results to return. A value of `0` returns up to `100` results."
+// @Param limit query int false "Maximum number of results to return. A value of `0` returns up to `100` results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.AuditLogResponse
 // @Router /api/v2/audit [get]

@@ -25,7 +25,6 @@ import (
 // @Description The workspace agent calls this to authenticate on an Azure instance, and the instance must belong to the workspace's latest build.
 // @Description Doesn't require a session token.
 // @ID authenticate-agent-on-azure-instance
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Agents
@@ -66,7 +65,6 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // @Description The workspace agent calls this to authenticate on an AWS instance, and the instance must belong to the workspace's latest build.
 // @Description Doesn't require a session token.
 // @ID authenticate-agent-on-aws-instance
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Agents
@@ -99,7 +97,6 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // @Description The workspace agent calls this to authenticate on a Google Cloud instance, and the instance must belong to the workspace's latest build.
 // @Description Doesn't require a session token.
 // @ID authenticate-agent-on-google-cloud-instance
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Agents

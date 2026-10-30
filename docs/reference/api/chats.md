@@ -5003,9 +5003,9 @@ Requires permission to read the organization's chat model configuration, and ret
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -5053,7 +5053,7 @@ Requires permission to update the organization's chat model configuration. The `
 
 | Name           | In   | Type                                                                                                               | Required | Description                                                                          |
 |----------------|------|--------------------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                                                       | true     | Organization ID, name, or `default` for the default organization.                    |
+| `organization` | path | string                                                                                                             | true     | Organization ID, name, or `default` for the default organization.                    |
 | `body`         | body | [codersdk.UpdateOrganizationChatSystemPromptRequest](schemas.md#codersdkupdateorganizationchatsystempromptrequest) | true     | Organization instructions in `system_prompt`. They replace the current instructions. |
 
 ### Responses

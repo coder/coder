@@ -77,9 +77,16 @@ Returns `404` for a file you can't read.
 
 ### Parameters
 
-| Name     | In   | Type         | Required | Description                                   |
-|----------|------|--------------|----------|-----------------------------------------------|
-| `fileID` | path | string(uuid) | true     | File ID, as returned by `POST /api/v2/files`. |
+| Name     | In    | Type         | Required | Description                                           |
+|----------|-------|--------------|----------|-------------------------------------------------------|
+| `fileID` | path  | string(uuid) | true     | File ID, as returned by `POST /api/v2/files`.         |
+| `format` | query | string       | false    | Set to `zip` to download a tar file as a zip archive. |
+
+#### Enumerated Values
+
+| Parameter | Value(s) |
+|-----------|----------|
+| `format`  | `zip`    |
 
 ### Responses
 

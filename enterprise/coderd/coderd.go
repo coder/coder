@@ -1427,7 +1427,6 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 // @Description The dashboard reads it to decide which features to turn on.
 // @Description Doesn't require a session token.
 // @ID get-entitlements
-// @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.Entitlements

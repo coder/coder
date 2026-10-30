@@ -179,6 +179,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Files
 // @Param fileID path string true "File ID, as returned by `POST /api/v2/files`." format(uuid)
+// @Param format query string false "Set to `zip` to download a tar file as a zip archive." Enums(zip)
 // @Success 200
 // @Router /api/v2/files/{fileID} [get]
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {

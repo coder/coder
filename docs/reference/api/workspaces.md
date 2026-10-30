@@ -57,7 +57,7 @@ of the template will be used.
 
 | Name           | In   | Type                                                                         | Required | Description                                                                        |
 |----------------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                 | true     | Organization ID, name, or `default` for the default organization.                  |
+| `organization` | path | string                                                                       | true     | Organization ID, name, or `default` for the default organization.                  |
 | `user`         | path | string                                                                       | true     | User ID, username, or `me` for the authenticated user.                             |
 | `body`         | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Workspace to create. Set `name` and either `template_id` or `template_version_id`. |
 
@@ -383,13 +383,13 @@ Requires permission to create workspaces for other users in the organization.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                              |
-|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
-| `user`         | path  | string       | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                   |
-| `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
-| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                              |
-| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                      |
+| Name           | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                              |
+|----------------|-------|---------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string  | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
+| `user`         | path  | string  | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                   |
+| `q`            | query | string  | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
+| `limit`        | query | integer | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                              |
+| `offset`       | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                      |
 
 ### Example responses
 
@@ -1952,14 +1952,14 @@ Upgrades to a WebSocket and sends one `workspacesdk.ConnectionWatchEvent` JSON m
 A `build_update` message holds the `transition` and `job_status` of the latest build, and the server sends one first and again whenever the build number, `transition`, or `job_status` changes.
 An `agent_update` message holds the agent's `id` and `lifecycle` state, and the server sends it only while the latest `start` build has succeeded.
 An `error` message holds a `code`, `retryable`, and `message` and is the last message before the server closes the connection.
-Set the `agent_name` query parameter to choose an agent when the workspace has more than one.
 The server closes the connection if you send a message.
 
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+| Name         | In    | Type         | Required | Description                                                                      |
+|--------------|-------|--------------|----------|----------------------------------------------------------------------------------|
+| `workspace`  | path  | string(uuid) | true     | Workspace ID                                                                     |
+| `agent_name` | query | string       | false    | Name of the agent to watch. Required when the workspace has more than one agent. |
 
 ### Example responses
 

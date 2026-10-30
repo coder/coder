@@ -932,7 +932,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Param label query string true "Label filter in `key=value` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them." format(key=value)
+// @Param label query string false "Label filter in `key=value` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them." format(key=value)
 // @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
 // @Router /api/v2/workspaceagents/{workspaceagent}/containers [get]
 func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Request) {
@@ -1260,7 +1260,6 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 // @Description Streams the DERP map over a WebSocket, sending the current map when you connect and again each time it changes.
 // @Description Doesn't require a session token.
 // @ID get-derp-map-updates
-// @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
 // @Router /api/v2/derp-map [get]
@@ -2147,8 +2146,8 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param match query string true "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
-// @Param id query string true "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
+// @Param match query string false "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
+// @Param id query string false "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
 // @Param listen query bool false "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away."
 // @Success 200 {object} agentsdk.ExternalAuthResponse
 // @Router /api/v2/workspaceagents/me/external-auth [get]

@@ -24,9 +24,10 @@ Deprecated. Use `GET /api/v2/organizations/{organization}/paginated-members` ins
 
 ### Parameters
 
-| Name           | In   | Type   | Required | Description                                                       |
-|----------------|------|--------|----------|-------------------------------------------------------------------|
-| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In    | Type   | Required | Description                                                                                                                          |
+|----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string | true     | Organization ID, name, or `default` for the default organization.                                                                    |
+| `q`            | query | string | false    | Filter in the format `key:value`. Available keys are `user_id`, `github_user_id`, and `include_system`, and other keys return `400`. |
 
 ### Example responses
 
@@ -130,9 +131,9 @@ Requires permission to read the organization's assignable roles, which every org
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -273,7 +274,7 @@ Requires a Premium license.
 
 | Name           | In   | Type                                                               | Required | Description                                                                                                     |
 |----------------|------|--------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID, name, or `default` for the default organization.                                               |
+| `organization` | path | string                                                             | true     | Organization ID, name, or `default` for the default organization.                                               |
 | `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Custom role definition. The `name` selects the role to update, and the other fields replace its current values. |
 
 ### Example responses
@@ -411,7 +412,7 @@ Requires a Premium license.
 
 | Name           | In   | Type                                                               | Required | Description                                                       |
 |----------------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string                                                             | true     | Organization ID, name, or `default` for the default organization. |
 | `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Custom role to create. Include only organization permissions.     |
 
 ### Example responses
@@ -508,10 +509,10 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
-| `roleName`     | path | string       | true     | Name of the custom organization role to delete.                   |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `roleName`     | path | string | true     | Name of the custom organization role to delete.                   |
 
 ### Example responses
 

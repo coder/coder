@@ -27,7 +27,6 @@ type cspViolation struct {
 // @Description Logs a Content Security Policy violation report that a browser sends, at debug level in the server log.
 // @Description Doesn't require a session token, and the request body can't exceed 64 KiB.
 // @ID report-csp-violations
-// @Security CoderSessionToken
 // @Accept json
 // @Tags General
 // @Param request body cspViolation true "Content Security Policy violation report. A JSON object with the browser's report under `csp-report`."

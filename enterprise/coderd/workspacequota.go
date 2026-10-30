@@ -213,7 +213,7 @@ func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.WorkspaceQuota
 // @Router /api/v2/organizations/{organization}/members/{user}/workspace-quota [get]
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {

@@ -26,7 +26,7 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups [get]
 func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -59,7 +59,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Accept json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.GroupSyncSettings true "New group sync settings, which replace the current ones."
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups [patch]
@@ -146,7 +146,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.PatchGroupIDPSyncConfigRequest true "New values for `field`, `regex_filter`, and `auto_create_missing_groups`. The mapping stays as it is."
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups/config [patch]
 func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
@@ -222,7 +222,7 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.PatchGroupIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups/mapping [patch]
 func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
@@ -296,7 +296,7 @@ func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles [get]
 func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -328,7 +328,7 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Accept json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.RoleSyncSettings true "New role sync settings, which replace the current ones."
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles [patch]
@@ -396,7 +396,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New value for `field`. The mapping stays as it is."
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles/config [patch]
 func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
@@ -466,7 +466,7 @@ func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) 
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.PatchRoleIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles/mapping [patch]
 func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
@@ -774,7 +774,7 @@ func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} string
 // @Router /api/v2/organizations/{organization}/settings/idpsync/available-fields [get]
 func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
@@ -827,7 +827,7 @@ func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *h
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param claimField query string true "Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty." format(string)
 // @Success 200 {array} string
 // @Router /api/v2/organizations/{organization}/settings/idpsync/field-values [get]

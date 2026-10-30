@@ -31,7 +31,7 @@ import (
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.CustomRoleRequest true "Custom role to create. Include only organization permissions."
 // @Tags Members
 // @Success 200 {array} codersdk.Role
@@ -102,7 +102,7 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.CustomRoleRequest true "Custom role definition. The `name` selects the role to update, and the other fields replace its current values."
 // @Tags Members
 // @Success 200 {array} codersdk.Role
@@ -195,7 +195,7 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @ID delete-a-custom-organization-role
 // @Security CoderSessionToken
 // @Produce json
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param roleName path string true "Name of the custom organization role to delete."
 // @Tags Members
 // @Success 200 {array} codersdk.Role

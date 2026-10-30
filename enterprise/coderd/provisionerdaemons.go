@@ -161,7 +161,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 // @ID serve-provisioner-daemon
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 101
 // @Router /api/v2/organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {

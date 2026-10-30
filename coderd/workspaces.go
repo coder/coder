@@ -430,7 +430,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Accept json
 // @Produce json
 // @Tags Workspaces
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Param request body codersdk.CreateWorkspaceRequest true "Workspace to create. Set `name` and either `template_id` or `template_version_id`."
 // @Success 201 {object} codersdk.Workspace
@@ -3325,7 +3325,7 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."

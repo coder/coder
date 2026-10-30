@@ -150,9 +150,9 @@ The `organization` path parameter also accepts the organization name, or `defaul
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -319,7 +319,7 @@ Requires permission to read provisioner jobs in the organization.
 
 | Name           | In    | Type         | Required | Description                                                                            |
 |----------------|-------|--------------|----------|----------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                      |
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                      |
 | `limit`        | query | integer      | false    | Maximum number of results to return. The default is `50`, and `0` returns all results. |
 | `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                              |
 | `status`       | query | string       | false    | Filter results by status                                                               |
@@ -460,7 +460,7 @@ Requires permission to read provisioner jobs in the organization.
 
 | Name           | In   | Type         | Required | Description                                                       |
 |----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string       | true     | Organization ID, name, or `default` for the default organization. |
 | `job`          | path | string(uuid) | true     | Provisioner job ID.                                               |
 
 ### Example responses

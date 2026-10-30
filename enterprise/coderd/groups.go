@@ -407,7 +407,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
 // @Success 200 {object} codersdk.Group
 // @Router /api/v2/organizations/{organization}/groups/{groupName} [get]
@@ -476,7 +476,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
 // @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
@@ -573,7 +573,7 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.Group
 // @Router /api/v2/organizations/{organization}/groups [get]
 func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -694,9 +694,9 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization query string true "Only return groups in this organization. Accepts an organization ID or name."
-// @Param has_member query string true "Only return groups that this user belongs to. Accepts a user ID or username."
-// @Param group_ids query string true "Only return these groups, as a comma-separated list of group IDs."
+// @Param organization query string false "Only return groups in this organization. Accepts an organization ID or name."
+// @Param has_member query string false "Only return groups that this user belongs to. Accepts a user ID or username."
+// @Param group_ids query string false "Only return these groups, as a comma-separated list of group IDs."
 // @Success 200 {array} codersdk.Group
 // @Router /api/v2/groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {

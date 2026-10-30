@@ -2976,8 +2976,7 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Maximum number of results to return. A value of ` + "`" + `0` + "`" + ` returns up to ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -5381,8 +5380,7 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Maximum number of results to return. A value of ` + "`" + `0` + "`" + ` returns up to ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -5438,12 +5436,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/debug/coordinator": {
@@ -6013,12 +6006,7 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/entitlements": {
@@ -6039,12 +6027,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Entitlements"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/experiments": {
@@ -6339,6 +6322,15 @@ const docTemplate = `{
                         "name": "fileID",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "zip"
+                        ],
+                        "type": "string",
+                        "description": "Set to ` + "`" + `zip` + "`" + ` to download a tar file as a zip archive.",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6369,22 +6361,19 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Only return groups in this organization. Accepts an organization ID or name.",
                         "name": "organization",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Only return groups that this user belongs to. Accepts a user ID or username.",
                         "name": "has_member",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Only return these groups, as a comma-separated list of group IDs.",
                         "name": "group_ids",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6823,8 +6812,7 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `, that sets where each day starts. The default, ` + "`" + `0` + "`" + `, is UTC.",
                         "name": "tz_offset",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6878,8 +6866,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Length of each period in ` + "`" + `interval_reports` + "`" + `: ` + "`" + `day` + "`" + ` or ` + "`" + `week` + "`" + `. With ` + "`" + `week` + "`" + `, the last period must span at least 6 days. If you omit it, the response has no ` + "`" + `interval_reports` + "`" + `.",
                         "name": "interval",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "array",
@@ -8142,7 +8129,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -8256,7 +8242,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -8329,7 +8314,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -8363,7 +8347,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -8887,7 +8870,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -8971,7 +8953,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9014,7 +8995,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9057,7 +9037,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9125,7 +9104,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9607,6 +9585,12 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter in the format ` + "`" + `key:value` + "`" + `. Available keys are ` + "`" + `user_id` + "`" + `, ` + "`" + `github_user_id` + "`" + `, and ` + "`" + `include_system` + "`" + `, and other keys return ` + "`" + `400` + "`" + `.",
+                        "name": "q",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -9641,7 +9625,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9681,7 +9664,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9730,7 +9712,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -9778,7 +9759,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10107,7 +10087,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10147,7 +10126,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10199,7 +10177,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10386,7 +10363,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10466,7 +10442,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10499,7 +10474,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10589,7 +10563,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10778,7 +10751,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10817,7 +10789,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10864,7 +10835,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10901,7 +10871,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10949,7 +10918,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -10997,7 +10965,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11042,7 +11009,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11079,7 +11045,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11127,7 +11092,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11175,7 +11139,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11220,7 +11183,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11257,7 +11219,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11302,7 +11263,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11374,7 +11334,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/examples": {
             "get": {
-                "description": "Returns the starter templates that ship with Coder.\nUse ` + "`" + `GET /api/v2/templates/examples` + "`" + ` instead.",
+                "description": "Returns the starter templates that ship with Coder.\nDeprecated. Use ` + "`" + `GET /api/v2/templates/examples` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -11387,7 +11347,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11426,7 +11385,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11469,7 +11427,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -11574,7 +11531,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
@@ -12465,7 +12421,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/acl/available": {
             "get": {
-                "description": "Returns the users and groups you can add to a template's access control list.\nPass ` + "`" + `q` + "`" + ` to search the users and groups and ` + "`" + `limit` + "`" + ` to cap how many of each return.\nRequires permission to update the template.\nRequires a Premium license.",
+                "description": "Returns the users and groups you can add to a template's access control list.\nRequires permission to update the template.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -12482,6 +12438,18 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query for the users, in the same format as ` + "`" + `q` + "`" + ` on ` + "`" + `GET /api/v2/users` + "`" + `. Text without a key also matches group names and display names.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of users, and separately of groups, to return. The default, ` + "`" + `0` + "`" + `, returns all of them.",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -12504,7 +12472,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/daus": {
             "get": {
-                "description": "Returns the number of active users per day for a template over the last 60 days.\nSet the ` + "`" + `tz_offset` + "`" + ` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is ` + "`" + `0` + "`" + `.\nRequires permission to view the template's insights.",
+                "description": "Returns the number of active users per day for a template over the last 60 days.\nRequires permission to view the template's insights.",
                 "produces": [
                     "application/json"
                 ],
@@ -12521,6 +12489,12 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `, that sets where each day starts. The default, ` + "`" + `0` + "`" + `, is UTC.",
+                        "name": "tz_offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -13250,6 +13224,12 @@ const docTemplate = `{
                         "name": "templateversion",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID of the user, or ` + "`" + `me` + "`" + `, who owns the workspace that the first evaluation is for. The default is you.",
+                        "name": "user_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -13807,12 +13787,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuthMethods"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/first": {
@@ -13833,12 +13808,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             },
             "post": {
                 "description": "Creates the initial user in the default organization and gives the user the Owner role.\nWorks only while the deployment has no users, and returns ` + "`" + `409` + "`" + ` after that.\nDoesn't require a session token.",
@@ -13871,12 +13841,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.CreateFirstUserResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/login": {
@@ -13952,12 +13917,7 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/oauth2/github/device": {
@@ -13978,12 +13938,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAuthDevice"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/oidc-claims": {
@@ -14024,12 +13979,7 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/otp/change-password": {
@@ -14151,12 +14101,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/{user}": {
@@ -14723,7 +14668,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens": {
             "get": {
-                "description": "Lists the user's API tokens, leaving out expired tokens unless ` + "`" + `include_expired` + "`" + ` is ` + "`" + `true` + "`" + `.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.\nSet ` + "`" + `include_all` + "`" + ` to ` + "`" + `true` + "`" + ` to list the tokens of every user you can read instead of only this user's.",
+                "description": "Lists the user's API tokens, leaving out expired tokens unless ` + "`" + `include_expired` + "`" + ` is ` + "`" + `true` + "`" + `.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.",
                 "produces": [
                     "application/json"
                 ],
@@ -14744,6 +14689,12 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Set to ` + "`" + `true` + "`" + ` to include expired tokens. The default is ` + "`" + `false` + "`" + `.",
                         "name": "include_expired",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to list the tokens of every user you can read instead of only this user's. The default is ` + "`" + `false` + "`" + `.",
+                        "name": "include_all",
                         "in": "query"
                     }
                 ],
@@ -15398,7 +15349,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
@@ -15438,7 +15388,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
@@ -16259,12 +16208,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/workspaceagents/azure-instance-identity": {
@@ -16299,12 +16243,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/workspaceagents/connection": {
@@ -16367,12 +16306,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/workspaceagents/me/app-status": {
@@ -16432,15 +16366,13 @@ const docTemplate = `{
                         "type": "string",
                         "description": "URL or hostname that selects the external authentication provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
                         "name": "match",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "ID of the external authentication provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
                         "name": "id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "boolean",
@@ -16480,15 +16412,13 @@ const docTemplate = `{
                         "type": "string",
                         "description": "URL or hostname that selects the external authentication provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
                         "name": "match",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "ID of the external authentication provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
                         "name": "id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "boolean",
@@ -16783,8 +16713,7 @@ const docTemplate = `{
                         "format": "key=value",
                         "description": "Label filter in ` + "`" + `key=value` + "`" + ` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them.",
                         "name": "label",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -17059,7 +16988,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/pty": {
             "get": {
-                "description": "Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.\nRequires permission to SSH to the workspace, and the ` + "`" + `reconnect` + "`" + ` query parameter must be a UUID that identifies the session so a client can resume it.\nOptional query parameters are ` + "`" + `height` + "`" + ` and ` + "`" + `width` + "`" + ` (both default to ` + "`" + `80` + "`" + `), ` + "`" + `command` + "`" + `, ` + "`" + `container` + "`" + `, ` + "`" + `container_user` + "`" + `, and ` + "`" + `backend_type` + "`" + `.",
+                "description": "Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.\nRequires permission to SSH to the workspace.",
                 "tags": [
                     "Agents"
                 ],
@@ -17073,6 +17002,50 @@ const docTemplate = `{
                         "name": "workspaceagent",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID that identifies the terminal session, so that a client can reconnect to it.",
+                        "name": "reconnect",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Terminal height in rows. The default is ` + "`" + `80` + "`" + `.",
+                        "name": "height",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Terminal width in columns. The default is ` + "`" + `80` + "`" + `.",
+                        "name": "width",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Command to run in the session. Without it, the session runs the user's login shell.",
+                        "name": "command",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Dev container to open the session in, when the agent has dev containers turned on.",
+                        "name": "container",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "User to run the session as inside ` + "`" + `container` + "`" + `.",
+                        "name": "container_user",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session backend, ` + "`" + `screen` + "`" + ` or ` + "`" + `buffered` + "`" + `. Without it, the agent uses ` + "`" + `screen` + "`" + ` on Linux when it's installed, and ` + "`" + `buffered` + "`" + ` otherwise.",
+                        "name": "backend_type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -17933,7 +17906,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
@@ -17967,7 +17939,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
@@ -18004,7 +17975,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
                         "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
@@ -18278,7 +18248,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/agent-connection-watch": {
             "get": {
-                "description": "Upgrades to a WebSocket and sends one ` + "`" + `workspacesdk.ConnectionWatchEvent` + "`" + ` JSON message per event, so that a client can wait for a workspace agent to be ready.\nA ` + "`" + `build_update` + "`" + ` message holds the ` + "`" + `transition` + "`" + ` and ` + "`" + `job_status` + "`" + ` of the latest build, and the server sends one first and again whenever the build number, ` + "`" + `transition` + "`" + `, or ` + "`" + `job_status` + "`" + ` changes.\nAn ` + "`" + `agent_update` + "`" + ` message holds the agent's ` + "`" + `id` + "`" + ` and ` + "`" + `lifecycle` + "`" + ` state, and the server sends it only while the latest ` + "`" + `start` + "`" + ` build has succeeded.\nAn ` + "`" + `error` + "`" + ` message holds a ` + "`" + `code` + "`" + `, ` + "`" + `retryable` + "`" + `, and ` + "`" + `message` + "`" + ` and is the last message before the server closes the connection.\nSet the ` + "`" + `agent_name` + "`" + ` query parameter to choose an agent when the workspace has more than one.\nThe server closes the connection if you send a message.",
+                "description": "Upgrades to a WebSocket and sends one ` + "`" + `workspacesdk.ConnectionWatchEvent` + "`" + ` JSON message per event, so that a client can wait for a workspace agent to be ready.\nA ` + "`" + `build_update` + "`" + ` message holds the ` + "`" + `transition` + "`" + ` and ` + "`" + `job_status` + "`" + ` of the latest build, and the server sends one first and again whenever the build number, ` + "`" + `transition` + "`" + `, or ` + "`" + `job_status` + "`" + ` changes.\nAn ` + "`" + `agent_update` + "`" + ` message holds the agent's ` + "`" + `id` + "`" + ` and ` + "`" + `lifecycle` + "`" + ` state, and the server sends it only while the latest ` + "`" + `start` + "`" + ` build has succeeded.\nAn ` + "`" + `error` + "`" + ` message holds a ` + "`" + `code` + "`" + `, ` + "`" + `retryable` + "`" + `, and ` + "`" + `message` + "`" + ` and is the last message before the server closes the connection.\nThe server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -18295,6 +18265,12 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name of the agent to watch. Required when the workspace has more than one agent.",
+                        "name": "agent_name",
+                        "in": "query"
                     }
                 ],
                 "responses": {

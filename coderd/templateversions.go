@@ -1062,7 +1062,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param templatename path string true "Template name. The match is case-insensitive."
 // @Param templateversionname path string true "Template version name. Names are unique within a template."
 // @Success 200 {object} codersdk.TemplateVersion
@@ -1537,7 +1537,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Accept json
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.CreateTemplateVersionRequest true "Template version to create. Set `file_id` or `example_id` to choose its source."
 // @Success 201 {object} codersdk.TemplateVersion
 // @Router /api/v2/organizations/{organization}/templateversions [post]

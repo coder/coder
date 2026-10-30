@@ -222,6 +222,7 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param q query string false "Filter in the format `key:value`. Available keys are `user_id`, `github_user_id`, and `include_system`, and other keys return `400`."
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /api/v2/organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {

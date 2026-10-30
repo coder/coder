@@ -24,7 +24,7 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Provisioning
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param limit query int false "Maximum number of results to return. The default is `50`, and `0` returns all results."
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)

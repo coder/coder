@@ -139,7 +139,6 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 // @Description Returns `200` when the deployment already has its initial user and `404` when it doesn't.
 // @Description Doesn't require a session token.
 // @ID check-initial-user-created
-// @Security CoderSessionToken
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.Response
@@ -175,7 +174,6 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Description Works only while the deployment has no users, and returns `409` after that.
 // @Description Doesn't require a session token.
 // @ID create-initial-user
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users

@@ -241,8 +241,7 @@ Returns `403` when password authentication is turned off, and doesn't require a 
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/validate-password \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /api/v2/users/validate-password`
@@ -281,8 +280,6 @@ Doesn't require a session token.
 | Status | Meaning                                                 | Description | Schema                                                                                   |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ValidateUserPasswordResponse](schemas.md#codersdkvalidateuserpasswordresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Convert user from password to oauth authentication
 

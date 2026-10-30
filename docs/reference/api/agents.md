@@ -14,8 +14,8 @@ Workspace agent endpoints. These power the workspace agent daemon defined by the
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/derp-map \
-  -H 'Coder-Session-Token: API_KEY'
+curl -X GET http://coder-server:8080/api/v2/derp-map
+
 ```
 
 `GET /api/v2/derp-map`
@@ -28,8 +28,6 @@ Doesn't require a session token.
 | Status | Meaning                                                                  | Description         | Schema |
 |--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## User-scoped tailnet RPC connection
 
@@ -62,8 +60,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identity \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /api/v2/workspaceagents/aws-instance-identity`
@@ -104,8 +101,6 @@ Doesn't require a session token.
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Authenticate agent on Azure instance
 
 ### Code samples
@@ -114,8 +109,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-identity \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /api/v2/workspaceagents/azure-instance-identity`
@@ -156,8 +150,6 @@ Doesn't require a session token.
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Authenticate agent on Google Cloud instance
 
 ### Code samples
@@ -166,8 +158,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-identity \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /api/v2/workspaceagents/google-instance-identity`
@@ -206,8 +197,6 @@ Doesn't require a session token.
 | Status | Meaning                                                 | Description | Schema                                                                   |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Patch workspace agent app status
 
@@ -277,7 +266,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?match=string&id=string \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -292,8 +281,8 @@ Authenticates with the workspace agent token instead of a session token.
 
 | Name     | In    | Type    | Required | Description                                                                                                                                    |
 |----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `match`  | query | string  | true     | URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both.                     |
-| `id`     | query | string  | true     | ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both.                                   |
+| `match`  | query | string  | false    | URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both.                     |
+| `id`     | query | string  | false    | ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both.                                   |
 | `listen` | query | boolean | false    | When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away. |
 
 ### Example responses
@@ -326,7 +315,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=string&id=string \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -341,8 +330,8 @@ Authenticates with the workspace agent token instead of a session token.
 
 | Name     | In    | Type    | Required | Description                                                                                                                                    |
 |----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `match`  | query | string  | true     | URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both.                     |
-| `id`     | query | string  | true     | ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both.                                   |
+| `match`  | query | string  | false    | URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both.                     |
+| `id`     | query | string  | false    | ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both.                                   |
 | `listen` | query | boolean | false    | When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away. |
 
 ### Example responses
@@ -853,7 +842,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers?label=string \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -869,7 +858,7 @@ A workspace proxy can authenticate with its proxy token in the `Coder-External-P
 | Name             | In    | Type              | Required | Description                                                                                                                                    |
 |------------------|-------|-------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | `workspaceagent` | path  | string(uuid)      | true     | Workspace agent ID                                                                                                                             |
-| `label`          | query | string(key=value) | true     | Label filter in `key=value` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them. |
+| `label`          | query | string(key=value) | false    | Label filter in `key=value` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them. |
 
 ### Example responses
 
@@ -1310,21 +1299,27 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty?reconnect=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /api/v2/workspaceagents/{workspaceagent}/pty`
 
 Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.
-Requires permission to SSH to the workspace, and the `reconnect` query parameter must be a UUID that identifies the session so a client can resume it.
-Optional query parameters are `height` and `width` (both default to `80`), `command`, `container`, `container_user`, and `backend_type`.
+Requires permission to SSH to the workspace.
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+| Name             | In    | Type         | Required | Description                                                                                                                          |
+|------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                                   |
+| `reconnect`      | query | string(uuid) | true     | ID that identifies the terminal session, so that a client can reconnect to it.                                                       |
+| `height`         | query | integer      | false    | Terminal height in rows. The default is `80`.                                                                                        |
+| `width`          | query | integer      | false    | Terminal width in columns. The default is `80`.                                                                                      |
+| `command`        | query | string       | false    | Command to run in the session. Without it, the session runs the user's login shell.                                                  |
+| `container`      | query | string       | false    | Dev container to open the session in, when the agent has dev containers turned on.                                                   |
+| `container_user` | query | string       | false    | User to run the session as inside `container`.                                                                                       |
+| `backend_type`   | query | string       | false    | Session backend, `screen` or `buffered`. Without it, the agent uses `screen` on Linux when it's installed, and `buffered` otherwise. |
 
 ### Responses
 

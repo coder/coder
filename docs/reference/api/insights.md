@@ -11,7 +11,7 @@ title: Insights
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/daus?tz_offset=0 \
+curl -X GET http://coder-server:8080/api/v2/insights/daus \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -26,7 +26,7 @@ Returns `404` when usage stats collection is turned off.
 
 | Name        | In    | Type    | Required | Description                                                                                              |
 |-------------|-------|---------|----------|----------------------------------------------------------------------------------------------------------|
-| `tz_offset` | query | integer | true     | Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC. |
+| `tz_offset` | query | integer | false    | Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC. |
 
 ### Example responses
 
@@ -58,7 +58,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z&interval=week \
+curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -75,7 +75,7 @@ Returns `404` when usage stats collection is turned off.
 |----------------|-------|-------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `start_time`   | query | string(date-time) | true     | Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as `2026-10-01T00:00:00Z`. It can't be later than the end of the current hour.                                 |
 | `end_time`     | query | string(date-time) | true     | End of the report, as an RFC 3339 timestamp that isn't before `start_time`. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour. |
-| `interval`     | query | string            | true     | Length of each period in `interval_reports`: `day` or `week`. With `week`, the last period must span at least 6 days. If you omit it, the response has no `interval_reports`.                              |
+| `interval`     | query | string            | false    | Length of each period in `interval_reports`: `day` or `week`. With `week`, the last period must span at least 6 days. If you omit it, the response has no `interval_reports`.                              |
 | `template_ids` | query | array[string]     | false    | Comma-separated list of template IDs to include. By default, the report covers all templates.                                                                                                              |
 
 #### Enumerated Values

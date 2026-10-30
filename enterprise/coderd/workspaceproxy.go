@@ -96,7 +96,7 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy." format(uuid)
+// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy."
 // @Param request body codersdk.PatchWorkspaceProxy true "Workspace proxy fields to update. Set `regenerate_token` to `true` to issue a new token."
 // @Success 200 {object} codersdk.WorkspaceProxy
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [patch]
@@ -250,7 +250,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy." format(uuid)
+// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [delete]
 func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
@@ -304,7 +304,7 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy." format(uuid)
+// @Param workspaceproxy path string true "Workspace proxy ID or name, or `primary` for the built-in primary proxy."
 // @Success 200 {object} codersdk.WorkspaceProxy
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [get]
 func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {

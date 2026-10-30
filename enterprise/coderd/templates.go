@@ -25,7 +25,6 @@ import (
 
 // @Summary Get template available acl users/groups
 // @Description Returns the users and groups you can add to a template's access control list.
-// @Description Pass `q` to search the users and groups and `limit` to cap how many of each return.
 // @Description Requires permission to update the template.
 // @Description Requires a Premium license.
 // @ID get-template-available-acl-usersgroups
@@ -33,6 +32,8 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
+// @Param q query string false "Search query for the users, in the same format as `q` on `GET /api/v2/users`. Text without a key also matches group names and display names."
+// @Param limit query int false "Maximum number of users, and separately of groups, to return. The default, `0`, returns all of them."
 // @Success 200 {array} codersdk.ACLAvailable
 // @Router /api/v2/templates/{template}/acl/available [get]
 func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Request) {

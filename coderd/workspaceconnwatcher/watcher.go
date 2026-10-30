@@ -60,13 +60,13 @@ func New(ctx context.Context, logger slog.Logger, sub pubsub.Subscriber, db data
 // @Description A `build_update` message holds the `transition` and `job_status` of the latest build, and the server sends one first and again whenever the build number, `transition`, or `job_status` changes.
 // @Description An `agent_update` message holds the agent's `id` and `lifecycle` state, and the server sends it only while the latest `start` build has succeeded.
 // @Description An `error` message holds a `code`, `retryable`, and `message` and is the last message before the server closes the connection.
-// @Description Set the `agent_name` query parameter to choose an agent when the workspace has more than one.
 // @Description The server closes the connection if you send a message.
 // @ID workspace-agent-connection-watch
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
+// @Param agent_name query string false "Name of the agent to watch. Required when the workspace has more than one agent."
 // @Success 101 {object} workspacesdk.ConnectionWatchEvent
 // @Router /api/v2/workspaces/{workspace}/agent-connection-watch [get]
 func (w *Watcher) WorkspaceAgentConnectionWatch(rw http.ResponseWriter, r *http.Request) {

@@ -45,7 +45,7 @@ func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.Organization
 // @Router /api/v2/organizations/{organization} [get]
 func (*API) organization(rw http.ResponseWriter, r *http.Request) {

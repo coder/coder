@@ -335,7 +335,6 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get user tokens
 // @Description Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
 // @Description Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.
-// @Description Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
 // @ID get-user-tokens
 // @Security CoderSessionToken
 // @Produce json
@@ -343,6 +342,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.APIKey
 // @Param include_expired query bool false "Set to `true` to include expired tokens. The default is `false`."
+// @Param include_all query bool false "Set to `true` to list the tokens of every user you can read instead of only this user's. The default is `false`."
 // @Router /api/v2/users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (

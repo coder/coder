@@ -508,7 +508,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
+curl -X GET http://coder-server:8080/api/v2/connectionlog \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -526,7 +526,7 @@ Requires a Premium license.
 | Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 |----------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `q`      | query | string  | false    | Search query as space-separated `key:value` terms. Available keys are: `organization` (ID or name), `workspace_owner` (username or `me`), `workspace_owner_email`, `username` (or `me`), `user_email`, `connected_after` and `connected_before` (RFC 3339 timestamps), `workspace_id`, `connection_id`, `client_session_id` (32 hexadecimal characters), `status` (`ongoing` or `completed`), `method` (`ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`), `type` (`ssh`, `vscode`, `jetbrains`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`, which can't be combined with `method` or `app`), and `app` (repeat to match any of several apps). Unknown keys return an error. |
-| `limit`  | query | integer | true     | Maximum number of results to return. A value of `0` returns up to `100` results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `limit`  | query | integer | false    | Maximum number of results to return. A value of `0` returns up to `100` results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `offset` | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### Example responses
@@ -655,8 +655,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/entitlements \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `GET /api/v2/entitlements`
@@ -721,15 +720,13 @@ Doesn't require a session token.
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Entitlements](schemas.md#codersdkentitlements) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get groups
 
 ### Code samples
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string&group_ids=string \
+curl -X GET http://coder-server:8080/api/v2/groups \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -744,9 +741,9 @@ Requires a Premium license.
 
 | Name           | In    | Type   | Required | Description                                                                  |
 |----------------|-------|--------|----------|------------------------------------------------------------------------------|
-| `organization` | query | string | true     | Only return groups in this organization. Accepts an organization ID or name. |
-| `has_member`   | query | string | true     | Only return groups that this user belongs to. Accepts a user ID or username. |
-| `group_ids`    | query | string | true     | Only return these groups, as a comma-separated list of group IDs.            |
+| `organization` | query | string | false    | Only return groups in this organization. Accepts an organization ID or name. |
+| `has_member`   | query | string | false    | Only return groups that this user belongs to. Accepts a user ID or username. |
+| `group_ids`    | query | string | false    | Only return these groups, as a comma-separated list of group IDs.            |
 
 ### Example responses
 
@@ -2178,7 +2175,7 @@ Requires organization-level administrator permissions.
 
 | Name            | In    | Type              | Required | Description                                                           |
 |-----------------|-------|-------------------|----------|-----------------------------------------------------------------------|
-| `organization`  | path  | string(uuid)      | true     | Organization ID, name, or `default` for the default organization.     |
+| `organization`  | path  | string            | true     | Organization ID, name, or `default` for the default organization.     |
 | `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                                       |
 | `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                                       |
 | `user_id`       | query | string(uuid)      | false    | Only include spend by this user. Accepts a user ID.                   |
@@ -2213,9 +2210,9 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2400,10 +2397,10 @@ Unknown or unreadable group IDs are silently omitted.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                       |
-|----------------|-------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
-| `group_ids`    | query | string       | true     | Comma-separated list of group IDs (maximum 100)                   |
+| Name           | In    | Type   | Required | Description                                                       |
+|----------------|-------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path  | string | true     | Organization ID, name, or `default` for the default organization. |
+| `group_ids`    | query | string | true     | Comma-separated list of group IDs (maximum 100)                   |
 
 ### Example responses
 
@@ -2451,10 +2448,10 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
-| `groupName`    | path | string       | true     | Group name in the organization. Matching is case-insensitive.     |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `groupName`    | path | string | true     | Group name in the organization. Matching is case-insensitive.     |
 
 ### Example responses
 
@@ -2520,7 +2517,7 @@ Requires a Premium license.
 
 | Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                              |
 |----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
 | `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.                                                                                                                                                                                                                                            |
 | `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
 | `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                              |
@@ -2580,11 +2577,11 @@ User IDs that are not members of the group, or that the caller has no read acces
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                       |
-|----------------|-------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
-| `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.     |
-| `user_ids`     | query | string       | true     | Comma-separated list of user IDs (maximum 100)                    |
+| Name           | In    | Type   | Required | Description                                                       |
+|----------------|-------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path  | string | true     | Organization ID, name, or `default` for the default organization. |
+| `groupName`    | path  | string | true     | Group name in the organization. Matching is case-insensitive.     |
+| `user_ids`     | query | string | true     | Comma-separated list of user IDs (maximum 100)                    |
 
 ### Example responses
 
@@ -2639,10 +2636,10 @@ Requires permission to read the user, which you have for yourself.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `user`         | path | string       | true     | User ID, username, or `me` for the authenticated user.            |
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `user`         | path | string | true     | User ID, username, or `me` for the authenticated user.            |
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2748,9 +2745,9 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Responses
 
@@ -3050,9 +3047,9 @@ Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3095,7 +3092,7 @@ Requires permission to read IdP sync settings in the organization.
 
 | Name           | In    | Type           | Required | Description                                                                                                            |
 |----------------|-------|----------------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID, name, or `default` for the default organization.                                                      |
+| `organization` | path  | string         | true     | Organization ID, name, or `default` for the default organization.                                                      |
 | `claimField`   | query | string(string) | true     | Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty. |
 
 ### Example responses
@@ -3136,9 +3133,9 @@ Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3217,7 +3214,7 @@ Rejects a request that sets the deprecated `legacy_group_name_mapping`.
 
 | Name           | In   | Type                                                               | Required | Description                                                       |
 |----------------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string                                                             | true     | Organization ID, name, or `default` for the default organization. |
 | `body`         | body | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) | true     | New group sync settings, which replace the current ones.          |
 
 ### Example responses
@@ -3283,7 +3280,7 @@ Requires permission to update IdP sync settings in the organization.
 
 | Name           | In   | Type                                                                                         | Required | Description                                                                                           |
 |----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                                 | true     | Organization ID, name, or `default` for the default organization.                                     |
+| `organization` | path | string                                                                                       | true     | Organization ID, name, or `default` for the default organization.                                     |
 | `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New values for `field`, `regex_filter`, and `auto_create_missing_groups`. The mapping stays as it is. |
 
 ### Example responses
@@ -3359,7 +3356,7 @@ Requires permission to update IdP sync settings in the organization.
 
 | Name           | In   | Type                                                                                           | Required | Description                                                       |
 |----------------|------|------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                                   | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string                                                                                         | true     | Organization ID, name, or `default` for the default organization. |
 | `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove                     |
 
 ### Example responses
@@ -3412,9 +3409,9 @@ Requires permission to read IdP sync settings in the organization.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3480,7 +3477,7 @@ Requires permission to update IdP sync settings in the organization.
 
 | Name           | In   | Type                                                             | Required | Description                                                       |
 |----------------|------|------------------------------------------------------------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                     | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string                                                           | true     | Organization ID, name, or `default` for the default organization. |
 | `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New role sync settings, which replace the current ones.           |
 
 ### Example responses
@@ -3538,7 +3535,7 @@ Requires permission to update IdP sync settings in the organization.
 
 | Name           | In   | Type                                                                                       | Required | Description                                                       |
 |----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                               | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string                                                                                     | true     | Organization ID, name, or `default` for the default organization. |
 | `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New value for `field`. The mapping stays as it is.                |
 
 ### Example responses
@@ -3608,7 +3605,7 @@ Requires permission to update IdP sync settings in the organization.
 
 | Name           | In   | Type                                                                                         | Required | Description                                                       |
 |----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                                 | true     | Organization ID, name, or `default` for the default organization. |
+| `organization` | path | string                                                                                       | true     | Organization ID, name, or `default` for the default organization. |
 | `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove                     |
 
 ### Example responses
@@ -3655,9 +3652,9 @@ When the deployment disables workspace sharing with `--disable-workspace-sharing
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3711,7 +3708,7 @@ Requires permission to update the organization.
 
 | Name           | In   | Type                                                                                                       | Required | Description                                                                                                                                                       |
 |----------------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                                               | true     | Organization ID, name, or `default` for the default organization.                                                                                                 |
+| `organization` | path | string                                                                                                     | true     | Organization ID, name, or `default` for the default organization.                                                                                                 |
 | `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings to apply. Set `shareable_workspace_owners`. The deprecated `sharing_disabled` applies only when `shareable_workspace_owners` is empty. |
 
 ### Example responses
@@ -4345,15 +4342,16 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 `GET /api/v2/templates/{template}/acl/available`
 
 Returns the users and groups you can add to a template's access control list.
-Pass `q` to search the users and groups and `limit` to cap how many of each return.
 Requires permission to update the template.
 Requires a Premium license.
 
 ### Parameters
 
-| Name       | In   | Type         | Required | Description |
-|------------|------|--------------|----------|-------------|
-| `template` | path | string(uuid) | true     | Template ID |
+| Name       | In    | Type         | Required | Description                                                                                                                                  |
+|------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `template` | path  | string(uuid) | true     | Template ID                                                                                                                                  |
+| `q`        | query | string       | false    | Search query for the users, in the same format as `q` on `GET /api/v2/users`. Text without a key also matches group names and display names. |
+| `limit`    | query | integer      | false    | Maximum number of users, and separately of groups, to return. The default, `0`, returns all of them.                                         |
 
 ### Example responses
 
@@ -4711,9 +4709,9 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description                                            |
-|--------|------|--------------|----------|--------------------------------------------------------|
-| `user` | path | string(uuid) | true     | User ID, username, or `me` for the authenticated user. |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4785,7 +4783,7 @@ Requires a Premium license.
 
 | Name   | In   | Type                                                                                                   | Required | Description                                            |
 |--------|------|--------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------|
-| `user` | path | string(uuid)                                                                                           | true     | User ID, username, or `me` for the authenticated user. |
+| `user` | path | string                                                                                                 | true     | User ID, username, or `me` for the authenticated user. |
 | `body` | body | [codersdk.UpdateUserQuietHoursScheduleRequest](schemas.md#codersdkupdateuserquiethoursschedulerequest) | true     | Quiet hours schedule to set.                           |
 
 ### Example responses
@@ -5063,9 +5061,9 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description                                                              |
-|------------------|------|--------------|----------|--------------------------------------------------------------------------|
-| `workspaceproxy` | path | string(uuid) | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
+| Name             | In   | Type   | Required | Description                                                              |
+|------------------|------|--------|----------|--------------------------------------------------------------------------|
+| `workspaceproxy` | path | string | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
 
 ### Example responses
 
@@ -5129,9 +5127,9 @@ Requires a Premium license.
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description                                                              |
-|------------------|------|--------------|----------|--------------------------------------------------------------------------|
-| `workspaceproxy` | path | string(uuid) | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
+| Name             | In   | Type   | Required | Description                                                              |
+|------------------|------|--------|----------|--------------------------------------------------------------------------|
+| `workspaceproxy` | path | string | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
 
 ### Example responses
 
@@ -5194,7 +5192,7 @@ Requires a Premium license.
 
 | Name             | In   | Type                                                                   | Required | Description                                                                              |
 |------------------|------|------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------|
-| `workspaceproxy` | path | string(uuid)                                                           | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy.                 |
+| `workspaceproxy` | path | string                                                                 | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy.                 |
 | `body`           | body | [codersdk.PatchWorkspaceProxy](schemas.md#codersdkpatchworkspaceproxy) | true     | Workspace proxy fields to update. Set `regenerate_token` to `true` to issue a new token. |
 
 ### Example responses

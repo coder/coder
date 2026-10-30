@@ -92,8 +92,7 @@ Doesn't require a session token.
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: */*'
 ```
 
 `POST /api/v2/csp/reports`
@@ -125,8 +124,6 @@ Doesn't require a session token, and the request body can't exceed 64 KiB.
 |--------|-------------------------------------------------------------------------|-----------------------------|--------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                          |                                                  |
 | 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 64 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get deployment config
 

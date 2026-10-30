@@ -44,7 +44,7 @@ func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or `me` for the authenticated user." format(uuid)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
 // @Router /api/v2/users/{user}/quiet-hours [get]
 func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {
@@ -83,7 +83,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or `me` for the authenticated user." format(uuid)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Param request body codersdk.UpdateUserQuietHoursScheduleRequest true "Quiet hours schedule to set."
 // @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
 // @Router /api/v2/users/{user}/quiet-hours [put]

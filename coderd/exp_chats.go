@@ -5527,7 +5527,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.OrganizationChatSystemPromptResponse
 // @Router /api/v2/organizations/{organization}/chats/config/system-prompt [get]
 //
@@ -5559,7 +5559,7 @@ func (api *API) getOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param request body codersdk.UpdateOrganizationChatSystemPromptRequest true "Organization instructions in `system_prompt`. They replace the current instructions."
 // @Success 204
 // @Router /api/v2/organizations/{organization}/chats/config/system-prompt [put]

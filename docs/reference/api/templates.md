@@ -24,9 +24,9 @@ To include deprecated templates, specify `deprecated:true` in the search query.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -320,13 +320,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 `GET /api/v2/organizations/{organization}/templates/examples`
 
 Returns the starter templates that ship with Coder.
-Use `GET /api/v2/templates/examples` instead.
+Deprecated. Use `GET /api/v2/templates/examples` instead.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -389,10 +389,10 @@ The name match is case-insensitive.
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description                                                       |
-|----------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
-| `templatename` | path | string       | true     | Template name. The match is case-insensitive.                     |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `templatename` | path | string | true     | Template name. The match is case-insensitive.                     |
 
 ### Example responses
 
@@ -486,11 +486,11 @@ While the version's import job is pending, the response includes `matched_provis
 
 ### Parameters
 
-| Name                  | In   | Type         | Required | Description                                                       |
-|-----------------------|------|--------------|----------|-------------------------------------------------------------------|
-| `organization`        | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
-| `templatename`        | path | string       | true     | Template name. The match is case-insensitive.                     |
-| `templateversionname` | path | string       | true     | Template version name. Names are unique within a template.        |
+| Name                  | In   | Type   | Required | Description                                                       |
+|-----------------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization`        | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `templatename`        | path | string | true     | Template name. The match is case-insensitive.                     |
+| `templateversionname` | path | string | true     | Template version name. Names are unique within a template.        |
 
 ### Example responses
 
@@ -725,7 +725,7 @@ Requires permission to create templates in the organization.
 
 | Name           | In   | Type                                                                                     | Required | Description                                                                     |
 |----------------|------|------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------|
-| `organization` | path | string(uuid)                                                                             | true     | Organization ID, name, or `default` for the default organization.               |
+| `organization` | path | string                                                                                   | true     | Organization ID, name, or `default` for the default organization.               |
 | `body`         | body | [codersdk.CreateTemplateVersionRequest](schemas.md#codersdkcreatetemplateversionrequest) | true     | Template version to create. Set `file_id` or `example_id` to choose its source. |
 
 ### Example responses
@@ -1325,14 +1325,14 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 `GET /api/v2/templates/{template}/daus`
 
 Returns the number of active users per day for a template over the last 60 days.
-Set the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.
 Requires permission to view the template's insights.
 
 ### Parameters
 
-| Name       | In   | Type         | Required | Description |
-|------------|------|--------------|----------|-------------|
-| `template` | path | string(uuid) | true     | Template ID |
+| Name        | In    | Type         | Required | Description                                                                                              |
+|-------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------|
+| `template`  | path  | string(uuid) | true     | Template ID                                                                                              |
+| `tz_offset` | query | integer      | false    | Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC. |
 
 ### Example responses
 
@@ -2860,9 +2860,10 @@ The server closes the connection after 30 minutes.
 
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `templateversion` | path | string(uuid) | true     | Template version ID |
+| Name              | In    | Type         | Required | Description                                                                                           |
+|-------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                   |
+| `user_id`         | query | string       | false    | ID of the user, or `me`, who owns the workspace that the first evaluation is for. The default is you. |
 
 ### Responses
 

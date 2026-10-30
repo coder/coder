@@ -63,8 +63,8 @@ func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Req
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param match query string true "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
-// @Param id query string true "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
+// @Param match query string false "URL or hostname that selects the external authentication provider by its configured regex. Pass `match` or `id`, not both."
+// @Param id query string false "ID of the external authentication provider, as configured on the deployment. Pass `id` or `match`, not both."
 // @Param listen query bool false "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away."
 // @Success 200 {object} agentsdk.ExternalAuthResponse
 // @Router /api/v2/workspaceagents/me/gitauth [get]

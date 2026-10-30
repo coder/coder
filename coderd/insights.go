@@ -35,7 +35,7 @@ const insightsTimeLayout = time.RFC3339
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param tz_offset query int true "Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC."
+// @Param tz_offset query int false "Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC."
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /api/v2/insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
@@ -408,7 +408,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 // @Tags Insights
 // @Param start_time query string true "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as `2026-10-01T00:00:00Z`. It can't be later than the end of the current hour." format(date-time)
 // @Param end_time query string true "End of the report, as an RFC 3339 timestamp that isn't before `start_time`. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour." format(date-time)
-// @Param interval query string true "Length of each period in `interval_reports`: `day` or `week`. With `week`, the last period must span at least 6 days. If you omit it, the response has no `interval_reports`." enums(week,day)
+// @Param interval query string false "Length of each period in `interval_reports`: `day` or `week`. With `week`, the last period must span at least 6 days. If you omit it, the response has no `interval_reports`." enums(week,day)
 // @Param template_ids query []string false "Comma-separated list of template IDs to include. By default, the report covers all templates." collectionFormat(csv)
 // @Success 200 {object} codersdk.TemplateInsightsResponse
 // @Router /api/v2/insights/templates [get]

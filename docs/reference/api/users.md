@@ -166,8 +166,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/authmethods \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `GET /api/v2/users/authmethods`
@@ -204,8 +203,6 @@ Doesn't require a session token.
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuthMethods](schemas.md#codersdkauthmethods) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Check initial user created
 
 ### Code samples
@@ -213,8 +210,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/first \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `GET /api/v2/users/first`
@@ -245,8 +241,6 @@ Doesn't require a session token.
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Create initial user
 
 ### Code samples
@@ -255,8 +249,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/first \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /api/v2/users/first`
@@ -313,8 +306,6 @@ Doesn't require a session token.
 |--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateFirstUserResponse](schemas.md#codersdkcreatefirstuserresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Log out user
 
 ### Code samples
@@ -362,8 +353,8 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
-  -H 'Coder-Session-Token: API_KEY'
+curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback
+
 ```
 
 `GET /api/v2/users/oauth2/github/callback`
@@ -378,8 +369,6 @@ Doesn't require a session token.
 |--------|-------------------------------------------------------------------------|--------------------|--------|
 | 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get Github device auth
 
 ### Code samples
@@ -387,8 +376,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `GET /api/v2/users/oauth2/github/device`
@@ -416,8 +404,6 @@ Doesn't require a session token.
 | Status | Meaning                                                 | Description | Schema                                                               |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthDevice](schemas.md#codersdkexternalauthdevice) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get OIDC claims for the authenticated user
 
@@ -459,8 +445,8 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/oidc/callback \
-  -H 'Coder-Session-Token: API_KEY'
+curl -X GET http://coder-server:8080/api/v2/users/oidc/callback
+
 ```
 
 `GET /api/v2/users/oidc/callback`
@@ -474,8 +460,6 @@ Doesn't require a session token.
 | Status | Meaning                                                                 | Description        | Schema |
 |--------|-------------------------------------------------------------------------|--------------------|--------|
 | 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get user by name
 
@@ -813,14 +797,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
 Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.
-Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
 
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                                                      |
-|-------------------|-------|---------|----------|------------------------------------------------------------------|
-| `user`            | path  | string  | true     | User ID, username, or `me` for the authenticated user.           |
-| `include_expired` | query | boolean | false    | Set to `true` to include expired tokens. The default is `false`. |
+| Name              | In    | Type    | Required | Description                                                                                                      |
+|-------------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------|
+| `user`            | path  | string  | true     | User ID, username, or `me` for the authenticated user.                                                           |
+| `include_expired` | query | boolean | false    | Set to `true` to include expired tokens. The default is `false`.                                                 |
+| `include_all`     | query | boolean | false    | Set to `true` to list the tokens of every user you can read instead of only this user's. The default is `false`. |
 
 ### Example responses
 

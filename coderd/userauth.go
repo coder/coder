@@ -472,7 +472,6 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // @Description Use it to give feedback on a new password before you set it.
 // @Description Doesn't require a session token.
 // @ID validate-user-password
-// @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Authorization
@@ -812,7 +811,6 @@ func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOp
 // @Description Use it to decide which sign-in options to offer.
 // @Description Doesn't require a session token.
 // @ID get-authentication-methods
-// @Security CoderSessionToken
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.AuthMethods
@@ -850,7 +848,6 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Description Returns `400` unless GitHub OAuth2 and its device flow are enabled.
 // @Description Doesn't require a session token.
 // @ID get-github-device-auth
-// @Security CoderSessionToken
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.ExternalAuthDevice
@@ -900,7 +897,6 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 // @Description GitHub redirects the browser here after you authorize, so you don't call this route directly.
 // @Description Doesn't require a session token.
 // @ID oauth-20-github-callback
-// @Security CoderSessionToken
 // @Tags Users
 // @Success 307
 // @Router /api/v2/users/oauth2/github/callback [get]
@@ -1246,7 +1242,6 @@ func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
 // @Description Your identity provider redirects the browser here after you sign in, so you don't call this route directly.
 // @Description Doesn't require a session token.
 // @ID openid-connect-callback
-// @Security CoderSessionToken
 // @Tags Users
 // @Success 307
 // @Router /api/v2/users/oidc/callback [get]

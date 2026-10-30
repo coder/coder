@@ -1150,7 +1150,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param group_ids query string true "Comma-separated list of group IDs (maximum 100)"
 // @Success 200 {object} codersdk.OrganizationGroupsAISpend
 // @Router /api/v2/organizations/{organization}/groups/ai/spend [get]
@@ -1331,7 +1331,7 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 // @Security CoderSessionToken
 // @Produce text/csv
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
 // @Param user_id query string false "Only include spend by this user. Accepts a user ID." format(uuid)
@@ -1610,7 +1610,7 @@ func (api *API) groupAISpend(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
 // @Param user_ids query string true "Comma-separated list of user IDs (maximum 100)"
 // @Success 200 {object} codersdk.GroupMembersAISpend

@@ -553,7 +553,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.Template
 // @Router /api/v2/organizations/{organization}/templates [get]
 func (api *API) templatesByOrganization() http.HandlerFunc {
@@ -631,7 +631,7 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param templatename path string true "Template name. The match is case-insensitive."
 // @Success 200 {object} codersdk.Template
 // @Router /api/v2/organizations/{organization}/templates/{templatename} [get]
@@ -928,13 +928,13 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 
 // @Summary Get template DAUs by ID
 // @Description Returns the number of active users per day for a template over the last 60 days.
-// @Description Set the `tz_offset` query parameter to your time zone's offset from UTC in whole hours, which sets where each day starts. The default is `0`.
 // @Description Requires permission to view the template's insights.
 // @ID get-template-daus-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
+// @Param tz_offset query int false "Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC."
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /api/v2/templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
@@ -945,12 +945,12 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get template examples by organization
 // @Description Returns the starter templates that ship with Coder.
-// @Description Use `GET /api/v2/templates/examples` instead.
+// @Description Deprecated. Use `GET /api/v2/templates/examples` instead.
 // @ID get-template-examples-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.TemplateExample
 // @Router /api/v2/organizations/{organization}/templates/examples [get]
 // @Deprecated Use /templates/examples instead

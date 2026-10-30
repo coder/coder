@@ -62,7 +62,7 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
-// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.AssignableRoles
 // @Router /api/v2/organizations/{organization}/members/roles [get]
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
