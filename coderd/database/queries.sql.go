@@ -24235,20 +24235,74 @@ SET owner_id   = $1::uuid,
 	-- accidental dormancy or deletion by the lifecycle executor.
 	dormant_at = NULL,
 	deleting_at = NULL
-WHERE w.id IN (
-	SELECT p.id
-	FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-		INNER JOIN templates t ON p.template_id = t.id
-	WHERE (b.transition = 'start'::workspace_transition
-		AND b.job_status IN ('succeeded'::provisioner_job_status))
+WHERE w.id = (
+	-- Compare with = rather than IN so this subquery runs once. With IN, Postgres can rerun it
+	-- per outer row, and SKIP LOCKED then makes one claim update two prebuilds.
+	-- Read workspaces directly, not the workspace_prebuilds or workspace_latest_builds views: they
+	-- scan every workspace, and each SKIP LOCKED skip would redo that deployment-wide work.
+	-- These conditions must match workspace_prebuilds (TestClaimPrebuiltWorkspaceEligibilityMatchesView).
+	SELECT pw.id
+	FROM workspaces pw
+		INNER JOIN templates t ON t.id = pw.template_id
+		INNER JOIN LATERAL (
+			SELECT wb.job_id, wb.transition, wb.template_version_id, pj.job_status
+			FROM workspace_builds wb
+				INNER JOIN provisioner_jobs pj ON pj.id = wb.job_id
+			WHERE wb.workspace_id = pw.id
+			ORDER BY wb.build_number DESC
+			LIMIT 1
+		) b ON true
+	-- Postgres rechecks the pw conditions on the locked row, so a prebuild claimed or deleted by
+	-- a transaction that committed after this query started is skipped.
+	WHERE pw.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+		AND NOT pw.deleted
+		AND NOT t.deleted
+		-- A prebuild of the preset belongs to the preset's template. This lets Postgres use
+		-- workspace_template_id_idx, so prebuilds of other templates are never evaluated.
+		AND pw.template_id = (
+			SELECT tv.template_id
+			FROM template_version_presets tvp
+				INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
+			WHERE tvp.id = $7::uuid
+		)
+		AND b.transition = 'start'::workspace_transition
+		AND b.job_status = 'succeeded'::provisioner_job_status
 		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
 		-- Nevertheless, this filter is here as a defensive measure:
 		AND b.template_version_id = t.active_version_id
-		AND p.current_preset_id = $7::uuid
-		AND p.ready
-		AND NOT t.deleted
-	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+		-- The current preset is the preset of the latest build that has one.
+		AND (
+			SELECT wbp.template_version_preset_id
+			FROM workspace_builds wbp
+			WHERE wbp.workspace_id = pw.id
+				AND wbp.template_version_preset_id IS NOT NULL
+			ORDER BY wbp.build_number DESC
+			LIMIT 1
+		) = $7::uuid
+		-- Ready: the latest build has at least one agent, and all of its agents are ready.
+		AND EXISTS (
+			SELECT 1
+			FROM workspace_resources wr
+				INNER JOIN workspace_agents wa ON wa.resource_id = wr.id
+			WHERE wr.job_id = b.job_id
+				AND NOT wa.deleted
+		)
+		AND NOT EXISTS (
+			SELECT 1
+			FROM workspace_resources wr
+				INNER JOIN workspace_agents wa ON wa.resource_id = wr.id
+			WHERE wr.job_id = b.job_id
+				AND NOT wa.deleted
+				AND wa.lifecycle_state != 'ready'::workspace_agent_lifecycle_state
+		)
+	-- Oldest first, so prebuilds are claimed before they reach the preset TTL and get rebuilt.
+	-- Newest first would leave older prebuilds to expire while demand is below the pool size.
+	ORDER BY pw.created_at, pw.id
+	-- Lock the workspaces row: the views are built from CTEs, so locking them locks nothing.
+	-- NO KEY UPDATE matches the outer UPDATE and, unlike FOR UPDATE, does not block FK checks
+	-- from inserts that reference the workspace, such as a reconciler delete build.
+	LIMIT 1
+	FOR NO KEY UPDATE OF pw SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name
 `
