@@ -465,6 +465,7 @@ describe("ChatPageInput", () => {
 			onDeleteQueuedMessage,
 		});
 		await screen.findByText("not stored yet");
+		expect(screen.queryByText("to send")).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Send now" }));
 		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
 		await user.click(screen.getByTestId("chat-message-input"));
