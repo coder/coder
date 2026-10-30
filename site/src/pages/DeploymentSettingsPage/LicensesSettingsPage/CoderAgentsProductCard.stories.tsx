@@ -33,7 +33,7 @@ export const Default: Story = {
 			"Unlimited",
 		);
 		await expect(
-			canvas.getByRole("link", { name: /^View docs/ }),
+			canvas.getByRole("link", { name: "View docs" }),
 		).toHaveAttribute(
 			"href",
 			expect.stringContaining("/ai-coder/agents/licensing-usage"),
