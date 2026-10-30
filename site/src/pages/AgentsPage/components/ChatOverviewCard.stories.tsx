@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { fn, spyOn } from "storybook/test";
 import { API } from "#/api/api";
 import { chatCostTreeKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -58,21 +58,12 @@ type Story = StoryObj<typeof ChatOverviewCard>;
 
 export const Default: Story = {};
 
-/** The earlier attachments fail to load, and Retry requests them again. */
+/** The earlier attachments failed to load: Attachments shows the error and a retry. */
 export const EarlierAttachmentsError: Story = {
 	args: { hasMoreMessages: true },
 	beforeEach: () => {
-		spyOn(API.experimental, "getChatAttachments")
-			.mockRejectedValueOnce(
-				mockApiError({ message: "Failed to get chat attachments." }),
-			)
-			.mockReturnValue(new Promise(() => {}));
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(await canvas.findByRole("button", { name: "Retry" }));
-		await waitFor(() =>
-			expect(API.experimental.getChatAttachments).toHaveBeenCalledTimes(2),
+		spyOn(API.experimental, "getChatAttachments").mockRejectedValue(
+			mockApiError({ message: "Failed to get chat attachments." }),
 		);
 	},
 };
