@@ -49,6 +49,7 @@ import {
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
 import {
@@ -169,6 +170,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	const composerHighlightKey = hasHighlightComposerState(location.state)
+		? location.key
+		: undefined;
 
 	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
@@ -430,6 +435,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}
 			prefill={prefill}
+			highlightKey={composerHighlightKey}
 		/>
 	);
 

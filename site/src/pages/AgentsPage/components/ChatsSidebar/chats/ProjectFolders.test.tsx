@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,19 +10,25 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { buildAgentProjectPath } from "../../../utils/navigation";
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
 type ProjectFoldersOptions = {
 	readonly error?: unknown;
 	readonly currentUserId?: string;
+	readonly route?: string;
 };
 
 const projectFoldersElement = (
 	projects: readonly ChatProject[],
-	{ error, currentUserId = MockUserOwner.id }: ProjectFoldersOptions = {},
+	{
+		error,
+		currentUserId = MockUserOwner.id,
+		route = "/agents",
+	}: ProjectFoldersOptions = {},
 ) => (
-	<MemoryRouter>
+	<MemoryRouter initialEntries={[route]}>
 		<ProjectFolders
 			currentUserId={currentUserId}
 			projects={projects}
@@ -106,6 +112,23 @@ describe("ProjectFolders", () => {
 			projectFoldersElement([], { error: new Error("Projects unavailable") }),
 		);
 		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
+	});
+
+	it("doesn't return focus to the menu button after New chat on the project's page", async () => {
+		const user = userEvent.setup();
+		renderProjectFolders([MockChatProject], {
+			route: buildAgentProjectPath({ projectId: MockChatProject.id }),
+		});
+		const trigger = screen.getByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
+
+		await user.click(trigger);
+		await user.click(screen.getByRole("menuitem", { name: "New chat" }));
+		await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+		// The menu restores focus on a timer after it unmounts.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(trigger).not.toHaveFocus();
 	});
 
 	it("collapses and expands the whole Projects section", async () => {

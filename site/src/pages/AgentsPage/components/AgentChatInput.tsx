@@ -241,6 +241,7 @@ type AgentChatInputProps = {
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
 	fillWidth?: boolean;
+	highlightKey?: string;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -591,6 +592,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 	fillWidth = false,
+	highlightKey,
 }) => {
 	const isEditingMessage = editingKind !== undefined;
 	const warningId = useId();
@@ -613,6 +615,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	useEffect(() => {
+		if (highlightKey !== undefined) {
+			internalRef.current?.focus();
+		}
+	}, [highlightKey]);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -1450,6 +1457,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{highlightKey !== undefined && (
+					<span
+						key={highlightKey}
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-composer-highlight"
+					/>
+				)}
 				{warning && (
 					<div
 						id={warningId}

@@ -310,6 +310,7 @@ type AgentCreateFormProps = {
 	project?: Pick<TypesGen.ChatProject, "id" | "organization_id">;
 	prefill?: AgentCreatePrefill;
 	fillWidth?: boolean;
+	highlightKey?: string;
 };
 
 export const AgentCreateForm: React.FC<AgentCreateFormProps> = (props) => (
@@ -332,6 +333,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	project,
 	prefill,
 	fillWidth,
+	highlightKey,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
 	const queryClient = useQueryClient();
@@ -1038,6 +1040,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				)}
 				<AgentChatInput
 					fillWidth={fillWidth}
+					highlightKey={highlightKey}
 					onSend={handleSendWithAttachments}
 					inputRef={chatInputRef}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
