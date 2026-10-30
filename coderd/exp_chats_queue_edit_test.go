@@ -114,6 +114,10 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
 		require.Equal(t, codersdk.ChatStatusWaiting, waitForChatWatchStatusChangeEvent(ctx, t, watch, chat.ID).Chat.Status,
 			"deleting the paused head publishes the waiting status to watchers")
+
+		// Editing a removed row is a 404 when the queue is empty too.
+		err = client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Editing: new(false)})
+		require.Equal(t, "Queued message not found.", requireSDKError(t, err, http.StatusNotFound).Message)
 	})
 
 	// Overrides sent with content are stored; a later content-only edit
