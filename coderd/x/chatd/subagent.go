@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -737,6 +738,37 @@ func subagentAwaitStatusErrorResult(statusErr *subagentStatusError) subagentAwai
 		result.LastErrorDetail = decoded.Detail
 	}
 	return result
+}
+
+// subagentGenericErrorMessage matches the normalized fallback that
+// chaterror and db2sdk emit for unclassifiable failures. It carries no
+// actionable information, so a provider detail replaces it entirely.
+const subagentGenericErrorMessage = "The chat request failed unexpectedly."
+
+// subagentLastError decodes a chat's last_error payload and builds the
+// message surfaced to the parent model, preferring the actionable
+// provider detail. The content mirrors what the chat UI renders from
+// the same payload. An unrecognized payload yields an empty message so
+// the caller falls back to its own status reason instead of exposing
+// raw stored bytes.
+func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) {
+	if !raw.Valid {
+		return nil, ""
+	}
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return nil, ""
+	}
+	switch {
+	case payload.Message == "" && payload.Detail == "":
+		return nil, ""
+	case payload.Detail == "":
+		return &payload, payload.Message
+	case payload.Message == "" || payload.Message == subagentGenericErrorMessage:
+		return &payload, payload.Detail
+	default:
+		return &payload, payload.Message + " (" + payload.Detail + ")"
+	}
 }
 
 func listAgentsResult(children []database.Chat, offset, limit int) subagentListResult {
