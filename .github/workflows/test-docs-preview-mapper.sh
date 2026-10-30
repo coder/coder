@@ -136,15 +136,15 @@ assert_checkbox_parses_to() {
 
 # Branch A: a checked page.
 # shellcheck disable=SC2016 # backtick-quoted path in the fixture is literal Markdown, not command substitution.
-assert_checkbox_parses_to '- [x] [`docs/foo/bar.md`](https://coder.com/docs/@b/foo/bar)' "$(printf 'x\tdocs/foo/bar.md')"
+assert_checkbox_parses_to '- [x] [`docs/foo/bar.md`](https://coder-docs-pr-1.coderite.app/foo/bar)' "$(printf 'x\tdocs/foo/bar.md')"
 
 # Branch B: an unchecked page.
 # shellcheck disable=SC2016
-assert_checkbox_parses_to '- [ ] [`docs/foo/baz.md`](https://coder.com/docs/@b/foo/baz)' "$(printf ' \tdocs/foo/baz.md')"
+assert_checkbox_parses_to '- [ ] [`docs/foo/baz.md`](https://coder-docs-pr-1.coderite.app/foo/baz)' "$(printf ' \tdocs/foo/baz.md')"
 
 # Branch C: an uppercase X, which GitHub also renders as checked.
 # shellcheck disable=SC2016
-assert_checkbox_parses_to '- [X] [`docs/foo/qux.md`](https://coder.com/docs/@b/foo/qux)' "$(printf 'X\tdocs/foo/qux.md')"
+assert_checkbox_parses_to '- [X] [`docs/foo/qux.md`](https://coder-docs-pr-1.coderite.app/foo/qux)' "$(printf 'X\tdocs/foo/qux.md')"
 
 # Branch D: a non-checklist line (prose, a header, the hidden markers)
 # must not match at all.
@@ -213,9 +213,9 @@ assert_round_trip_state() {
 	body=$(printf '%s\n' \
 		'## Docs preview' \
 		'' \
-		'- [x] [`docs/a.md`](https://coder.com/docs/@b/a)' \
-		'- [ ] [`docs/b.md`](https://coder.com/docs/@b/b)' \
-		'- [x] [`docs/c.md`](https://coder.com/docs/@b/c)' \
+		'- [x] [`docs/a.md`](https://coder-docs-pr-1.coderite.app/a)' \
+		'- [ ] [`docs/b.md`](https://coder-docs-pr-1.coderite.app/b)' \
+		'- [x] [`docs/c.md`](https://coder-docs-pr-1.coderite.app/c)' \
 		'<!-- docs-preview -->' \
 		"<!-- ${STATE_PREFIX}${state_b64} -->")
 
@@ -689,6 +689,8 @@ build_comment_body() {
 	# whose state map is {}.
 	{
 		printf '## Docs preview\n\n'
+		# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+		printf 'Links open this pull request'"'"'s preview at %s, which updates with each push.\n\n' "$url_prefix"
 		if [ -n "$page_block" ]; then
 			printf '%s\n' "$page_block"
 		fi
@@ -731,7 +733,7 @@ github_comment_limit=65536
 # Repo-scale worst case: a 400-page docs migration on a long branch with
 # ~60-char paths. The cap must keep the real body under GitHub's 65536-char
 # limit while still listing as many pages as fit.
-url_prefix="https://coder.com/docs/@feature-team-very-long-branch-name-docs-migration-2024"
+url_prefix="https://coder-docs-pr-123456.coderite.app"
 final_rows=$(jq -nc '[range(400) | {
 	filename: ("docs/reference/generated/section-\(. + 1000)/really-long-page-name-\(. + 1000).md"),
 	sha: ("0123456789abcdef0123456789abcdef" + (. + 100000 | tostring)),
@@ -759,7 +761,7 @@ else
 fi
 
 # A small PR keeps every page and renders no omitted-pages summary line.
-url_prefix="https://coder.com/docs/@short-branch"
+url_prefix="https://coder-docs-pr-1.coderite.app"
 final_rows=$(jq -nc '[range(5) | {filename: ("docs/page-\(.).md"), sha: "abc", checked: false}]')
 total_pages=$(printf '%s' "$final_rows" | jq 'length')
 keep=$(cap_pages "$budget")
@@ -786,15 +788,15 @@ fi
 # render_image_section renders a nested list of each changed image with a
 # preview link for every page that embeds it. A docs-root page
 # (docs/README.md) links to the branch root with no trailing path.
-url_prefix="https://coder.com/docs/@branch"
+url_prefix="https://coder-docs-pr-1.coderite.app"
 IMAGE_PAGES_MAX=25
 image_section_json='[{"image":"docs/images/a.png","pages":["docs/user-guides/x.md","docs/y.md"]},{"image":"docs/images/b.png","pages":["docs/README.md"]}]'
 section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 # shellcheck disable=SC2016 # backtick-quoted paths are literal Markdown.
 if printf '%s' "$section" | grep -qF '#### Changed images' &&
 	printf '%s' "$section" | grep -qF -- '- `docs/images/a.png`' &&
-	printf '%s' "$section" | grep -qF -- '  - [`docs/user-guides/x.md`](https://coder.com/docs/@branch/user-guides/x)' &&
-	printf '%s' "$section" | grep -qF -- '  - [`docs/README.md`](https://coder.com/docs/@branch)'; then
+	printf '%s' "$section" | grep -qF -- '  - [`docs/user-guides/x.md`](https://coder-docs-pr-1.coderite.app/user-guides/x)' &&
+	printf '%s' "$section" | grep -qF -- '  - [`docs/README.md`](https://coder-docs-pr-1.coderite.app)'; then
 	echo "PASS: render_image_section (nested preview links; README maps to docs root)"
 else
 	echo "FAIL: render_image_section basic ->"
@@ -839,7 +841,7 @@ fi
 # hidden markers are present, and the state map is {}.
 final_rows='[]'
 total_pages=0
-url_prefix="https://coder.com/docs/@branch"
+url_prefix="https://coder-docs-pr-1.coderite.app"
 image_section_json='[{"image":"docs/images/a.png","pages":["docs/user-guides/x.md"]}]'
 image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 image_only_body=$(build_comment_body 0)
@@ -861,7 +863,7 @@ fi
 # listing the image on its own line with no sub-links.
 final_rows='[]'
 total_pages=0
-url_prefix="https://coder.com/docs/@branch"
+url_prefix="https://coder-docs-pr-1.coderite.app"
 image_section_json='[{"image":"docs/images/icons/system.svg","pages":[]}]'
 image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 icon_only_body=$(build_comment_body 0)
@@ -890,7 +892,7 @@ both_body=$(build_comment_body 2)
 if printf '%s' "$both_body" | grep -qF 'Check off each page' &&
 	printf '%s' "$both_body" | grep -qF -- '- [x] [`docs/a.md`]' &&
 	printf '%s' "$both_body" | grep -qF '#### Changed images' &&
-	printf '%s' "$both_body" | grep -qF -- '  - [`docs/a.md`](https://coder.com/docs/@branch/a)'; then
+	printf '%s' "$both_body" | grep -qF -- '  - [`docs/a.md`](https://coder-docs-pr-1.coderite.app/a)'; then
 	echo "PASS: build_comment_body (pages and images both render)"
 else
 	echo "FAIL: build_comment_body pages+images ->"
@@ -901,6 +903,36 @@ if [ "$(recover_old_checked "$both_body" | jq -cS .)" = '{"docs/a.md":true,"docs
 	echo "PASS: build_comment_body (image sub-links excluded from checkbox state)"
 else
 	echo "FAIL: image sub-links polluted checkbox state -> $(recover_old_checked "$both_body")"
+	failures=$((failures + 1))
+fi
+
+# Preview links go to the PR's own preview on the Coder-owned domain in the
+# DOCS_PREVIEW_DOMAIN variable (coderite.app), which
+# docs-pr-preview-deploy.yaml aliases on every build: never to a coder.com
+# branch path or a first-come vercel.app name. The link uses the domain only
+# after the workflow has validated it.
+workflow="$(dirname "${BASH_SOURCE[0]}")/docs-preview.yaml"
+# shellcheck disable=SC2016 # the expected lines are literal workflow text.
+if grep -qF 'DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}' "$workflow" &&
+	grep -qF 'url_prefix="https://coder-docs-pr-${PR_NUMBER}.${domain}"' "$workflow" &&
+	! grep -qF 'coder.com/docs/@' "$workflow" &&
+	! grep -qE 'https://[^"[:space:]]*vercel\.app' "$workflow"; then
+	echo "PASS: preview links use coder-docs-pr-<n>.\$DOCS_PREVIEW_DOMAIN"
+else
+	echo "FAIL: docs-preview.yaml does not build preview links on coder-docs-pr-<n>.\$DOCS_PREVIEW_DOMAIN"
+	failures=$((failures + 1))
+fi
+
+# The comment links to a preview only once one exists: docs-preview.yaml
+# runs only when docs-pr-preview-deploy.yaml calls it after a deploy.
+deploy_workflow="$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml"
+if grep -qE '^  workflow_call:' "$workflow" &&
+	! grep -qE '^  pull_request(_target)?:' "$workflow" &&
+	grep -qF 'uses: ./.github/workflows/docs-preview.yaml' "$deploy_workflow" &&
+	grep -qE '^    needs: \[?deploy' "$deploy_workflow"; then
+	echo "PASS: docs-preview comment runs only after a successful deploy"
+else
+	echo "FAIL: docs-preview.yaml can post preview links before a deploy succeeds"
 	failures=$((failures + 1))
 fi
 
