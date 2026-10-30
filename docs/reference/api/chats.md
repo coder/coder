@@ -4210,6 +4210,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 `GET /api/v2/chats/{chat}/stream`
 
 Each WebSocket message is a JSON array of events.
+An array that encodes to more than 256 KiB arrives instead as consecutive `codersdk.ChatStreamChunk` objects.
+Concatenating their `chunk` strings up to the one with `last` set gives the array.
 
 The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
 A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.

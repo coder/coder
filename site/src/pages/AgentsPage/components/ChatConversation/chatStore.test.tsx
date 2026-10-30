@@ -84,9 +84,8 @@ beforeEach(() => {
 	);
 });
 
-type MessageListener = (
-	payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
-) => void;
+type StreamMessage = TypesGen.ChatStreamEvent[] | TypesGen.ChatStreamChunk;
+type MessageListener = (payload: OneWayMessageEvent<StreamMessage>) => void;
 type ErrorListener = (payload: Event) => void;
 type OpenListener = (payload: Event) => void;
 type CloseListener = (payload: CloseEvent) => void;
@@ -97,6 +96,7 @@ type MockSocketHelpers = {
 	emitOpen: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
+	emitChunk: (chunk: TypesGen.ChatStreamChunk) => void;
 	emitParseError: () => void;
 	emitError: () => void;
 	emitClose: () => void;
@@ -188,6 +188,16 @@ const createMockSocket = (): MockSocket => {
 				sourceEvent: {} as MessageEvent<string>,
 				parseError: undefined,
 				parsedMessage: events as TypesGen.ChatStreamEvent[],
+			};
+			for (const listener of messageListeners) {
+				listener(payload);
+			}
+		},
+		emitChunk: (chunk) => {
+			const payload: OneWayMessageEvent<StreamMessage> = {
+				sourceEvent: {} as MessageEvent<string>,
+				parseError: undefined,
+				parsedMessage: chunk,
 			};
 			for (const listener of messageListeners) {
 				listener(payload);
@@ -287,6 +297,20 @@ const statusEvent = (
 	chat_id: chatID,
 	status: { status },
 });
+
+// Cuts the encoded batch into count chunk messages of equal UTF-16 length,
+// except that the last one can be shorter.
+const splitIntoChunks = (
+	events: readonly TypesGen.ChatStreamEvent[],
+	count: number,
+): TypesGen.ChatStreamChunk[] => {
+	const encoded = JSON.stringify(events);
+	const size = Math.ceil(encoded.length / count);
+	return Array.from({ length: count }, (_, i) => ({
+		chunk: encoded.slice(i * size, (i + 1) * size),
+		last: i === count - 1,
+	}));
+};
 
 const immediateAnimationFrame = (): void => {
 	vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -5384,6 +5408,80 @@ describe("chat stream contract", () => {
 		act(() => {
 			sockets[1].emitOpen();
 		});
+		expect(result.current.error).toBeNull();
+	});
+
+	it("applies a batch when its last chunk message arrives", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		const [first, second, last] = splitIntoChunks(
+			[message(2, "assistant", 5)],
+			3,
+		);
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitChunk(first);
+			sockets[0].emitChunk(second);
+		});
+		expect(result.current.messageIDs).toEqual([1]);
+		act(() => {
+			sockets[0].emitChunk(last);
+		});
+		expect(result.current.messageIDs).toEqual([1, 2]);
+		expect(result.current.store.getSyncedSnapshotVersion()).toBe(5);
+		expect(result.current.error).toBeNull();
+	});
+
+	it("resyncs when joined chunk messages are not valid JSON", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitChunk({ chunk: "[{", last: false });
+			sockets[0].emitChunk({ chunk: "oops", last: true });
+		});
+		expect(sockets[0].close).toHaveBeenCalled();
+		expect(result.current.error).toMatchObject({
+			message: "Failed to parse a chat stream update. Reconnecting.",
+		});
+	});
+
+	it("discards a partial chunked batch when the socket reconnects", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		const lost = splitIntoChunks([message(2, "assistant", 5)], 2);
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitChunk(lost[0]);
+			sockets[0].emitClose();
+		});
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(sockets).toHaveLength(2);
+		// None of the partial batch was applied, so the stream resumes from
+		// the page's version and sends it again.
+		expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
+		act(() => {
+			sockets[1].emitOpen();
+			for (const chunk of splitIntoChunks([message(2, "assistant", 5)], 2)) {
+				sockets[1].emitChunk(chunk);
+			}
+		});
+		expect(result.current.messageIDs).toEqual([1, 2]);
 		expect(result.current.error).toBeNull();
 	});
 

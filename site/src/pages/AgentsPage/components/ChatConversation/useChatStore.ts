@@ -174,6 +174,10 @@ export const useChatStore = (
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
 		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
+		// Chunk strings of a batch the server split into chunk messages,
+		// joined when the last chunk message arrives.
+		const chunkBuf: string[] = [];
+
 		// Set when the stream reports a completed turn, cleared by any other
 		// stream status. While set, parts are dropped: they are late
 		// leftovers from the completed turn.
@@ -229,26 +233,45 @@ export const useChatStore = (
 		};
 
 		const handleMessage = (
-			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
+			payload: OneWayMessageEvent<
+				TypesGen.ChatStreamEvent[] | TypesGen.ChatStreamChunk
+			>,
 			socket: { close: () => void },
 		) => {
 			if (disposed) {
 				return;
 			}
-			if (payload.parseError || !payload.parsedMessage) {
-				// The WebSocket message can hold events that a later event's
-				// version would skip on reconnect, so open the stream again
-				// with the last applied version.
+			// The WebSocket message can hold events that a later event's
+			// version would skip on reconnect, so open the stream again
+			// with the last applied version.
+			const reconnectAfterParseError = () => {
 				discardBufferedParts();
 				store.setClientError({
 					kind: "generic",
 					message: "Failed to parse a chat stream update. Reconnecting.",
 				});
 				socket.close();
+			};
+			if (payload.parseError || !payload.parsedMessage) {
+				reconnectAfterParseError();
 				return;
 			}
 
-			const streamEvents = payload.parsedMessage;
+			let streamEvents: TypesGen.ChatStreamEvent[];
+			if (Array.isArray(payload.parsedMessage)) {
+				streamEvents = payload.parsedMessage;
+			} else {
+				chunkBuf.push(payload.parsedMessage.chunk);
+				if (!payload.parsedMessage.last) {
+					return;
+				}
+				try {
+					streamEvents = JSON.parse(chunkBuf.splice(0).join(""));
+				} catch {
+					reconnectAfterParseError();
+					return;
+				}
+			}
 			if (streamEvents.length === 0) {
 				return;
 			}
@@ -463,6 +486,9 @@ export const useChatStore = (
 				// apply stale parts from the old connection
 				// into the fresh stream state.
 				discardBufferedParts();
+				// Drop any partial chunked batch from the old socket;
+				// the new socket sends it again.
+				chunkBuf.length = 0;
 			},
 			onDisconnect(reconnectState: ReconnectSchedule) {
 				// Only surface reconnecting when the disconnect
