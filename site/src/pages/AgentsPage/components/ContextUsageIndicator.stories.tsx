@@ -10,42 +10,123 @@ import {
 	MockChatContextDirty,
 	MockChatContextResourceFailures,
 } from "#/testHelpers/chatEntities";
-import {
-	type AgentContextUsage,
-	ContextUsageIndicator,
-} from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
 // Only the OK rows of the shared fixture, so the discovery stories show one
 // MCP state at a time without the fixture's invalid skill under Issues.
-const MockChatContextResourcesHealthy: readonly ChatContextResource[] =
+const mockChatContextResourcesHealthy: readonly ChatContextResource[] =
 	MockChatContextClean.resources?.filter(
 		(resource) => resource.status === "ok",
 	) ?? [];
 
 // Pinned context without any MCP rows, so the MCP section is driven by the
 // discovery state alone.
-const MockChatContextResourcesWithoutMcp: readonly ChatContextResource[] =
-	MockChatContextResourcesHealthy.filter(
+const mockChatContextResourcesWithoutMcp: readonly ChatContextResource[] =
+	mockChatContextResourcesHealthy.filter(
 		(resource) =>
 			resource.kind !== "mcp_config" && resource.kind !== "mcp_server",
 	);
 
-const MockChatContextMcpPending: ChatContext = {
+const mockChatContextMcpPending: ChatContext = {
 	...MockChatContextClean,
-	resources: MockChatContextResourcesWithoutMcp,
+	resources: mockChatContextResourcesWithoutMcp,
 	mcp_discovery: { phase: "pending", stale: false },
 };
 
-const MockChatContextMcpCompleteNoServers: ChatContext = {
+const mockChatContextMcpPendingBeforeFirstSnapshot: ChatContext = {
+	...mockChatContextMcpPending,
+	resources: [],
+};
+
+const mockChatContextMcpCompleteNoServers: ChatContext = {
 	...MockChatContextClean,
-	resources: MockChatContextResourcesWithoutMcp,
+	resources: mockChatContextResourcesWithoutMcp,
 	mcp_discovery: { phase: "complete", stale: false },
 };
 
-const MockChatContextMcpComplete: ChatContext = {
+const mockChatContextMcpStaleNoServers: ChatContext = {
+	...mockChatContextMcpCompleteNoServers,
+	mcp_discovery: { phase: "complete", stale: true },
+};
+
+const mockChatContextMcpComplete: ChatContext = {
 	...MockChatContextClean,
-	resources: MockChatContextResourcesHealthy,
+	resources: mockChatContextResourcesHealthy,
 	mcp_discovery: { phase: "complete", stale: false },
+};
+
+const mockChatContextMcpPendingWithServers: ChatContext = {
+	...mockChatContextMcpComplete,
+	mcp_discovery: { phase: "pending", stale: false },
+};
+
+const mockChatContextMcpServerWithoutTools: ChatContext = {
+	...mockChatContextMcpComplete,
+	resources: [
+		...mockChatContextResourcesHealthy.filter(
+			(resource) => resource.kind !== "mcp_server",
+		),
+		{
+			source: "linear",
+			kind: "mcp_server",
+			size_bytes: 0,
+			status: "ok",
+			tools: [],
+		},
+	],
+};
+
+const mockChatContextMcpServerWithWarning: ChatContext = {
+	...mockChatContextMcpComplete,
+	resources: mockChatContextResourcesHealthy.map((resource) =>
+		resource.kind === "mcp_server"
+			? {
+					...resource,
+					error:
+						"reconnect failed: connection refused; serving tools from the previous connection",
+				}
+			: resource,
+	),
+};
+
+const mockChatContextMcpSourcesFailed: ChatContext = {
+	...mockChatContextMcpComplete,
+	resources: [
+		...mockChatContextResourcesWithoutMcp,
+		{
+			source: "/home/coder/.mcp.json",
+			kind: "mcp_config",
+			size_bytes: 184,
+			status: "invalid",
+			error: 'server "github": command and url are mutually exclusive',
+		},
+		{
+			source: "linear",
+			kind: "mcp_server",
+			size_bytes: 0,
+			status: "unreadable",
+			error: "initialize: dial tcp 127.0.0.1:8080: connection refused",
+		},
+	],
+};
+
+const mockChatContextMcpLongError: ChatContext = {
+	...mockChatContextMcpComplete,
+	resources: [
+		...mockChatContextResourcesWithoutMcp,
+		{
+			source: "longpath",
+			kind: "mcp_server",
+			size_bytes: 0,
+			status: "unreadable",
+			error: `connect "longpath": fork/exec /home/coder/${"deeplynesteddirectorysegment/".repeat(13)}mcpserverbinary: no such file or directory`,
+		},
+	],
+};
+
+const mockChatContextMcpStale: ChatContext = {
+	...mockChatContextMcpComplete,
+	mcp_discovery: { phase: "complete", stale: true },
 };
 
 const meta: Meta<typeof ContextUsageIndicator> = {
@@ -558,8 +639,6 @@ export const ResourceFailuresOnlyExpanded: Story = {
 	},
 };
 
-// Opens the popover and expands its MCP section, where the discovery
-// state is shown.
 const openMcpSection = async (canvasElement: HTMLElement) => {
 	await userEvent.click(
 		within(canvasElement).getByRole("button", { name: /Context usage/ }),
@@ -567,14 +646,12 @@ const openMcpSection = async (canvasElement: HTMLElement) => {
 	await userEvent.click(screen.getByRole("button", { name: /MCP Servers/ }));
 };
 
-// The agent has not finished its initial MCP reload: the MCP section explains
-// that discovery is still initializing instead of showing an empty list.
 export const McpDiscoveryInitializing: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: MockChatContextMcpPending,
+			context: mockChatContextMcpPending,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -582,18 +659,25 @@ export const McpDiscoveryInitializing: Story = {
 	},
 };
 
-// A chat bound to an agent that has not pushed its first snapshot yet: the
-// only thing to show is that discovery is underway.
+export const McpDiscoveryInitializingWithServers: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: mockChatContextMcpPendingWithServers,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openMcpSection(canvasElement);
+	},
+};
+
 export const McpDiscoveryInitializingBeforeFirstSnapshot: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				...MockChatContextClean,
-				resources: [],
-				mcp_discovery: { phase: "pending", stale: false },
-			},
+			context: mockChatContextMcpPendingBeforeFirstSnapshot,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -601,14 +685,12 @@ export const McpDiscoveryInitializingBeforeFirstSnapshot: Story = {
 	},
 };
 
-// Discovery finished and no server was declared, so the section states that
-// outcome rather than disappearing.
 export const McpDiscoveryCompleteNoServers: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: MockChatContextMcpCompleteNoServers,
+			context: mockChatContextMcpCompleteNoServers,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -616,32 +698,12 @@ export const McpDiscoveryCompleteNoServers: Story = {
 	},
 };
 
-// A discovered server that exposes no tools stays listed with an explicit
-// marker so it is not mistaken for a failed one.
 export const McpServerWithoutTools: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				...MockChatContextMcpComplete,
-				resources: [
-					...MockChatContextResourcesWithoutMcp,
-					{
-						source: "/home/coder/.mcp.json",
-						kind: "mcp_config",
-						size_bytes: 184,
-						status: "ok",
-					},
-					{
-						source: "linear",
-						kind: "mcp_server",
-						size_bytes: 0,
-						status: "ok",
-						tools: [],
-					},
-				],
-			},
+			context: mockChatContextMcpServerWithoutTools,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -649,25 +711,12 @@ export const McpServerWithoutTools: Story = {
 	},
 };
 
-// An OK server carrying a non-fatal warning: it keeps its tools in the MCP
-// list and the warning appears under Issues without marking it unavailable.
 export const McpServerWithWarning: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				...MockChatContextMcpComplete,
-				resources: MockChatContextResourcesHealthy.map((resource) =>
-					resource.kind === "mcp_server"
-						? {
-								...resource,
-								error:
-									"reconnect failed: connection refused; serving tools from the previous connection",
-							}
-						: resource,
-				),
-			},
+			context: mockChatContextMcpServerWithWarning,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -675,33 +724,12 @@ export const McpServerWithWarning: Story = {
 	},
 };
 
-// Failed sources: a semantically invalid .mcp.json and a server that could not
-// be reached are both listed under Issues with their sanitized errors.
 export const McpSourcesFailed: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				...MockChatContextMcpComplete,
-				resources: [
-					...MockChatContextResourcesWithoutMcp,
-					{
-						source: "/home/coder/.mcp.json",
-						kind: "mcp_config",
-						size_bytes: 184,
-						status: "invalid",
-						error: 'server "github": command and url are mutually exclusive',
-					},
-					{
-						source: "linear",
-						kind: "mcp_server",
-						size_bytes: 0,
-						status: "unreadable",
-						error: "initialize: dial tcp 127.0.0.1:8080: connection refused",
-					},
-				],
-			},
+			context: mockChatContextMcpSourcesFailed,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -709,27 +737,14 @@ export const McpSourcesFailed: Story = {
 	},
 };
 
-// A failed server whose error embeds a long path with no break
-// opportunities: the text must wrap inside the popover instead of widening
-// it into a horizontal scroll.
+// The error embeds a long path: it must wrap inside the popover instead of
+// widening it into a horizontal scroll.
 export const McpLongError: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				...MockChatContextMcpComplete,
-				resources: [
-					...MockChatContextResourcesWithoutMcp,
-					{
-						source: "longpath",
-						kind: "mcp_server",
-						size_bytes: 0,
-						status: "unreadable",
-						error: `connect "longpath": fork/exec /home/coder/${"deeplynesteddirectorysegment/".repeat(13)}mcpserverbinary: no such file or directory`,
-					},
-				],
-			},
+			context: mockChatContextMcpLongError,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -737,17 +752,25 @@ export const McpLongError: Story = {
 	},
 };
 
-// The pinned MCP rows were published by a previous agent process, so their
-// tools are withheld until the chat picks up the current agent's discovery.
 export const McpDiscoveryStale: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				...MockChatContextMcpComplete,
-				mcp_discovery: { phase: "complete", stale: true },
-			},
+			context: mockChatContextMcpStale,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openMcpSection(canvasElement);
+	},
+};
+
+export const McpDiscoveryStaleNoServers: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: mockChatContextMcpStaleNoServers,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -760,20 +783,17 @@ export const McpDiscoveryStale: Story = {
 // discovery swaps the context while the popover stays open.
 const DiscoveryUpdateHarness: React.FC = () => {
 	const [context, setContext] = useState<ChatContext>(
-		MockChatContextMcpPending,
+		mockChatContextMcpPending,
 	);
-	const usage: AgentContextUsage = {
-		usedTokens: 12_000,
-		contextLimitTokens: 200_000,
-		context,
-	};
 	return (
 		<div className="flex items-center gap-4">
-			<ContextUsageIndicator usage={usage} />
+			<ContextUsageIndicator
+				usage={{ usedTokens: 12_000, contextLimitTokens: 200_000, context }}
+			/>
 			<Button
 				size="xs"
 				variant="outline"
-				onClick={() => setContext(MockChatContextMcpComplete)}
+				onClick={() => setContext(mockChatContextMcpComplete)}
 			>
 				Publish discovery
 			</Button>

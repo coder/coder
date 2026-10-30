@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type {
 	ChatContext,
+	ChatContextMCPDiscoveryPhase,
 	ChatContextResource,
 	ChatContextResourceKind,
 	ChatContextResourceStatus,
@@ -83,13 +84,15 @@ type ContextMcpServerItem = {
 type ContextIssueItem = {
 	readonly name: string;
 	readonly kind: ChatContextResourceKind;
-	readonly outcome: ChatContextResourceStatus | "warning" | "failed";
+	readonly outcome:
+		| Exclude<ChatContextResourceStatus, "ok">
+		| "warning"
+		| "failed";
 	readonly error: string;
 	readonly source: string;
 };
 
-// The outcome word shown next to an issue. Failed MCP servers carry the
-// storage status "unreadable", which describes files, not connections.
+// The storage status "unreadable" describes files, not MCP connections.
 const issueOutcome = (
 	resource: ChatContextResource,
 ): ContextIssueItem["outcome"] => {
@@ -210,6 +213,73 @@ const ContextIssueIndicator: React.FC<{ count: number }> = ({ count }) =>
 			</span>
 		</span>
 	) : null;
+
+type McpDiscoveryNoteProps = {
+	phase: ChatContextMCPDiscoveryPhase;
+	stale: boolean;
+	hasServers: boolean;
+};
+
+// A stale report outranks the phase: the phase describes the previous agent
+// process, not the one the next message will use.
+const McpDiscoveryNote: React.FC<McpDiscoveryNoteProps> = ({
+	phase,
+	stale,
+	hasServers,
+}) => {
+	if (stale) {
+		return (
+			<ContextAlert severity="warning">
+				<ContextAlertTitle className="font-normal">
+					Discovered by a previous agent run.
+				</ContextAlertTitle>
+				<ContextAlertDescription>
+					Tools are withheld from the model until your next message picks up the
+					current agent's discovery.
+				</ContextAlertDescription>
+			</ContextAlert>
+		);
+	}
+
+	if (phase === "pending") {
+		return (
+			<span className="flex items-center gap-1.5">
+				<Spinner loading className="size-3! shrink-0" />
+				Discovery initializing. Servers may appear on a later turn.
+			</span>
+		);
+	}
+
+	if (phase === "complete") {
+		return hasServers
+			? "Discovery complete."
+			: "Discovery complete. No MCP servers discovered.";
+	}
+
+	return null;
+};
+
+type ContextMcpServerTreeItemProps = { server: ContextMcpServerItem };
+
+const ContextMcpServerTreeItem: React.FC<ContextMcpServerTreeItemProps> = ({
+	server,
+}) => (
+	<ContextResourceTreeItem
+		icon={PlugIcon}
+		name={server.name}
+		title={server.source}
+	>
+		{server.tools.length > 0
+			? server.tools.map((tool) => (
+					<ContextResourceTreeItem
+						key={tool.name}
+						name={tool.name}
+						description={tool.description}
+					/>
+				))
+			: "(no tools)"}
+	</ContextResourceTreeItem>
+);
 
 const ContextHarnessSection: React.FC<{
 	groups: readonly DirectoryGroup<{ slug: string; dir: string }>[];
@@ -345,27 +415,9 @@ export const ContextUsageIndicator: React.FC<{
 		.filter((server) => server.name.trim().length > 0);
 	const hasMcpResources =
 		mcpConfigItems.length > 0 || mcpServerItems.length > 0;
-	const mcpServerCount = (pinnedResources ?? []).filter(
-		(resource) => resource.kind === "mcp_server",
-	).length;
-	const mcpDiscovery = context?.mcp_discovery;
-	const isMcpStale = mcpDiscovery?.stale ?? false;
-	const isMcpPending = mcpDiscovery?.phase === "pending";
-	const isMcpComplete = mcpDiscovery?.phase === "complete";
-	let mcpDiscoveryNote = "";
-	if (isMcpStale) {
-		mcpDiscoveryNote =
-			"Discovered by a previous agent run. Tools are withheld until your next message picks up the current agent's discovery.";
-	} else if (isMcpPending) {
-		mcpDiscoveryNote =
-			"Discovery initializing. Servers may appear on a later turn.";
-	} else if (isMcpComplete) {
-		mcpDiscoveryNote =
-			mcpServerCount === 0
-				? "Discovery complete. No MCP servers discovered."
-				: "Discovery complete.";
-	}
-	const hasMcp = hasMcpResources || mcpDiscoveryNote !== "";
+	const mcpDiscoveryPhase = context?.mcp_discovery?.phase ?? "unknown";
+	const isMcpStale = context?.mcp_discovery?.stale ?? false;
+	const hasMcpDiscoveryNote = isMcpStale || mcpDiscoveryPhase !== "unknown";
 	const harnessItems = (pinnedResources ?? [])
 		.filter(
 			(resource) => resource.kind === "acp_harness" && resource.status === "ok",
@@ -377,10 +429,7 @@ export const ContextUsageIndicator: React.FC<{
 		.filter((harness) => harness.slug.trim().length > 0);
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
-	// visible rather than a silent omission. An OK row may also carry a
-	// non-fatal warning (for example an MCP server still serving the tools of
-	// its previous connection); it stays listed as usable and the warning is
-	// surfaced here.
+	// visible rather than a silent omission. An OK row with an error is a warning.
 	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
 		.filter(
 			(resource) => resource.status !== "ok" || (resource.error ?? "") !== "",
@@ -408,11 +457,13 @@ export const ContextUsageIndicator: React.FC<{
 	const harnessIssues = issueItems.filter(
 		(issue) => issue.kind === "acp_harness",
 	);
+	const showMcpSection =
+		hasMcpResources || hasMcpDiscoveryNote || mcpIssues.length > 0;
 
 	const hasContextList =
 		fileItems.length > 0 ||
 		skillItems.length > 0 ||
-		hasMcp ||
+		showMcpSection ||
 		harnessItems.length > 0 ||
 		issueItems.length > 0;
 
@@ -428,7 +479,7 @@ export const ContextUsageIndicator: React.FC<{
 	const AttentionIcon = hasContextError ? CircleAlertIcon : TriangleAlertIcon;
 	const toneClassName = hasContextError
 		? "text-content-destructive"
-		: isDirty || hasResourceIssues || isMcpStale
+		: needsAttention
 			? "text-content-warning"
 			: getIndicatorToneClassName(percentUsed, compactionPercent);
 
@@ -645,7 +696,7 @@ export const ContextUsageIndicator: React.FC<{
 								</ContextResourceAccordionContent>
 							</ContextResourceAccordion>
 						)}
-						{(hasMcp || mcpIssues.length > 0) && (
+						{showMcpSection && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
 									detail={`${mcpServerItems.length} connected`}
@@ -654,22 +705,13 @@ export const ContextUsageIndicator: React.FC<{
 									<ContextIssueIndicator count={mcpIssues.length} />
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent>
-									{mcpDiscoveryNote !== "" && (
-										<span
-											className={cn(
-												"flex items-center gap-1.5",
-												isMcpStale && "text-content-warning",
-											)}
-										>
-											{isMcpStale && (
-												<TriangleAlertIcon className="size-3 shrink-0" />
-											)}
-											{isMcpPending && (
-												<Spinner loading className="size-3! shrink-0" />
-											)}
-											<span>{mcpDiscoveryNote}</span>
-										</span>
-									)}
+									<McpDiscoveryNote
+										phase={mcpDiscoveryPhase}
+										stale={isMcpStale}
+										hasServers={(pinnedResources ?? []).some(
+											(resource) => resource.kind === "mcp_server",
+										)}
+									/>
 									{hasMcpResources && (
 										<ContextResourceTree>
 											{mcpConfigItems.map((config) => (
@@ -680,27 +722,11 @@ export const ContextUsageIndicator: React.FC<{
 													title={config.source}
 												/>
 											))}
-											{mcpServerItems.map((mcp) => (
-												<ContextResourceTreeItem
-													key={mcp.source}
-													icon={PlugIcon}
-													name={mcp.name}
-													title={mcp.source}
-												>
-													{mcp.tools.length > 0 ? (
-														mcp.tools.map((tool) => (
-															<ContextResourceTreeItem
-																key={tool.name}
-																name={tool.name}
-																description={tool.description}
-															/>
-														))
-													) : (
-														<span className="text-content-secondary">
-															(no tools)
-														</span>
-													)}
-												</ContextResourceTreeItem>
+											{mcpServerItems.map((server) => (
+												<ContextMcpServerTreeItem
+													key={server.source}
+													server={server}
+												/>
 											))}
 										</ContextResourceTree>
 									)}
