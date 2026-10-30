@@ -41,7 +41,7 @@ type SidebarTabProps = {
 };
 
 /** What a panel inside a `SidebarTab` knows about its tab. */
-type SidebarTabState = {
+type TabPanelState = {
 	isActive: boolean;
 	/** Whether the right panel itself is open. */
 	isPanelOpen: boolean;
@@ -52,14 +52,16 @@ type SidebarTabState = {
  * Outside a `SidebarTabView` a panel renders as the only, visible tab, which
  * keeps panels usable on their own in tests and stories.
  */
-export const SidebarTabStateContext = createContext<SidebarTabState>({
+export const TabPanelStateContext = createContext<TabPanelState>({
 	isActive: true,
 	isPanelOpen: true,
 	isExpanded: false,
 });
 
-/** Returns the state of the `SidebarTab` the calling panel renders in. */
-export const useSidebarTab = () => useContext(SidebarTabStateContext);
+/** Returns the state of the tab panel the calling component renders in. */
+export const useTabPanelState = () => {
+	return useContext(TabPanelStateContext);
+};
 
 type SidebarTabViewContextValue = {
 	effectiveTabId: string | null;
@@ -72,15 +74,23 @@ const SidebarTabViewContext = createContext<SidebarTabViewContextValue | null>(
 	null,
 );
 
+/** Returns the `SidebarTabView` that a `SidebarTab` is a child of. */
+const useParentTabView = () => {
+	const view = useContext(SidebarTabViewContext);
+
+	if (!view) {
+		throw new Error("SidebarTab must be rendered inside a SidebarTabView.");
+	}
+
+	return view;
+};
+
 /**
  * One tab of a `SidebarTabView`. It must be a direct child of the view,
  * which reads its props to build the tab bar.
  */
 export const SidebarTab: React.FC<SidebarTabProps> = ({ id, children }) => {
-	const view = useContext(SidebarTabViewContext);
-	if (!view) {
-		throw new Error("SidebarTab must be rendered inside a SidebarTabView.");
-	}
+	const view = useParentTabView();
 
 	const isActive = view.effectiveTabId === id;
 
@@ -96,7 +106,7 @@ export const SidebarTab: React.FC<SidebarTabProps> = ({ id, children }) => {
 			)}
 			inert={!isActive}
 		>
-			<SidebarTabStateContext
+			<TabPanelStateContext
 				value={{
 					isActive,
 					isPanelOpen: view.isPanelOpen,
@@ -104,7 +114,7 @@ export const SidebarTab: React.FC<SidebarTabProps> = ({ id, children }) => {
 				}}
 			>
 				{children}
-			</SidebarTabStateContext>
+			</TabPanelStateContext>
 		</div>
 	);
 };
@@ -119,7 +129,7 @@ type SidebarTabViewProps = {
 	activeTabId: string | null;
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
-	/** Whether the right panel is open. Panels read it through `useSidebarTab`. */
+	/** Whether the right panel is open. Panels read it through `useTabPanelState`. */
 	isPanelOpen: boolean;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
@@ -237,7 +247,9 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 }) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+
 	const tabIdPrefix = useId();
+
 	const {
 		ref: tabScrollRef,
 		canScrollLeft,
@@ -253,7 +265,9 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 
 		return child.props;
 	});
+
 	const tabIds = tabs.map((tab) => tab.id);
+
 	const effectiveTabId = getEffectiveTabId(tabIds, activeTabId);
 
 	const closeTab = (tabId: string) => {
@@ -263,6 +277,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 		}
 
 		const remainingTabIds = tabIds.filter((id) => id !== tabId);
+
 		const closedTabIndex = tabIds.indexOf(tabId);
 		const nextActiveTabId =
 			effectiveTabId === tabId

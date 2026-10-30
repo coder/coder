@@ -21,7 +21,7 @@ import {
 } from "#/testHelpers/renderHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
-import { SidebarTabStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
+import { TabPanelStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
 
 const mockOldestLoadedMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
@@ -58,7 +58,7 @@ const renderPanel = ({
 					canViewOrganizationSettings: false,
 				}}
 			>
-				<SidebarTabStateContext
+				<TabPanelStateContext
 					value={{ isActive: isVisible, isPanelOpen: true, isExpanded: false }}
 				>
 					<ChatSummaryPanel
@@ -67,7 +67,7 @@ const renderPanel = ({
 						hasMoreMessages={hasMoreMessages}
 						isHydratingMessages={isHydratingMessages}
 					/>
-				</SidebarTabStateContext>
+				</TabPanelStateContext>
 			</DashboardContext.Provider>
 		</QueryClientProvider>,
 	);

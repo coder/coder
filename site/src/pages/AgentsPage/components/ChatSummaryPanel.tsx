@@ -14,7 +14,7 @@ import {
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
-import { useSidebarTab } from "./ChatsSidebar/tabs/SidebarTabView";
+import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 
 type ChatSummaryPanelProps = {
 	chatId: string;
@@ -31,8 +31,9 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	// Gate reads on tab visibility so the chat, cost, and attachments
 	// queries don't run while the tab is hidden.
-	const { isActive, isPanelOpen } = useSidebarTab();
+	const { isActive, isPanelOpen } = useTabPanelState();
 	const isVisible = isPanelOpen && isActive;
+
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;

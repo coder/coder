@@ -15,7 +15,7 @@ import {
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { useTerminalClientSessionId } from "../context/TerminalClientSessionContext";
-import { useSidebarTab } from "./ChatsSidebar/tabs/SidebarTabView";
+import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 
 /** Promote a freshly created terminal tab after this delay if no output has painted. */
 const READY_FALLBACK_MS = 100;
@@ -51,9 +51,11 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 	workspace,
 	workspaceAgent,
 }) => {
-	const { isActive, isPanelOpen } = useSidebarTab();
+	const { isActive, isPanelOpen } = useTabPanelState();
+
 	// Whether this terminal should hold live xterm and WebSocket resources.
 	const isHot = isPanelOpen && (isActive || isPending);
+
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);

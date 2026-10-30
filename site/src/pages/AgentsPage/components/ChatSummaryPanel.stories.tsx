@@ -20,7 +20,7 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
-import { SidebarTabStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
+import { TabPanelStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
 
 const ROOT_CHAT_ID = "root-chat-id";
 
@@ -187,11 +187,11 @@ export const ChatError: Story = {
 export const NotVisible: Story = {
 	decorators: [
 		(Story) => (
-			<SidebarTabStateContext
+			<TabPanelStateContext
 				value={{ isActive: false, isPanelOpen: true, isExpanded: false }}
 			>
 				<Story />
-			</SidebarTabStateContext>
+			</TabPanelStateContext>
 		),
 	],
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),

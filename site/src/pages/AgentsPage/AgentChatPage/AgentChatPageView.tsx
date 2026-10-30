@@ -350,24 +350,25 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		{ workspace, workspaceAgent, wildcardHostname },
 	);
 
-	// The built-in Terminal renders like any user terminal tab. Its
+	// The built-in Terminal renders like any other terminal tab. Its
 	// reconnection token is the chat ID, which keeps existing sessions.
-	const userTabsWithBuiltInTerminal: UserRightPanelTab[] =
-		workspace && workspaceAgent && !defaultTerminalHidden
-			? [
-					{ id: "terminal", kind: "terminal", reconnectionToken: agentId },
-					...validatedUserRightPanelTabs,
-				]
-			: validatedUserRightPanelTabs;
+	const builtInTerminalTab: UserRightPanelTab = {
+		id: "terminal",
+		kind: "terminal",
+		reconnectionToken: agentId,
+	};
 
-	// Dense terminal numbering: position among unlabeled terminal tabs.
-	// Labeled terminals (command apps) display their own label, so they
-	// don't consume a number. Closing a terminal renumbers the ones after it.
-	const terminalNumbers = new Map(
-		userTabsWithBuiltInTerminal
-			.filter((tab) => tab.kind === "terminal" && tab.label === undefined)
-			.map((tab, index) => [tab.id, index + 1] as const),
-	);
+	const isBuiltInTerminalShown =
+		workspace !== undefined &&
+		workspaceAgent !== undefined &&
+		!defaultTerminalHidden;
+
+	const builtInTabs = isBuiltInTerminalShown ? [builtInTerminalTab] : [];
+
+	const userTabs = nameUnlabeledTerminals([
+		...builtInTabs,
+		...validatedUserRightPanelTabs,
+	]);
 
 	const activateRightPanelTab = (tabId: string) => {
 		onSetShowSidebarPanel(true);
@@ -804,11 +805,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							)}
 
 							{/* User tabs come last so they sit rightmost. */}
-							{userTabsWithBuiltInTerminal.map((tab) => (
+							{userTabs.map((tab) => (
 								<SidebarTab
 									key={tab.id}
 									id={tab.id}
-									label={getUserTabLabel(tab, terminalNumbers.get(tab.id))}
+									label={tab.label}
 									onClose={(next) => handleCloseTab(tab.id, next)}
 								>
 									<UserTabPanel
@@ -830,16 +831,30 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	);
 };
 
-// Only unlabeled terminal tabs fall through to the numbered label; every
-// other tab kind has a required label.
-const getUserTabLabel = (
-	tab: UserRightPanelTab,
-	terminalNumber: number | undefined,
-) => {
-	return (
-		tab.label ??
-		(terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`)
-	);
+type LabeledUserRightPanelTab = UserRightPanelTab & { label: string };
+
+/**
+ * Names unlabeled terminal tabs by their position among them: "Terminal",
+ * "Terminal 2", and so on, so closing one renumbers the ones after it.
+ * Command app terminals and every other tab kind keep their own label.
+ */
+const nameUnlabeledTerminals = (
+	tabs: readonly UserRightPanelTab[],
+): LabeledUserRightPanelTab[] => {
+	let terminalNumber = 0;
+
+	return tabs.map((tab) => {
+		if (tab.label !== undefined) {
+			return { ...tab, label: tab.label };
+		}
+
+		terminalNumber += 1;
+
+		const label =
+			terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`;
+
+		return { ...tab, label };
+	});
 };
 
 type AgentChatPageLoadingViewProps = {

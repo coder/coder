@@ -12,7 +12,7 @@ import {
 	useDesktopConnection,
 } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
-import { useSidebarTab } from "../ChatsSidebar/tabs/SidebarTabView";
+import { useTabPanelState } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 import {
 	DesktopWorkspaceState,
@@ -33,7 +33,7 @@ export const DesktopPanel: React.FC<DesktopPanelProps> = ({
 	workspace,
 	workspaceAgent,
 }) => {
-	const { isActive } = useSidebarTab();
+	const { isActive } = useTabPanelState();
 
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is

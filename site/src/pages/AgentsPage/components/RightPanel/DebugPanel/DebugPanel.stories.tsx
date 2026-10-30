@@ -5,7 +5,7 @@ import { API } from "#/api/api";
 import { chatDebugRunKey, chatDebugRunsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { SidebarTabStateContext } from "../../ChatsSidebar/tabs/SidebarTabView";
+import { TabPanelStateContext } from "../../ChatsSidebar/tabs/SidebarTabView";
 import { DebugPanel } from "./DebugPanel";
 import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 
@@ -567,11 +567,11 @@ export const Empty: Story = {
 export const Disabled: Story = {
 	decorators: [
 		(Story) => (
-			<SidebarTabStateContext
+			<TabPanelStateContext
 				value={{ isActive: false, isPanelOpen: true, isExpanded: false }}
 			>
 				<Story />
-			</SidebarTabStateContext>
+			</TabPanelStateContext>
 		),
 	],
 };

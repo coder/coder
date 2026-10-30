@@ -41,7 +41,7 @@ import {
 import { originRepoLabel } from "../../utils/originRepoLabel";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
-import { useSidebarTab } from "../ChatsSidebar/tabs/SidebarTabView";
+import { useTabPanelState } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
 	type DiffStyle,
@@ -303,7 +303,8 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 }) => {
-	const { isExpanded } = useSidebarTab();
+	const { isExpanded } = useTabPanelState();
+
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 
