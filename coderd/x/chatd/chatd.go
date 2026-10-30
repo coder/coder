@@ -448,10 +448,6 @@ const (
 	// SendMessageBusyBehaviorSteer delivers the message before the next
 	// assistant model call. It is the default.
 	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
-	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response, then delivers this message and the other steer
-	// messages ahead of queued messages.
-	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
 )
 
 // SendMessageOptions controls user message insertion with busy-state behavior.

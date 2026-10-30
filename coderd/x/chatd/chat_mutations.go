@@ -75,7 +75,7 @@ func (p *Server) SendMessage(
 		busyBehavior = SendMessageBusyBehaviorSteer
 	}
 	switch busyBehavior {
-	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer, SendMessageBusyBehaviorInterrupt:
+	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer:
 	default:
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
@@ -103,7 +103,7 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		if err := chatstate.CheckSendMessageQueueCapacity(chat, queuedCount, busyBehaviorToChatState(busyBehavior), p.chatLimits.MaxQueuedMessagesPerChat); err != nil {
+		if err := chatstate.CheckSendMessageQueueCapacity(chat, queuedCount, p.chatLimits.MaxQueuedMessagesPerChat); err != nil {
 			return SendMessageResult{}, err
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
@@ -126,9 +126,8 @@ func (p *Server) SendMessage(
 	}
 
 	var (
-		result               SendMessageResult
-		promotedQueuedAt     time.Time
-		finishedInterruption bool
+		result           SendMessageResult
+		promotedQueuedAt time.Time
 	)
 	refreshed, err := p.updateChat(ctx, opts.ChatID, "send", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -214,7 +213,6 @@ func (p *Server) SendMessage(
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
 		promotedQueuedAt = sendResult.PromotedQueuedAt
-		finishedInterruption = sendResult.FinishedInterruption
 
 		// File-link errors must roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
@@ -250,9 +248,6 @@ func (p *Server) SendMessage(
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
 	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
-	if finishedInterruption {
-		p.afterInlineInterruption(ctx, result.Chat)
-	}
 	return result, nil
 }
 

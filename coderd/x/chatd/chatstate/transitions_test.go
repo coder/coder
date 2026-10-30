@@ -759,28 +759,48 @@ func TestSendMessageQueueCap(t *testing.T) {
 	}
 }
 
-func TestSendMessageSteerErrorQueueCap(t *testing.T) {
+// TestSendMessageErrorQueueCap checks that a full queue does not block a
+// send that resumes an errored chat, because the send also delivers the
+// queued steer message.
+func TestSendMessageErrorQueueCap(t *testing.T) {
 	t.Parallel()
-	f := newTestFixture(t)
-	seeded := seedQueue(t, f, chatstate.StateE1, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	chatBefore := f.readChat(ctx, t, seeded.chatID)
 
-	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage("overflow", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorSteer,
-			MaxQueueSize: 2,
+	for _, tc := range []struct {
+		behavior   chatstate.BusyBehavior
+		wantQueued bool
+	}{
+		{behavior: chatstate.BusyBehaviorSteer, wantQueued: false},
+		{behavior: chatstate.BusyBehaviorQueue, wantQueued: true},
+	} {
+		t.Run(string(tc.behavior), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			seeded := seedQueue(t, f, chatstate.StateE1, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			var result chatstate.SendMessageResult
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				var err error
+				result, err = tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("recover", f.User.ID, f.Model.ID),
+					BusyBehavior: tc.behavior,
+					MaxQueueSize: len(seeded.queuedMessageIDs),
+				})
+				return err
+			}))
+
+			require.Equal(t, database.ChatStatusRunning, f.readChat(ctx, t, seeded.chatID).Status)
+			wantQueue := []int64{seeded.queuedMessageIDs[0]}
+			if tc.wantQueued {
+				require.NotNil(t, result.QueuedMessage)
+				wantQueue = append(wantQueue, result.QueuedMessage.ID)
+			} else {
+				require.Nil(t, result.QueuedMessage)
+			}
+			require.Equal(t, wantQueue, queuedIDsByPosition(ctx, t, f, seeded.chatID))
 		})
-		return err
-	})
-	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
-
-	chatAfter := f.readChat(ctx, t, seeded.chatID)
-	require.Equal(t, database.ChatStatusError, chatAfter.Status)
-	require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion)
-	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+	}
 }
 
 // TestEditMessageNonUserReturnsSentinel asserts that editing a

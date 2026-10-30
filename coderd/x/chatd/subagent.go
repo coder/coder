@@ -81,9 +81,8 @@ type waitAgentArgs struct {
 }
 
 type messageAgentArgs struct {
-	ChatID    string `json:"chat_id"`
-	Message   string `json:"message"`
-	Interrupt bool   `json:"interrupt,omitempty"`
+	ChatID  string `json:"chat_id"`
+	Message string `json:"message"`
 }
 
 type interruptAgentArgs struct {
@@ -718,17 +717,13 @@ func (p *Server) subagentTools(
 		fantasy.NewAgentTool(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
-				"agent. If the agent is idle, it resumes work on the "+
-				"message. If it is busy, the message is queued behind its "+
-				"current work and any earlier queued messages; set interrupt "+
-				"to true for corrections, changed scope, or a handoff that "+
-				"returns the child's task to you, so its current work stops "+
-				"first. Interrupting does not clear earlier queued messages, "+
-				"and the tool result does not confirm the child has stopped. "+
-				"Use wait_agent to collect the child's response. A handoff is "+
-				"acknowledged only when wait_agent returns the child's response "+
-				"to your handoff message; a message_agent result or an "+
-				"interrupting status is not an acknowledgment.",
+				"agent. If the agent is idle, it starts a new turn on the "+
+				"message. If it is busy, the message is delivered before its "+
+				"next model call, and its current work continues. Use "+
+				"wait_agent to collect the child's response. A handoff is "+
+				"acknowledged only when wait_agent returns the child's "+
+				"response to your handoff message; a message_agent result is "+
+				"not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -749,30 +744,20 @@ func (p *Server) subagentTools(
 						slog.Error(lookupErr),
 					)
 				}
-				busyBehavior := SendMessageBusyBehaviorQueue
-				if args.Interrupt {
-					busyBehavior = SendMessageBusyBehaviorInterrupt
-				}
 				targetChat, err := p.sendSubagentMessage(
 					ctx,
 					parent.ID,
 					targetChatID,
 					args.Message,
-					busyBehavior,
 				)
 				if err != nil {
 					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
-				interrupted := false
-				if args.Interrupt && targetChatInfo != nil {
-					interrupted = targetChatInfo.Status == database.ChatStatusRunning
-				}
 				return toolJSONResponse(withSubagentType(map[string]any{
-					"chat_id":     targetChat.ID.String(),
-					"title":       targetChat.Title,
-					"status":      string(targetChat.Status),
-					"interrupted": interrupted,
+					"chat_id": targetChat.ID.String(),
+					"title":   targetChat.Title,
+					"status":  string(targetChat.Status),
 				}, targetChat)), nil
 			},
 		),
@@ -1203,7 +1188,6 @@ func (p *Server) sendSubagentMessage(
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	message string,
-	busyBehavior SendMessageBusyBehavior,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -1228,7 +1212,7 @@ func (p *Server) sendSubagentMessage(
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		BusyBehavior: busyBehavior,
+		BusyBehavior: SendMessageBusyBehaviorSteer,
 	})
 	if err != nil {
 		return database.Chat{}, err
