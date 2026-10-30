@@ -11270,7 +11270,7 @@ func TestCompactChat(t *testing.T) {
 		_, err = client.CompactChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Cannot compact the chat in its current state")
-		require.Contains(t, sdkErr.Detail, "Compaction is not available while the chat is generating.")
+		require.Contains(t, sdkErr.Detail, "Compaction is available only while the chat is waiting or errored.")
 	})
 
 	t.Run("Archived", func(t *testing.T) {

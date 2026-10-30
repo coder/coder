@@ -20,7 +20,6 @@ import type {
 	SkillMetadata,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
@@ -30,7 +29,7 @@ import {
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
-import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
+import { getEditableContentPayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -885,10 +884,7 @@ describe("ChatMessageInput", () => {
 				mockSkillPart("project", "triage"),
 				{ type: "text", text: " on\nthe diff" },
 			];
-			const { text, editorState } = getEditableUserMessagePayload({
-				...MockChatMessage,
-				content,
-			});
+			const { text, editorState } = getEditableContentPayload(content);
 			const inputRef = createRef<ChatMessageInputRef>();
 			renderWithQueryClient(
 				<ChatMessageInput
