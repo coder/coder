@@ -16,6 +16,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { NewTabLabel } from "#/components/Link/Link";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
 import { useDebouncedFunction } from "#/hooks/debounce";
@@ -264,6 +265,7 @@ const PresetMenu: React.FC<PresetMenuProps> = ({
 						<a href={learnMoreLink} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							View advanced filtering
+							<NewTabLabel />
 						</a>
 					</DropdownMenuItem>
 				)}
@@ -272,6 +274,7 @@ const PresetMenu: React.FC<PresetMenuProps> = ({
 						<a href={learnMoreLink2} target="_blank" rel="noreferrer">
 							<ExternalLinkIcon className="size-icon-xs" />
 							{learnMoreLabel2}
+							<NewTabLabel />
 						</a>
 					</DropdownMenuItem>
 				)}

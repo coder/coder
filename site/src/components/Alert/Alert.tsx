@@ -53,11 +53,23 @@ const alertVariants = cva(
 	},
 );
 
-const severityIcons = {
-	info: { icon: InfoIcon, className: "text-highlight-sky" },
-	success: { icon: CircleCheckIcon, className: "text-content-success" },
-	warning: { icon: TriangleAlertIcon, className: "text-content-warning" },
-	error: { icon: CircleAlertIcon, className: "text-content-destructive" },
+const severityConfig = {
+	info: { icon: InfoIcon, className: "text-highlight-sky", label: "Info" },
+	success: {
+		icon: CircleCheckIcon,
+		className: "text-content-success",
+		label: "Success",
+	},
+	warning: {
+		icon: TriangleAlertIcon,
+		className: "text-content-warning",
+		label: "Warning",
+	},
+	error: {
+		icon: CircleAlertIcon,
+		className: "text-content-destructive",
+		label: "Error",
+	},
 } as const;
 
 export type AlertColor = "info" | "success" | "warning" | "error";
@@ -88,7 +100,11 @@ export const Alert: React.FC<AlertProps> = ({
 		return null;
 	}
 
-	const { icon: Icon, className: iconClassName } = severityIcons[severity];
+	const {
+		icon: Icon,
+		className: iconClassName,
+		label,
+	} = severityConfig[severity];
 
 	return (
 		<div
@@ -105,7 +121,10 @@ export const Alert: React.FC<AlertProps> = ({
 				<div className="flex min-w-0 flex-1 flex-row items-start gap-3">
 					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
 					<div className="flex min-w-0 flex-1 flex-col gap-4">
-						<div className="min-w-0 flex-1">{children}</div>
+						<div className="min-w-0 flex-1">
+							<span className="sr-only">{label}: </span>
+							{children}
+						</div>
 						{actions && (
 							<div className="flex items-center gap-2">{actions}</div>
 						)}
