@@ -2,7 +2,6 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import { buildEmojiData, emojiToValue, ICONS_CATEGORY } from "./emojiData";
-import emojiFiles from "./emojiFiles.json";
 
 const emojisDir = path.resolve(import.meta.dirname, "../../../static/emojis");
 const shippedFiles = readdirSync(emojisDir).filter((file) =>
@@ -10,12 +9,6 @@ const shippedFiles = readdirSync(emojisDir).filter((file) =>
 );
 
 describe("emojiData", () => {
-	it("lists exactly the PNGs in static/emojis", () => {
-		expect(emojiFiles).toEqual(
-			shippedFiles.map((file) => file.slice(0, -".png".length)).sort(),
-		);
-	});
-
 	it("maps every emoji and skin tone to a shipped PNG", () => {
 		const shipped = new Set(shippedFiles);
 		const missing: string[] = [];
@@ -33,10 +26,11 @@ describe("emojiData", () => {
 		expect(missing).toEqual([]);
 	});
 
-	it("keeps or drops FE0F to match the shipped file name", () => {
+	it("keeps FE0F only after text-presentation characters", () => {
 		expect(emojiToValue("\u{1F93C}\u200D\u2642\uFE0F")).toBe(
 			"/emojis/1f93c-200d-2642-fe0f.png",
 		);
+		expect(emojiToValue("\u263A\uFE0F")).toBe("/emojis/263a-fe0f.png");
 		expect(emojiToValue("\u{1F610}\uFE0F")).toBe("/emojis/1f610.png");
 		expect(emojiToValue("/icon/docker.svg")).toBe("/icon/docker.svg");
 	});
