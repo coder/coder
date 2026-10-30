@@ -36,6 +36,13 @@ describe("AppLink", () => {
 		expect(link).not.toHaveAttribute("rel");
 	});
 
+	it("names the app by its label only", async () => {
+		renderAppLink({ ...MockWorkspaceApp, icon: "/icon/code.svg" });
+		expect(await screen.findByRole("link")).toHaveAccessibleName(
+			MockWorkspaceApp.display_name,
+		);
+	});
+
 	it.each([
 		`vscode://coder.coder-remote/open?url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
 		`coder://open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
