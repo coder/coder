@@ -2467,6 +2467,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/providers": {
             "get": {
+                "description": "Returns the name, type, display name, and icon of each AI provider, which you can use to label the ` + "`" + `provider_name` + "`" + ` values on AI Gateway sessions and to filter sessions by provider.\nReturns no provider configuration or secrets.\nRequires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2533,7 +2534,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of sessions to return. The default is ` + "`" + `100` + "`" + ` and the maximum is ` + "`" + `1000` + "`" + `.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -2567,7 +2568,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/sessions/{session_id}": {
             "get": {
-                "description": "Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.",
+                "description": "Alias: also available at ` + "`" + `/api/v2/aibridge/sessions/{session_id}` + "`" + ` for backward compatibility.",
                 "produces": [
                     "application/json"
                 ],
