@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // The .tar archive is different on Windows because of git converting LF line
@@ -79,6 +81,88 @@ func TestGetModulesArchive(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, skipped, 0)
 		require.Equal(t, []byte{}, archive)
+	})
+
+	// The lock file alone is enough to produce an archive, so templates
+	// without remote modules still get their provider versions pinned.
+	t.Run("LockFileWithoutModules", func(t *testing.T) {
+		t.Parallel()
+
+		root := afero.NewMemMapFs()
+		lock := []byte("provider \"registry.terraform.io/coder/coder\" {}\n")
+		require.NoError(t, afero.WriteFile(root, ".terraform.lock.hcl", lock, 0o644))
+
+		archive, skipped, err := GetModulesArchive(afero.NewIOFS(root))
+		require.NoError(t, err)
+		require.Len(t, skipped, 0)
+		require.NotEmpty(t, archive)
+
+		extracted := extractModulesArchive(t, archive)
+		requireImportedLockFile(t, extracted, lock)
+		require.NoFileExists(t, extracted.TerraformLockFile(), "the root lock file must not be overwritten on extraction")
+		require.NoFileExists(t, extracted.ModulesFilePath())
+	})
+
+	t.Run("LockFileWithModules", func(t *testing.T) {
+		t.Parallel()
+
+		memFS := moduleArchiveFS(t, map[string]moduleDef{
+			"mod1": {payload: []byte("module one")},
+		})
+		lock := []byte("provider \"registry.terraform.io/coder/coder\" {}\n")
+		writeLockFile(t, memFS, lock)
+
+		archive, skipped, err := GetModulesArchive(memFS)
+		require.NoError(t, err)
+		require.Empty(t, skipped)
+
+		extracted := extractModulesArchive(t, archive)
+		requireImportedLockFile(t, extracted, lock)
+		require.FileExists(t, filepath.Join(extracted.ModulesDirectory(), "mod1", "payload"))
+		require.FileExists(t, extracted.ModulesFilePath())
+	})
+
+	// The lock file must never be dropped in favor of modules when the
+	// archive budget is tight.
+	t.Run("LockFileSurvivesSizeLimit", func(t *testing.T) {
+		t.Parallel()
+
+		memFS := moduleArchiveFS(t, map[string]moduleDef{
+			"large": {payload: bytes.Repeat([]byte("L"), 5000)},
+		})
+		lock := bytes.Repeat([]byte("k"), 1000)
+		writeLockFile(t, memFS, lock)
+
+		archive, skipped, err := GetModulesArchiveWithLimit(memFS, 4000)
+		require.NoError(t, err)
+		require.Equal(t, []string{"large:large"}, skipped)
+
+		extracted := extractModulesArchive(t, archive)
+		requireImportedLockFile(t, extracted, lock)
+		require.NoDirExists(t, filepath.Join(extracted.ModulesDirectory(), "large"))
+		// modules.json is only archived alongside the modules it describes.
+		require.NoFileExists(t, extracted.ModulesFilePath())
+	})
+
+	// Terraform writes modules.json for local modules too, but there is
+	// nothing under .terraform/modules to archive for them.
+	t.Run("LockFileWithLocalModules", func(t *testing.T) {
+		t.Parallel()
+
+		root := afero.NewMemMapFs()
+		require.NoError(t, afero.WriteFile(root, ".terraform/modules/modules.json",
+			[]byte(`{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"local","Source":"./local","Dir":"local"}]}`), 0o644))
+		require.NoError(t, afero.WriteFile(root, "local/main.tf", []byte("# local module\n"), 0o644))
+		lock := []byte("provider \"registry.terraform.io/coder/coder\" {}\n")
+		require.NoError(t, afero.WriteFile(root, ".terraform.lock.hcl", lock, 0o644))
+
+		archive, skipped, err := GetModulesArchive(afero.NewIOFS(root))
+		require.NoError(t, err)
+		require.Empty(t, skipped)
+
+		extracted := extractModulesArchive(t, archive)
+		requireImportedLockFile(t, extracted, lock)
+		require.NoFileExists(t, extracted.ModulesFilePath())
 	})
 
 	t.Run("ModulesTooLarge", func(t *testing.T) {
@@ -282,4 +366,104 @@ func moduleArchiveFS(t *testing.T, defs map[string]moduleDef) fs.FS {
 	jm.Close()
 
 	return afero.NewIOFS(memFS)
+}
+
+// writeLockFile places a .terraform.lock.hcl at the root of a filesystem
+// created by moduleArchiveFS.
+func writeLockFile(t *testing.T, fsys fs.FS, content []byte) {
+	t.Helper()
+	iofs, ok := fsys.(afero.IOFS)
+	require.True(t, ok, "expected an afero.IOFS")
+	require.NoError(t, afero.WriteFile(iofs.Fs, ".terraform.lock.hcl", content, 0o644))
+}
+
+// extractModulesArchive extracts archive the way a workspace build does, so
+// the test fails if the archive is missing directory entries that extraction
+// relies on.
+func extractModulesArchive(t *testing.T, archive []byte) tfpath.Layout {
+	t.Helper()
+	layout := tfpath.Layout(t.TempDir())
+	err := layout.ExtractArchive(testutil.Context(t, testutil.WaitShort), testutil.Logger(t), afero.NewOsFs(), nil, archive)
+	require.NoError(t, err)
+	return layout
+}
+
+func requireImportedLockFile(t *testing.T, layout tfpath.Layout, want []byte) {
+	t.Helper()
+	got, err := os.ReadFile(filepath.Join(layout.WorkDirectory(), filepath.FromSlash(importedLockFilePath(terraformPlatform()))))
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestRestoreImportedLockFile(t *testing.T) {
+	t.Parallel()
+
+	committed := []byte("# committed by the template author\n")
+	imported := []byte("# captured during import\n")
+
+	setup := func(t *testing.T, platform string) tfpath.Layout {
+		t.Helper()
+		layout := tfpath.Layout(t.TempDir())
+		require.NoError(t, os.WriteFile(layout.TerraformLockFile(), committed, 0o600))
+		if platform != "" {
+			src := filepath.Join(layout.WorkDirectory(), filepath.FromSlash(importedLockFilePath(platform)))
+			require.NoError(t, os.MkdirAll(filepath.Dir(src), 0o700))
+			require.NoError(t, os.WriteFile(src, imported, 0o600))
+		}
+		return layout
+	}
+
+	t.Run("SamePlatform", func(t *testing.T) {
+		t.Parallel()
+
+		layout := setup(t, terraformPlatform())
+		restored, err := restoreImportedLockFile(layout)
+		require.NoError(t, err)
+		require.True(t, restored)
+		got, err := os.ReadFile(layout.TerraformLockFile())
+		require.NoError(t, err)
+		require.Equal(t, imported, got)
+	})
+
+	// Template archives keep file modes, so a committed lock file can be
+	// read-only in the working directory.
+	t.Run("ReadOnlyCommittedLockFile", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows does not allow replacing read-only files.")
+		}
+
+		layout := setup(t, terraformPlatform())
+		require.NoError(t, os.Chmod(layout.TerraformLockFile(), 0o400))
+		restored, err := restoreImportedLockFile(layout)
+		require.NoError(t, err)
+		require.True(t, restored)
+		got, err := os.ReadFile(layout.TerraformLockFile())
+		require.NoError(t, err)
+		require.Equal(t, imported, got)
+	})
+
+	// A lock file captured on another platform may lack hashes for this one,
+	// which makes Terraform reject cached or mirrored providers.
+	t.Run("OtherPlatform", func(t *testing.T) {
+		t.Parallel()
+
+		layout := setup(t, "plan9_mips")
+		restored, err := restoreImportedLockFile(layout)
+		require.NoError(t, err)
+		require.False(t, restored)
+		got, err := os.ReadFile(layout.TerraformLockFile())
+		require.NoError(t, err)
+		require.Equal(t, committed, got)
+	})
+
+	t.Run("NotCaptured", func(t *testing.T) {
+		t.Parallel()
+
+		layout := tfpath.Layout(t.TempDir())
+		restored, err := restoreImportedLockFile(layout)
+		require.NoError(t, err)
+		require.False(t, restored)
+		require.NoFileExists(t, layout.TerraformLockFile())
+	})
 }

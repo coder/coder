@@ -1,6 +1,7 @@
 package tfpath_test
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -86,4 +87,23 @@ func (rf *removeFailure) RemoveAll(path string) error {
 		return rf.removeAll(path)
 	}
 	return rf.Fs.RemoveAll(path)
+}
+
+// A file in the modules archive must fully replace the same file from the
+// template source archive, even when the replacement is shorter.
+func TestExtractArchiveOverwritesFiles(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	mem := afero.NewMemMapFs()
+	layout := tfpath.Layout("work")
+
+	source := testutil.CreateTar(t, map[string]string{"file.txt": "a much longer original\n"})
+	modules := testutil.CreateTar(t, map[string]string{"file.txt": "short\n"})
+	err := layout.ExtractArchive(ctx, slogtest.Make(t, nil), mem, source, modules)
+	require.NoError(t, err)
+
+	content, err := afero.ReadFile(mem, filepath.Join(layout.WorkDirectory(), "file.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "short\n", string(content))
 }

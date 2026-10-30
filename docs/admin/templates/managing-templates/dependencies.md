@@ -36,8 +36,9 @@ terraform {
 }
 ```
 
-Any new releases of the `coder` or `frobnicate` providers will be picked up upon the next time a workspace is built using this template.
-This may include breaking changes.
+New releases of the `coder` or `frobnicate` providers are picked up the next time you push a template version, because workspace builds reuse the [provider versions that Coder selected](../../../tutorials/best-practices/speed-up-templates.md#template-lock-file) when it imported the template version.
+Builds on a provisioner with a different operating system or architecture, or with module caching disabled, pick up new releases on every build.
+New releases can include breaking changes.
 
 To prevent this, add a [version constraint](https://developer.hashicorp.com/terraform/language/expressions/version-constraints) to each provider in the `required_providers` block:
 
