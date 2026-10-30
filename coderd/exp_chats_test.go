@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -10661,13 +10662,18 @@ func TestStreamChat(t *testing.T) {
 		watcherTrap.MustWait(ctx).MustRelease(ctx)
 
 		keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
+		// Mock.Advance cannot pass a pending tick, so every advance below must
+		// end on or before WSWatcher's next tick as well as the keepalive's.
+		require.Equal(t, httpapi.HeartbeatInterval, keepaliveInterval, "the advances assume both tickers fire together")
 		mClock.Advance(keepaliveInterval).MustWait(ctx)
 		for batch := nextFrame(); len(batch) > 0; batch = nextFrame() {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
 		}
 
-		// An event batch moves the next keepalive to one interval after the
-		// event, so none is due a third of an interval after it.
+		// The two advances add up to one interval, when the next keepalive
+		// would be due without the event's Reset. The Reset moves it to one
+		// interval after the event, so no keepalive may arrive before the
+		// second message.
 		mClock.Advance(keepaliveInterval * 2 / 3).MustWait(ctx)
 		const first = "stream chat keepalive first"
 		sendMessage(first)
@@ -10680,7 +10686,7 @@ func TestStreamChat(t *testing.T) {
 		}
 
 		// Event batches written after the matched frame may have Reset calls
-		// waiting in the trap, so read them before waiting on the advance past
+		// waiting in the trap, so read them before waiting on the advance to
 		// the next keepalive.
 		advance := mClock.Advance(keepaliveInterval)
 		batch := nextFrame()
