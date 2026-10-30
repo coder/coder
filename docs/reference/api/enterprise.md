@@ -736,13 +736,17 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
 
 `GET /api/v2/groups`
 
+Returns the groups you can read, filtered by `organization`, `has_member`, and `group_ids`, each with the members you can read.
+Use `has_member` to find the groups a user belongs to.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In    | Type   | Required | Description                       |
-|----------------|-------|--------|----------|-----------------------------------|
-| `organization` | query | string | true     | Organization ID or name           |
-| `has_member`   | query | string | true     | User ID or name                   |
-| `group_ids`    | query | string | true     | Comma separated list of group IDs |
+| Name           | In    | Type   | Required | Description                                                                  |
+|----------------|-------|--------|----------|------------------------------------------------------------------------------|
+| `organization` | query | string | true     | Only return groups in this organization. Accepts an organization ID or name. |
+| `has_member`   | query | string | true     | Only return groups that this user belongs to. Accepts a user ID or username. |
+| `group_ids`    | query | string | true     | Only return these groups, as a comma-separated list of group IDs.            |
 
 ### Example responses
 
@@ -841,12 +845,16 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 `GET /api/v2/groups/{group}`
 
+Returns a group by its ID, with the members you can read.
+Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+Requires a Premium license.
+
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                       |
-|-------------------|-------|---------|----------|-----------------------------------|
-| `group`           | path  | string  | true     | Group id                          |
-| `exclude_members` | query | boolean | false    | Exclude members from the response |
+| Name              | In    | Type    | Required | Description                                                                                 |
+|-------------------|-------|---------|----------|---------------------------------------------------------------------------------------------|
+| `group`           | path  | string  | true     | Group ID.                                                                                   |
+| `exclude_members` | query | boolean | false    | If `true`, returns the group without its `members`. `total_member_count` is still returned. |
 
 ### Example responses
 
@@ -904,11 +912,16 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 
 `DELETE /api/v2/groups/{group}`
 
+Deletes a group by its ID.
+You can't delete the `Everyone` group.
+Requires permission to delete the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
 | Name    | In   | Type   | Required | Description |
 |---------|------|--------|----------|-------------|
-| `group` | path | string | true     | Group name  |
+| `group` | path | string | true     | Group ID.   |
 
 ### Example responses
 
@@ -967,6 +980,11 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 `PATCH /api/v2/groups/{group}`
 
+Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with `add_users` and `remove_users`.
+You can't rename the `Everyone` group, change its display name, or add or remove its members, and the users in `add_users` and `remove_users` must be members of the group's organization.
+Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -986,10 +1004,10 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 ### Parameters
 
-| Name    | In   | Type                                                               | Required | Description         |
-|---------|------|--------------------------------------------------------------------|----------|---------------------|
-| `group` | path | string                                                             | true     | Group name          |
-| `body`  | body | [codersdk.PatchGroupRequest](schemas.md#codersdkpatchgrouprequest) | true     | Patch group request |
+| Name    | In   | Type                                                               | Required | Description                                                                                                                                           |
+|---------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group` | path | string                                                             | true     | Group ID.                                                                                                                                             |
+| `body`  | body | [codersdk.PatchGroupRequest](schemas.md#codersdkpatchgrouprequest) | true     | Changes to apply to the group. Omitted fields stay as they are. `add_users` and `remove_users` are lists of user IDs, and `name` can't be `Everyone`. |
 
 ### Example responses
 
@@ -1221,15 +1239,19 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
 
 `GET /api/v2/groups/{group}/members`
 
+Returns a page of the members of a group, filtered by the `q` search query.
+Returns only the members you can read.
+Requires a Premium license.
+
 ### Parameters
 
-| Name       | In    | Type         | Required | Description         |
-|------------|-------|--------------|----------|---------------------|
-| `group`    | path  | string       | true     | Group id            |
-| `q`        | query | string       | false    | Member search query |
-| `after_id` | query | string(uuid) | false    | After ID            |
-| `limit`    | query | integer      | false    | Page limit          |
-| `offset`   | query | integer      | false    | Page offset         |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                      |
+|------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group`    | path  | string       | true     | Group ID.                                                                                                                                                                                                                                                                                                                        |
+| `q`        | query | string       | false    | Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. |
+| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                      |
+| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                      |
+| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                              |
 
 ### Example responses
 
@@ -2184,11 +2206,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 
 `GET /api/v2/organizations/{organization}/groups`
 
+Returns the groups in an organization that you can read, each with the members you can read.
+To page through groups and search them by name, use `GET /api/v2/organizations/{organization}/paginated-groups` instead.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2288,6 +2314,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 `POST /api/v2/organizations/{organization}/groups`
 
+Creates a group in an organization.
+Returns `409` if the organization already has a group with that name.
+Requires permission to create groups in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -2301,10 +2332,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 ### Parameters
 
-| Name           | In   | Type                                                                 | Required | Description          |
-|----------------|------|----------------------------------------------------------------------|----------|----------------------|
-| `organization` | path | string                                                               | true     | Organization ID      |
-| `body`         | body | [codersdk.CreateGroupRequest](schemas.md#codersdkcreategrouprequest) | true     | Create group request |
+| Name           | In   | Type                                                                 | Required | Description                                                                                                                                                                                                      |
+|----------------|------|----------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                               | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                |
+| `body`         | body | [codersdk.CreateGroupRequest](schemas.md#codersdkcreategrouprequest) | true     | Group to create. `name` is required, must be 255 characters or fewer, and can't be `Everyone`, `new`, or `create`. `quota_allowance` is the workspace quota credits the group adds to the budget of each member. |
 
 ### Example responses
 
@@ -2413,12 +2444,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 `GET /api/v2/organizations/{organization}/groups/{groupName}`
 
+Returns a group in an organization by its name, with the members you can read.
+Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `groupName`    | path | string       | true     | Group name      |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `groupName`    | path | string       | true     | Group name in the organization. Matching is case-insensitive.     |
 
 ### Example responses
 
@@ -2476,16 +2511,20 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 `GET /api/v2/organizations/{organization}/groups/{groupName}/members`
 
+Returns a page of the members of a group in an organization, filtered by the `q` search query.
+Returns only the members you can read.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In    | Type         | Required | Description         |
-|----------------|-------|--------------|----------|---------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID     |
-| `groupName`    | path  | string       | true     | Group name          |
-| `q`            | query | string       | false    | Member search query |
-| `after_id`     | query | string(uuid) | false    | After ID            |
-| `limit`        | query | integer      | false    | Page limit          |
-| `offset`       | query | integer      | false    | Page offset         |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                      |
+|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                                                |
+| `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.                                                                                                                                                                                                                                                                    |
+| `q`            | query | string       | false    | Search query for the members, either a bare term that matches a member's username, email, or name, or `key:value` terms. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                      |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                      |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                              |
 
 ### Example responses
 
@@ -2593,12 +2632,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota`
 
+Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.
+The budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.
+Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description          |
-|----------------|------|--------------|----------|----------------------|
-| `user`         | path | string       | true     | User ID, name, or me |
-| `organization` | path | string(uuid) | true     | Organization ID      |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `user`         | path | string       | true     | User ID, username, or `me` for the authenticated user.            |
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -4707,11 +4750,14 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
 
 `GET /api/v2/workspace-quota/{user}`
 
+Returns a user's workspace quota in the default organization.
+Deprecated: use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 

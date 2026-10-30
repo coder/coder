@@ -6287,6 +6287,7 @@ const docTemplate = `{
         },
         "/api/v2/groups": {
             "get": {
+                "description": "Returns the groups you can read, filtered by ` + "`" + `organization` + "`" + `, ` + "`" + `has_member` + "`" + `, and ` + "`" + `group_ids` + "`" + `, each with the members you can read.\nUse ` + "`" + `has_member` + "`" + ` to find the groups a user belongs to.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6298,21 +6299,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Only return groups in this organization. Accepts an organization ID or name.",
                         "name": "organization",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID or name",
+                        "description": "Only return groups that this user belongs to. Accepts a user ID or username.",
                         "name": "has_member",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Comma separated list of group IDs",
+                        "description": "Only return these groups, as a comma-separated list of group IDs.",
                         "name": "group_ids",
                         "in": "query",
                         "required": true
@@ -6338,6 +6339,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}": {
             "get": {
+                "description": "Returns a group by its ID, with the members you can read.\nRequires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6349,14 +6351,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group id",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "boolean",
-                        "description": "Exclude members from the response",
+                        "description": "If ` + "`" + `true` + "`" + `, returns the group without its ` + "`" + `members` + "`" + `. ` + "`" + `total_member_count` + "`" + ` is still returned.",
                         "name": "exclude_members",
                         "in": "query"
                     }
@@ -6376,6 +6378,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a group by its ID.\nYou can't delete the ` + "`" + `Everyone` + "`" + ` group.\nRequires permission to delete the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6387,7 +6390,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
@@ -6408,6 +6411,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with ` + "`" + `add_users` + "`" + ` and ` + "`" + `remove_users` + "`" + `.\nYou can't rename the ` + "`" + `Everyone` + "`" + ` group, change its display name, or add or remove its members, and the users in ` + "`" + `add_users` + "`" + ` and ` + "`" + `remove_users` + "`" + ` must be members of the group's organization.\nRequires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6422,13 +6426,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Patch group request",
+                        "description": "Changes to apply to the group. Omitted fields stay as they are. ` + "`" + `add_users` + "`" + ` and ` + "`" + `remove_users` + "`" + ` are lists of user IDs, and ` + "`" + `name` + "`" + ` can't be ` + "`" + `Everyone` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6600,6 +6604,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}/members": {
             "get": {
+                "description": "Returns a page of the members of a group, filtered by the ` + "`" + `q` + "`" + ` search query.\nReturns only the members you can read.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6611,33 +6616,33 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group id",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Member search query",
+                        "description": "Search query for the members, either a bare term that matches a member's username, email, or name, or ` + "`" + `key:value` + "`" + ` terms. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -8781,6 +8786,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups": {
             "get": {
+                "description": "Returns the groups in an organization that you can read, each with the members you can read.\nTo page through groups and search them by name, use ` + "`" + `GET /api/v2/organizations/{organization}/paginated-groups` + "`" + ` instead.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8793,7 +8799,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8817,6 +8823,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a group in an organization.\nReturns ` + "`" + `409` + "`" + ` if the organization already has a group with that name.\nRequires permission to create groups in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8830,7 +8837,7 @@ const docTemplate = `{
                 "operationId": "create-group-for-organization",
                 "parameters": [
                     {
-                        "description": "Create group request",
+                        "description": "Group to create. ` + "`" + `name` + "`" + ` is required, must be 255 characters or fewer, and can't be ` + "`" + `Everyone` + "`" + `, ` + "`" + `new` + "`" + `, or ` + "`" + `create` + "`" + `. ` + "`" + `quota_allowance` + "`" + ` is the workspace quota credits the group adds to the budget of each member.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8840,7 +8847,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8906,6 +8913,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups/{groupName}": {
             "get": {
+                "description": "Returns a group in an organization by its name, with the members you can read.\nRequires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8918,14 +8926,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group name in the organization. Matching is case-insensitive.",
                         "name": "groupName",
                         "in": "path",
                         "required": true
@@ -8948,6 +8956,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups/{groupName}/members": {
             "get": {
+                "description": "Returns a page of the members of a group in an organization, filtered by the ` + "`" + `q` + "`" + ` search query.\nReturns only the members you can read.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8960,40 +8969,40 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group name in the organization. Matching is case-insensitive.",
                         "name": "groupName",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Member search query",
+                        "description": "Search query for the members, either a bare term that matches a member's username, email, or name, or ` + "`" + `key:value` + "`" + ` terms. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -9990,6 +9999,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}/workspace-quota": {
             "get": {
+                "description": "Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.\nThe budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is ` + "`" + `-1` + "`" + ` when the license doesn't include groups.\nRequires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.",
                 "produces": [
                     "application/json"
                 ],
@@ -10001,7 +10011,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -10009,7 +10019,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -16049,6 +16059,7 @@ const docTemplate = `{
         },
         "/api/v2/workspace-quota/{user}": {
             "get": {
+                "description": "Returns a user's workspace quota in the default organization.\nDeprecated: use ` + "`" + `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16061,7 +16072,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
