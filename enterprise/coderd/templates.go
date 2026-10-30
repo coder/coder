@@ -32,8 +32,10 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Param q query string false "Search query for the users, in the same format as `q` on `GET /api/v2/users`. Text without a key also matches group names and display names."
+// @Param q query string false "Search query in the format `key:value`, with the same keys as `q` on `GET /api/v2/users`. It filters the users, and text without a key also matches group names and display names."
 // @Param limit query int false "Maximum number of users, and separately of groups, to return. The default, `0`, returns all of them."
+// @Param offset query int false "Number of users to skip, for paging through users with `limit`. It doesn't apply to groups."
+// @Param after_id query string false "ID of the last user on the previous page. Returns the users after it, and doesn't apply to groups." format(uuid)
 // @Success 200 {array} codersdk.ACLAvailable
 // @Router /api/v2/templates/{template}/acl/available [get]
 func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Request) {

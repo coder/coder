@@ -167,7 +167,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Delete organization
 // @Description Deletes an organization.
-// @Description The call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
+// @Description Returns `400` for the default organization, and `500` while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
 // @Description Requires permission to delete the organization.
 // @Description Requires a Premium license.
 // @ID delete-organization

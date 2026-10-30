@@ -110,7 +110,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Patch template version by ID
 // @Description Updates the `name` or `message` of a template version.
-// @Description Renaming a version to a name that another version of the same template uses returns an error.
+// @Description Renaming a version to a name that another version of the same template uses returns `400`.
 // @Description Requires permission to update the template.
 // @ID patch-template-version-by-id
 // @Security CoderSessionToken
@@ -228,7 +228,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Cancel template version by ID
 // @Description Cancels the import job of a template version that hasn't finished.
-// @Description The call returns an error if the job has already completed or been canceled.
+// @Description Returns `400` if the job has already completed or been canceled.
 // @Description Requires permission to update the template.
 // @ID cancel-template-version-by-id
 // @Security CoderSessionToken
@@ -1318,7 +1318,7 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Archive template version
 // @Description Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.
-// @Description The call fails if a workspace's latest build uses the version or if it is the template's active version.
+// @Description Returns `500` if a workspace's latest build uses the version or if it is the template's active version.
 // @Description Requires permission to update the template.
 // @ID archive-template-version
 // @Security CoderSessionToken

@@ -58,7 +58,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Delete template by ID
 // @Description Deletes a template.
-// @Description The call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
+// @Description Returns `400` if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
 // @Description Requires permission to delete the template.
 // @ID delete-template-by-id
 // @Security CoderSessionToken

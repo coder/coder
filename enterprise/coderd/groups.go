@@ -478,7 +478,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
@@ -497,7 +497,7 @@ func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group ID."
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
@@ -592,7 +592,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
-// @Param q query string false "Search term that matches group names and display names, either bare or as `search:<term>`. Other keys return `400`."
+// @Param q query string false "Search query in the format `key:value`. The only available key is `search`, which matches group names and display names, and text without a key does the same. Other keys return `400`."
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
@@ -600,7 +600,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Description Returns the groups in an organization, ordered by name and paged with `limit`, with each group's `total_member_count` instead of its members.
 // @Description To list a group's members, use `GET /api/v2/groups/{group}/members`.
 // @Description Quote a `q` value that contains a colon, as in `search:"team: frontend"`.
-// @Description Requires permission to read every group in the organization, and returns an error instead of a partial list without it.
+// @Description Requires permission to read every group in the organization, and returns `500` instead of a partial list without it.
 // @Description Requires a Premium license.
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {

@@ -271,7 +271,7 @@ func (api *API) oauth2ProtectedResourceMetadata() http.HandlerFunc {
 
 // @Summary OAuth2 dynamic client registration (RFC 7591)
 // @Description Registers a new OAuth2 client and returns its `client_id`, its `client_secret` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).
-// @Description Doesn't require a session token, but returns `403` unless an Owner has enabled dynamic client registration in the OAuth2 provider settings.
+// @Description Doesn't require a session token, but returns `403` unless dynamic client registration is enabled in the OAuth2 provider settings.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID oauth2-dynamic-client-registration
 // @Accept json

@@ -404,8 +404,8 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
 	// site/src/components/PaginationWidget/utils.ts.
-	// If the page size changes, this limit should too, along with the
-	// `workspace_ids` @Param text on chatsByWorkspace, which states it.
+	// If the page size changes, this limit should too. Change both
+	// together, and update the `workspace_ids` @Param text above.
 	const maxWorkspaceIDs = 25
 	if len(raw) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8299,7 +8299,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 
 // @Summary Update user AI provider key
 // @Description Sets a user's own API key for an AI provider, replacing any key already stored.
-// @Description The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data.
+// @Description The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and `412` when the provider isn't enabled. Changing another user's key requires permission to update personal user data.
 // @ID update-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats

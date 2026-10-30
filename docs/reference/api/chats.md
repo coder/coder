@@ -5769,7 +5769,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 `PUT /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
 Sets a user's own API key for an AI provider, replacing any key already stored.
-The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data.
+The call returns `403` when the deployment sets `--ai-gateway-allow-byok=false`, and `412` when the provider isn't enabled. Changing another user's key requires permission to update personal user data.
 
 > Body parameter
 

@@ -2968,7 +2968,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query made of ` + "`" + `key:value` + "`" + ` terms separated by spaces, matched case-insensitively. A term with no key filters by ` + "`" + `resource_type` + "`" + `. Keys: ` + "`" + `resource_type` + "`" + `, ` + "`" + `resource_id` + "`" + `, ` + "`" + `resource_target` + "`" + ` (the resource's name), ` + "`" + `action` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `email` + "`" + `, ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `date_from` + "`" + ` and ` + "`" + `date_to` + "`" + ` (inclusive, as ` + "`" + `YYYY-MM-DD` + "`" + `), ` + "`" + `build_reason` + "`" + `, and ` + "`" + `request_id` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `, matched case-insensitively. Available keys are: ` + "`" + `resource_type` + "`" + `, ` + "`" + `resource_id` + "`" + `, ` + "`" + `resource_target` + "`" + ` (the resource's name), ` + "`" + `action` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `email` + "`" + `, ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `date_from` + "`" + ` and ` + "`" + `date_to` + "`" + ` (inclusive, as ` + "`" + `YYYY-MM-DD` + "`" + `), ` + "`" + `build_reason` + "`" + `, and ` + "`" + `request_id` + "`" + `. Text without a key filters by ` + "`" + `resource_type` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -5372,7 +5372,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query as space-separated ` + "`" + `key:value` + "`" + ` terms. Available keys are: ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `workspace_owner` + "`" + ` (username or ` + "`" + `me` + "`" + `), ` + "`" + `workspace_owner_email` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `user_email` + "`" + `, ` + "`" + `connected_after` + "`" + ` and ` + "`" + `connected_before` + "`" + ` (RFC 3339 timestamps), ` + "`" + `workspace_id` + "`" + `, ` + "`" + `connection_id` + "`" + `, ` + "`" + `client_session_id` + "`" + ` (32 hexadecimal characters), ` + "`" + `status` + "`" + ` (` + "`" + `ongoing` + "`" + ` or ` + "`" + `completed` + "`" + `), ` + "`" + `method` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `), ` + "`" + `type` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `vscode` + "`" + `, ` + "`" + `jetbrains` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `, which can't be combined with ` + "`" + `method` + "`" + ` or ` + "`" + `app` + "`" + `), and ` + "`" + `app` + "`" + ` (repeat to match any of several apps). Unknown keys return an error.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `workspace_owner` + "`" + ` (username or ` + "`" + `me` + "`" + `), ` + "`" + `workspace_owner_email` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `user_email` + "`" + `, ` + "`" + `connected_after` + "`" + ` and ` + "`" + `connected_before` + "`" + ` (RFC 3339 timestamps), ` + "`" + `workspace_id` + "`" + `, ` + "`" + `connection_id` + "`" + `, ` + "`" + `client_session_id` + "`" + ` (32 hexadecimal characters), ` + "`" + `status` + "`" + ` (` + "`" + `ongoing` + "`" + ` or ` + "`" + `completed` + "`" + `), ` + "`" + `method` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `), ` + "`" + `type` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `vscode` + "`" + `, ` + "`" + `jetbrains` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `, which can't be combined with ` + "`" + `method` + "`" + ` or ` + "`" + `app` + "`" + `), and ` + "`" + `app` + "`" + ` (repeat to match any of several apps). Other keys, and text without a key, return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -6680,7 +6680,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -8150,7 +8150,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes an organization.\nThe call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than ` + "`" + `Everyone` + "`" + `, or more than one member.\nRequires permission to delete the organization.\nRequires a Premium license.",
+                "description": "Deletes an organization.\nReturns ` + "`" + `400` + "`" + ` for the default organization, and ` + "`" + `500` + "`" + ` while the organization still has workspaces, templates, provisioner keys, groups other than ` + "`" + `Everyone` + "`" + `, or more than one member.\nRequires permission to delete the organization.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -9051,7 +9051,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -9588,7 +9588,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter in the format ` + "`" + `key:value` + "`" + `. Available keys are ` + "`" + `user_id` + "`" + `, ` + "`" + `github_user_id` + "`" + `, and ` + "`" + `include_system` + "`" + `, and other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `user_id` + "`" + `, ` + "`" + `github_user_id` + "`" + `, and ` + "`" + `include_system` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     }
@@ -9613,7 +9613,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles": {
             "get": {
-                "description": "Returns the roles that apply in an organization, built-in and custom.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read the organization's assignable roles, which every organization member has.",
+                "description": "Returns the roles that apply in an organization, built-in and custom, with the permissions each one grants.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read the organization's assignable roles, which every organization member has.",
                 "produces": [
                     "application/json"
                 ],
@@ -10191,7 +10191,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10228,7 +10228,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-groups": {
             "get": {
-                "description": "Returns the groups in an organization, ordered by name and paged with ` + "`" + `limit` + "`" + `, with each group's ` + "`" + `total_member_count` + "`" + ` instead of its members.\nTo list a group's members, use ` + "`" + `GET /api/v2/groups/{group}/members` + "`" + `.\nQuote a ` + "`" + `q` + "`" + ` value that contains a colon, as in ` + "`" + `search:\"team: frontend\"` + "`" + `.\nRequires permission to read every group in the organization, and returns an error instead of a partial list without it.\nRequires a Premium license.",
+                "description": "Returns the groups in an organization, ordered by name and paged with ` + "`" + `limit` + "`" + `, with each group's ` + "`" + `total_member_count` + "`" + ` instead of its members.\nTo list a group's members, use ` + "`" + `GET /api/v2/groups/{group}/members` + "`" + `.\nQuote a ` + "`" + `q` + "`" + ` value that contains a colon, as in ` + "`" + `search:\"team: frontend\"` + "`" + `.\nRequires permission to read every group in the organization, and returns ` + "`" + `500` + "`" + ` instead of a partial list without it.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10247,7 +10247,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search term that matches group names and display names, either bare or as ` + "`" + `search:\u003cterm\u003e` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. The only available key is ` + "`" + `search` + "`" + `, which matches group names and display names, and text without a key does the same. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10307,7 +10307,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -12257,7 +12257,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes a template.\nThe call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.\nRequires permission to delete the template.",
+                "description": "Deletes a template.\nReturns ` + "`" + `400` + "`" + ` if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.\nRequires permission to delete the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -12441,7 +12441,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query for the users, in the same format as ` + "`" + `q` + "`" + ` on ` + "`" + `GET /api/v2/users` + "`" + `. Text without a key also matches group names and display names.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `, with the same keys as ` + "`" + `q` + "`" + ` on ` + "`" + `GET /api/v2/users` + "`" + `. It filters the users, and text without a key also matches group names and display names.",
                         "name": "q",
                         "in": "query"
                     },
@@ -12449,6 +12449,19 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Maximum number of users, and separately of groups, to return. The default, ` + "`" + `0` + "`" + `, returns all of them.",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of users to skip, for paging through users with ` + "`" + `limit` + "`" + `. It doesn't apply to groups.",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID of the last user on the previous page. Returns the users after it, and doesn't apply to groups.",
+                        "name": "after_id",
                         "in": "query"
                     }
                 ],
@@ -12788,7 +12801,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Updates the ` + "`" + `name` + "`" + ` or ` + "`" + `message` + "`" + ` of a template version.\nRenaming a version to a name that another version of the same template uses returns an error.\nRequires permission to update the template.",
+                "description": "Updates the ` + "`" + `name` + "`" + ` or ` + "`" + `message` + "`" + ` of a template version.\nRenaming a version to a name that another version of the same template uses returns ` + "`" + `400` + "`" + `.\nRequires permission to update the template.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12836,7 +12849,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/archive": {
             "post": {
-                "description": "Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.\nThe call fails if a workspace's latest build uses the version or if it is the template's active version.\nRequires permission to update the template.",
+                "description": "Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.\nReturns ` + "`" + `500` + "`" + ` if a workspace's latest build uses the version or if it is the template's active version.\nRequires permission to update the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -12872,7 +12885,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/cancel": {
             "patch": {
-                "description": "Cancels the import job of a template version that hasn't finished.\nThe call returns an error if the job has already completed or been canceled.\nRequires permission to update the template.",
+                "description": "Cancels the import job of a template version that hasn't finished.\nReturns ` + "`" + `400` + "`" + ` if the job has already completed or been canceled.\nRequires permission to update the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -13227,7 +13240,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "ID of the user, or ` + "`" + `me` + "`" + `, who owns the workspace that the first evaluation is for. The default is you.",
+                        "description": "ID of the user who owns the workspace for the first evaluation, or ` + "`" + `me` + "`" + ` for the authenticated user. The default is ` + "`" + `me` + "`" + `.",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -13692,7 +13705,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -14042,7 +14055,7 @@ const docTemplate = `{
         },
         "/api/v2/users/roles": {
             "get": {
-                "description": "Returns the site-wide roles, built-in and custom, that you can assign to users.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read role assignments, which every user has.",
+                "description": "Returns the site-wide roles, built-in and custom, with the permissions each one grants.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read role assignments, which every user has.",
                 "produces": [
                     "application/json"
                 ],
@@ -14206,7 +14219,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai-provider-keys/{aiProvider}": {
             "put": {
-                "description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns ` + "`" + `403` + "`" + ` when the deployment sets ` + "`" + `--ai-gateway-allow-byok=false` + "`" + `, and it fails when the provider isn't enabled. Changing another user's key requires permission to update personal user data.",
+                "description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns ` + "`" + `403` + "`" + ` when the deployment sets ` + "`" + `--ai-gateway-allow-byok=false` + "`" + `, and ` + "`" + `412` + "`" + ` when the provider isn't enabled. Changing another user's key requires permission to update personal user data.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14968,7 +14981,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/login-type": {
             "get": {
-                "description": "Returns the user's login type, such as ` + "`" + `password` + "`" + `, ` + "`" + `github` + "`" + `, or ` + "`" + `oidc` + "`" + `.\nYou can only query your own login type, so use ` + "`" + `me` + "`" + ` or your own user ID, because the call fails for any other user.",
+                "description": "Returns the user's login type, such as ` + "`" + `password` + "`" + `, ` + "`" + `github` + "`" + `, or ` + "`" + `oidc` + "`" + `.\nYou can only query your own login type, so use ` + "`" + `me` + "`" + ` or your own user ID, because the call returns ` + "`" + `403` + "`" + ` for any other user.",
                 "produces": [
                     "application/json"
                 ],
@@ -15290,7 +15303,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/profile": {
             "put": {
-                "description": "Updates a user's username, display name, and avatar URL.\nChanging a username, including your own, requires permission to update users, and so does updating another user's profile.\nThe avatar URL applies only to users with the ` + "`" + `password` + "`" + ` or ` + "`" + `none` + "`" + ` login type.",
+                "description": "Updates a user's username, display name, and avatar URL.\nChanging a username, including your own, requires permission to update users, and updating another user's profile requires permission to update personal user data.\nThe avatar URL applies only to users with the ` + "`" + `password` + "`" + ` or ` + "`" + `none` + "`" + ` login type.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18019,7 +18032,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `id` + "`" + `, ` + "`" + `owner` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `has-agent` + "`" + `, ` + "`" + `dormant` + "`" + `, ` + "`" + `outdated` + "`" + `, ` + "`" + `last_used_after` + "`" + `, ` + "`" + `last_used_before` + "`" + `, ` + "`" + `has_external_agent` + "`" + `, ` + "`" + `healthy` + "`" + `, ` + "`" + `organization` + "`" + `, ` + "`" + `user` + "`" + `, ` + "`" + `shared` + "`" + `, ` + "`" + `shared_with_user` + "`" + `, ` + "`" + `shared_with_group` + "`" + `, ` + "`" + `param` + "`" + `, and ` + "`" + `include_agent_metadata` + "`" + ` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or ` + "`" + `owner/name` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `id` + "`" + `, ` + "`" + `owner` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `has-agent` + "`" + `, ` + "`" + `dormant` + "`" + `, ` + "`" + `outdated` + "`" + `, ` + "`" + `last_used_after` + "`" + `, ` + "`" + `last_used_before` + "`" + `, ` + "`" + `has_external_agent` + "`" + `, ` + "`" + `healthy` + "`" + `, ` + "`" + `organization` + "`" + `, ` + "`" + `user` + "`" + `, ` + "`" + `shared` + "`" + `, ` + "`" + `shared_with_user` + "`" + `, ` + "`" + `shared_with_group` + "`" + `, ` + "`" + `param` + "`" + `, and ` + "`" + `include_agent_metadata` + "`" + ` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or ` + "`" + `owner/name` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -18437,7 +18450,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Starts, stops, or deletes a workspace by queuing a build with ` + "`" + `transition` + "`" + ` set to ` + "`" + `start` + "`" + `, ` + "`" + `stop` + "`" + `, or ` + "`" + `delete` + "`" + `.\nUse it to change a workspace's state, or set ` + "`" + `template_version_id` + "`" + ` to move the workspace to another template version.\nA ` + "`" + `start` + "`" + ` build also clears the workspace's dormant status, and ` + "`" + `orphan` + "`" + ` is allowed only with ` + "`" + `delete` + "`" + `.\nRequires permission to start, stop, or delete the workspace.\nSetting ` + "`" + `state` + "`" + ` or ` + "`" + `orphan` + "`" + ` also requires permission to update the template.",
+                "description": "Starts, stops, or deletes a workspace by queuing a build with ` + "`" + `transition` + "`" + ` set to ` + "`" + `start` + "`" + `, ` + "`" + `stop` + "`" + `, or ` + "`" + `delete` + "`" + `.\nUse it to change a workspace's state, or set ` + "`" + `template_version_id` + "`" + ` to move the workspace to another template version.\nA ` + "`" + `start` + "`" + ` build also clears the workspace's dormant status, and ` + "`" + `orphan` + "`" + ` is allowed only with ` + "`" + `delete` + "`" + `.\nRequires permission to start, stop, or delete the workspace, and starting a dormant workspace requires permission to update it instead.\nSetting ` + "`" + `state` + "`" + ` or ` + "`" + `orphan` + "`" + ` also requires permission to update the template, and setting ` + "`" + `log_level` + "`" + ` without permission to read deployment configuration returns ` + "`" + `400` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18485,7 +18498,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/dormant": {
             "put": {
-                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304 Not Modified` + "`" + ` if the workspace is already in that state, and fails for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace.",
+                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304 Not Modified` + "`" + ` if the workspace is already in that state, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -19312,7 +19325,7 @@ const docTemplate = `{
         },
         "/oauth2/register": {
             "post": {
-                "description": "Registers a new OAuth2 client and returns its ` + "`" + `client_id` + "`" + `, its ` + "`" + `client_secret` + "`" + ` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).\nDoesn't require a session token, but returns ` + "`" + `403` + "`" + ` unless an Owner has enabled dynamic client registration in the OAuth2 provider settings.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
+                "description": "Registers a new OAuth2 client and returns its ` + "`" + `client_id` + "`" + `, its ` + "`" + `client_secret` + "`" + ` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).\nDoesn't require a session token, but returns ` + "`" + `403` + "`" + ` unless dynamic client registration is enabled in the OAuth2 provider settings.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],

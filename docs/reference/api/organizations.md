@@ -196,7 +196,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 `DELETE /api/v2/organizations/{organization}`
 
 Deletes an organization.
-The call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
+Returns `400` for the default organization, and `500` while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
 Requires permission to delete the organization.
 Requires a Premium license.
 

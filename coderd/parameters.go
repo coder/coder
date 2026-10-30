@@ -51,7 +51,7 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 // @Security CoderSessionToken
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param user_id query string false "ID of the user, or `me`, who owns the workspace that the first evaluation is for. The default is you."
+// @Param user_id query string false "ID of the user who owns the workspace for the first evaluation, or `me` for the authenticated user. The default is `me`."
 // @Success 101
 // @Router /api/v2/templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {

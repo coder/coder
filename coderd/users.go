@@ -316,7 +316,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
@@ -812,7 +812,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Get user login type
 // @Description Returns the user's login type, such as `password`, `github`, or `oidc`.
-// @Description You can only query your own login type, so use `me` or your own user ID, because the call fails for any other user.
+// @Description You can only query your own login type, so use `me` or your own user ID, because the call returns `403` for any other user.
 // @ID get-user-login-type
 // @Security CoderSessionToken
 // @Produce json
@@ -992,7 +992,7 @@ var (
 
 // @Summary Update user profile
 // @Description Updates a user's username, display name, and avatar URL.
-// @Description Changing a username, including your own, requires permission to update users, and so does updating another user's profile.
+// @Description Changing a username, including your own, requires permission to update users, and updating another user's profile requires permission to update personal user data.
 // @Description The avatar URL applies only to users with the `password` or `none` login type.
 // @ID update-user-profile
 // @Security CoderSessionToken

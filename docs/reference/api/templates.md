@@ -1134,7 +1134,7 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
 `DELETE /api/v2/templates/{template}`
 
 Deletes a template.
-The call fails if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
+Returns `400` if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
 Requires permission to delete the template.
 
 ### Parameters
@@ -1953,7 +1953,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 `PATCH /api/v2/templateversions/{templateversion}`
 
 Updates the `name` or `message` of a template version.
-Renaming a version to a name that another version of the same template uses returns an error.
+Renaming a version to a name that another version of the same template uses returns `400`.
 Requires permission to update the template.
 
 > Body parameter
@@ -2068,7 +2068,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 `POST /api/v2/templateversions/{templateversion}/archive`
 
 Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.
-The call fails if a workspace's latest build uses the version or if it is the template's active version.
+Returns `500` if a workspace's latest build uses the version or if it is the template's active version.
 Requires permission to update the template.
 
 ### Parameters
@@ -2116,7 +2116,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 `PATCH /api/v2/templateversions/{templateversion}/cancel`
 
 Cancels the import job of a template version that hasn't finished.
-The call returns an error if the job has already completed or been canceled.
+Returns `400` if the job has already completed or been canceled.
 Requires permission to update the template.
 
 ### Parameters
@@ -2860,10 +2860,10 @@ The server closes the connection after 30 minutes.
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                                                           |
-|-------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                   |
-| `user_id`         | query | string       | false    | ID of the user, or `me`, who owns the workspace that the first evaluation is for. The default is you. |
+| Name              | In    | Type         | Required | Description                                                                                                              |
+|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                      |
+| `user_id`         | query | string       | false    | ID of the user who owns the workspace for the first evaluation, or `me` for the authenticated user. The default is `me`. |
 
 ### Responses
 

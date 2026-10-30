@@ -180,7 +180,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `id`, `owner`, `template`, `name`, `status`, `has-agent`, `dormant`, `outdated`, `last_used_after`, `last_used_before`, `has_external_agent`, `healthy`, `organization`, `user`, `shared`, `shared_with_user`, `shared_with_group`, `param`, and `include_agent_metadata` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or `owner/name`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `id`, `owner`, `template`, `name`, `status`, `has-agent`, `dormant`, `outdated`, `last_used_after`, `last_used_before`, `has_external_agent`, `healthy`, `organization`, `user`, `shared`, `shared_with_user`, `shared_with_group`, `param`, and `include_agent_metadata` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or `owner/name`. Other keys return `400`."
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -1552,7 +1552,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update workspace dormancy status by id.
 // @Description Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
-// @Description Returns `304 Not Modified` if the workspace is already in that state, and fails for prebuilt workspaces.
+// @Description Returns `304 Not Modified` if the workspace is already in that state, and `409` for prebuilt workspaces.
 // @Description When you mark another user's workspace dormant, Coder notifies its owner.
 // @Description Requires permission to update the workspace.
 // @ID update-workspace-dormancy-status-by-id
@@ -3327,7 +3327,7 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 // @Tags Workspaces
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {array} codersdk.MinimalUser
