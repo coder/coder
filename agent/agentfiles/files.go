@@ -290,7 +290,7 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 	fileSize := stat.Size()
 	if fileSize > limits.MaxFileSize {
 		return errResp(fmt.Sprintf(
-			"file is %d bytes which exceeds the maximum of %d bytes. Use grep, sed, or awk to extract the content you need, or use offset and limit to read a portion.",
+			"file is %d bytes which exceeds the maximum of %d bytes. Use grep, sed, or awk to extract the content you need.",
 			fileSize, limits.MaxFileSize,
 		))
 	}
@@ -315,6 +315,9 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 	}
 
 	lines := strings.Split(content, "\n")
+	if strings.HasSuffix(content, "\n") {
+		lines = lines[:len(lines)-1]
+	}
 	totalLines := len(lines)
 
 	// offset is 1-based line number.
@@ -328,8 +331,7 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 		))
 	}
 
-	// Default limit.
-	if limit <= 0 {
+	if limit <= 0 || limit > int64(limits.MaxResponseLines) {
 		limit = int64(limits.MaxResponseLines)
 	}
 
@@ -358,20 +360,9 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 		newTotal := totalBytesAccumulated + lineBytes
 		if len(numbered) > 0 {
 			newTotal++ // account for \n joiner
-		}
-		if newTotal > limits.MaxResponseBytes {
-			return errResp(fmt.Sprintf(
-				"output would exceed %d bytes. Read less at a time using offset and limit parameters.",
-				limits.MaxResponseBytes,
-			))
-		}
-
-		// Check line count.
-		if len(numbered) >= limits.MaxResponseLines {
-			return errResp(fmt.Sprintf(
-				"output would exceed %d lines. Read less at a time using offset and limit parameters.",
-				limits.MaxResponseLines,
-			))
+			if newTotal > limits.MaxResponseBytes {
+				break
+			}
 		}
 
 		numbered = append(numbered, numberedLine)
