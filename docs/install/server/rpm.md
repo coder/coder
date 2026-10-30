@@ -54,7 +54,8 @@ Pass `--dry-run` to print the commands without running them.
 
 ### dnf
 
-1. Download the RPM for your version and architecture from [GitHub releases](https://github.com/coder/coder/releases).
+1. Download the RPM for your architecture from the [Coder downloads page](https://coder.com/downloads).
+   For a specific older version, use [GitHub releases](https://github.com/coder/coder/releases).
 2. Install the package.
 
    ```sh
