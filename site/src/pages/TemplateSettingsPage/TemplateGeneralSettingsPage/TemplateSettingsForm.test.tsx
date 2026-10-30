@@ -1,5 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { MockTemplate } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
@@ -19,16 +20,19 @@ const renderForm = (
 ) => {
 	const onSubmit = vi.fn();
 	renderComponent(
-		<TemplateSettingsForm
-			template={MockTemplate}
-			onSubmit={onSubmit}
-			onCancel={vi.fn()}
-			isSubmitting={false}
-			accessControlEnabled
-			advancedSchedulingEnabled
-			portSharingControlsEnabled
-			{...overrides}
-		/>,
+		<MemoryRouter>
+			<TemplateSettingsForm
+				template={MockTemplate}
+				onSubmit={onSubmit}
+				onCancel={vi.fn()}
+				isSubmitting={false}
+				accessControlEnabled
+				advancedSchedulingEnabled
+				portSharingControlsEnabled
+				canViewPremium
+				{...overrides}
+			/>
+		</MemoryRouter>,
 	);
 	return { onSubmit };
 };
@@ -116,6 +120,40 @@ describe("TemplateSettingsForm", () => {
 
 			await user.click(checkbox);
 			expect(checkbox).toBeChecked();
+		});
+	});
+
+	describe("Premium notices", () => {
+		it("link to the Premium page for users who can view licenses", () => {
+			renderForm({
+				accessControlEnabled: false,
+				advancedSchedulingEnabled: false,
+				portSharingControlsEnabled: false,
+			});
+
+			const links = screen.getAllByRole("link", {
+				name: /learn about premium/i,
+			});
+			expect(links).toHaveLength(3);
+			for (const link of links) {
+				expect(link).toHaveAttribute("href", "/deployment/premium");
+			}
+		});
+
+		it("omit the link for users who cannot view licenses", () => {
+			renderForm({
+				accessControlEnabled: false,
+				advancedSchedulingEnabled: false,
+				portSharingControlsEnabled: false,
+				canViewPremium: false,
+			});
+
+			expect(
+				screen.getAllByText(/premium license is required/i).length,
+			).toBeGreaterThan(0);
+			expect(
+				screen.queryByRole("link", { name: /learn about premium/i }),
+			).not.toBeInTheDocument();
 		});
 	});
 });

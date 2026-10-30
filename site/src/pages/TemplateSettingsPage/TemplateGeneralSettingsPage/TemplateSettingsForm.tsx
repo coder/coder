@@ -22,6 +22,7 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
+import { PremiumPageLink } from "#/components/Paywall/Paywall";
 import {
 	Select,
 	SelectContent,
@@ -76,6 +77,8 @@ type TemplateSettingsFormProps = {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
+	/** Shows Premium page links in Premium notices. */
+	canViewPremium: boolean;
 };
 
 export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
@@ -88,6 +91,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	portSharingControlsEnabled,
+	canViewPremium,
 }) => {
 	const form = useFormik<UpdateTemplateMeta>({
 		initialValues: {
@@ -269,7 +273,10 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						/>
 						<Label htmlFor="require_active_version">
 							<StackLabel>
-								Require workspaces automatically update when started.
+								<span className="flex flex-row gap-2 items-center">
+									Require workspaces automatically update when started.
+									{!advancedSchedulingEnabled && <PremiumBadge />}
+								</span>
 								<StackLabelHelperText>
 									<span>
 										Workspaces that are manually started or auto-started will
@@ -280,10 +287,15 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-										<div className="flex flex-row gap-4 items-center mt-4">
-											<PremiumBadge />
-											<span>Premium license required to be enabled.</span>
-										</div>
+										<span className="block mt-2 text-xs text-content-secondary">
+											A Premium license is required to change this setting.
+											{canViewPremium && (
+												<>
+													{" "}
+													<PremiumPageLink />
+												</>
+											)}
+										</span>
 									)}
 								</StackLabelHelperText>
 							</StackLabel>
@@ -381,29 +393,35 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 			<FormSection
 				title="Deprecate"
 				description="Deprecating a template prevents any new workspaces from being created. Existing workspaces will continue to function."
+				premium={!accessControlEnabled}
 			>
 				<FormFields>
-					<FormField
-						field={getFieldHelpers("deprecation_message", {
-							helperText:
-								"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
-						})}
-						label="Deprecation Message"
-						disabled={
-							isSubmitting || (!template.deprecated && !accessControlEnabled)
-						}
-						className="w-full"
-					/>
-					{!accessControlEnabled && (
-						<div className="flex flex-row gap-4 items-center">
-							<PremiumBadge />
-							<span className="text-xs text-content-secondary">
-								Premium license required to deprecate templates.
+					<div className="flex flex-col gap-2">
+						<FormField
+							field={getFieldHelpers("deprecation_message", {
+								helperText:
+									"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
+							})}
+							label="Deprecation Message"
+							disabled={
+								isSubmitting || (!template.deprecated && !accessControlEnabled)
+							}
+							className="w-full"
+						/>
+						{!accessControlEnabled && (
+							<span className="block text-xs text-content-secondary">
 								{template.deprecated &&
-									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
+									"You cannot change the message, but you may remove it to mark this template as no longer deprecated. "}
+								A Premium license is required to change this setting.
+								{canViewPremium && (
+									<>
+										{" "}
+										<PremiumPageLink />
+									</>
+								)}
 							</span>
-						</div>
-					)}
+						)}
+					</div>
 				</FormFields>
 			</FormSection>
 
@@ -413,6 +431,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the Owner sharing level can
           only be accessed by the workspace owner."
+				premium={!portSharingControlsEnabled}
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
@@ -465,15 +484,18 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 								{maxPortShareField.helperText}
 							</span>
 						)}
-					</div>
-					{!portSharingControlsEnabled && (
-						<div className="flex flex-row gap-4 items-center">
-							<PremiumBadge />
-							<span className="text-xs text-content-secondary">
-								Premium license required to control max port sharing level.
+						{!portSharingControlsEnabled && (
+							<span className="block text-xs text-content-secondary">
+								A Premium license is required to change this setting.
+								{canViewPremium && (
+									<>
+										{" "}
+										<PremiumPageLink />
+									</>
+								)}
 							</span>
-						</div>
-					)}
+						)}
+					</div>
 				</FormFields>
 			</FormSection>
 

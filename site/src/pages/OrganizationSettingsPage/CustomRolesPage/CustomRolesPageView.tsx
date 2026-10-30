@@ -10,6 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { PremiumPageLink } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -87,6 +88,7 @@ export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 					organization={organization}
 					availableOrgRoles={availableOrgRoles}
 					canEditDefaultRoles={canEditDefaultRoles}
+					canViewPremium={permissions.viewAllLicenses}
 					defaultRolesEntitled={Boolean(defaultRolesEntitled)}
 					isUpdatingDefaultRoles={Boolean(isUpdatingDefaultRoles)}
 					onUpdateDefaultRoles={onUpdateDefaultRoles}
@@ -152,6 +154,7 @@ type DefaultRolesSectionProps = {
 	organization: Organization;
 	availableOrgRoles?: AssignableRoles[];
 	canEditDefaultRoles: boolean;
+	canViewPremium: boolean;
 	defaultRolesEntitled: boolean;
 	isUpdatingDefaultRoles: boolean;
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
@@ -161,6 +164,7 @@ const DefaultRolesSection: React.FC<DefaultRolesSectionProps> = ({
 	organization,
 	availableOrgRoles,
 	canEditDefaultRoles,
+	canViewPremium,
 	defaultRolesEntitled,
 	isUpdatingDefaultRoles,
 	onUpdateDefaultRoles,
@@ -197,7 +201,16 @@ const DefaultRolesSection: React.FC<DefaultRolesSectionProps> = ({
 					here removes it from all members that are not assigned that role
 					directly.
 					{!defaultRolesEntitled && (
-						<> Editing organization settings requires a Premium license.</>
+						<>
+							{" "}
+							Editing organization settings requires a Premium license.
+							{canViewPremium && (
+								<>
+									{" "}
+									<PremiumPageLink size="lg" />
+								</>
+							)}
+						</>
 					)}
 				</SettingsHeaderDescription>
 			</SettingsHeader>

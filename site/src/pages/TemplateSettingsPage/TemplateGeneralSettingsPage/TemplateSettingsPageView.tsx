@@ -18,6 +18,7 @@ type TemplateSettingsPageViewProps = {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
+	canViewPremium: boolean;
 };
 
 export const TemplateSettingsPageView: React.FC<
@@ -32,6 +33,7 @@ export const TemplateSettingsPageView: React.FC<
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	sharedPortControlsEnabled,
+	canViewPremium,
 }) => {
 	return (
 		<div className="flex flex-col gap-12">
@@ -52,6 +54,7 @@ export const TemplateSettingsPageView: React.FC<
 				accessControlEnabled={accessControlEnabled}
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				portSharingControlsEnabled={sharedPortControlsEnabled}
+				canViewPremium={canViewPremium}
 			/>
 		</div>
 	);

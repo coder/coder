@@ -11,6 +11,7 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
 		template: MockTemplate,
 		accessControlEnabled: true,
 		advancedSchedulingEnabled: true,
+		canViewPremium: true,
 		onCancel: action("onCancel"),
 	},
 	decorators: [withDashboardProvider],
@@ -60,6 +61,14 @@ export const NoEntitlements: Story = {
 	args: {
 		accessControlEnabled: false,
 		advancedSchedulingEnabled: false,
+	},
+};
+
+export const NoEntitlementsWithoutLicenseAccess: Story = {
+	args: {
+		accessControlEnabled: false,
+		advancedSchedulingEnabled: false,
+		canViewPremium: false,
 	},
 };
 
