@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { getErrorStatus } from "#/api/errors";
 import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import {
@@ -97,12 +98,17 @@ export function useQueuedMessageEdit(deps: {
 		store,
 		(s) => s.queuedMessages.find((row) => row.editing_since)?.id ?? null,
 	);
-	const composerTarget = deriveComposerTarget(
-		composerMode,
-		serverMarkedID,
-		marker,
-		isOwner,
+	// The choice of the latest Edit until the begin's handlers below have
+	// applied its outcome. While the composer holds that choice it stays the
+	// target, so the editor never sees it go away before a refusal restores
+	// the earlier mode; react-query can report the settled request first.
+	const [unappliedEdit, setUnappliedEdit] = useState<EditingTarget | null>(
+		null,
 	);
+	const composerTarget =
+		composerMode === unappliedEdit
+			? unappliedEdit
+			: deriveComposerTarget(composerMode, serverMarkedID, marker, isOwner);
 
 	const handleEditQueuedMessage = (id: number) => {
 		const row = store
@@ -114,19 +120,25 @@ export function useQueuedMessageEdit(deps: {
 		) {
 			return;
 		}
-		const editMode: ComposerMode = { kind: "queued", id };
+		const editMode: EditingTarget = { kind: "queued", id };
 		setComposerMode(editMode);
-		void deps.setQueuedMessageEditing(id, true).catch((error: unknown) => {
-			// A refused begin returns the composer to the mode before Edit, so
-			// it does not open the row later when another client edits it,
-			// unless a later choice replaced this one. A 404 dropped the row,
-			// which closes the edit on its own.
-			if (getErrorStatus(error) !== 404) {
-				setComposerMode((current) =>
-					current === editMode ? composerMode : current,
-				);
-			}
-		});
+		setUnappliedEdit(editMode);
+		const applied = () =>
+			setUnappliedEdit((current) => (current === editMode ? null : current));
+		void deps
+			.setQueuedMessageEditing(id, true)
+			.then(applied, (error: unknown) => {
+				// A refused begin returns the composer to the mode before Edit, so
+				// it does not open the row later when another client edits it,
+				// unless a later choice replaced this one. A 404 dropped the row,
+				// which closes the edit on its own.
+				if (getErrorStatus(error) !== 404) {
+					setComposerMode((current) =>
+						current === editMode ? composerMode : current,
+					);
+				}
+				applied();
+			});
 	};
 
 	const handleEndQueuedMessageEdit = (id: number) =>
