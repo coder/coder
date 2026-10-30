@@ -430,8 +430,8 @@ type CreateOptions struct {
 	ClientType      database.ChatClientType
 	SystemPrompt    string
 	// InitialUserContent is the first user message. When empty, the
-	// chat is created idle (`waiting`) with system messages only and
-	// no worker processes it until the first SendMessage.
+	// chat is created idle (`waiting`) without a user message and no
+	// worker processes it until the first SendMessage.
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
 	InlineMCPServers   []codersdk.InlineMCPServerRequest

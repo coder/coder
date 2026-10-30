@@ -12077,7 +12077,7 @@ func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
 
 // TestPostChats_EmptyContent verifies chats can be created without an
 // initial message. The chat starts idle in `waiting` with the
-// placeholder title and only system messages, can be archived right
+// placeholder title and no user message, can be archived right
 // away (the cleanup path for clients whose post-create work fails),
 // and its first message inserts directly instead of queueing.
 func TestPostChats_EmptyContent(t *testing.T) {
