@@ -363,20 +363,40 @@ func (p *Server) newAdvisorRuntime(
 	return rt, nil
 }
 
+// resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
+// the chat's pinned context snapshot (chat_context_resources). The agent
+// reports its MCP servers in the snapshot it pushes, so a chat with no pinned
+// rows, or one whose workspace advertises no MCP servers, contributes no
+// workspace MCP tools.
+func (p *Server) resolveWorkspaceMCPTools(
+	ctx context.Context,
+	chat database.Chat,
+	workspaceCtx *turnWorkspaceContext,
+) ([]fantasy.AgentTool, error) {
+	// getWorkspaceAgent may have rebound the chat to a replacement agent
+	// earlier in this turn; the row loaded at turn start would still name
+	// the soft-deleted one and withhold every replacement tool.
+	if current := workspaceCtx.currentChatSnapshot(); current.ID != uuid.Nil {
+		chat = current
+	}
+	return p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+}
+
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// definitions. Calls still proxy through the agent connection, and agent pushes
-// live-sync definitions, so no invalidation callback is needed.
+// definitions through the shared workspace MCP view, so definitions left
+// behind by a previous agent process are withheld. Calls still proxy
+// through the agent connection, and agent pushes live-sync definitions, so
+// no invalidation callback is needed.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 ) ([]fantasy.AgentTool, error) {
-	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	view, err := p.loadWorkspaceMCPView(ctx, chat)
 	if err != nil {
-		return nil, xerrors.Errorf("list chat context resources: %w", err)
+		return nil, err
 	}
-	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
+	return chattool.NewWorkspaceMCPTools(view.Tools(), getConn), nil
 }
 
 // AgentConnFunc provides access to workspace agent connections.

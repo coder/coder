@@ -633,7 +633,7 @@ func (p *Server) buildTurnEnvironment(
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			var err error
-			workspaceMCPTools, err = p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+			workspaceMCPTools, err = p.resolveWorkspaceMCPTools(ctx, chat, &workspaceCtx)
 			return err
 		})
 	}
@@ -1398,9 +1398,7 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	// the agent binding while preserving the pin, so a missing prior agent also
 	// requires a re-pin when pinned context exists. The binding and the re-pin
 	// commit together: a committed binding without its re-pin would never be
-	// retried, because the next turn sees no agent change. The pinned context
-	// fields on updatedChat are background state, reloaded on the next
-	// snapshot fetch.
+	// retried, because the next turn sees no agent change.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
 	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID)
 	var updatedChat database.Chat
@@ -1427,13 +1425,26 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 			return nil
 		}
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
-		if err := repinChatContext(dbauthz.AsChatd(ctx), tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+		repinCtx := dbauthz.AsChatd(ctx)
+		if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
 			return xerrors.Errorf("re-pin chat context after agent rebind: %w", err)
+		}
+		updatedChat, err = tx.GetChatByID(repinCtx, chatSnapshot.ID)
+		if err != nil {
+			return xerrors.Errorf("get chat after re-pin: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
 		return chatSnapshot, err
+	}
+	if needsRepin {
+		// The single-chat GET derives the pinned inventory and the MCP
+		// discovery state from the bound agent, so an open chat can only
+		// learn about the rebind through an event: agent pushes fan out to
+		// chats bound to the pushing agent, which this chat was not until
+		// now.
+		c.server.publishChatPubsubEvents([]database.Chat{updatedChat}, codersdk.ChatWatchEventKindContextDirty)
 	}
 
 	c.setCurrentChat(updatedChat)

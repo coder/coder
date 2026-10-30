@@ -1217,7 +1217,6 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1234,6 +1233,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	updatedChat := chat
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: agentID, Valid: true}
+	expectAgentBindingTx(db, updatedChat)
 
 	gomock.InOrder(
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{workspaceAgent}, nil),
@@ -1269,15 +1269,17 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 // expectAgentBindingTx lets persistBuildAgentBinding's transaction and
 // context re-pin run against a mock store. The re-pin fires whenever a turn
 // rebinds a chat to a different agent; these tests set up no context
-// snapshot, so it takes the no-snapshot clear path. The re-pin behavior
-// itself is covered by TestPersistBuildAgentBindingRepinsContext.
-func expectAgentBindingTx(db *dbmock.MockStore) {
+// snapshot, so it takes the no-snapshot clear path and re-reads the chat as
+// repinned. The re-pin behavior itself is covered by
+// TestPersistBuildAgentBindingRepinsContext.
+func expectAgentBindingTx(db *dbmock.MockStore, repinned database.Chat) {
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) }).AnyTimes()
 	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
 		Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows).AnyTimes()
 	db.EXPECT().SetChatContextSnapshot(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().DeleteChatContextResourcesByChatID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().GetChatByID(gomock.Any(), repinned.ID).Return(repinned, nil).AnyTimes()
 }
 
 func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
@@ -1286,7 +1288,6 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1308,6 +1309,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	updatedChat := chat
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
+	expectAgentBindingTx(db, updatedChat)
 
 	gomock.InOrder(
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(database.WorkspaceAgent{}, sql.ErrNoRows),
@@ -1323,7 +1325,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
-		server:           &Server{db: db},
+		server:           &Server{db: db, pubsub: dbpubsub.NewInMemory()},
 		chatStateMu:      chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
@@ -1343,7 +1345,6 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1366,6 +1367,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	updatedChat := chat
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
+	expectAgentBindingTx(db, updatedChat)
 
 	gomock.InOrder(
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(staleAgent, nil),
@@ -1385,6 +1387,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	var dialed []uuid.UUID
 	server := &Server{
 		db:                             db,
+		pubsub:                         dbpubsub.NewInMemory(),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
@@ -1674,7 +1677,6 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectAgentBindingTx(db)
 
 	deletedWorkspaceID := uuid.New()
 	replacementWorkspaceID := uuid.New()
@@ -1691,6 +1693,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	updatedChat := rebound
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: replacementAgent.ID, Valid: true}
+	expectAgentBindingTx(db, updatedChat)
 
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
@@ -1780,7 +1783,6 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectAgentBindingTx(db)
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
@@ -1798,6 +1800,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	updatedChat := chat
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: resolvedAgent.ID, Valid: true}
+	expectAgentBindingTx(db, updatedChat)
 
 	gomock.InOrder(
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return([]database.WorkspaceAgent{resolvedAgent}, nil),
@@ -2579,7 +2582,6 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -2645,6 +2647,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	updatedChat := chat
 	updatedChat.AgentID = uuid.NullUUID{UUID: newAgentID, Valid: true}
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	expectAgentBindingTx(db, updatedChat)
 	db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
 		ID:      chat.ID,
 		BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
@@ -2656,6 +2659,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
+		pubsub:                         dbpubsub.NewInMemory(),
 		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
