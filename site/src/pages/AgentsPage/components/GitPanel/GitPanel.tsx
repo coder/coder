@@ -49,21 +49,17 @@ import {
 } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
-
-/** A Git panel view: a tracked ref's diff, or a repo's local changes. */
-export type GitView =
-	| { type: "remote"; refId: string }
-	| { type: "local"; repoRoot: string };
+import {
+	computeRepoStats,
+	type DiffStats,
+	type GitView,
+	repoBranchLabel,
+	repoLabel,
+	viewIdFor,
+} from "./gitViews";
 
 /** A request from outside the panel to show `view`, once per `id`. */
 type GitViewRequest = { id: number; view: GitView };
-
-/**
- * The view id for a tracked ref. Rows without origin and branch share the
- * empty-key id.
- */
-export const viewIdFor = (status: ChatDiffStatus): string =>
-	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
 
 // A keyless row predates the keyed schema and the API cannot select
 // it: an empty selector means the primary ref. Only a keyless primary
@@ -75,37 +71,6 @@ const isSelectableRef = (
 ): boolean =>
 	viewIdFor(status) === primaryRefId ||
 	Boolean(status.remote_origin || status.git_branch);
-
-// Line counts for one repo's unified diff.
-const countDiffLines = (unifiedDiff: string): DiffStats => {
-	let additions = 0;
-	let deletions = 0;
-	for (const line of unifiedDiff.split("\n")) {
-		if (line.startsWith("+") && !line.startsWith("+++")) {
-			additions++;
-		} else if (line.startsWith("-") && !line.startsWith("---")) {
-			deletions++;
-		}
-	}
-	return { additions, deletions };
-};
-
-/** Per-repo diff stats. Repos with no added or deleted lines are left out. */
-export const computeRepoStats = (
-	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
-): Map<string, DiffStats> => {
-	const stats = new Map<string, DiffStats>();
-	for (const [root, repo] of repositories.entries()) {
-		if (!repo.unified_diff) {
-			continue;
-		}
-		const repoStat = countDiffLines(repo.unified_diff);
-		if (repoStat.additions > 0 || repoStat.deletions > 0) {
-			stats.set(root, repoStat);
-		}
-	}
-	return stats;
-};
 
 // Union of currently-dirty and ever-dirty repos (still known to
 // the watcher), so a clean-revert does not hide the entry.
@@ -129,11 +94,6 @@ const GIT_NOT_SETUP_BODY =
 	"Git status will appear here once a Git repository is detected in the workspace.";
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
-
-type DiffStats = {
-	additions: number;
-	deletions: number;
-};
 
 type GitPanelProps = {
 	/** The chat whose remote diff is displayed. */
@@ -169,12 +129,6 @@ type GitPanelProps = {
 	 */
 	viewRequest?: GitViewRequest;
 };
-
-/** The last path segment of `repoRoot`, or `repoRoot` when it has none. */
-export function repoLabel(repoRoot: string): string {
-	const segments = repoRoot.split("/").filter(Boolean);
-	return segments[segments.length - 1] ?? repoRoot;
-}
 
 type ViewItemBase = {
 	id: string;
@@ -852,9 +806,7 @@ const RepoHeader: React.FC<{
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
-				<span className="truncate">
-					{repo.branch?.trim() || repoLabel(repoRoot)}
-				</span>
+				<span className="truncate">{repoBranchLabel(repoRoot, repo)}</span>
 				<span className="truncate opacity-50">{repoRoot}</span>
 			</div>
 			<div className="ml-auto flex shrink-0 items-center gap-1.5">

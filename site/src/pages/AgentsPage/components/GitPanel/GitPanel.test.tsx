@@ -18,7 +18,8 @@ import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { ChatMessageInputRef } from "../AgentChatInput";
-import { GitPanel, viewIdFor } from "./GitPanel";
+import { GitPanel } from "./GitPanel";
+import { viewIdFor } from "./gitViews";
 
 vi.mock("../DiffViewer/LocalDiffPanel", () => ({
 	LocalDiffPanel: () => null,
