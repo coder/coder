@@ -383,7 +383,6 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		comment.router == "/api/v2/workspaceagents/aws-instance-identity" ||
 		comment.router == "/api/v2/workspaceagents/azure-instance-identity" ||
 		comment.router == "/api/v2/workspaceagents/google-instance-identity" {
-		// These routes don't take a session token, so they declare no @Security.
 		assert.Emptyf(t, comment.security, "%s doesn't take a session token, so it must not declare @Security", comment.router)
 		return
 	}

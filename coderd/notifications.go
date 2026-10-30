@@ -56,7 +56,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update notifications settings
 // @Description Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.
-// @Description Returns `304 Not Modified` when the settings are unchanged.
+// @Description Returns `304` when the settings are unchanged.
 // @Description Requires permission to update deployment configuration.
 // @ID update-notifications-settings
 // @Security CoderSessionToken

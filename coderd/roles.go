@@ -18,6 +18,7 @@ import (
 //
 // @Summary Get site member roles
 // @Description Returns the site-wide roles, built-in and custom, with the permissions each one grants.
+// @Description The response leaves out the `member` role, which every user holds.
 // @Description Each role has an `assignable` field that tells you whether you can assign it.
 // @Description Requires permission to read role assignments, which every user has.
 // @ID get-site-member-roles
@@ -56,6 +57,7 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary Get member roles by organization
 // @Description Returns the roles that apply in an organization, built-in and custom, with the permissions each one grants.
+// @Description The response leaves out the `organization-member` and `organization-service-account` system roles, which organization members and service accounts hold.
 // @Description Each role has an `assignable` field that tells you whether you can assign it.
 // @Description Requires permission to read the organization's assignable roles, which every organization member has.
 // @ID get-member-roles-by-organization

@@ -478,7 +478,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
@@ -497,7 +497,7 @@ func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group ID."
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
 // @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."

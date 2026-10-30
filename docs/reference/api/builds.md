@@ -552,7 +552,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 `PATCH /api/v2/workspacebuilds/{workspacebuild}/cancel`
 
 Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
-Fails if the build's job already completed or was already canceled.
+Returns `400` if the build's job already completed or was already canceled.
 Requires permission to update the workspace.
 You can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.
 
@@ -739,7 +739,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 `GET /api/v2/workspacebuilds/{workspacebuild}/resources`
 
 Returns the resources, with their agents, of a completed workspace build.
-Fails with a `400` until the build's job completes.
+Returns `400` until the build's job completes.
 Use `GET /api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
 
 ### Parameters
@@ -2011,7 +2011,7 @@ Starts, stops, or deletes a workspace by queuing a build with `transition` set t
 Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
 Requires permission to start, stop, or delete the workspace, and starting a dormant workspace requires permission to update it instead.
-Setting `state` or `orphan` also requires permission to update the template, and setting `log_level` without permission to read deployment configuration returns `400`.
+Setting `state` or `orphan` also requires permission to update the template, and setting `log_level` returns `400` unless the deployment sets `--enable-terraform-debug-mode` and you have permission to read deployment configuration.
 
 > Body parameter
 

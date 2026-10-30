@@ -7011,6 +7011,7 @@ export const MaxInlineMCPServersBytes = 24576;
 // From codersdk/usersecretsimport.go
 /**
  * MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
+ * The secrets import @Param text in coderd/usersecrets.go states this limit.
  */
 export const MaxSecretsFileBytes = 1048576; // 1 MiB
 
@@ -7103,6 +7104,9 @@ export const MaxUserSecretValueBytes = 24576; // 24 KiB
  * off-by-one at each cap across POST and PATCH, so any drift
  * between these constants and the trigger's literals fails an
  * assertion.
+ *
+ * The @Description and @Param text in coderd/usersecrets.go state the
+ * count, total, and per-value caps.
  */
 export const MaxUserSecretsPerUserCount = 50;
 

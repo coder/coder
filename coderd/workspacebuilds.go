@@ -333,7 +333,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Description Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 // @Description A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
 // @Description Requires permission to start, stop, or delete the workspace, and starting a dormant workspace requires permission to update it instead.
-// @Description Setting `state` or `orphan` also requires permission to update the template, and setting `log_level` without permission to read deployment configuration returns `400`.
+// @Description Setting `state` or `orphan` also requires permission to update the template, and setting `log_level` returns `400` unless the deployment sets `--enable-terraform-debug-mode` and you have permission to read deployment configuration.
 // @ID create-workspace-build
 // @Security CoderSessionToken
 // @Accept json
@@ -851,7 +851,7 @@ func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Req
 
 // @Summary Cancel workspace build
 // @Description Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
-// @Description Fails if the build's job already completed or was already canceled.
+// @Description Returns `400` if the build's job already completed or was already canceled.
 // @Description Requires permission to update the workspace.
 // @Description You can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.
 // @ID cancel-workspace-build

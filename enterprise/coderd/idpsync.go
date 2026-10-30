@@ -53,7 +53,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Description Replaces all of an organization's group sync settings, so any field you omit resets.
 // @Description To change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.
 // @Description Requires permission to update IdP sync settings in the organization.
-// @Description Rejects a request that sets the deprecated `legacy_group_name_mapping`.
+// @Description Returns `400` for a request that sets the deprecated `legacy_group_name_mapping`.
 // @ID update-group-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json

@@ -221,7 +221,8 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Summary Import user secrets from a file
 // @Description Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.
 // @Description Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
-// @Description The file can hold up to 50 secrets, and the import is atomic, so if any entry is invalid none are created.
+// @Description The file can hold up to 50 secrets, and the per-user limits on secret count and size include the secrets the user already has.
+// @Description The import is atomic, so if any entry is invalid or would exceed a limit, none are created.
 // @Description A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 // @ID import-user-secrets-from-a-file
 // @Security CoderSessionToken

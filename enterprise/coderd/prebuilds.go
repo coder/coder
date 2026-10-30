@@ -50,7 +50,7 @@ func (api *API) prebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update prebuilds settings
 // @Description Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with `reconciliation_paused`.
-// @Description Returns `304 Not Modified` when the settings are unchanged.
+// @Description Returns `304` when the settings are unchanged.
 // @Description Requires permission to update deployment configuration.
 // @Description Requires a Premium license.
 // @ID update-prebuilds-settings

@@ -23,12 +23,12 @@ Use it to find users by status, role, or login type, for example `status:active 
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                       |
-|------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`        | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`. |
-| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                       |
-| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                       |
-| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                               |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                                                            |
+|------------|-------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`        | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`. |
+| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                                                            |
+| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                                                            |
+| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
 
@@ -1138,7 +1138,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/login-type \
 `GET /api/v2/users/{user}/login-type`
 
 Returns the user's login type, such as `password`, `github`, or `oidc`.
-You can only query your own login type, so use `me` or your own user ID, because the call returns `403` for any other user.
+You can only query your own login type, so use `me` or your own user ID.
+For any other user, the call returns `403` if you can read that user and `404` otherwise.
 
 ### Parameters
 

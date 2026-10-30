@@ -17,9 +17,6 @@ const (
 	maxFilePathLength = 4096
 )
 
-// The user secret @Description and @Param text in coderd/usersecrets.go
-// states the limits below.
-
 // MaxUserSecretsPerUserCount caps the number of secrets a single user
 // may own.
 //
@@ -64,6 +61,9 @@ const (
 // off-by-one at each cap across POST and PATCH, so any drift
 // between these constants and the trigger's literals fails an
 // assertion.
+//
+// The @Description and @Param text in coderd/usersecrets.go state the
+// count, total, and per-value caps.
 const MaxUserSecretsPerUserCount = 50
 
 // MaxUserSecretsTotalValueBytes caps the sum of stored value bytes

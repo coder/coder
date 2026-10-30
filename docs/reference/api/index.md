@@ -56,7 +56,8 @@ An endpoint that checks a permission names it in its description, such as "Requi
 Built-in roles, organization roles, custom roles, and sharing all grant permissions, so the descriptions don't list the roles that hold each one.
 To find the roles that hold a permission, call `GET /api/v2/users/roles` for site-wide roles or `GET /api/v2/organizations/{organization}/members/roles` for organization roles.
 Each role in the response lists its permissions as `resource_type` and `action` pairs.
-[API key scopes](../api-key-scopes.md) lists the same resources and actions, and [Groups and roles](../../admin/users/groups-roles.md) summarizes what each built-in role allows.
+Neither response includes the `member` or `organization-member` role, which every user and organization member holds.
+[API key scopes](../api-key-scopes.md) lists a subset of the same resources and actions, and [Groups and roles](../../admin/users/groups-roles.md) summarizes what each built-in role allows.
 
 ## Sections
 

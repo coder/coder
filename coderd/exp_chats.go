@@ -404,8 +404,8 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
 	// site/src/components/PaginationWidget/utils.ts.
-	// If the page size changes, this limit should too. Change both
-	// together, and update the `workspace_ids` @Param text above.
+	// If the page size changes, change this limit with it and update
+	// the `workspace_ids` @Param text above.
 	const maxWorkspaceIDs = 25
 	if len(raw) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

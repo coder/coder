@@ -383,13 +383,13 @@ Requires permission to create workspaces for other users in the organization.
 
 ### Parameters
 
-| Name           | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                       |
-|----------------|-------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `organization` | path  | string  | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                                                 |
-| `user`         | path  | string  | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                                            |
-| `q`            | query | string  | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`. |
-| `limit`        | query | integer | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                       |
-| `offset`       | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                               |
+| Name           | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                                                            |
+|----------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string  | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                                                                                      |
+| `user`         | path  | string  | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                                                                                 |
+| `q`            | query | string  | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`. |
+| `limit`        | query | integer | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                                                            |
+| `offset`       | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
 
@@ -1432,7 +1432,7 @@ Use `include_related` to return only part of the related data.
 | Name              | In    | Type         | Required | Description                                                                                                                    |
 |-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
 | `workspace`       | path  | string(uuid) | true     | Workspace ID                                                                                                                   |
-| `include_deleted` | query | boolean      | false    | Set to `true` to return a deleted workspace. Otherwise the call returns `410 Gone` for a deleted workspace.                    |
+| `include_deleted` | query | boolean      | false    | Set to `true` to return a deleted workspace. Otherwise the call returns `410` for a deleted workspace.                         |
 | `include_related` | query | string       | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
 
 ### Example responses
@@ -1752,7 +1752,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 `PATCH /api/v2/workspaces/{workspace}`
 
 Renames a workspace.
-Fails unless the deployment or the workspace's template allows workspace renames.
+Returns `400` unless the deployment or the workspace's template allows workspace renames.
 Requires permission to update the workspace.
 
 > Body parameter
@@ -1870,7 +1870,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 `DELETE /api/v2/workspaces/{workspace}/acl`
 
 Removes every user and group from a workspace's ACL.
-Fails if workspace sharing is turned off for the organization.
+Returns `403` if workspace sharing is turned off for the organization.
 Requires permission to share the workspace.
 
 ### Parameters
@@ -1902,7 +1902,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.
 The role is `admin` or `use`, and an empty string removes the entry.
-Fails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.
+Returns `403` if workspace sharing is turned off for the organization, and `400` if you change your own role without permission to share any workspace in the organization.
 Requires permission to share the workspace.
 
 > Body parameter
@@ -2007,7 +2007,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`.
 An empty or omitted `schedule` turns autostart off.
-Fails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.
+Returns `400` if the workspace's template doesn't allow users to set an autostart schedule, and `409` for prebuilt workspaces.
 Requires permission to update the workspace.
 
 > Body parameter
@@ -2087,7 +2087,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 `PUT /api/v2/workspaces/{workspace}/dormant`
 
 Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
-Returns `304 Not Modified` if the workspace is already in that state, and `409` for prebuilt workspaces.
+Returns `304` if the workspace is already in that state, and `409` for prebuilt workspaces.
 When you mark another user's workspace dormant, Coder notifies its owner.
 Requires permission to update the workspace.
 
@@ -2425,7 +2425,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 Sets a new autostop deadline for a running workspace.
 The new `deadline` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.
-Fails if the workspace isn't running, is still building, or has no autostop deadline, and for prebuilt workspaces.
+Returns `409` if the workspace isn't running, is still building, has no autostop deadline, or is a prebuilt workspace.
 
 > Body parameter
 
@@ -2652,7 +2652,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
 The value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.
 The template's autostop requirement still applies.
-Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
+Returns `400` if the workspace's template doesn't allow a custom autostop, and `409` for prebuilt workspaces.
 Requires permission to update the workspace.
 
 > Body parameter

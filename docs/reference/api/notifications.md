@@ -367,7 +367,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 `PUT /api/v2/notifications/settings`
 
 Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.
-Returns `304 Not Modified` when the settings are unchanged.
+Returns `304` when the settings are unchanged.
 Requires permission to update deployment configuration.
 
 > Body parameter

@@ -6680,7 +6680,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -7520,7 +7520,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the deployment-wide notification settings, for example to pause or resume the notifier with ` + "`" + `notifier_paused` + "`" + `.\nReturns ` + "`" + `304 Not Modified` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration.",
+                "description": "Updates the deployment-wide notification settings, for example to pause or resume the notifier with ` + "`" + `notifier_paused` + "`" + `.\nReturns ` + "`" + `304` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9051,7 +9051,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -9613,7 +9613,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles": {
             "get": {
-                "description": "Returns the roles that apply in an organization, built-in and custom, with the permissions each one grants.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read the organization's assignable roles, which every organization member has.",
+                "description": "Returns the roles that apply in an organization, built-in and custom, with the permissions each one grants.\nThe response leaves out the ` + "`" + `organization-member` + "`" + ` and ` + "`" + `organization-service-account` + "`" + ` system roles, which organization members and service accounts hold.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read the organization's assignable roles, which every organization member has.",
                 "produces": [
                     "application/json"
                 ],
@@ -9832,7 +9832,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Adds an existing user to an organization with no roles beyond the organization's defaults.\nFails for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.\nRequires permission to read the user and to create organization members.",
+                "description": "Adds an existing user to an organization with no roles beyond the organization's defaults.\nReturns ` + "`" + `400` + "`" + ` for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.\nRequires permission to read the user and to create organization members.",
                 "produces": [
                     "application/json"
                 ],
@@ -10191,7 +10191,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10307,7 +10307,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10856,7 +10856,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Replaces all of an organization's group sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization.\nRejects a request that sets the deprecated ` + "`" + `legacy_group_name_mapping` + "`" + `.",
+                "description": "Replaces all of an organization's group sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization.\nReturns ` + "`" + `400` + "`" + ` for a request that sets the deprecated ` + "`" + `legacy_group_name_mapping` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11587,7 +11587,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with ` + "`" + `reconciliation_paused` + "`" + `.\nReturns ` + "`" + `304 Not Modified` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration.\nRequires a Premium license.",
+                "description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with ` + "`" + `reconciliation_paused` + "`" + `.\nReturns ` + "`" + `304` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13705,7 +13705,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -14055,7 +14055,7 @@ const docTemplate = `{
         },
         "/api/v2/users/roles": {
             "get": {
-                "description": "Returns the site-wide roles, built-in and custom, with the permissions each one grants.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read role assignments, which every user has.",
+                "description": "Returns the site-wide roles, built-in and custom, with the permissions each one grants.\nThe response leaves out the ` + "`" + `member` + "`" + ` role, which every user holds.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read role assignments, which every user has.",
                 "produces": [
                     "application/json"
                 ],
@@ -14981,7 +14981,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/login-type": {
             "get": {
-                "description": "Returns the user's login type, such as ` + "`" + `password` + "`" + `, ` + "`" + `github` + "`" + `, or ` + "`" + `oidc` + "`" + `.\nYou can only query your own login type, so use ` + "`" + `me` + "`" + ` or your own user ID, because the call returns ` + "`" + `403` + "`" + ` for any other user.",
+                "description": "Returns the user's login type, such as ` + "`" + `password` + "`" + `, ` + "`" + `github` + "`" + `, or ` + "`" + `oidc` + "`" + `.\nYou can only query your own login type, so use ` + "`" + `me` + "`" + ` or your own user ID.\nFor any other user, the call returns ` + "`" + `403` + "`" + ` if you can read that user and ` + "`" + `404` + "`" + ` otherwise.",
                 "produces": [
                     "application/json"
                 ],
@@ -15611,7 +15611,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/batch": {
             "post": {
-                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets, and the import is atomic, so if any entry is invalid none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
+                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets, and the per-user limits on secret count and size include the secrets the user already has.\nThe import is atomic, so if any entry is invalid or would exceed a limit, none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17244,7 +17244,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/cancel": {
             "patch": {
-                "description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nFails if the build's job already completed or was already canceled.\nRequires permission to update the workspace.\nYou can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.",
+                "description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nReturns ` + "`" + `400` + "`" + ` if the build's job already completed or was already canceled.\nRequires permission to update the workspace.\nYou can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -17436,7 +17436,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/resources": {
             "get": {
-                "description": "Returns the resources, with their agents, of a completed workspace build.\nFails with a ` + "`" + `400` + "`" + ` until the build's job completes.\nUse ` + "`" + `GET /api/v2/workspacebuilds/{workspacebuild}` + "`" + ` instead, which returns the build's ` + "`" + `resources` + "`" + `.",
+                "description": "Returns the resources, with their agents, of a completed workspace build.\nReturns ` + "`" + `400` + "`" + ` until the build's job completes.\nUse ` + "`" + `GET /api/v2/workspacebuilds/{workspacebuild}` + "`" + ` instead, which returns the build's ` + "`" + `resources` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -18086,7 +18086,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Set to ` + "`" + `true` + "`" + ` to return a deleted workspace. Otherwise the call returns ` + "`" + `410 Gone` + "`" + ` for a deleted workspace.",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to return a deleted workspace. Otherwise the call returns ` + "`" + `410` + "`" + ` for a deleted workspace.",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -18112,7 +18112,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Renames a workspace.\nFails unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace.",
+                "description": "Renames a workspace.\nReturns ` + "`" + `400` + "`" + ` unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18188,7 +18188,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Removes every user and group from a workspace's ACL.\nFails if workspace sharing is turned off for the organization.\nRequires permission to share the workspace.",
+                "description": "Removes every user and group from a workspace's ACL.\nReturns ` + "`" + `403` + "`" + ` if workspace sharing is turned off for the organization.\nRequires permission to share the workspace.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -18216,7 +18216,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in ` + "`" + `user_roles` + "`" + ` and ` + "`" + `group_roles` + "`" + `.\nThe role is ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `, and an empty string removes the entry.\nFails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.\nRequires permission to share the workspace.",
+                "description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in ` + "`" + `user_roles` + "`" + ` and ` + "`" + `group_roles` + "`" + `.\nThe role is ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `, and an empty string removes the entry.\nReturns ` + "`" + `403` + "`" + ` if workspace sharing is turned off for the organization, and ` + "`" + `400` + "`" + ` if you change your own role without permission to share any workspace in the organization.\nRequires permission to share the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18303,7 +18303,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
-                "description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as ` + "`" + `schedule` + "`" + ` in the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `.\nAn empty or omitted ` + "`" + `schedule` + "`" + ` turns autostart off.\nFails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.\nRequires permission to update the workspace.",
+                "description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as ` + "`" + `schedule` + "`" + ` in the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `.\nAn empty or omitted ` + "`" + `schedule` + "`" + ` turns autostart off.\nReturns ` + "`" + `400` + "`" + ` if the workspace's template doesn't allow users to set an autostart schedule, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18450,7 +18450,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Starts, stops, or deletes a workspace by queuing a build with ` + "`" + `transition` + "`" + ` set to ` + "`" + `start` + "`" + `, ` + "`" + `stop` + "`" + `, or ` + "`" + `delete` + "`" + `.\nUse it to change a workspace's state, or set ` + "`" + `template_version_id` + "`" + ` to move the workspace to another template version.\nA ` + "`" + `start` + "`" + ` build also clears the workspace's dormant status, and ` + "`" + `orphan` + "`" + ` is allowed only with ` + "`" + `delete` + "`" + `.\nRequires permission to start, stop, or delete the workspace, and starting a dormant workspace requires permission to update it instead.\nSetting ` + "`" + `state` + "`" + ` or ` + "`" + `orphan` + "`" + ` also requires permission to update the template, and setting ` + "`" + `log_level` + "`" + ` without permission to read deployment configuration returns ` + "`" + `400` + "`" + `.",
+                "description": "Starts, stops, or deletes a workspace by queuing a build with ` + "`" + `transition` + "`" + ` set to ` + "`" + `start` + "`" + `, ` + "`" + `stop` + "`" + `, or ` + "`" + `delete` + "`" + `.\nUse it to change a workspace's state, or set ` + "`" + `template_version_id` + "`" + ` to move the workspace to another template version.\nA ` + "`" + `start` + "`" + ` build also clears the workspace's dormant status, and ` + "`" + `orphan` + "`" + ` is allowed only with ` + "`" + `delete` + "`" + `.\nRequires permission to start, stop, or delete the workspace, and starting a dormant workspace requires permission to update it instead.\nSetting ` + "`" + `state` + "`" + ` or ` + "`" + `orphan` + "`" + ` also requires permission to update the template, and setting ` + "`" + `log_level` + "`" + ` returns ` + "`" + `400` + "`" + ` unless the deployment sets ` + "`" + `--enable-terraform-debug-mode` + "`" + ` and you have permission to read deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18498,7 +18498,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/dormant": {
             "put": {
-                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304 Not Modified` + "`" + ` if the workspace is already in that state, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace.",
+                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304` + "`" + ` if the workspace is already in that state, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18546,7 +18546,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/extend": {
             "put": {
-                "description": "Sets a new autostop deadline for a running workspace.\nThe new ` + "`" + `deadline` + "`" + ` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.\nFails if the workspace isn't running, is still building, or has no autostop deadline, and for prebuilt workspaces.",
+                "description": "Sets a new autostop deadline for a running workspace.\nThe new ` + "`" + `deadline` + "`" + ` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.\nReturns ` + "`" + `409` + "`" + ` if the workspace isn't running, is still building, has no autostop deadline, or is a prebuilt workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18889,7 +18889,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/ttl": {
             "put": {
-                "description": "Sets or clears the time until the workspace stops automatically, given as ` + "`" + `ttl_ms` + "`" + ` in milliseconds.\nThe value must be between 1 minute and 30 days, and ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` turns autostop off for the workspace.\nThe template's autostop requirement still applies.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace.",
+                "description": "Sets or clears the time until the workspace stops automatically, given as ` + "`" + `ttl_ms` + "`" + ` in milliseconds.\nThe value must be between 1 minute and 30 days, and ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` turns autostop off for the workspace.\nThe template's autostop requirement still applies.\nReturns ` + "`" + `400` + "`" + ` if the workspace's template doesn't allow a custom autostop, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],

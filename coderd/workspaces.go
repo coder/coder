@@ -68,7 +68,7 @@ var (
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param include_deleted query bool false "Set to `true` to return a deleted workspace. Otherwise the call returns `410 Gone` for a deleted workspace."
+// @Param include_deleted query bool false "Set to `true` to return a deleted workspace. Otherwise the call returns `410` for a deleted workspace."
 // @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/workspaces/{workspace} [get]
@@ -1206,7 +1206,7 @@ func (api *API) notifyWorkspaceCreated(
 
 // @Summary Update workspace metadata by ID
 // @Description Renames a workspace.
-// @Description Fails unless the deployment or the workspace's template allows workspace renames.
+// @Description Returns `400` unless the deployment or the workspace's template allows workspace renames.
 // @Description Requires permission to update the workspace.
 // @ID update-workspace-metadata-by-id
 // @Security CoderSessionToken
@@ -1313,7 +1313,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace autostart schedule by ID
 // @Description Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`.
 // @Description An empty or omitted `schedule` turns autostart off.
-// @Description Fails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.
+// @Description Returns `400` if the workspace's template doesn't allow users to set an autostart schedule, and `409` for prebuilt workspaces.
 // @Description Requires permission to update the workspace.
 // @ID update-workspace-autostart-schedule-by-id
 // @Security CoderSessionToken
@@ -1421,7 +1421,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Description Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
 // @Description The value must be between 1 minute and 30 days, and `null` or `0` turns autostop off for the workspace.
 // @Description The template's autostop requirement still applies.
-// @Description Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
+// @Description Returns `400` if the workspace's template doesn't allow a custom autostop, and `409` for prebuilt workspaces.
 // @Description Requires permission to update the workspace.
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
@@ -1552,7 +1552,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Update workspace dormancy status by id.
 // @Description Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
-// @Description Returns `304 Not Modified` if the workspace is already in that state, and `409` for prebuilt workspaces.
+// @Description Returns `304` if the workspace is already in that state, and `409` for prebuilt workspaces.
 // @Description When you mark another user's workspace dormant, Coder notifies its owner.
 // @Description Requires permission to update the workspace.
 // @ID update-workspace-dormancy-status-by-id
@@ -1723,7 +1723,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 // @Summary Extend workspace deadline by ID
 // @Description Sets a new autostop deadline for a running workspace.
 // @Description The new `deadline` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.
-// @Description Fails if the workspace isn't running, is still building, or has no autostop deadline, and for prebuilt workspaces.
+// @Description Returns `409` if the workspace isn't running, is still building, has no autostop deadline, or is a prebuilt workspace.
 // @ID extend-workspace-deadline-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -2608,7 +2608,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace ACL
 // @Description Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.
 // @Description The role is `admin` or `use`, and an empty string removes the entry.
-// @Description Fails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.
+// @Description Returns `403` if workspace sharing is turned off for the organization, and `400` if you change your own role without permission to share any workspace in the organization.
 // @Description Requires permission to share the workspace.
 // @ID update-workspace-acl
 // @Security CoderSessionToken
@@ -2732,7 +2732,7 @@ type workspaceData struct {
 
 // @Summary Completely clears the workspace's user and group ACLs.
 // @Description Removes every user and group from a workspace's ACL.
-// @Description Fails if workspace sharing is turned off for the organization.
+// @Description Returns `403` if workspace sharing is turned off for the organization.
 // @Description Requires permission to share the workspace.
 // @ID completely-clears-the-workspaces-user-and-group-acls
 // @Security CoderSessionToken
@@ -3327,7 +3327,7 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 // @Tags Workspaces
 // @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param user path string true "User ID, username, or `me` for the authenticated user."
-// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. Other keys return `400`."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
 // @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {array} codersdk.MinimalUser
