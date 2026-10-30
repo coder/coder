@@ -197,7 +197,12 @@ describe("useConversationEditingState", () => {
 		const editorState = JSON.stringify({ root: { type: "root" } });
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "", undefined, editorState);
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"",
+				undefined,
+				editorState,
+			);
 		});
 
 		expect(result.current.initialEditorState).toBe(editorState);
@@ -467,7 +472,10 @@ describe("useConversationEditingState", () => {
 				rendered.result.current.handleContentChange("draft", "draft", false);
 			});
 			act(() => {
-				rendered.result.current.handleEditUserMessage(7, "old");
+				rendered.result.current.handleBeginEdit(
+					{ kind: "history", id: 7 },
+					"old",
+				);
 			});
 			let sent: Promise<void> = Promise.resolve();
 			act(() => {
@@ -475,7 +483,7 @@ describe("useConversationEditingState", () => {
 					message: "edited",
 				});
 			});
-			expect(rendered.result.current.editingMessageId).toBeNull();
+			expect(rendered.result.current.editingTarget).toBeNull();
 			expect(rendered.result.current.editorInitialValue).toBe("draft");
 			act(() => {
 				rendered.result.current.handleContentChange(
@@ -495,7 +503,7 @@ describe("useConversationEditingState", () => {
 				await sent;
 			});
 
-			expect(result.current.editingMessageId).toBeNull();
+			expect(result.current.editingTarget).toBeNull();
 			expect(result.current.editorInitialValue).toBe("draft");
 			expect(localStorage.getItem(expectedKey)).toBe("draft typed");
 			unmount();
@@ -509,11 +517,11 @@ describe("useConversationEditingState", () => {
 				await expect(sent).rejects.toThrow("boom");
 			});
 
-			expect(result.current.editingMessageId).toBe(7);
+			expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
 			expect(result.current.editorInitialValue).toBe("edited");
 			expect(localStorage.getItem(expectedKey)).toBe("draft typed");
 			act(() => {
-				result.current.handleCancelHistoryEdit();
+				result.current.handleCancelEdit();
 			});
 			expect(result.current.editorInitialValue).toBe("draft typed");
 			unmount();
@@ -587,10 +595,10 @@ describe("useConversationEditingState", () => {
 			void result.current.handleSendFromInput({ message: "hello" });
 		});
 		act(() => {
-			result.current.handleEditUserMessage(7, "old msg");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "old msg");
 		});
 
-		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.editorInitialValue).toBe("");
 		unmount();
 	});
