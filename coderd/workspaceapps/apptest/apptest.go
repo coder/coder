@@ -364,6 +364,70 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
+		t.Run("StripsSessionTokens", func(t *testing.T) {
+			t.Parallel()
+
+			// The app echoes what it received in response headers so each
+			// subtest can inspect its own request.
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("X-Got-Session-Token-Header", r.Header.Get(codersdk.SessionTokenHeader))
+					w.Header().Set("X-Got-Raw-Query", r.URL.RawQuery)
+					w.Header().Set("X-Got-Authorization", r.Header.Get("Authorization"))
+					w.WriteHeader(http.StatusOK)
+				}),
+			})
+			sessionToken := appDetails.SDKClient.SessionToken()
+			// The app's own Authorization header must reach the backend.
+			const appAuthorization = "Bearer app-owned-token"
+			// Unsorted and with a literal comma, which url.Values.Encode would
+			// sort and escape, so any re-encoding is detected.
+			const appQuery = "query=true&foo=bar,baz&a=1"
+
+			cases := []struct {
+				name    string
+				setAuth func(r *http.Request)
+			}{
+				{
+					name: "Header",
+					setAuth: func(r *http.Request) {
+						r.Header.Set(codersdk.SessionTokenHeader, sessionToken)
+					},
+				},
+				{
+					name: "QueryParameter",
+					setAuth: func(r *http.Request) {
+						r.URL.RawQuery += "&" + codersdk.SessionTokenCookie + "=" + url.QueryEscape(sessionToken)
+					},
+				},
+			}
+
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+
+					u := appDetails.PathAppURL(appDetails.Apps.Owner)
+					u.RawQuery = appQuery
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+					require.NoError(t, err)
+					req.Header.Set("Authorization", appAuthorization)
+					c.setAuth(req)
+
+					// HTTPClient.Do does not attach the client's session token.
+					resp, err := doWithRetries(t, appDetails.AppClient(t), req)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+
+					assert.Empty(t, resp.Header.Get("X-Got-Session-Token-Header"))
+					assert.Equal(t, appQuery, resp.Header.Get("X-Got-Raw-Query"))
+					assert.Equal(t, appAuthorization, resp.Header.Get("X-Got-Authorization"))
+				})
+			}
+		})
+
 		t.Run("ProxyError", func(t *testing.T) {
 			t.Parallel()
 
