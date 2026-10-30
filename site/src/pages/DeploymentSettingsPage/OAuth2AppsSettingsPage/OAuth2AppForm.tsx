@@ -12,7 +12,7 @@ import {
 	OAuth2RedirectURIMaxBytes,
 	OAuth2RedirectURIsMaxCount,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -301,8 +301,8 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 			: undefined;
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
-	// The Scopes section of docs/admin/integrations/oauth2-provider.md explains
-	// why narrowing a self-registered application's allowlist can break it.
+	// docs/admin/integrations/oauth2-provider/scopes.md explains why narrowing
+	// a self-registered application's allowlist can break it.
 	const narrowsSelfRegisteredScopes =
 		app?.dynamically_registered === true &&
 		scopesQuery.data !== undefined &&
@@ -419,18 +419,27 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 						scope.
 					</div>
 					{narrowsSelfRegisteredScopes && (
-						<Alert severity="warning">
-							A self-registered client that requests every advertised scope
-							fails new authorizations with invalid_scope once its allowlist is
-							narrower than that list. Existing tokens keep their scopes.{" "}
-							<Link
-								href={docs("/admin/integrations/oauth2-provider#scopes")}
-								target="_blank"
-								rel="noreferrer"
-							>
-								Learn more
-								<span className="sr-only"> (link opens in new tab)</span>
-							</Link>
+						<Alert
+							severity="warning"
+							actions={
+								<Link
+									href={docs("/admin/integrations/oauth2-provider/scopes")}
+									target="_blank"
+									rel="noreferrer"
+								>
+									Go to scope docs
+									<span className="sr-only"> (opens in new tab)</span>
+								</Link>
+							}
+						>
+							<AlertTitle>This change can block new authorizations</AlertTitle>
+							<AlertDescription>
+								This application registered itself and may request every scope
+								Coder offers. If it does, limiting its allowed scopes makes new
+								authorizations fail with <code>invalid_scope</code>. Only the
+								client's owner can make it request fewer scopes. Existing tokens
+								keep their scopes.
+							</AlertDescription>
 						</Alert>
 					)}
 					<MultiSelectCombobox

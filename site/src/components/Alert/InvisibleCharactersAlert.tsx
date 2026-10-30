@@ -21,9 +21,9 @@ export const InvisibleCharactersAlert: React.FC<
 	return (
 		<Alert severity="warning" className={className}>
 			<AlertDescription>
-				This text contains {count} invisible Unicode{" "}
+				This text has {count} invisible Unicode{" "}
 				{count !== 1 ? "characters" : "character"} that could hide content.
-				These will be stripped on save.
+				Saving removes them.
 			</AlertDescription>
 		</Alert>
 	);
