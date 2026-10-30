@@ -8,6 +8,9 @@ export type GitView =
 	| { type: "remote"; refId: string }
 	| { type: "local"; repoRoot: string };
 
+/** A request from outside the Git panel to show `view`, once per `id`. */
+export type GitViewRequest = { id: number; view: GitView };
+
 /**
  * The view id for a tracked ref. Rows without origin and branch share the
  * empty-key id.

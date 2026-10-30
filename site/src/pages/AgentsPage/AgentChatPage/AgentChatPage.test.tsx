@@ -200,6 +200,39 @@ describe("AgentChatPage", () => {
 		expect(localStorage.getItem(overviewCardOpenStorageKey)).toBeNull();
 	});
 
+	it("opens a pull request row's diff in the Git tab and focuses the tab", async () => {
+		const mockOtherRef = {
+			...MockChatDiffStatus,
+			git_branch: "feat/other",
+			pr_number: 23020,
+			url: "https://github.com/coder/coder/pull/23020",
+		};
+		const mockTwoPullRequestsChat = {
+			...MockChat,
+			diff_status: MockChatDiffStatus,
+			diff_statuses: [mockOtherRef, MockChatDiffStatus],
+		};
+		mockChatPageApi(mockTwoPullRequestsChat);
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			chat_id: mockTwoPullRequestsChat.id,
+		});
+		const setChatWidth = stubChatWidth();
+		const user = userEvent.setup();
+		renderChatPage(mockTwoPullRequestsChat);
+		await setChatWidth(1600);
+
+		const card = await screen.findByRole("complementary", {
+			name: "Overview",
+		});
+		await user.click(within(card).getByRole("button", { name: /#23020/ }));
+
+		expect(screen.getByRole("tab", { name: "Git" })).toHaveFocus();
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockOtherRef.url,
+		);
+	});
+
 	it("does not request the overview card's data in a narrow chat", async () => {
 		mockChatPageApi(MockChat);
 		mockOlderMessages();

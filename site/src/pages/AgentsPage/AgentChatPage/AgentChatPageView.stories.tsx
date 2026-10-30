@@ -1000,6 +1000,64 @@ export const OverviewCardHiddenInFullWidth: Story = {
 	render: renderOverviewCardStory,
 };
 
+const mockOverviewCardTwoPullRequestsChat: Partial<TypesGen.Chat> = {
+	...mockOverviewCardChat,
+	diff_status: { ...MockChatDiffStatus, chat_id: AGENT_ID },
+	diff_statuses: [
+		...(mockOverviewCardChat.diff_statuses ?? []),
+		{
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			git_branch: "ci/cache-go-modules",
+			pr_number: 4822,
+			url: "https://github.com/coder/coder/pull/4822",
+			pull_request_title: "ci: cache Go modules between jobs",
+			additions: 18,
+			deletions: 3,
+		},
+	],
+};
+
+const OverviewCardWithRightPanel: React.FC = () => {
+	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
+	return (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardTwoPullRequestsChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+			showSidebarPanel={showSidebarPanel}
+			onSetShowSidebarPanel={setShowSidebarPanel}
+		/>
+	);
+};
+
+/**
+ * A pull request row opens the right panel on that pull request, not on
+ * the primary one.
+ */
+export const OverviewCardOpensPullRequest: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			chat_id: AGENT_ID,
+		});
+		const reset = resetOverviewCardStorage();
+		localStorage.removeItem(sidebarTabStorageKey);
+		return () => {
+			reset();
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => <OverviewCardWithRightPanel />,
+	play: async ({ canvasElement }) => {
+		// The card mounts once the chat's width is measured.
+		const card = await within(canvasElement).findByRole("complementary", {
+			name: "Overview",
+		});
+		await userEvent.click(within(card).getByRole("button", { name: /#4822/ }));
+	},
+};
+
 /** The user hid the card, so a wide chat shows only its toggle. */
 export const OverviewCardHiddenByUser: Story = {
 	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],

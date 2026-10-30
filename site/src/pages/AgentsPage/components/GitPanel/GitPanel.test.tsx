@@ -17,8 +17,10 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
+import { useChatOverview } from "../../hooks/useChatOverview";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { GitPanel } from "./GitPanel";
+import { viewIdFor } from "./gitViews";
 
 vi.mock("../DiffViewer/LocalDiffPanel", () => ({
 	LocalDiffPanel: () => null,
@@ -429,5 +431,146 @@ describe("GitPanel per-ref views", () => {
 		expect(itemNames).toContain("Branchcoder/coder · feature/shared");
 		expect(itemNames).toContain("Branchcoder/other-project · feature/shared");
 		expect(new Set(itemNames).size).toBe(itemNames.length);
+	});
+});
+
+describe("GitPanel view requests", () => {
+	const mockFirstRef = {
+		...MockChatDiffStatus,
+		git_branch: "feat/first",
+		pr_number: 23020,
+		url: "https://github.com/coder/coder/pull/23020",
+	};
+	const mockPrimaryRef = {
+		...MockChatDiffStatus,
+		git_branch: "fix/second",
+		pr_number: 23021,
+		url: "https://github.com/coder/coder/pull/23021",
+	};
+	const refs = {
+		remoteDiffStats: [mockFirstRef, mockPrimaryRef],
+		primaryDiffStatus: mockPrimaryRef,
+	};
+
+	it("switches a mounted panel to the requested ref", () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+		const { rerenderPanel } = renderPanel(refs);
+
+		rerenderPanel({
+			...refs,
+			viewRequest: {
+				id: 1,
+				view: { type: "remote", refId: viewIdFor(mockFirstRef) },
+			},
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
+		);
+	});
+
+	it("opens on the requested repo when the request comes before mount", async () => {
+		const user = userEvent.setup();
+		const input = mockComposer();
+		const otherRoot = "/workspace/another-repo";
+		renderPanel({
+			repositories: new Map([
+				[otherRoot, { ...repo, repo_root: otherRoot }],
+				[repoRoot, repo],
+			]),
+			chatInputRef: { current: input },
+			viewRequest: { id: 1, view: { type: "local", repoRoot } },
+		});
+
+		await user.click(screen.getByRole("button", { name: "Commit" }));
+
+		expect(input.insertText).toHaveBeenCalledWith(commitPrompt);
+	});
+
+	it("falls back to the primary ref when the requested ref is gone", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+		const { rerenderPanel } = renderPanel(refs);
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
+		await user.click(
+			within(await screen.findByRole("menu")).getByText("PR #23020"),
+		);
+
+		rerenderPanel({
+			...refs,
+			viewRequest: {
+				id: 1,
+				view: { type: "remote", refId: "remote:gone:branch" },
+			},
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockPrimaryRef.url,
+		);
+	});
+
+	it("does not show an applied request again after a remount", async () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+		const queryClient = createTestQueryClient();
+		const OverviewHarness: React.FC<{ isMounted: boolean }> = ({
+			isMounted,
+		}) => {
+			const overview = useChatOverview({ isRightPanelOpen: true });
+			return (
+				<Wrapper queryClient={queryClient}>
+					<button
+						type="button"
+						onClick={() =>
+							overview.recordTarget({
+								tabId: "git",
+								view: { type: "remote", refId: viewIdFor(mockFirstRef) },
+							})
+						}
+					>
+						Open the first ref
+					</button>
+					{isMounted && (
+						<GitPanel
+							chatId="test-chat"
+							onRefresh={() => true}
+							repositories={new Map()}
+							isExpanded={false}
+							isGitStatusLoading={false}
+							everDirty={new Set()}
+							chatInputRef={{ current: null }}
+							{...refs}
+							viewRequest={overview.gitViewRequest}
+							onViewRequestApplied={overview.onGitViewRequestApplied}
+						/>
+					)}
+				</Wrapper>
+			);
+		};
+		const user = userEvent.setup();
+		const { rerender } = render(<OverviewHarness isMounted />);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open the first ref" }),
+		);
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
+		);
+
+		rerender(<OverviewHarness isMounted={false} />);
+		rerender(<OverviewHarness isMounted />);
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockPrimaryRef.url,
+		);
 	});
 });

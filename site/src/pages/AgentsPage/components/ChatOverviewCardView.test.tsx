@@ -8,6 +8,7 @@ import {
 	ChatOverviewCardView,
 	type OverviewTarget,
 } from "./ChatOverviewCardView";
+import { viewIdFor } from "./GitPanel/gitViews";
 
 const mockChatOverview: ChatOverview = {
 	cost: { total_cost_micros: 1_250_000, unpriced_request_count: 0 },
@@ -55,19 +56,31 @@ const withSubagentStatuses = (statuses: ChatStatus[]): ChatOverview => ({
 });
 
 describe("ChatOverviewCardView", () => {
-	it.each<{ name: RegExp; tab: OverviewTarget["tabId"] }>([
-		{ name: /Cost/, tab: "summary" },
-		{ name: /ci\/queue-only-jobs/, tab: "git" },
-		{ name: /#123 Queue jobs/, tab: "git" },
-		{ name: /plan\.html/, tab: "summary" },
-	])("opens the $tab tab from the row named $name", async ({ name, tab }) => {
-		const user = userEvent.setup();
-		const { onOpenTarget } = renderCard();
+	it.each<{ name: RegExp; target: OverviewTarget }>([
+		{ name: /Cost/, target: { tabId: "summary" } },
+		{
+			name: /ci\/queue-only-jobs/,
+			target: { tabId: "git", view: { type: "local", repoRoot: "/repo" } },
+		},
+		{
+			name: /#123 Queue jobs/,
+			target: {
+				tabId: "git",
+				view: { type: "remote", refId: viewIdFor(MockChatDiffStatus) },
+			},
+		},
+		{ name: /plan\.html/, target: { tabId: "summary" } },
+	])(
+		"opens $target.tabId from the row named $name",
+		async ({ name, target }) => {
+			const user = userEvent.setup();
+			const { onOpenTarget } = renderCard();
 
-		await user.click(screen.getByRole("button", { name }));
+			await user.click(screen.getByRole("button", { name }));
 
-		expect(onOpenTarget).toHaveBeenCalledExactlyOnceWith({ tabId: tab });
-	});
+			expect(onOpenTarget).toHaveBeenCalledExactlyOnceWith(target);
+		},
+	);
 
 	it("opens nothing from a repository without changes", async () => {
 		const user = userEvent.setup();

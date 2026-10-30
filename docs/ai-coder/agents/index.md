@@ -152,7 +152,9 @@ The card lists the chat's cost, the uncommitted changes in each repository, the 
 The cost appears when the deployment has the AI Gateway entitlement and the chat has sent at least one model request.
 A repository without uncommitted changes shows zero added and zero deleted lines, and you cannot select it.
 
-Select a row to open the matching tab in the right panel, or select a subagent to open its chat.
+Select a row to open the matching tab in the right panel.
+A pull request row opens that pull request's diff in the **Git** tab, and a repository row with uncommitted changes opens those changes.
+Select a subagent to open its chat.
 The card returns when you close the right panel.
 
 The card shows by default.
