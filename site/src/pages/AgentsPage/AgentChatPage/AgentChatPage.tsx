@@ -96,6 +96,7 @@ import {
 	resolveModelSelector,
 } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { activeOrganizationSkills } from "../utils/skills";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -286,6 +287,11 @@ const AgentChatPage: React.FC = () => {
 	});
 	const organizationSkillsQuery = useQuery({
 		...organizationSkills(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
+	const organizationSkillPreferencesQuery = useQuery({
+		...organizationSkillPreferences(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
@@ -576,11 +582,6 @@ const AgentChatPage: React.FC = () => {
 	};
 
 	const chatTitle = chatQuery.data?.title;
-
-	const sshCommand =
-		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
-			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
-			: undefined;
 
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.

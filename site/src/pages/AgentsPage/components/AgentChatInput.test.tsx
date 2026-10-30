@@ -12,12 +12,15 @@ import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
@@ -213,6 +216,10 @@ describe("AgentChatInput", () => {
 		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
 			{ ...MockSkill, name: "release-notes" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey("org-1"),
+			MockOrganizationSkillPreferences,
+		);
 
 		render(
 			<AppProviders queryClient={queryClient}>
@@ -222,6 +229,7 @@ describe("AgentChatInput", () => {
 					chatOrganizationId="org-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -255,6 +263,10 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
@@ -271,6 +283,7 @@ describe("AgentChatInput", () => {
 					chatProjectId="project-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -855,7 +868,7 @@ describe("AgentChatInput", () => {
 				<AgentChatInput {...inputProps} inputRef={inputRef} />
 			</AppProviders>
 		);
-		const { rerender } = render(input());
+		const { rerender } = render(input(), { wrapper: MemoryRouter });
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
 		act(() => inputRef.current?.insertSkill("project", "triage"));
 		const chip = {

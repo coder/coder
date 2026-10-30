@@ -17,7 +17,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { isPendingRowID } from "./chatStore";
+import { isActiveChatStatus, isPendingRowID } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
@@ -247,15 +247,12 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
-		const canEditUserMessage =
-			isUser &&
-			messageId !== undefined &&
-			!isPendingRowID(messageId) &&
-			Boolean(onEditUserMessage);
-		const canJumpBetweenUserMessages =
-			isUser &&
-			Boolean(onJumpToUserMessage) &&
-			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
+
+		const copyText =
+			displayState?.hasCopyableContent && parsed && !hideSliceActions
+				? parsed.markdown
+				: undefined;
+
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -357,7 +354,9 @@ const ChatMessageItem = memo<{
 					<UserMessageActions
 						message={message}
 						copyText={copyText}
-						onEditUserMessage={onEditUserMessage}
+						onEditUserMessage={
+							isPendingRowID(message.id) ? undefined : onEditUserMessage
+						}
 						prevUserMessageKey={prevUserMessageKey}
 						nextUserMessageKey={nextUserMessageKey}
 						onJumpToUserMessage={onJumpToUserMessage}
@@ -536,7 +535,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// rendered anchors as handled, and its fallback for mutations that are
 		// neither clean appends nor clean prepends jumps to the oldest unhandled
 		// anchor, so historical rows must not be anchors at all.
-		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
 		const anchorUserRowKey =
 			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
 				? userRowKeys[userRowKeys.length - 1]
