@@ -135,7 +135,7 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Working for 12s" }),
+			canvas.getByRole("button", { name: "Working for 12s (1 step)" }),
 		);
 
 		// The reasoning text streams in through the smoothing buffer.
@@ -159,7 +159,7 @@ export const AnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: "The workspace looks healthy." },
 		]),
 	},
-	play: expandBlock("Working for 12s (2 steps)"),
+	play: expandBlock("Working for 12s (3 steps)"),
 };
 
 // Text before a web search renders above the live block.

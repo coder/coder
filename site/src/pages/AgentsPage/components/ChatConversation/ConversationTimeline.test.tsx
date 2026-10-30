@@ -629,7 +629,7 @@ describe("ConversationTimeline live working blocks", () => {
 		});
 
 		await user.click(
-			screen.getByRole("button", { name: "Working for 12s (2 steps)" }),
+			screen.getByRole("button", { name: "Working for 12s (3 steps)" }),
 		);
 		const thinking = await screen.findByRole("button", {
 			name: /Summarizing/,

@@ -54,7 +54,10 @@ export type WorkingBlock = {
 	pieceKeys: string[];
 	/** The work ordinal of the block's slice of the live row. */
 	liveWorkOrdinal?: number;
-	/** Distinct visible tools plus hidden provider calls, not rows. */
+	/**
+	 * Distinct visible tools, hidden provider calls, and visible reasoning
+	 * blocks. The live row's generic Thinking row is not a step.
+	 */
 	stepCount: number;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
@@ -535,6 +538,8 @@ type DraftSlice = {
 type Draft = {
 	slices: DraftSlice[];
 	toolIds: Set<string>;
+	/** Visible reasoning blocks: each is a row of the block. */
+	thoughts: number;
 	sourceBlocks: number;
 	searches: number;
 	hasProviderTool: boolean;
@@ -603,6 +608,7 @@ export const groupWorkingBlocks = (
 				slices: [],
 				toolIds: new Set(),
 				sourceBlocks: 0,
+				thoughts: 0,
 				searches: 0,
 				hasProviderTool: false,
 				times: [],
@@ -704,6 +710,8 @@ export const groupWorkingBlocks = (
 					);
 				} else if (block.type === "sources") {
 					draft.sourceBlocks += 1;
+				} else if (block.type === "thinking") {
+					draft.thoughts += 1;
 				}
 			}
 		}
@@ -856,7 +864,7 @@ export const groupWorkingBlocks = (
 	// Source blocks count as searches only when no provider search does,
 	// hidden or shown as a tool: some providers cite without a search, and an
 	// interrupt commits a search's result apart from the answer citing it.
-	const getStepCount = (draft: Draft) =>
+	const getActionCount = (draft: Draft) =>
 		draft.toolIds.size +
 		draft.searches +
 		(draft.searches > 0 || draft.hasProviderTool ? 0 : draft.sourceBlocks);
@@ -869,7 +877,7 @@ export const groupWorkingBlocks = (
 	// call arrives, and unfolds only when text follows it without steps.
 	const blockDrafts = drafts.filter(
 		(draft) =>
-			getStepCount(draft) > 0 ||
+			getActionCount(draft) > 0 ||
 			// Otherwise a tool-less ended turn's narration reads as its answer.
 			draft.containsNarration ||
 			(draft.containsLiveRow &&
@@ -925,7 +933,7 @@ export const groupWorkingBlocks = (
 			liveWorkOrdinal: draft.slices.find(
 				({ rowIndex }) => rowIndex === liveRowIndex,
 			)?.workOrdinals[0],
-			stepCount: getStepCount(draft),
+			stepCount: getActionCount(draft) + draft.thoughts,
 			isLive,
 			isPartial: draft.isPartial,
 			startedAt: draft.times.length > 0 ? Math.min(...draft.times) : undefined,
