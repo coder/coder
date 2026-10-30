@@ -77,11 +77,15 @@ func buildWorkspaceMCPTool(
 	if required == nil {
 		required = []string{}
 	}
+	parameters := tool.Schema
+	if parameters == nil {
+		parameters = map[string]any{}
+	}
 	return &WorkspaceMCPTool{
 		info: fantasy.ToolInfo{
 			Name:        modelName,
 			Description: tool.Description,
-			Parameters:  tool.Schema,
+			Parameters:  parameters,
 			Required:    required,
 			Parallel:    true,
 		},
