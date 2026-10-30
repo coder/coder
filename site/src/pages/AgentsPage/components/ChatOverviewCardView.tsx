@@ -72,9 +72,8 @@ type ChatOverviewCardViewProps = {
 };
 
 /**
- * Leaves out empty sections. A row calls `onOpenTarget` with the right panel
- * tab that holds its details. A repository without changes is not a row
- * button, because the Git panel has nothing to show for it.
+ * Leaves out empty sections. A repository without changes is plain text,
+ * because the Git panel has nothing to show for it.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
@@ -142,9 +141,9 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						label={repo.branch}
 						detail={<RepoDiffStat {...repo} />}
 						onClick={
-							repo.additions === 0 && repo.deletions === 0
-								? undefined
-								: () => onOpenTarget({ tabId: "git" })
+							hasChanges(repo)
+								? () => onOpenTarget({ tabId: "git" })
+								: undefined
 						}
 					/>
 				)}
@@ -249,20 +248,22 @@ const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 			`Excludes unpriced usage from ${unpriced} request${unpriced === 1 ? "" : "s"}`,
 		);
 	}
-	return parts.join(" · ");
+	return parts.length > 0 ? parts.join(" · ") : undefined;
 };
 
+type RepoChanges = Pick<OverviewRepo, "additions" | "deletions">;
+
+const hasChanges = ({ additions, deletions }: RepoChanges) =>
+	additions > 0 || deletions > 0;
+
 /** A clean repository shows +0 −0, where the shared badge shows nothing. */
-const RepoDiffStat: React.FC<Pick<OverviewRepo, "additions" | "deletions">> = ({
-	additions,
-	deletions,
-}) =>
-	additions === 0 && deletions === 0 ? (
+const RepoDiffStat: React.FC<RepoChanges> = (changes) =>
+	hasChanges(changes) ? (
+		<DiffStatBadge {...changes} />
+	) : (
 		<span className="font-mono text-[13px] text-content-secondary">
 			+0 &minus;0
 		</span>
-	) : (
-		<DiffStatBadge additions={additions} deletions={deletions} />
 	);
 
 type OverviewSectionProps = React.PropsWithChildren<{ title: string }>;
@@ -285,45 +286,41 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 	);
 };
 
-type OverviewListProps<T> = {
+type OverviewListSectionProps<T> = {
+	title: string;
 	items: readonly T[];
 	render: (item: T) => React.ReactNode;
 };
 
-/** A titled list, or nothing when the list is empty. */
+/**
+ * A titled list, or nothing when the list is empty. It shows the first rows
+ * and a toggle for the rest. The toggle stays rendered in both states, so
+ * keyboard focus stays on it.
+ */
 const OverviewListSection = <T,>({
 	title,
 	items,
 	render,
-}: OverviewListProps<T> & { title: string }) =>
-	items.length === 0 ? null : (
-		<OverviewSection title={title}>
-			<OverviewList items={items} render={render} />
-		</OverviewSection>
-	);
-
-/**
- * The first rows of a list and a toggle for the rest. The toggle stays
- * rendered in both states, so keyboard focus stays on it.
- */
-const OverviewList = <T,>({ items, render }: OverviewListProps<T>) => {
+}: OverviewListSectionProps<T>) => {
 	const [expanded, setExpanded] = useState(false);
-	const hiddenCount = items.length - OVERVIEW_MAX_LIST_ROWS;
-	if (hiddenCount <= 0) {
-		return items.map(render);
+	if (items.length === 0) {
+		return null;
 	}
+	const hiddenCount = items.length - OVERVIEW_MAX_LIST_ROWS;
 	return (
-		<>
+		<OverviewSection title={title}>
 			{(expanded ? items : items.slice(0, OVERVIEW_MAX_LIST_ROWS)).map(render)}
-			<button
-				type="button"
-				aria-expanded={expanded}
-				onClick={() => setExpanded(!expanded)}
-				className="-mx-1.5 rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-			>
-				{expanded ? "Show less" : `Show ${hiddenCount} more`}
-			</button>
-		</>
+			{hiddenCount > 0 && (
+				<button
+					type="button"
+					aria-expanded={expanded}
+					onClick={() => setExpanded(!expanded)}
+					className="-mx-1.5 rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{expanded ? "Show less" : `Show ${hiddenCount} more`}
+				</button>
+			)}
+		</OverviewSection>
 	);
 };
 
