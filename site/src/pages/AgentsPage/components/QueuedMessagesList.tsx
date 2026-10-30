@@ -293,7 +293,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && showEnterToSendHint && (
+							{isFirst && !item.isUnderEdit && !isPendingRow && (
 								<span
 									className={cn(
 										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
