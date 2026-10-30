@@ -3053,11 +3053,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/available-fields`
 
+Returns the claim field names found in the stored OIDC claims of this organization's members.
+Use it to choose a `field` for group or role sync.
+Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3092,12 +3096,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/field-values`
 
+Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.
+Use it to find the values to put in a group or role `mapping`.
+Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 ### Parameters
 
-| Name           | In    | Type           | Required | Description     |
-|----------------|-------|----------------|----------|-----------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID |
-| `claimField`   | query | string(string) | true     | Claim Field     |
+| Name           | In    | Type           | Required | Description                                                                                                            |
+|----------------|-------|----------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID, name, or `default` for the default organization.                                                      |
+| `claimField`   | query | string(string) | true     | Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty. |
 
 ### Example responses
 
@@ -3132,11 +3140,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/groups`
 
+Returns how an organization syncs its groups from the identity provider, including the claim `field`, the `mapping` to Coder groups, and any `regex_filter`.
+Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3184,6 +3195,11 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups`
 
+Replaces all of an organization's group sync settings, so any field you omit resets.
+To change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.
+Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Rejects a request that sets the deprecated `legacy_group_name_mapping`.
+
 > Body parameter
 
 ```json
@@ -3208,10 +3224,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                               | Required | Description     |
-|----------------|------|--------------------------------------------------------------------|----------|-----------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID |
-| `body`         | body | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) | true     | New settings    |
+| Name           | In   | Type                                                               | Required | Description                                                       |
+|----------------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                       | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) | true     | New group sync settings, which replace the current ones.          |
 
 ### Example responses
 
@@ -3259,6 +3275,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`
 
+Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.
+Use it to change how groups are read from the identity provider without resending the mapping.
+Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3271,10 +3291,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                         | Required | Description             |
-|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------|
-| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name |
-| `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New config values       |
+| Name           | In   | Type                                                                                         | Required | Description                                                                                           |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                                 | true     | Organization ID, name, or `default` for the default organization.                                     |
+| `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New values for `field`, `regex_filter`, and `auto_create_missing_groups`. The mapping stays as it is. |
 
 ### Example responses
 
@@ -3322,6 +3342,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`
 
+Adds and removes entries in an organization's group `mapping`, and keeps the claim `field`, `regex_filter`, and `auto_create_missing_groups`.
+An entry that appears in both `add` and `remove` ends up removed.
+Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3343,10 +3367,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                           | Required | Description                                   |
-|----------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
-| `organization` | path | string(uuid)                                                                                   | true     | Organization ID or name                       |
-| `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+| Name           | In   | Type                                                                                           | Required | Description                                                       |
+|----------------|------|------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                                   | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove                     |
 
 ### Example responses
 
@@ -3393,11 +3417,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 `GET /api/v2/organizations/{organization}/settings/idpsync/roles`
 
+Returns how an organization syncs organization roles from the identity provider, including the claim `field` and the `mapping` to role names.
+Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -3439,6 +3466,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles`
 
+Replaces all of an organization's role sync settings, so any field you omit resets.
+To change only the claim `field`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`.
+Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3457,10 +3488,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                             | Required | Description     |
-|----------------|------|------------------------------------------------------------------|----------|-----------------|
-| `organization` | path | string(uuid)                                                     | true     | Organization ID |
-| `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New settings    |
+| Name           | In   | Type                                                             | Required | Description                                                       |
+|----------------|------|------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                     | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New role sync settings, which replace the current ones.           |
 
 ### Example responses
 
@@ -3502,6 +3533,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`
 
+Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
+Use it to change which claim carries roles without resending the mapping.
+Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3512,10 +3547,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                       | Required | Description             |
-|----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------|
-| `organization` | path | string(uuid)                                                                               | true     | Organization ID or name |
-| `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New config values       |
+| Name           | In   | Type                                                                                       | Required | Description                                                       |
+|----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                               | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New value for `field`. The mapping stays as it is.                |
 
 ### Example responses
 
@@ -3557,6 +3592,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`
 
+Adds and removes entries in an organization's role `mapping`, and keeps the claim `field`.
+An entry that appears in both `add` and `remove` ends up removed.
+Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3578,10 +3617,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name           | In   | Type                                                                                         | Required | Description                                   |
-|----------------|------|----------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
-| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name                       |
-| `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+| Name           | In   | Type                                                                                         | Required | Description                                                       |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                                 | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove                     |
 
 ### Example responses
 
@@ -3822,6 +3861,10 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 
 `GET /api/v2/settings/idpsync/available-fields`
 
+Returns the claim field names found in the stored OIDC claims of all users on the deployment.
+Use it to choose a `field` for organization sync.
+Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
+
 ### Parameters
 
 | Name           | In   | Type         | Required | Description     |
@@ -3861,12 +3904,16 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimF
 
 `GET /api/v2/settings/idpsync/field-values`
 
+Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.
+Use it to find the values to put in an organization `mapping`.
+Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name           | In    | Type           | Required | Description     |
-|----------------|-------|----------------|----------|-----------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID |
-| `claimField`   | query | string(string) | true     | Claim Field     |
+| Name           | In    | Type           | Required | Description                                                                                                            |
+|----------------|-------|----------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID                                                                                                        |
+| `claimField`   | query | string(string) | true     | Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty. |
 
 ### Example responses
 
@@ -3900,6 +3947,10 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/organization \
 ```
 
 `GET /api/v2/settings/idpsync/organization`
+
+Returns how the deployment syncs organization membership from the identity provider, including the claim `field`, the `mapping` to organizations, and `organization_assign_default`.
+This setting is deployment-wide and isn't scoped to one organization.
+Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
 
 ### Example responses
 
@@ -3942,6 +3993,10 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 `PATCH /api/v2/settings/idpsync/organization`
 
+Replaces all of the deployment's organization sync settings, so any field you omit resets.
+To change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
+Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -3961,9 +4016,9 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description  |
-|--------|------|----------------------------------------------------------------------------------|----------|--------------|
-| `body` | body | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) | true     | New settings |
+| Name   | In   | Type                                                                             | Required | Description                                                     |
+|--------|------|----------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| `body` | body | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) | true     | New organization sync settings, which replace the current ones. |
 
 ### Example responses
 
@@ -4006,6 +4061,10 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
 
 `PATCH /api/v2/settings/idpsync/organization/config`
 
+Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.
+This setting is deployment-wide and isn't scoped to one organization.
+Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -4017,9 +4076,9 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                       | Required | Description       |
-|--------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------|
-| `body` | body | [codersdk.PatchOrganizationIDPSyncConfigRequest](schemas.md#codersdkpatchorganizationidpsyncconfigrequest) | true     | New config values |
+| Name   | In   | Type                                                                                                       | Required | Description                                                              |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------|
+| `body` | body | [codersdk.PatchOrganizationIDPSyncConfigRequest](schemas.md#codersdkpatchorganizationidpsyncconfigrequest) | true     | New values for `field` and `assign_default`. The mapping stays as it is. |
 
 ### Example responses
 
@@ -4061,6 +4120,10 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapp
 ```
 
 `PATCH /api/v2/settings/idpsync/organization/mapping`
+
+Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.
+An entry that appears in both `add` and `remove` ends up removed.
+Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 
 > Body parameter
 

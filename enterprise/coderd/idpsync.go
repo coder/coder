@@ -20,11 +20,13 @@ import (
 )
 
 // @Summary Get group IdP Sync settings by organization
+// @Description Returns how an organization syncs its groups from the identity provider, including the claim `field`, the `mapping` to Coder groups, and any `regex_filter`.
+// @Description Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID get-group-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups [get]
 func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -48,13 +50,17 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update group IdP Sync settings by organization
+// @Description Replaces all of an organization's group sync settings, so any field you omit resets.
+// @Description To change only the claim `field`, `regex_filter`, and `auto_create_missing_groups`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`.
+// @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Rejects a request that sets the deprecated `legacy_group_name_mapping`.
 // @ID update-group-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.GroupSyncSettings true "New settings"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.GroupSyncSettings true "New group sync settings, which replace the current ones."
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups [patch]
 func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -132,14 +138,17 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Update group IdP Sync config
+// @Description Updates an organization's group sync `field`, `regex_filter`, and `auto_create_missing_groups`, and keeps the existing `mapping`.
+// @Description Use it to change how groups are read from the identity provider without resending the mapping.
+// @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-group-idp-sync-config
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
-// @Param organization path string true "Organization ID or name" format(uuid)
-// @Param request body codersdk.PatchGroupIDPSyncConfigRequest true "New config values"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.PatchGroupIDPSyncConfigRequest true "New values for `field`, `regex_filter`, and `auto_create_missing_groups`. The mapping stays as it is."
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups/config [patch]
 func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -205,13 +214,16 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Update group IdP Sync mapping
+// @Description Adds and removes entries in an organization's group `mapping`, and keeps the claim `field`, `regex_filter`, and `auto_create_missing_groups`.
+// @Description An entry that appears in both `add` and `remove` ends up removed.
+// @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-group-idp-sync-mapping
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
-// @Param organization path string true "Organization ID or name" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups/mapping [patch]
 func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
@@ -279,11 +291,13 @@ func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Get role IdP Sync settings by organization
+// @Description Returns how an organization syncs organization roles from the identity provider, including the claim `field` and the `mapping` to role names.
+// @Description Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID get-role-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles [get]
 func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -307,13 +321,16 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update role IdP Sync settings by organization
+// @Description Replaces all of an organization's role sync settings, so any field you omit resets.
+// @Description To change only the claim `field`, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`, and to add or remove mapping entries, use `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`.
+// @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-role-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.RoleSyncSettings true "New settings"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.RoleSyncSettings true "New role sync settings, which replace the current ones."
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles [patch]
 func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -372,14 +389,17 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Update role IdP Sync config
+// @Description Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
+// @Description Use it to change which claim carries roles without resending the mapping.
+// @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-role-idp-sync-config
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
-// @Param organization path string true "Organization ID or name" format(uuid)
-// @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New config values"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New value for `field`. The mapping stays as it is."
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles/config [patch]
 func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -439,13 +459,16 @@ func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update role IdP Sync mapping
+// @Description Adds and removes entries in an organization's role `mapping`, and keeps the claim `field`.
+// @Description An entry that appears in both `add` and `remove` ends up removed.
+// @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-role-idp-sync-mapping
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
-// @Param organization path string true "Organization ID or name" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles/mapping [patch]
 func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
@@ -507,6 +530,9 @@ func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Get organization IdP Sync settings
+// @Description Returns how the deployment syncs organization membership from the identity provider, including the claim `field`, the `mapping` to organizations, and `organization_assign_default`.
+// @Description This setting is deployment-wide and isn't scoped to one organization.
+// @Description Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID get-organization-idp-sync-settings
 // @Security CoderSessionToken
 // @Produce json
@@ -537,13 +563,16 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Update organization IdP Sync settings
+// @Description Replaces all of the deployment's organization sync settings, so any field you omit resets.
+// @Description To change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
+// @Description Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID update-organization-idp-sync-settings
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
-// @Param request body codersdk.OrganizationSyncSettings true "New settings"
+// @Param request body codersdk.OrganizationSyncSettings true "New organization sync settings, which replace the current ones."
 // @Router /api/v2/settings/idpsync/organization [patch]
 func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -601,13 +630,16 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 }
 
 // @Summary Update organization IdP Sync config
+// @Description Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.
+// @Description This setting is deployment-wide and isn't scoped to one organization.
+// @Description Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID update-organization-idp-sync-config
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
-// @Param request body codersdk.PatchOrganizationIDPSyncConfigRequest true "New config values"
+// @Param request body codersdk.PatchOrganizationIDPSyncConfigRequest true "New values for `field` and `assign_default`. The mapping stays as it is."
 // @Router /api/v2/settings/idpsync/organization/config [patch]
 func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -667,6 +699,9 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Update organization IdP Sync mapping
+// @Description Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.
+// @Description An entry that appears in both `add` and `remove` ends up removed.
+// @Description Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID update-organization-idp-sync-mapping
 // @Security CoderSessionToken
 // @Produce json
@@ -734,11 +769,14 @@ func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.
 }
 
 // @Summary Get the available organization idp sync claim fields
+// @Description Returns the claim field names found in the stored OIDC claims of this organization's members.
+// @Description Use it to choose a `field` for group or role sync.
+// @Description Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID get-the-available-organization-idp-sync-claim-fields
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 200 {array} string
 // @Router /api/v2/organizations/{organization}/settings/idpsync/available-fields [get]
 func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
@@ -747,6 +785,9 @@ func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Get the available idp sync claim fields
+// @Description Returns the claim field names found in the stored OIDC claims of all users on the deployment.
+// @Description Use it to choose a `field` for organization sync.
+// @Description Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID get-the-available-idp-sync-claim-fields
 // @Security CoderSessionToken
 // @Produce json
@@ -781,12 +822,15 @@ func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *h
 }
 
 // @Summary Get the organization idp sync claim field values
+// @Description Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.
+// @Description Use it to find the values to put in a group or role `mapping`.
+// @Description Requires permission to read IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID get-the-organization-idp-sync-claim-field-values
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param claimField query string true "Claim Field" format(string)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param claimField query string true "Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty." format(string)
 // @Success 200 {array} string
 // @Router /api/v2/organizations/{organization}/settings/idpsync/field-values [get]
 func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
@@ -795,12 +839,15 @@ func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *h
 }
 
 // @Summary Get the idp sync claim field values
+// @Description Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.
+// @Description Use it to find the values to put in an organization `mapping`.
+// @Description Requires permission to read IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID get-the-idp-sync-claim-field-values
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param claimField query string true "Claim Field" format(string)
+// @Param claimField query string true "Name of the claim field to list values for, such as a field that `available-fields` returns. Returns `400` when empty." format(string)
 // @Success 200 {array} string
 // @Router /api/v2/settings/idpsync/field-values [get]
 func (api *API) deploymentIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
