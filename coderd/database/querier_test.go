@@ -7683,6 +7683,7 @@ func createTmplVersionAndPreset(
 
 type createPrebuiltWorkspaceOpts struct {
 	failedJob      bool
+	succeededJob   bool
 	createdAt      time.Time
 	readyAgents    int
 	notReadyAgents int
@@ -7703,12 +7704,19 @@ func createPrebuiltWorkspace(
 	if opts != nil && opts.failedJob {
 		jobError = sql.NullString{String: "failed", Valid: true}
 	}
+	var jobStartedAt, jobCompletedAt sql.NullTime
+	if opts != nil && opts.succeededJob {
+		jobStartedAt = sql.NullTime{Time: now.Add(-1 * time.Minute), Valid: true}
+		jobCompletedAt = sql.NullTime{Time: now, Valid: true}
+	}
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		OrganizationID: orgID,
 
-		CreatedAt: now.Add(-1 * time.Minute),
-		Error:     jobError,
+		CreatedAt:   now.Add(-1 * time.Minute),
+		StartedAt:   jobStartedAt,
+		CompletedAt: jobCompletedAt,
+		Error:       jobError,
 	})
 
 	// create ready agents
@@ -8413,7 +8421,9 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		name string
 		// true - build is successful
 		// false - build is unsuccessful
-		buildSuccesses  []bool
+		buildSuccesses []bool
+		// newestInFlight adds a pending build after buildSuccesses, as the reconciler sees while it is still creating.
+		newestInFlight  bool
 		hardLimit       int64
 		expHitHardLimit bool
 	}{
@@ -8459,6 +8469,20 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			hardLimit:       3,
 			expHitHardLimit: false,
 		},
+		{
+			name:            "last 3 builds are failed and a newer one is in flight - hard limit is reached",
+			buildSuccesses:  []bool{false, false, false},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "last build is successful and a newer one is in flight - hard limit is NOT reached",
+			buildSuccesses:  []bool{false, false, true},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: false,
+		},
 		// hardLimit set to zero, implicitly disables the hard limit.
 		{
 			name:            "despite 5 failed builds, the hard limit is not reached because it's disabled.",
@@ -8485,8 +8509,14 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
 			for idx, buildSuccess := range tc.buildSuccesses {
 				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
-					failedJob: !buildSuccess,
-					createdAt: hourBefore.Add(time.Duration(idx) * time.Second),
+					failedJob:    !buildSuccess,
+					succeededJob: buildSuccess,
+					createdAt:    hourBefore.Add(time.Duration(idx) * time.Second),
+				})
+			}
+			if tc.newestInFlight {
+				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+					createdAt: hourBefore.Add(time.Duration(len(tc.buildSuccesses)) * time.Second),
 				})
 			}
 
