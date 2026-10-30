@@ -234,7 +234,7 @@ export const PremiumWithAgentHours: Story = {
 			canvas.queryByRole("link", { name: "Manage usage" }),
 		).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: "View docs" }),
+			canvas.getByRole("link", { name: /^View docs/ }),
 		).toBeInTheDocument();
 	},
 };
