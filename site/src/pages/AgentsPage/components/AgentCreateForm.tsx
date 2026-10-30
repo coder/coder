@@ -308,6 +308,8 @@ type AgentCreateFormProps = {
 	 * remounts when the project changes.
 	 */
 	project?: Pick<TypesGen.ChatProject, "id" | "organization_id">;
+	/** Composes a chat outside every project: the project picker is hidden. */
+	withoutProject?: boolean;
 	prefill?: AgentCreatePrefill;
 	fillWidth?: boolean;
 };
@@ -330,6 +332,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	workspacesError,
 	isWorkspacesLoading,
 	project,
+	withoutProject,
 	prefill,
 	fillWidth,
 }) => {
@@ -443,7 +446,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	// The project picker only exists on the general composer; a `project` prop
 	// already fixes the project. The selection is not saved, so a remembered
 	// choice cannot silently file later chats into a project.
-	const isProjectPickerEnabled = !project;
+	const isProjectPickerEnabled = !project && !withoutProject;
 	const projectsQuery = useQuery({
 		...chatProjects(),
 		enabled: isProjectPickerEnabled,
