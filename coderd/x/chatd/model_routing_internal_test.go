@@ -1079,7 +1079,7 @@ func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
 	factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
 		apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
 		attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
-		seen <- seenRequest{apiKeyID: apiKeyID, workspaceID: attr.WorkspaceID, organizationID: attr.OrganizationID}
+		seen <- seenRequest{apiKeyID: apiKeyID, workspaceID: attr.WorkspaceID, organizationID: attr.ChatOrganizationID}
 	})}
 	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
 	call := fantasy.Call{Prompt: []fantasy.Message{{
