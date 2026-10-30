@@ -1232,6 +1232,7 @@ const (
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
 	ChatModelOverrideContextAdvisor         ChatModelOverrideContext = "advisor"
+	ChatModelOverrideContextComputerUse     ChatModelOverrideContext = "computer_use"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -1241,7 +1242,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
-		ChatModelOverrideContextAdvisor:
+		ChatModelOverrideContextAdvisor,
+		ChatModelOverrideContextComputerUse:
 		return true
 	default:
 		return false
@@ -1256,6 +1258,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
 		ChatModelOverrideContextAdvisor,
+		ChatModelOverrideContextComputerUse,
 	}
 }
 
@@ -1370,16 +1373,12 @@ type UpdateUserChatCompactionThresholdRequest struct {
 }
 
 // AdvisorConfig is the deployment-wide runtime configuration for the
-// experimental chat advisor.
-//
-// EXPERIMENTAL: this type is experimental and is subject to change.
+// chat advisor.
 type AdvisorConfig struct {
-	// Enabled reflects whether the chat-advisor experiment is active.
-	// The experiment flag is the sole gate; this field is read-only and
-	// always matches the experiment state regardless of the stored DB value.
+	// Enabled is always true and cannot be changed.
 	Enabled bool `json:"enabled"`
 	// MaxUsesPerRun caps how many times the advisor can be invoked per
-	// chat run. 0 means unlimited.
+	// chat turn. 0 means unlimited.
 	MaxUsesPerRun int `json:"max_uses_per_run"`
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
@@ -1392,8 +1391,9 @@ type UpdateAdvisorConfigRequest struct {
 	MaxOutputTokens int64 `json:"max_output_tokens"`
 }
 
-// ChatComputerUseProvider identifies the provider that backs computer use for
-// the virtual desktop.
+// ChatComputerUseProvider identifies the computer use tool flavor. Chatd
+// derives it from the AI provider type of the model a computer use chat runs
+// on.
 type ChatComputerUseProvider string
 
 const (
@@ -1410,18 +1410,6 @@ var AllChatComputerUseProviders = []ChatComputerUseProvider{
 // Valid reports whether p is a supported computer use provider.
 func (p ChatComputerUseProvider) Valid() bool {
 	return slices.Contains(AllChatComputerUseProviders, p)
-}
-
-// ChatComputerUseProviderResponse is the response for getting the computer use
-// provider setting.
-type ChatComputerUseProviderResponse struct {
-	Provider ChatComputerUseProvider `json:"provider"`
-}
-
-// UpdateChatComputerUseProviderRequest is the request to update the computer use
-// provider setting.
-type UpdateChatComputerUseProviderRequest struct {
-	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
@@ -1999,17 +1987,6 @@ type UpdateChatModelRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
-// ChatGitChange represents a git file change detected during a chat session.
-type ChatGitChange struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	ChatID      uuid.UUID `json:"chat_id" format:"uuid"`
-	FilePath    string    `json:"file_path"`
-	ChangeType  string    `json:"change_type"` // added, modified, deleted, renamed
-	OldPath     *string   `json:"old_path,omitempty"`
-	DiffSummary *string   `json:"diff_summary,omitempty"`
-	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
-}
-
 // ChatDiffStatus represents cached diff status for a chat. The URL
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
@@ -2064,18 +2041,13 @@ type ChatDiffContents struct {
 // Chat git watch error messages. These are the user-visible messages
 // the server returns in 400 responses from
 // /api/v2/chats/{id}/stream/git when the chat cannot be
-// observed through a workspace agent. They are exported so the CLI
-// (and any future consumer) can match them structurally via
-// IsChatGitWatchFallbackMessage instead of coupling to exact wording.
-// Keep these in sync with coderd/exp_chats.go.
+// observed through a workspace agent.
 const (
 	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
 	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
 	ChatGitWatchNoEligibleAgentMessage   = "No eligible agent found for chat workspace."
 	// ChatGitWatchAgentStatePrefix is the common prefix of the
-	// message produced by ChatGitWatchAgentStateMessage. The CLI
-	// uses it as a mechanical fingerprint for the "agent not yet
-	// connected" case without depending on the formatted values.
+	// message produced by ChatGitWatchAgentStateMessage.
 	ChatGitWatchAgentStatePrefix = "Agent state is "
 )
 
@@ -2084,22 +2056,6 @@ const (
 // chat workspace's agent is not in the connected state.
 func ChatGitWatchAgentStateMessage(actual WorkspaceAgentStatus) string {
 	return fmt.Sprintf("%s%q, it must be in the %q state.", ChatGitWatchAgentStatePrefix, actual, WorkspaceAgentConnected)
-}
-
-// IsChatGitWatchFallbackMessage reports whether msg matches one of
-// the 400-response messages /api/v2/chats/{id}/stream/git
-// emits when the chat cannot be observed through a workspace agent.
-// Clients should treat these cases as "no diff available" and fall
-// back to the empty remote diff instead of surfacing a hard error.
-func IsChatGitWatchFallbackMessage(msg string) bool {
-	trimmed := strings.TrimSpace(msg)
-	switch trimmed {
-	case ChatGitWatchNoWorkspaceMessage,
-		ChatGitWatchWorkspaceNotFoundMessage,
-		ChatGitWatchNoEligibleAgentMessage:
-		return true
-	}
-	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
 }
 
 // ChatStreamEventType represents the kind of chat stream update.
@@ -3105,8 +3061,8 @@ func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPro
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.
-func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+func (c *Client) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/advisor", nil)
 	if err != nil {
 		return AdvisorConfig{}, err
 	}
@@ -3119,36 +3075,8 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 }
 
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
-func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// GetChatComputerUseProvider returns the deployment-wide computer use provider.
-func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (ChatComputerUseProviderResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", nil)
-	if err != nil {
-		return ChatComputerUseProviderResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatComputerUseProviderResponse
-	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// UpdateChatComputerUseProvider updates the deployment-wide computer use
-// provider.
-func (c *ExperimentalClient) UpdateChatComputerUseProvider(ctx context.Context, req UpdateChatComputerUseProviderRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
+func (c *Client) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/advisor", req)
 	if err != nil {
 		return err
 	}

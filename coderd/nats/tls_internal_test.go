@@ -82,18 +82,13 @@ func generateTestCA(t *testing.T, sequence int32) *cryptokeys.NATSCA {
 // (clusterRouteAddress), so ip must be 127.0.0.1 for routes to form.
 func newTLSPubsub(t *testing.T, ca cryptokeys.SigningKeycache, ip net.IP) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, nil)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	ps, err := New(ctx, logger, Options{
+	return newTestPubsub(t, Options{
 		ClusterHost:       ip.String(),
 		ClusterPort:       natsserver.RANDOM_PORT,
 		disableCluster:    false,
 		ClusterCA:         ca,
 		clusterTLSTimeout: testClusterTLSTimeout,
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = ps.Close() })
-	return ps
 }
 
 // setLeafSAN overrides a node's leaf IP SAN after construction, for tests that

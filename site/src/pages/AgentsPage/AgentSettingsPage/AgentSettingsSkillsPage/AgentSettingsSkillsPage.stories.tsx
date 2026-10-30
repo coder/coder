@@ -1,14 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import { API } from "#/api/api";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
+import type { OrganizationSkillPreferences } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockOrganization3,
 	MockUserMember,
 } from "#/testHelpers/entities";
-import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
+import {
+	MockDisabledSkill,
+	MockOrganizationSkillPreferences,
+	MockSkills,
+} from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -63,6 +73,120 @@ export const OrganizationSkills: Story = {
 				key: organizationSkills(MockOrganization3.id).queryKey,
 				data: [MockDisabledSkill],
 			},
+			{
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
+				data: MockOrganizationSkillPreferences,
+			},
 		],
+	},
+};
+
+const mockMemberControlsPreferences: OrganizationSkillPreferences = {
+	...MockOrganizationSkillPreferences,
+	members_can_disable_skills: true,
+	disabled_skill_ids: [MockSkills[1].id],
+};
+
+export const MemberControls: Story = {
+	parameters: {
+		queries: [
+			{ key: userSkills().queryKey, data: MockSkills },
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: [...MockSkills.slice(0, 2), MockDisabledSkill],
+			},
+			{
+				key: organizationSkills(MockOrganization2.id).queryKey,
+				data: [MockSkills[2]],
+			},
+			{
+				key: organizationSkills(MockOrganization3.id).queryKey,
+				data: [MockDisabledSkill],
+			},
+			{
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
+				data: mockMemberControlsPreferences,
+			},
+		],
+	},
+};
+
+const mockAllSkillsOffPreferences: OrganizationSkillPreferences = {
+	...mockMemberControlsPreferences,
+	all_skills_disabled: true,
+};
+
+export const AllOrganizationSkillsTurnedOff: Story = {
+	parameters: {
+		queries: [
+			{ key: userSkills().queryKey, data: MockSkills },
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: [...MockSkills.slice(0, 2), MockDisabledSkill],
+			},
+			{
+				key: organizationSkills(MockOrganization2.id).queryKey,
+				data: [MockSkills[2]],
+			},
+			{
+				key: organizationSkills(MockOrganization3.id).queryKey,
+				data: [MockDisabledSkill],
+			},
+			{
+				key: organizationSkillPreferencesKey(MockDefaultOrganization.id),
+				data: mockAllSkillsOffPreferences,
+			},
+		],
+	},
+};
+
+export const OrganizationSkillChoicesError: Story = {
+	parameters: {
+		queries: [
+			{ key: userSkills().queryKey, data: MockSkills },
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: [...MockSkills.slice(0, 2), MockDisabledSkill],
+			},
+			{
+				key: organizationSkills(MockOrganization2.id).queryKey,
+				data: [MockSkills[2]],
+			},
+			{
+				key: organizationSkills(MockOrganization3.id).queryKey,
+				data: [MockDisabledSkill],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockRejectedValue(new Error("Failed to load your skill choices."));
+	},
+};
+
+export const OrganizationSkillChoicesLoading: Story = {
+	parameters: {
+		queries: [
+			{ key: userSkills().queryKey, data: MockSkills },
+			{
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
+				data: [...MockSkills.slice(0, 2), MockDisabledSkill],
+			},
+			{
+				key: organizationSkills(MockOrganization2.id).queryKey,
+				data: [MockSkills[2]],
+			},
+			{
+				key: organizationSkills(MockOrganization3.id).queryKey,
+				data: [MockDisabledSkill],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillPreferences").mockReturnValue(
+			new Promise(() => {}),
+		);
 	},
 };

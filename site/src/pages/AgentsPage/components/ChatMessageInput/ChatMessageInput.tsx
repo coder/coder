@@ -41,7 +41,10 @@ import {
 	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -51,6 +54,7 @@ import {
 	type SkillSourceList,
 } from "../../utils/skillAliases";
 import {
+	activeOrganizationSkills,
 	filterSkillsByQuery,
 	isSkillTriggerToken,
 	type SkillsScope,
@@ -782,6 +786,7 @@ const ChatMessageInput = ({
 		useState<HTMLDivElement | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
+
 	const hasSkillsTrigger = Boolean(skillsTrigger);
 	const hasPersonalSkillsOverride = personalSkillsOverride !== undefined;
 	const personalSkillsQueryEnabled =
@@ -792,10 +797,19 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const organizationSource = useStoredSkillSource(
-		organizationSkills(organizationId ?? ""),
-		{ hasSource: Boolean(organizationId), isTriggerActive: hasSkillsTrigger },
-	);
+
+	const organizationQueryEnabled = hasSkillsTrigger && Boolean(organizationId);
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(organizationId ?? ""),
+		enabled: organizationQueryEnabled,
+		staleTime: 60_000,
+	});
+	const organizationPreferencesQuery = useQuery({
+		...organizationSkillPreferences(organizationId ?? ""),
+		enabled: organizationQueryEnabled,
+		staleTime: 60_000,
+	});
+
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
@@ -806,6 +820,27 @@ const ChatMessageInput = ({
 		enabled: hasProject && hasSkillsTrigger,
 		staleTime: 60_000,
 	});
+
+	// The member's opt-outs come from a second request, so a list with
+	// enabled skills waits for it.
+	const organizationSkillList = organizationId
+		? activeOrganizationSkills(
+				organizationSkillsQuery.data,
+				organizationPreferencesQuery.data,
+			)
+		: [];
+
+	const isOrganizationUnresolved =
+		organizationQueryEnabled && organizationSkillList === undefined;
+	const isOrganizationError =
+		isOrganizationUnresolved &&
+		(organizationSkillsQuery.isError || organizationPreferencesQuery.isError);
+	const isOrganizationLoading =
+		isOrganizationUnresolved &&
+		!isOrganizationError &&
+		(organizationSkillsQuery.isFetching ||
+			organizationPreferencesQuery.isFetching);
+
 	const projectUsability = chatProjectUsability(
 		projectQuery,
 		projectSource.error,
@@ -824,12 +859,14 @@ const ChatMessageInput = ({
 		!isProjectUnusable &&
 		(projectSource.isError ||
 			(isProjectUsabilityUnknown && projectQuery.isError));
+
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
 	);
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
+
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization, project, or workspace has a known empty list.
@@ -838,7 +875,7 @@ const ChatMessageInput = ({
 	// turns without project skills.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
-		{ source: "org", skills: organizationSource.skills },
+		{ source: "org", skills: organizationSkillList },
 		{
 			source: "project",
 			skills: hasProject
@@ -847,6 +884,7 @@ const ChatMessageInput = ({
 		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
+
 	// A skill whose source list has not loaded stays a chip when pasted.
 	const isSkillAvailable = (source: SkillSource, name: string) => {
 		const skills = skillLists.find((list) => list.source === source)?.skills;
@@ -857,13 +895,15 @@ const ChatMessageInput = ({
 			resolveChatSlashCommandAvailability(command, skillLists) === "available",
 	);
 	const hasSlashCommands = availableSlashCommands.length > 0;
+
 	// Unknown skills, or a stale empty cache with a refetch in flight, must
 	// not close the menu: the trigger plugin records a closed trigger as
 	// dismissed, so skills arriving later could never reopen it.
 	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
-		organizationSource.isResolvedEmpty &&
+		organizationSkillList?.length === 0 &&
+		!organizationSkillsQuery.isFetching &&
 		(!hasProject ||
 			isProjectUnusable ||
 			(projectUsability === "usable" && projectSource.isResolvedEmpty)) &&
@@ -1243,7 +1283,7 @@ const ChatMessageInput = ({
 					skills={allFilteredSkills}
 					skillsLoading={
 						isPersonalSkillsLoading ||
-						organizationSource.isLoading ||
+						isOrganizationLoading ||
 						isProjectLoading ||
 						isWorkspaceSkillsLoading
 					}
@@ -1275,8 +1315,8 @@ const ChatMessageInput = ({
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isOrganizationLoading={organizationSource.isLoading}
-					isOrganizationError={organizationSource.isError}
+					isOrganizationLoading={isOrganizationLoading}
+					isOrganizationError={isOrganizationError}
 					isProjectLoading={isProjectLoading}
 					isProjectError={isProjectError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}

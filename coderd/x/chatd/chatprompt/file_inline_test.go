@@ -2,18 +2,17 @@ package chatprompt_test
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // userFileMessage builds a single persisted user message holding one
@@ -22,20 +21,9 @@ import (
 func userFileMessage(t *testing.T, name, mediaType string, data []byte) ([]database.ChatMessage, chatprompt.FileResolver) {
 	t.Helper()
 	fileID := uuid.New()
-	rawContent := mustJSON(t, []json.RawMessage{
-		mustJSON(t, map[string]any{
-			"type": "file",
-			"data": map[string]any{
-				"media_type": mediaType,
-				"file_id":    fileID.String(),
-			},
-		}),
-	})
-	messages := []database.ChatMessage{{
-		Role:       database.ChatMessageRoleUser,
-		Visibility: database.ChatMessageVisibilityBoth,
-		Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
-	}}
+	messages := []database.ChatMessage{
+		testMsgV1(codersdk.ChatMessageRoleUser, mustMarshalParts(t, codersdk.ChatMessageFile(fileID, mediaType, ""))),
+	}
 	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		result := make(map[uuid.UUID]chatprompt.FileData)
 		for _, id := range ids {

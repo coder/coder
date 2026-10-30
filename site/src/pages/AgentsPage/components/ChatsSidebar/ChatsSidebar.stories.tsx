@@ -18,6 +18,8 @@ import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	chatListKey,
 	infiniteChats,
+	infiniteProjectFolderChats,
+	projectFolderChatsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
@@ -36,7 +38,10 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
-import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters,
+	getSidebarChatListInput,
+} from "../../utils/agentSidebarFilters";
 import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -218,6 +223,24 @@ export const ChatWithTurnSummary: Story = {
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
 		],
+	},
+};
+
+export const ChatActionsTriggerFocusedWithKeyboard: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-keyboard-actions",
+				title: "Keyboard focused chat",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("button", {
+			name: "Open actions for Keyboard focused chat",
+		});
+		trigger.focus();
 	},
 };
 
@@ -528,7 +551,8 @@ export const ExpandCollapse: Story = {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-2");
 
-		await userEvent.click(toggle);
+		toggle.focus();
+		await userEvent.keyboard("{Enter}");
 	},
 };
 
@@ -2911,6 +2935,11 @@ const mockProjectChats = [
 	}),
 ];
 
+const launchFolderChatsKey = projectFolderChatsKey(
+	MockChatProject.id,
+	toChatListParams(getSidebarChatListInput(defaultSidebarFilters)),
+);
+
 export const ProjectFolderCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
@@ -2948,6 +2977,7 @@ export const ChatDroppedOnProjectFolder: Story = {
 	parameters: {
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 			{
 				key: chatListKey(
 					toChatListParams({ sources: defaultSidebarFilters.sources }),
@@ -2958,6 +2988,8 @@ export const ChatDroppedOnProjectFolder: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		// The move refetches the opened folder's chats.
+		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 	},
 	render: function ChatDroppedOnProjectFolderRender(args) {
 		// Stories have no API server, so the list must not fetch.
@@ -3028,6 +3060,7 @@ export const ProjectChatDragMutesItsFolder: Story = {
 				key: chatProjectsKey,
 				data: [MockChatProject, mockBillingProject],
 			},
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3050,6 +3083,7 @@ export const ProjectFolderExpanded: Story = {
 				key: chatProjectsKey,
 				data: [MockChatProject],
 			},
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3058,6 +3092,225 @@ export const ProjectFolderExpanded: Story = {
 			},
 			routing: agentsRouting,
 		}),
+	},
+};
+
+const mockPinnedProjectChat = buildChat({
+	id: "pinned-project-chat",
+	title: "Pinned project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 1,
+});
+
+const mockSecondPinnedProjectChat = buildChat({
+	id: "second-pinned-project-chat",
+	title: "Second pinned project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 2,
+});
+
+/** The pinned project chat is listed in Pinned and only counted in its folder. */
+export const ProjectFolderWithPinnedChat: Story = {
+	args: { chats: [...mockProjectChats, mockPinnedProjectChat] },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+/** A folder whose chats are all pinned shows their count, not its empty state. */
+export const ProjectFolderWithOnlyPinnedChats: Story = {
+	args: {
+		chats: [mockLooseChat, mockPinnedProjectChat, mockSecondPinnedProjectChat],
+	},
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+const mockOlderProjectChat = buildChat({
+	id: "older-project-chat",
+	title: "Older project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+});
+
+export const ProjectFolderWithUnloadedChat: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: launchFolderChatsKey,
+				data: { pages: [[mockOlderProjectChat]], pageParams: [0] },
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// More pins than the sidebar's first page holds leave this one unloaded.
+const mockUnloadedPinnedProjectChat = buildChat({
+	id: "unloaded-pinned-project-chat",
+	title: "Unloaded pinned project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 51,
+});
+
+export const ProjectFolderWithUnloadedPinnedChat: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: launchFolderChatsKey,
+				data: {
+					pages: [[mockUnloadedPinnedProjectChat, mockOlderProjectChat]],
+					pageParams: [0],
+				},
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// A full page (the query's limit is 50) means the folder has another page.
+const mockFullPageOfProjectChats = Array.from({ length: 50 }, (_, index) =>
+	buildChat({
+		id: `paged-project-chat-${index + 1}`,
+		title: `Project chat ${index + 1}`,
+		organization_id: MockChatProject.organization_id,
+		project_id: MockChatProject.id,
+	}),
+);
+
+export const ProjectFolderChatsLoadingNextPage: Story = {
+	args: { chats: [mockLooseChat] },
+	// The sidebar fills its parent, so it needs a height for the folder's
+	// end to scroll into view.
+	decorators: [
+		(Story) => (
+			<div className="h-[500px] w-[360px]">
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: launchFolderChatsKey,
+				data: { pages: [mockFullPageOfProjectChats], pageParams: [0] },
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
+	},
+	render: function ProjectFolderChatsLoadingNextPageRender(args) {
+		const { fetchNextPage } = useInfiniteQuery({
+			...infiniteProjectFolderChats(
+				MockChatProject.id,
+				getSidebarChatListInput(defaultSidebarFilters),
+			),
+			enabled: false,
+		});
+		// Pixel's browser does not report the sentinel's intersection, so
+		// start the next page here instead of by scrolling.
+		useEffect(() => {
+			void fetchNextPage();
+		}, [fetchNextPage]);
+		return <ChatsSidebar {...args} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const spinner = await canvas.findByTitle("Loading spinner");
+		spinner.scrollIntoView({ block: "end" });
+	},
+};
+
+export const ProjectFolderChatsLoading: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const ProjectFolderChatsLoadError: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockRejectedValue(
+			mockApiError({ message: "Failed to load chats." }),
+		);
+	},
+	play: async () => {
+		// The folder query retries before it reports the error.
+		await screen.findByRole(
+			"button",
+			{ name: `Retry loading chats in ${MockChatProject.name}` },
+			{ timeout: 10_000 },
+		);
 	},
 };
 
@@ -3253,7 +3506,10 @@ const mockEmojiProject: TypesGen.ChatProject = {
 export const ProjectFolderEmptyWithEmojiIcon: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
-		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
+		queries: [
+			{ key: chatProjectsKey, data: [mockEmojiProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${mockEmojiProject.id}`,

@@ -162,6 +162,13 @@ func TestACPHarnessSchemaAndGating(t *testing.T) {
 			server := &Server{db: db, experiments: tc.experiments}
 			tools := server.acpTools(context.Background(), rootChatToolsOptions{chat: chat, isPlanModeTurn: tc.plan})
 			require.Len(t, tools, tc.want)
+			prompt := buildSystemPrompt(nil, "", "", nil, "", "", "", systemPromptBehaviorContext{acpSubagentsAvailable: len(tools) > 0})
+			text := systemPromptText(t, prompt)
+			if tc.want > 0 {
+				require.Contains(t, text, acpSubagentPromptBlock)
+			} else {
+				require.NotContains(t, text, "<acp-subagents>")
+			}
 		})
 	}
 	toolset := acpToolset{harnesses: harnesses}
