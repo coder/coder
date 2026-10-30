@@ -6801,6 +6801,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/daus": {
             "get": {
+                "description": "Returns the number of daily active users across the deployment for the last 60 days, one entry per day.\nRequires permission to read deployment configuration, which the Owner and Auditor roles have.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6812,7 +6813,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Time-zone offset (e.g. -2)",
+                        "description": "Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `, that sets where each day starts. The default, ` + "`" + `0` + "`" + `, is UTC.",
                         "name": "tz_offset",
                         "in": "query",
                         "required": true
@@ -6835,6 +6836,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/templates": {
             "get": {
+                "description": "Returns usage insights for templates between ` + "`" + `start_time` + "`" + ` and ` + "`" + `end_time` + "`" + `: active users, total usage time, app usage, and template parameter usage, plus active users for each ` + "`" + `interval` + "`" + ` when you set one.\nRequires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6847,7 +6849,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Start time",
+                        "description": "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as ` + "`" + `2026-10-01T00:00:00Z` + "`" + `. It can't be later than the end of the current hour.",
                         "name": "start_time",
                         "in": "query",
                         "required": true
@@ -6855,7 +6857,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "End time",
+                        "description": "End of the report, as an RFC 3339 timestamp that isn't before ` + "`" + `start_time` + "`" + `. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour.",
                         "name": "end_time",
                         "in": "query",
                         "required": true
@@ -6866,7 +6868,7 @@ const docTemplate = `{
                             "day"
                         ],
                         "type": "string",
-                        "description": "Interval",
+                        "description": "Length of each period in ` + "`" + `interval_reports` + "`" + `: ` + "`" + `day` + "`" + ` or ` + "`" + `week` + "`" + `. With ` + "`" + `week` + "`" + `, the last period must span at least 6 days. If you omit it, the response has no ` + "`" + `interval_reports` + "`" + `.",
                         "name": "interval",
                         "in": "query",
                         "required": true
@@ -6877,7 +6879,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Template IDs",
+                        "description": "Comma-separated list of template IDs to include. By default, the report covers all templates.",
                         "name": "template_ids",
                         "in": "query"
                     }
@@ -6899,6 +6901,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/user-activity": {
             "get": {
+                "description": "Returns how many seconds each user was active in workspaces between ` + "`" + `start_time` + "`" + ` and ` + "`" + `end_time` + "`" + `, along with the templates that contributed.\nRequires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6911,7 +6914,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Start time",
+                        "description": "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as ` + "`" + `2026-10-01T00:00:00Z` + "`" + `. It can't be later than the end of the current hour.",
                         "name": "start_time",
                         "in": "query",
                         "required": true
@@ -6919,7 +6922,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "End time",
+                        "description": "End of the report, as an RFC 3339 timestamp that isn't before ` + "`" + `start_time` + "`" + `. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour.",
                         "name": "end_time",
                         "in": "query",
                         "required": true
@@ -6930,7 +6933,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Template IDs",
+                        "description": "Comma-separated list of template IDs to include. By default, the report covers all templates.",
                         "name": "template_ids",
                         "in": "query"
                     }
@@ -6952,6 +6955,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/user-latency": {
             "get": {
+                "description": "Returns each user's workspace connection latency between ` + "`" + `start_time` + "`" + ` and ` + "`" + `end_time` + "`" + `, as 50th and 95th percentile values in milliseconds.\nRequires permission to view template insights, which the Owner, Auditor, and Template Admin roles have.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6964,7 +6968,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Start time",
+                        "description": "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as ` + "`" + `2026-10-01T00:00:00Z` + "`" + `. It can't be later than the end of the current hour.",
                         "name": "start_time",
                         "in": "query",
                         "required": true
@@ -6972,7 +6976,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "End time",
+                        "description": "End of the report, as an RFC 3339 timestamp that isn't before ` + "`" + `start_time` + "`" + `. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour.",
                         "name": "end_time",
                         "in": "query",
                         "required": true
@@ -6983,7 +6987,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Template IDs",
+                        "description": "Comma-separated list of template IDs to include. By default, the report covers all templates.",
                         "name": "template_ids",
                         "in": "query"
                     }
@@ -7005,6 +7009,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/user-status-counts": {
             "get": {
+                "description": "Returns the number of users in each status on each of the last 60 days.\nRequires permission to read users, which the Owner, Auditor, Template Admin, and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -7016,13 +7021,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "IANA timezone name (e.g. America/St_Johns)",
+                        "description": "IANA time zone name, such as ` + "`" + `America/St_Johns` + "`" + `, that sets where each day starts. The default is ` + "`" + `UTC` + "`" + `. Do not combine it with ` + "`" + `tz_offset` + "`" + `.",
                         "name": "timezone",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
+                        "description": "Deprecated: Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `. Use ` + "`" + `timezone` + "`" + ` instead. Do not combine it with ` + "`" + `timezone` + "`" + `.",
                         "name": "tz_offset",
                         "in": "query"
                     }
