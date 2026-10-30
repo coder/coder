@@ -191,6 +191,10 @@ Each event has a `type` field:
 | `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
 | `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
+An array that encodes to more than 256&nbsp;KiB arrives instead as consecutive objects of the form `{"chunk": "...", "last": false}`, with no other message between them.
+Concatenate the `chunk` strings up to and including the object where `last` is `true`, then parse the result as the array.
+Discard a partial array when you reconnect.
+
 The server increases a chat's `snapshot_version` each time it changes the chat's messages, queue, or status.
 To keep your client in sync with the chat:
 
