@@ -84,6 +84,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
@@ -96,7 +97,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import { QueuedMessagesList, type QueuedRowAction } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -136,6 +137,10 @@ type AgentChatInputProps = {
 	isDisabled: boolean;
 	isReadOnly?: boolean;
 	isLoading: boolean;
+	// Locks the editor while isLoading. Set it when the caller does not
+	// clear the composer at submit, so text typed during the request would
+	// join the sent text.
+	lockWhileLoading?: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
@@ -529,6 +534,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	placeholder = "Type a message...",
 	isDisabled,
 	isReadOnly = false,
+	lockWhileLoading = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -1141,16 +1147,16 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
-	// Re-focus the editor after a send completes (isLoading goes
-	// from true → false) so the user can immediately type again.
+	// A locked editor loses focus during the request, so re-focus it after
+	// a send completes.
 	const prevIsLoadingRef = useRef(isLoading);
 	useEffect(() => {
 		const wasLoading = prevIsLoadingRef.current;
 		prevIsLoadingRef.current = isLoading;
-		if (wasLoading && !isLoading && !isMobileViewport()) {
+		if (lockWhileLoading && wasLoading && !isLoading && !isMobileViewport()) {
 			internalRef.current?.focus();
 		}
-	}, [isLoading]);
+	}, [isLoading, lockWhileLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
@@ -1181,10 +1187,37 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
+	// Enter, Send now and Remove check it, so each queued row has at most
+	// one request in flight.
+	const [busyRows, setBusyRows] = useState<
+		ReadonlyMap<number, QueuedRowAction>
+	>(new Map());
+	const runRowAction = async (
+		id: number,
+		action: QueuedRowAction,
+		request: ((id: number) => Promise<void> | void) | undefined,
+	) => {
+		if (!request || busyRows.has(id)) {
+			return;
+		}
+		setBusyRows((current) => new Map(current).set(id, action));
+		try {
+			await request(id);
+		} catch {
+			// The caller handles the failure; a failed delete shows the row again.
+		}
+		setBusyRows((current) => {
+			const next = new Map(current);
+			next.delete(id);
+			return next;
+		});
+	};
+
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head unless the head is under edit.
+		// An empty composer sends the queue head unless the head is under edit or
+		// is a pending row, which the server does not have yet.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -1195,9 +1228,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
 			!queuedMessages[0].editing_since &&
+			!isPendingRowID(queuedMessages[0].id) &&
 			onPromoteQueuedMessage
 		) {
-			void onPromoteQueuedMessage(queuedMessages[0].id);
+			void runRowAction(
+				queuedMessages[0].id,
+				"promote",
+				onPromoteQueuedMessage,
+			);
 			return;
 		}
 
@@ -1406,8 +1444,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => onDeleteQueuedMessage?.(id)}
-					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					busyRows={busyRows}
+					onDelete={(id) =>
+						void runRowAction(id, "delete", onDeleteQueuedMessage)
+					}
+					onPromote={(id) =>
+						void runRowAction(id, "promote", onPromoteQueuedMessage)
+					}
 					className="mb-2"
 				/>
 			)}
@@ -1509,7 +1552,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<ChatMessageInput
 						ref={internalRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
-						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
+						acceptFilePasteWhileDisabled={
+							lockWhileLoading && isLoading && !isReadOnly
+						}
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
 						aria-describedby={warning ? warningId : undefined}
@@ -1522,7 +1567,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
 						sendShortcut={sendShortcut}
-						disabled={isReadOnly || isLoading}
+						// handleSubmit does not send while isLoading.
+						disabled={isReadOnly || (lockWhileLoading && isLoading)}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
 						projectId={chatProjectId}

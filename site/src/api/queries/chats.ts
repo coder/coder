@@ -1,4 +1,3 @@
-import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	infiniteQueryOptions,
@@ -16,10 +15,6 @@ import { isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
-import {
-	projectEditedConversationIntoCache,
-	reconcileEditedMessageInCache,
-} from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
@@ -1118,15 +1113,6 @@ export const invalidateChatPrompts = (
 		exact: true,
 	});
 
-export const invalidateChatMessages = (
-	queryClient: QueryClient,
-	chatId: string,
-) =>
-	queryClient.invalidateQueries({
-		queryKey: chatMessagesKey(chatId),
-		exact: true,
-	});
-
 export const invalidateChatACL = (queryClient: QueryClient, chatId: string) =>
 	queryClient.invalidateQueries({
 		queryKey: chatACLKey(chatId),
@@ -1210,12 +1196,6 @@ export const resetUnloadedChatLists = (queryClient: QueryClient) =>
 		),
 	);
 
-export const cancelChatMessages = (queryClient: QueryClient, chatId: string) =>
-	queryClient.cancelQueries({
-		queryKey: chatMessagesKey(chatId),
-		exact: true,
-	});
-
 export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.removeQueries({
 		queryKey: chatEntityKey(chatId),
@@ -1250,131 +1230,6 @@ export const patchChatEntity = (
 		chatEntityKey(chatId),
 		updater,
 	);
-
-export const patchChatMessages = (
-	queryClient: QueryClient,
-	chatId: string,
-	updater: (
-		data: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-	) => InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-) =>
-	queryClient.setQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatId), updater);
-
-const replaceMessagesInPage = (
-	page: TypesGen.ChatMessagesResponse,
-	incomingByID: ReadonlyMap<number, TypesGen.ChatMessage>,
-	foundIDs: Set<number>,
-): TypesGen.ChatMessagesResponse => {
-	let pageChanged = false;
-
-	const nextMessages = page.messages.map((existing) => {
-		const incoming = incomingByID.get(existing.id);
-		if (!incoming) {
-			return existing;
-		}
-
-		foundIDs.add(existing.id);
-		if (isEqual(existing, incoming)) {
-			return existing;
-		}
-
-		pageChanged = true;
-		return incoming;
-	});
-
-	return pageChanged ? { ...page, messages: nextMessages } : page;
-};
-
-const upsertMessagesAcrossPages = (
-	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-	messages: readonly TypesGen.ChatMessage[],
-): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
-	if (!currentData?.pages?.length || messages.length === 0) {
-		return currentData;
-	}
-
-	const incomingByID = new Map(
-		messages.map((message) => [message.id, message]),
-	);
-	const foundIDs = new Set<number>();
-	const nextPages = currentData.pages.map((page) =>
-		replaceMessagesInPage(page, incomingByID, foundIDs),
-	);
-	const pagesChanged = nextPages.some(
-		(page, index) => page !== currentData.pages[index],
-	);
-
-	const messagesToInsert = [...incomingByID.values()].filter(
-		(message) => !foundIDs.has(message.id),
-	);
-	if (messagesToInsert.length === 0) {
-		return pagesChanged ? { ...currentData, pages: nextPages } : currentData;
-	}
-
-	const firstPage = nextPages[0];
-	const firstPageMessages = [...firstPage.messages, ...messagesToInsert].sort(
-		(a, b) => b.id - a.id,
-	);
-
-	return {
-		...currentData,
-		pages: [
-			{ ...firstPage, messages: firstPageMessages },
-			...nextPages.slice(1),
-		],
-	};
-};
-
-const replaceMessagesHistory = (
-	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-	messages: readonly TypesGen.ChatMessage[],
-): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
-	if (!currentData?.pages?.length) {
-		return currentData;
-	}
-
-	const firstPage = currentData.pages[0];
-	const nextMessages = [...messages].sort((a, b) => b.id - a.id);
-	const alreadyReplaced =
-		currentData.pages.length === 1 &&
-		!firstPage.has_more &&
-		firstPage.messages.length === nextMessages.length &&
-		firstPage.messages.every((existing, index) =>
-			isEqual(existing, nextMessages[index]),
-		);
-
-	if (alreadyReplaced) {
-		return currentData;
-	}
-
-	return {
-		...currentData,
-		pages: [{ ...firstPage, messages: nextMessages, has_more: false }],
-		pageParams: currentData.pageParams.slice(0, 1),
-	};
-};
-
-export const upsertChatMessages = (
-	queryClient: QueryClient,
-	chatId: string,
-	messages: readonly TypesGen.ChatMessage[],
-) => {
-	return patchChatMessages(queryClient, chatId, (currentData) =>
-		upsertMessagesAcrossPages(currentData, messages),
-	);
-};
-
-export const replaceChatMessagesHistory = (
-	queryClient: QueryClient,
-	chatId: string,
-	messages: readonly TypesGen.ChatMessage[],
-) => {
-	return patchChatMessages(queryClient, chatId, (currentData) =>
-		replaceMessagesHistory(currentData, messages),
-	);
-};
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
@@ -1612,27 +1467,12 @@ const MAX_MESSAGES_PER_REQUEST = 200;
 // that turn.
 const MAX_MESSAGES_PER_PAGE = 1000;
 
-export const chatMessagesKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "messages"] as const;
-
-const chatQueueConvergenceKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "queue-convergence"] as const;
-
-// The queued messages ride on the uncursored page of the messages endpoint,
-// so settling the queue after a promote needs its own request. Refetching
-// chatMessagesForInfiniteScroll would reload every page already scrolled.
-export const chatQueueConvergence = (chatId: string) => ({
-	queryKey: chatQueueConvergenceKey(chatId),
-	queryFn: () => API.experimental.getChatMessages(chatId),
-	gcTime: 0,
-});
-
 // Extends a page back to the prompt that starts the turn containing its
 // oldest message.
 const fetchMessagesPage = async (
 	chatId: string,
 	beforeId: number | undefined,
-	signal: AbortSignal,
+	signal?: AbortSignal,
 ): Promise<TypesGen.ChatMessagesResponse> => {
 	const page = await API.experimental.getChatMessages(
 		chatId,
@@ -1681,26 +1521,16 @@ const fetchMessagesPage = async (
 	return { ...page, messages };
 };
 
-export const chatMessagesForInfiniteScroll = (chatId: string) => ({
-	queryKey: chatMessagesKey(chatId),
-	initialPageParam: undefined as number | undefined,
-	queryFn: ({
-		pageParam,
-		signal,
-	}: {
-		pageParam: number | undefined;
-		signal: AbortSignal;
-	}) => fetchMessagesPage(chatId, pageParam, signal),
-	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
-		if (!lastPage.has_more || lastPage.messages.length === 0) {
-			return undefined;
-		}
-		// The API returns messages in DESC order (newest first).
-		// The last item in the array is the oldest in this page.
-		// Use its ID as the cursor for the next (older) page.
-		return lastPage.messages[lastPage.messages.length - 1].id;
-	},
-});
+/** The key of the query that holds a chat's message store. */
+export const chatStoreKey = (chatId: string) => ["chatStore", chatId] as const;
+
+/** The newest page, the only page with `snapshot_version` and the queue. */
+export const fetchNewestChatMessages = (chatId: string, signal?: AbortSignal) =>
+	fetchMessagesPage(chatId, undefined, signal);
+
+/** Has no `snapshot_version` and no queue. */
+export const fetchOlderChatMessages = (chatId: string, beforeId: number) =>
+	fetchMessagesPage(chatId, beforeId);
 
 // Cap requested prompts to keep the response small; well under the server-side maximum.
 const PROMPT_HISTORY_LIMIT = 500;
@@ -2617,77 +2447,13 @@ export const createChatMessageByChatId = (queryClient: QueryClient) => ({
 
 type EditChatMessageMutationArgs = {
 	messageId: number;
-	optimisticMessage?: TypesGen.ChatMessage;
 	req: TypesGen.EditChatMessageRequest;
-};
-
-type EditChatMessageMutationContext = {
-	previousData?: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
 };
 
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onMutate: async ({
-		messageId,
-		optimisticMessage,
-	}: EditChatMessageMutationArgs): Promise<EditChatMessageMutationContext> => {
-		// Cancel in-flight refetches so they don't overwrite the
-		// optimistic update before the mutation completes.
-		await cancelChatMessages(queryClient, chatId);
-
-		const previousData = queryClient.getQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse>
-		>(chatMessagesKey(chatId));
-
-		patchChatMessages(queryClient, chatId, (current) =>
-			projectEditedConversationIntoCache({
-				currentData: current,
-				editedMessageId: messageId,
-				replacementMessage: optimisticMessage,
-				queuedMessages: [],
-			}),
-		);
-
-		return { previousData };
-	},
-	onError: (
-		_error: unknown,
-		_variables: EditChatMessageMutationArgs,
-		context: EditChatMessageMutationContext | undefined,
-	) => {
-		// Restore the cache on failure so the user sees the
-		// original messages again.
-		if (context?.previousData) {
-			patchChatMessages(queryClient, chatId, () => context.previousData);
-		}
-		// Invalidate messages as a safety net: the restored snapshot
-		// may be missing WebSocket-delivered messages that arrived
-		// during the mutation's flight time.
-		void invalidateChatMessages(queryClient, chatId);
-	},
-	onSuccess: (
-		response: TypesGen.EditChatMessageResponse,
-		variables: EditChatMessageMutationArgs,
-	) => {
-		patchChatMessages(queryClient, chatId, (current) =>
-			reconcileEditedMessageInCache({
-				currentData: current,
-				optimisticMessageId: variables.messageId,
-				responseMessages: response.messages ?? [response.message],
-				deletedMessageIds: response.deleted_message_ids,
-			}),
-		);
-	},
 	onSettled: () => {
-		// Refresh chat metadata (status, title, etc.). The messages
-		// query is intentionally NOT invalidated here. The per-chat
-		// WebSocket handles post-edit message delivery via
-		// FullRefresh, making REST invalidation unnecessary.
-		// Invalidating chatMessagesKey would trigger a redundant
-		// refetch that causes extra store mutations while the
-		// sticky user message is settling after the optimistic
-		// truncation.
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);
@@ -2716,10 +2482,6 @@ export const clearChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.clearChat(chatId),
 	onSuccess: () => {
 		void invalidateChatEntity(queryClient, chatId);
-		// The clear commits its boundary rows synchronously with no
-		// worker turn, so the transcript must be refetched here rather
-		// than relying on streamed message events.
-		void invalidateChatMessages(queryClient, chatId);
 	},
 });
 
@@ -2764,7 +2526,6 @@ export const deleteChatQueuedMessage = (
 		API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
 		await invalidateChatEntity(queryClient, chatId);
-		await invalidateChatMessages(queryClient, chatId);
 	},
 });
 

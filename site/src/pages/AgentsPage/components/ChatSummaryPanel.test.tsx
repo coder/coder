@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { API } from "#/api/api";
@@ -19,7 +19,11 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
-import { createChatStore } from "./ChatConversation/chatStore";
+import {
+	createChatStore,
+	isPendingRowID,
+	selectOrderedMessageIDs,
+} from "./ChatConversation/chatStore";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const mockOldestLoadedMessage: TypesGen.ChatMessage = {
@@ -36,14 +40,15 @@ const mockNewestLoadedMessage: TypesGen.ChatMessage = {
 const renderPanel = ({
 	isVisible = true,
 	hasMoreMessages = true,
-	isHydratingMessages = false,
 }: {
 	isVisible?: boolean;
 	hasMoreMessages?: boolean;
-	isHydratingMessages?: boolean;
 } = {}) => {
 	const store = createChatStore();
-	store.replaceMessages([mockOldestLoadedMessage, mockNewestLoadedMessage]);
+	store.upsertDurableMessages(
+		[mockOldestLoadedMessage, mockNewestLoadedMessage],
+		1,
+	);
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<DashboardContext.Provider
@@ -62,11 +67,11 @@ const renderPanel = ({
 					isVisible={isVisible}
 					store={store}
 					hasMoreMessages={hasMoreMessages}
-					isHydratingMessages={isHydratingMessages}
 				/>
 			</DashboardContext.Provider>
 		</QueryClientProvider>,
 	);
+	return store;
 };
 
 describe("ChatSummaryPanel attachments", () => {
@@ -98,26 +103,51 @@ describe("ChatSummaryPanel attachments", () => {
 			calls: [],
 		},
 		{
-			name: "skips the request during hydration",
-			isVisible: true,
-			hasMoreMessages: false,
-			isHydratingMessages: true,
-			calls: [],
-		},
-		{
 			name: "skips the request while hidden",
 			isVisible: false,
 			hasMoreMessages: true,
 			calls: [],
 		},
-	])("$name", ({ isVisible, hasMoreMessages, isHydratingMessages, calls }) => {
+	])("$name", ({ isVisible, hasMoreMessages, calls }) => {
 		const getChatAttachments = vi
 			.spyOn(API.experimental, "getChatAttachments")
 			.mockResolvedValue({ attachments: [MockChatAttachment] });
 
-		renderPanel({ isVisible, hasMoreMessages, isHydratingMessages });
+		renderPanel({ isVisible, hasMoreMessages });
 
 		expect(getChatAttachments.mock.calls).toEqual(calls);
+	});
+
+	it("asks for attachments before the oldest stored message while it is edited", async () => {
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockResolvedValue({ attachments: [MockChatAttachment] });
+		const store = renderPanel();
+
+		act(() => {
+			void store.runPendingAction(
+				{
+					kind: "edit",
+					editedMessageID: mockOldestLoadedMessage.id,
+					message: mockOldestLoadedMessage,
+				},
+				null,
+				() => new Promise(() => {}),
+			);
+		});
+		// The oldest shown ID is not a valid before_id.
+		expect(
+			selectOrderedMessageIDs(store.getSnapshot()).every(isPendingRowID),
+		).toBe(true);
+
+		await waitFor(() => expect(getChatAttachments).toHaveBeenCalled());
+		expect(getChatAttachments.mock.calls).toEqual([
+			[
+				MockChat.id,
+				{ before_id: mockOldestLoadedMessage.id },
+				expect.any(AbortSignal),
+			],
+		]);
 	});
 
 	it("retries the earlier attachments after a failure", async () => {

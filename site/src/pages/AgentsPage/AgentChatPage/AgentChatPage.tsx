@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-	useInfiniteQuery,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
@@ -17,9 +12,7 @@ import {
 } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
-	chatMessagesForInfiniteScroll,
 	chatModels,
-	chatQueueConvergence,
 	clearChat,
 	compactChat,
 	createChatMessage,
@@ -66,11 +59,8 @@ import {
 } from "../components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
 import {
-	runDeleteQueuedMessage,
-	runPromoteQueuedMessage,
-} from "../components/ChatConversation/chatQueueReconciliation";
-import {
 	selectChatStatus,
+	selectHasMoreMessages,
 	useChatSelector,
 	useChatStore,
 } from "../components/ChatConversation/chatStore";
@@ -166,9 +156,6 @@ const AgentChatPage: React.FC = () => {
 		refetchIntervalInBackground: false,
 	});
 	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
-	const chatMessagesQuery = useInfiniteQuery(
-		chatMessagesForInfiniteScroll(agentId),
-	);
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -272,38 +259,6 @@ const AgentChatPage: React.FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Flatten paginated messages into chronological order.
-	// Pages arrive newest-first per page, and pages[0] is the
-	// most recent page.
-	const chatMessagesList = (() => {
-		const pages = chatMessagesQuery.data?.pages;
-		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID as a defense
-		// against cross-page duplicates. Cache upserts fan the same
-		// fresh value out to every page containing an ID, so any
-		// surviving duplicates are value-identical and either
-		// occurrence is safe to render.
-		const all = pages.flatMap((p) => p.messages);
-		const byID = new Map(all.map((m) => [m.id, m]));
-		const deduped = Array.from(byID.values());
-		// Sort ascending by ID for chronological order.
-		deduped.sort((a, b) => a.id - b.id);
-		return deduped;
-	})();
-
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
-
-	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
-	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		chatMessagesList
-			? {
-					messages: chatMessagesList,
-					queued_messages: chatQueuedMessages ?? [],
-					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
-				}
-			: undefined;
 	const chatLastModelConfigID = chat?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -403,24 +358,21 @@ const AgentChatPage: React.FC = () => {
 	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
-		isHydratingMessages,
-		acceptServerChatStatus,
-		setCacheQueuedMessages,
-		getCacheQueuedMessages,
-		upsertCacheMessages,
+		loadStatus,
+		loadError,
+		retryLoad,
+		fetchMoreMessages,
+		isFetchingMoreMessages,
+		hasFetchMoreError,
 	} = useChatStore({
 		chatID: agentId,
-		chatMessages: chatMessagesList,
-		chatRecord: chat,
-		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat?.status ?? null;
+	const hasMoreMessages = useChatSelector(store, selectHasMoreMessages);
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord: chat,
@@ -562,7 +514,7 @@ const AgentChatPage: React.FC = () => {
 			message: getErrorMessage(error, "An unexpected error occurred."),
 			...(detail ? { detail } : {}),
 		};
-		store.setStreamError(reason);
+		store.setClientError(reason);
 		setChatErrorReason(agentId, reason);
 	};
 
@@ -583,23 +535,30 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = (id: number) =>
-		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
+	// A failed request shows the row again, so the error is not rethrown.
+	const handleDeleteQueuedMessage = async (id: number) => {
+		try {
+			await store.runPendingAction(
+				{ kind: "deleteQueued", queuedMessageID: id },
+				liveChatStatus,
+				() => deleteQueuedMessage(id),
+			);
+		} catch {}
+	};
 
-	const fetchQueueConvergence = (chatId: string) =>
-		queryClient.fetchQuery(chatQueueConvergence(chatId));
-
-	const handlePromoteQueuedMessage = (id: number) =>
-		runPromoteQueuedMessage({
-			id,
-			store,
-			promoteQueuedMessage,
-			fetchQueueConvergence,
-			setCacheQueuedMessages,
-			agentId,
-			clearChatErrorReason,
-			onError: handleRequestError,
-		});
+	const handlePromoteQueuedMessage = async (id: number) => {
+		store.clearClientError();
+		clearChatErrorReason(agentId);
+		try {
+			await store.runPendingAction(
+				{ kind: "promoteQueued", queuedMessageID: id },
+				liveChatStatus,
+				() => promoteQueuedMessage(id),
+			);
+		} catch (error) {
+			handleRequestError(error);
+		}
+	};
 
 	const editing = useConversationEditingState({
 		chatID: agentId,
@@ -627,25 +586,13 @@ const AgentChatPage: React.FC = () => {
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
-	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
-	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
-		if (
-			chatReadyFiredRef.current === agentId ||
-			!chatMessagesQuery.isSuccess ||
-			storeMessageCount < fetchedMessageCount
-		) {
+		if (chatReadyFiredRef.current === agentId || loadStatus !== "success") {
 			return;
 		}
 		chatReadyFiredRef.current = agentId;
 		onChatReady();
-	}, [
-		onChatReady,
-		storeMessageCount,
-		fetchedMessageCount,
-		chatMessagesQuery.isSuccess,
-		agentId,
-	]);
+	}, [onChatReady, loadStatus, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -685,10 +632,9 @@ const AgentChatPage: React.FC = () => {
 		compact,
 		clearChatContext,
 		store,
+		chatStatus: liveChatStatus,
 		agentId,
 		clearChatErrorReason,
-		acceptServerChatStatus,
-		chatMessages: chatMessagesList,
 		effectiveSelectedModel,
 		modelOptions,
 		effectiveReasoningEffort,
@@ -700,10 +646,6 @@ const AgentChatPage: React.FC = () => {
 			void invalidateChatEntity(queryClient, chatId);
 		},
 		scrollToEnd,
-		upsertCacheMessages,
-		getCacheQueuedMessages,
-		setCacheQueuedMessages,
-		fetchQueueConvergence,
 		setCachedChatPlanMode,
 	};
 
@@ -741,7 +683,7 @@ const AgentChatPage: React.FC = () => {
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
-		!chatMessagesQuery.isLoadingError;
+		loadStatus !== "error";
 
 	return (
 		<>
@@ -749,7 +691,7 @@ const AgentChatPage: React.FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading ||
-			chatMessagesQuery.isLoading ||
+			loadStatus === "pending" ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
@@ -770,27 +712,21 @@ const AgentChatPage: React.FC = () => {
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
+			) : chatQuery.isLoadingError || loadStatus === "error" ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
 					<AgentChatPageErrorView
-						error={
-							chatQuery.isLoadingError
-								? chatQuery.error
-								: chatMessagesQuery.error
-						}
+						error={chatQuery.isLoadingError ? chatQuery.error : loadError}
 						onRetry={() => {
 							if (chatQuery.isLoadingError) {
 								void chatQuery.refetch();
 							}
-							if (chatMessagesQuery.isLoadingError) {
-								void chatMessagesQuery.refetch();
-							}
+							retryLoad();
 						}}
 					/>
 				)
-			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
+			) : !chat ? (
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
@@ -799,7 +735,6 @@ const AgentChatPage: React.FC = () => {
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
-					initialMessages={chatMessagesList ?? []}
 					editing={{ ...editing, handleBeginHistoryEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
@@ -841,11 +776,10 @@ const AgentChatPage: React.FC = () => {
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
-					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
-					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
-					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					onFetchMoreMessages={fetchMoreMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}

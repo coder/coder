@@ -19,6 +19,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	title: "pages/AgentsPage/QueuedMessagesList",
 	component: QueuedMessagesList,
 	args: {
+		busyRows: new Map(),
 		onDelete: fn(),
 		onPromote: fn(),
 	},
@@ -226,32 +227,14 @@ export const HeadUnderEdit: Story = {
 	},
 };
 
-let rejectQueuedDelete: ((error: Error) => void) | undefined;
-
-// Deleting hides the row optimistically and disables sibling actions while
-// pending; a rejected delete restores the row and re-enables actions.
-export const DeleteRejectionRestoresRow: Story = {
+// A delete in flight disables only that row's actions.
+export const DeleteInFlightDisablesRow: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
 			buildMessage(2, textContent("Second queued")),
 		],
-		onDelete: () =>
-			new Promise<void>((_, reject) => {
-				rejectQueuedDelete = reject;
-			}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const removeButtons = canvas.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await userEvent.click(removeButtons[0]);
-
-		if (!rejectQueuedDelete) {
-			throw new Error("onDelete was not invoked");
-		}
-		rejectQueuedDelete(new Error("delete failed"));
+		busyRows: new Map([[1, "delete"]]),
 	},
 };
 

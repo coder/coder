@@ -74,7 +74,6 @@ it.each([true, false])(
 				<ChatMessageScroller
 					hasMoreMessages
 					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
 					hasFetchMoreError={false}
 					hasTranscriptRows
 					onFetchMoreMessages={onFetchMoreMessages}

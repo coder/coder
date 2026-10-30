@@ -17,7 +17,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { isActiveChatStatus } from "./chatStore";
+import { isActiveChatStatus, isPendingRowID } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
@@ -354,7 +354,9 @@ const ChatMessageItem = memo<{
 					<UserMessageActions
 						message={message}
 						copyText={copyText}
-						onEditUserMessage={onEditUserMessage}
+						onEditUserMessage={
+							isPendingRowID(message.id) ? undefined : onEditUserMessage
+						}
 						prevUserMessageKey={prevUserMessageKey}
 						nextUserMessageKey={nextUserMessageKey}
 						onJumpToUserMessage={onJumpToUserMessage}
@@ -521,18 +523,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// prev/next arrow buttons that jump the transcript to the neighbouring
 		// user prompt. The row key doubles as the scroller's message ID.
 		const userRowKeys: string[] = [];
+		let latestUserRowIsPending = false;
 		for (const row of renderRows) {
 			if (row.type === "message" && row.entry.message.role === "user") {
 				userRowKeys.push(row.key);
+				latestUserRowIsPending = isPendingRowID(row.entry.message.id);
 			}
 		}
-		// Only the latest user row anchors the scroller, and only while its turn
-		// is active. The scroller never marks initially rendered anchors as
-		// handled, and its fallback for mutations that are neither clean appends
-		// nor clean prepends jumps to the oldest unhandled anchor, so historical
-		// rows must not be anchors at all.
+		// Only the latest user row anchors the scroller: while its turn is active,
+		// or while it is a pending row, which shows before the stream reports the
+		// turn. The scroller never marks initially rendered anchors as handled,
+		// and its fallback for mutations that are neither clean appends nor clean
+		// prepends jumps to the oldest unhandled anchor, so historical rows must
+		// not be anchors at all.
 		const anchorUserRowKey =
-			hasLiveAssistant || isAwaitingFirstStreamChunk
+			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
 		const userNeighborsByKey = new Map<

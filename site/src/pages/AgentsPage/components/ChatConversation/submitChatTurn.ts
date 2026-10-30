@@ -24,13 +24,10 @@ import type {
 	PendingWorkspaceUpload,
 } from "../ChatPageContent";
 import {
-	buildInactiveChatQueueReconciliation,
-	reconcilePromotedQueueHead,
-	restoreOptimisticRequestSnapshot,
-	settlePromotedQueueHead,
-	submitEdit,
-} from "./chatQueueReconciliation";
-import type { ChatStore } from "./chatStore";
+	type ChatStore,
+	type PendingAction,
+	selectMessagesByID,
+} from "./chatStore";
 import type { EditingTarget } from "./types";
 
 export type SubmitChatTurnParams = {
@@ -50,17 +47,16 @@ export type SubmitChatTurnParams = {
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 	store: ChatStore;
+	// The status the page shows, which places a pending send.
+	chatStatus: TypesGen.ChatStatus | null;
 	agentId: string;
 	clearChatErrorReason: (chatId: string) => void;
-	acceptServerChatStatus: () => void;
-	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	effectiveSelectedModel: string;
 	modelOptions: readonly ModelSelectorOption[];
 	effectiveReasoningEffort: string | undefined;
 	mcpServerIds: readonly string[];
 	editMessage: (args: {
 		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	}) => Promise<unknown>;
 	sendMessage: (
@@ -69,16 +65,6 @@ export type SubmitChatTurnParams = {
 	onRequestError: (error: unknown) => void;
 	invalidateChat: (chatId: string) => void;
 	scrollToEnd: (options: { behavior: "smooth" }) => void;
-	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
-	getCacheQueuedMessages: () =>
-		| readonly TypesGen.ChatQueuedMessage[]
-		| undefined;
-	setCacheQueuedMessages: (
-		messages: readonly TypesGen.ChatQueuedMessage[],
-	) => void;
-	fetchQueueConvergence: (
-		chatId: string,
-	) => Promise<TypesGen.ChatMessagesResponse>;
 	setCachedChatPlanMode: (
 		chatId: string,
 		planMode?: TypesGen.ChatPlanMode,
@@ -153,22 +139,11 @@ const runBuiltInChatCommand = async ({
 }): Promise<void> => {
 	switch (command.name) {
 		case COMPACT_SLASH_COMMAND.name: {
-			// Set running before awaiting so the worker's streamed waiting status
-			// cannot be overwritten if it arrives before the POST resolves.
-			const previousSnapshot = store.getSnapshot();
-			const baselineFence = store.getQueueConvergenceFence();
 			clearChatErrorReason(agentId);
-			store.clearStreamError();
-			store.clearStreamState();
-			store.setChatStatus("running");
+			store.clearClientError();
 			try {
 				await compact();
 			} catch (error) {
-				restoreOptimisticRequestSnapshot(
-					store,
-					previousSnapshot,
-					baselineFence,
-				);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
@@ -181,72 +156,6 @@ const runBuiltInChatCommand = async ({
 				toast.error(getErrorMessage(error, "Failed to clear chat."));
 				throw error;
 			}
-	}
-};
-
-const applyQueuedSendReconciliation = ({
-	store,
-	agentId,
-	isActiveChat,
-	insertedMessages,
-	queuedMessagesBeforeSend,
-	queueHeadIDBeforeSend,
-	statusVersionBeforeSend,
-	queuedTail,
-	getCacheQueuedMessages,
-	setCacheQueuedMessages,
-	fetchQueueConvergence,
-}: {
-	store: ChatStore;
-	agentId: string;
-	isActiveChat: boolean;
-	insertedMessages: readonly TypesGen.ChatMessage[];
-	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[];
-	queueHeadIDBeforeSend: number | undefined;
-	statusVersionBeforeSend: number;
-	queuedTail: TypesGen.ChatQueuedMessage | undefined;
-	getCacheQueuedMessages: SubmitChatTurnParams["getCacheQueuedMessages"];
-	setCacheQueuedMessages: SubmitChatTurnParams["setCacheQueuedMessages"];
-	fetchQueueConvergence: SubmitChatTurnParams["fetchQueueConvergence"];
-}): void => {
-	const reconciledQueue = isActiveChat
-		? reconcilePromotedQueueHead(
-				store,
-				insertedMessages,
-				queueHeadIDBeforeSend,
-				queuedTail,
-			)
-		: buildInactiveChatQueueReconciliation(
-				getCacheQueuedMessages(),
-				queuedMessagesBeforeSend,
-				insertedMessages,
-				queueHeadIDBeforeSend,
-				queuedTail,
-			);
-	if (!reconciledQueue) {
-		return;
-	}
-	setCacheQueuedMessages(reconciledQueue);
-	// A promoted head starts a turn, but any server status received during
-	// the request is newer and must win.
-	if (
-		isActiveChat &&
-		store.getServerChatStatusVersion() === statusVersionBeforeSend
-	) {
-		store.clearStreamState();
-		store.setChatStatus("running");
-	}
-	if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
-		void settlePromotedQueueHead(
-			store,
-			agentId,
-			queueHeadIDBeforeSend,
-			fetchQueueConvergence,
-		).then((settled) => {
-			if (settled) {
-				setCacheQueuedMessages(settled);
-			}
-		});
 	}
 };
 
@@ -269,10 +178,9 @@ export async function submitChatTurn(
 		compact,
 		clearChatContext,
 		store,
+		chatStatus,
 		agentId,
 		clearChatErrorReason,
-		acceptServerChatStatus,
-		chatMessages,
 		effectiveSelectedModel,
 		modelOptions,
 		effectiveReasoningEffort,
@@ -283,12 +191,26 @@ export async function submitChatTurn(
 		onRequestError,
 		invalidateChat,
 		scrollToEnd,
-		upsertCacheMessages,
-		getCacheQueuedMessages,
-		setCacheQueuedMessages,
-		fetchQueueConvergence,
 		setCachedChatPlanMode,
 	} = params;
+
+	// A failed send or edit removes what its pending action showed at the
+	// click, so the transcript scrolls to the end, where the latest state is.
+	const runTurnRequest = async (
+		action: PendingAction,
+		request: () => Promise<unknown>,
+	) => {
+		clearChatErrorReason(agentId);
+		store.clearClientError();
+		try {
+			await store.runPendingAction(action, chatStatus, request);
+		} catch (error) {
+			scrollToEnd({ behavior: "smooth" });
+			onRequestError(error);
+			invalidateChat(agentId);
+			throw error;
+		}
+	};
 
 	const { content, hasContent } = buildChatInputContent({
 		message,
@@ -330,8 +252,8 @@ export async function submitChatTurn(
 
 	if (editingTarget?.kind === "history") {
 		const editedMessageID = editingTarget.id;
-		const originalEditedMessage = chatMessages?.find(
-			(existingMessage) => existingMessage.id === editedMessageID,
+		const originalEditedMessage = selectMessagesByID(store.getSnapshot()).get(
+			editedMessageID,
 		);
 		const editSelectedModelConfigID = resolveEditModelConfigID({
 			pickerModelConfigID: effectiveSelectedModel || undefined,
@@ -347,43 +269,20 @@ export async function submitChatTurn(
 				: undefined,
 			mcp_server_ids: [...mcpServerIds],
 		};
-		const optimisticMessage = originalEditedMessage
-			? buildOptimisticEditedMessage({
-					requestContent: request.content,
-					originalMessage: originalEditedMessage,
-					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-				})
-			: undefined;
-		const previousSnapshot = store.getSnapshot();
-		const baselineFence = store.getQueueConvergenceFence();
-		clearChatErrorReason(agentId);
-		store.clearStreamError();
-		store.batch(() => {
-			store.setQueuedMessages([]);
-			store.setChatStatus("running");
-			store.clearStreamState();
-		});
-		await submitEdit({
-			editMessage,
-			editArgs: {
-				messageId: editedMessageID,
-				optimisticMessage,
-				req: request,
+		await runTurnRequest(
+			{
+				kind: "edit",
+				editedMessageID,
+				message:
+					originalEditedMessage &&
+					buildOptimisticEditedMessage({
+						requestContent: request.content,
+						originalMessage: originalEditedMessage,
+						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+					}),
 			},
-			onError: (error) => {
-				restoreOptimisticRequestSnapshot(
-					store,
-					previousSnapshot,
-					baselineFence,
-				);
-				onRequestError(error);
-				// Hook dispatch failures can park an idle chat in error before
-				// returning the request error.
-				acceptServerChatStatus();
-				invalidateChat(agentId);
-			},
-		});
-		scrollToEnd({ behavior: "smooth" });
+			() => editMessage({ messageId: editedMessageID, req: request }),
+		);
 		return;
 	}
 
@@ -395,63 +294,24 @@ export async function submitChatTurn(
 		mcp_server_ids: [...mcpServerIds],
 		...planModeFieldsForCreateMessage(clearPlanMode),
 	};
-	clearChatErrorReason(agentId);
-	store.clearStreamError();
-
-	// An errored-chat send may promote the queue head that existed when
-	// the request began.
-	const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
-	const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
-	const statusVersionBeforeSend = store.getServerChatStatusVersion();
-
-	// Don't clear stream state before the POST completes. For queued sends
-	// the WebSocket status events handle clearing; for non-queued sends we
-	// clear explicitly below. Clearing eagerly causes a visible cutoff.
-	let response: TypesGen.CreateChatMessageResponse;
-	try {
-		response = await sendMessage(request);
-	} catch (error) {
-		onRequestError(error);
-		acceptServerChatStatus();
-		invalidateChat(agentId);
-		throw error;
-	}
-	const isActiveChat = store.getActiveChatID() === agentId;
-	// Waiting for the WebSocket on non-queued sends leaves stale stream
-	// state visible.
-	if (!response.queued && isActiveChat) {
-		store.clearStreamState();
-		// The server accepted the message (not queued), so it will start
-		// processing. The WebSocket status:running event no-ops via the
-		// setChatStatus guard. If the server transitions to error/pending
-		// instead, the WebSocket event overrides this optimistic value.
-		store.setChatStatus("running");
-	}
-	// Upsert the full batch because a queued send can insert a promoted
-	// head below the highest cached ID, which a reconnect would skip.
-	const insertedMessages =
-		response.messages ?? (response.message ? [response.message] : []);
-	if (insertedMessages.length > 0) {
-		upsertCacheMessages(insertedMessages);
-		if (isActiveChat) {
-			store.upsertDurableMessages(insertedMessages);
-		}
-		if (response.queued) {
-			applyQueuedSendReconciliation({
-				store,
-				agentId,
-				isActiveChat,
-				insertedMessages,
-				queuedMessagesBeforeSend,
-				queueHeadIDBeforeSend,
-				statusVersionBeforeSend,
-				queuedTail: response.queued_message,
-				getCacheQueuedMessages,
-				setCacheQueuedMessages,
-				fetchQueueConvergence,
-			});
-		}
-	}
+	await runTurnRequest(
+		{
+			kind: "send",
+			message: buildOptimisticEditedMessage({
+				requestContent: content,
+				originalMessage: {
+					// The store replaces the ID with a pending row ID.
+					id: 0,
+					chat_id: agentId,
+					created_at: new Date().toISOString(),
+					role: "user",
+					model_config_id: selectedModelConfigID,
+				},
+				attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+			}),
+		},
+		() => sendMessage(request),
+	);
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);
 	}

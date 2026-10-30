@@ -6,7 +6,7 @@ import {
 	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import type {
 	ChatQueuedMessage,
 	ChatSkillInvocationPart,
@@ -20,12 +20,17 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 import { SkillChip } from "./ChatMessageInput/SkillChip";
+
+export type QueuedRowAction = "delete" | "promote";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	onDelete: (id: number) => Promise<void> | void;
-	onPromote: (id: number) => Promise<void> | void;
+	// The action in flight for each row. A busy row's buttons are disabled.
+	busyRows: ReadonlyMap<number, QueuedRowAction>;
+	onDelete: (id: number) => void;
+	onPromote: (id: number) => void;
 	className?: string;
 };
 
@@ -112,8 +117,6 @@ const QueuedMessagePreview: React.FC<{
 	);
 };
 
-type QueuedMessageAction = "delete" | "promote";
-
 type QueuedMessageActionButtonProps = {
 	label: string;
 	// Defaults to label.
@@ -160,6 +163,7 @@ const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
+	busyRows,
 	onDelete,
 	onPromote,
 	className,
@@ -190,81 +194,9 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
-	// Tracks which item has an async action in flight and what kind.
-	const [pendingAction, setPendingAction] = useState<{
-		id: number;
-		action: QueuedMessageAction;
-	} | null>(null);
-	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
-		ReadonlySet<number>
-	>(new Set());
-
-	const hideItemOptimistically = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.add(id);
-			return next;
-		});
-	};
-
-	const restoreHiddenItem = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (!current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.delete(id);
-			return next;
-		});
-	};
-
-	useEffect(() => {
-		const liveIDs = new Set(messages.map((message) => message.id));
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.size === 0) {
-				return current;
-			}
-			let didChange = false;
-			const next = new Set<number>();
-			for (const id of current) {
-				if (liveIDs.has(id)) {
-					next.add(id);
-					continue;
-				}
-				didChange = true;
-			}
-			return didChange ? next : current;
-		});
-	}, [messages]);
-
-	// Both actions remove the row, so it is hidden optimistically.
-	const runAction = async (
-		id: number,
-		action: QueuedMessageAction,
-		run: (id: number) => Promise<void> | void,
-	) => {
-		setPendingAction({ id, action });
-		hideItemOptimistically(id);
-		try {
-			await run(id);
-		} catch {
-			restoreHiddenItem(id);
-		}
-		setPendingAction((current) => (current?.id === id ? null : current));
-	};
-
-	const visibleItems = items.filter(
-		(item) => !optimisticallyHiddenIDs.has(item.id),
-	);
-
-	if (visibleItems.length === 0) {
+	if (items.length === 0) {
 		return null;
 	}
-
-	const isBusy = pendingAction !== null;
 
 	return (
 		<div
@@ -273,10 +205,10 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				className,
 			)}
 		>
-			{visibleItems.map((item, index) => {
+			{items.map((item, index) => {
 				const isFirst = index === 0;
-				const isRowPending =
-					pendingAction !== null && pendingAction.id === item.id;
+				const busyAction = busyRows.get(item.id);
+				const isPendingRow = isPendingRowID(item.id);
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
 				return (
@@ -340,7 +272,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && !item.isUnderEdit && (
+							{isFirst && !item.isUnderEdit && !isPendingRow && (
 								<span
 									className={cn(
 										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
@@ -361,18 +293,18 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 								<QueuedMessageActionButton
 									label="Send now"
 									icon={<ArrowUpIcon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "promote"}
-									disabled={isBusy}
-									onClick={() => void runAction(item.id, "promote", onPromote)}
+									busy={busyAction === "promote"}
+									disabled={busyAction !== undefined || isPendingRow}
+									onClick={() => onPromote(item.id)}
 								/>
 								<QueuedMessageActionButton
 									label="Remove from queue"
 									tooltip="Remove"
 									icon={<Trash2Icon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "delete"}
-									disabled={isBusy}
+									busy={busyAction === "delete"}
+									disabled={busyAction !== undefined || isPendingRow}
 									destructive
-									onClick={() => void runAction(item.id, "delete", onDelete)}
+									onClick={() => onDelete(item.id)}
 								/>
 							</div>
 						</div>

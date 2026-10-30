@@ -15,11 +15,8 @@ const buildOrderedMessageIDs = (
 ): readonly number[] => {
 	// created_at is shared across an insert batch, so only id tracks append order.
 	const sorted = messages.toSorted((left, right) => left.id - right.id);
-	// Deduplicate by ID as a defense against duplicate IDs in the
-	// input. Cache upserts fan the same fresh value out to every
-	// page containing an ID, so cross-page duplicates in the React
-	// Query cache are value-identical. The Map-based messagesByID
-	// already deduplicates, but orderedMessageIDs must match.
+	// Deduplicate by ID: the Map-based messagesByID already does,
+	// and orderedMessageIDs must match it.
 	const seen = new Set<number>();
 	const orderedMessageIDs: number[] = [];
 	for (const message of sorted) {
@@ -110,76 +107,126 @@ export const isTurnCompletedChatStatus = (
 	status: TypesGen.ChatStatus,
 ): boolean => status === "waiting" || status === "paused";
 
+/**
+ * A user request whose expected result the store shows from the click; see
+ * PendingEntry for when each part ends.
+ */
+export type PendingAction =
+	| { kind: "edit"; editedMessageID: number; message?: TypesGen.ChatMessage }
+	| { kind: "send"; message: TypesGen.ChatMessage }
+	| { kind: "deleteQueued"; queuedMessageID: number }
+	| { kind: "promoteQueued"; queuedMessageID: number };
+
+type QueueEdit = (
+	rows: readonly TypesGen.ChatQueuedMessage[],
+) => readonly TypesGen.ChatQueuedMessage[];
+
+/**
+ * The expected result of a pending action, computed at the click from the
+ * shown state. Each part ends at the first stream event of its kind above
+ * syncedVersion, even if the event changes nothing in the stored state:
+ *
+ * - message: a user message or a queue update, because the server can queue a
+ *   send, and keeps a promoted row in the queue while the chat is busy.
+ * - editedMessage: a user message, because an edit never queues.
+ * - queue: a queue update. For a delete, only one without the row, because a
+ *   row's ID never returns to the queue.
+ * - history: a history reset.
+ *
+ * An edit has editedMessage, history and, if the queue is not empty, queue.
+ * A stream open resends the commit at the version it opens with. An entry
+ * synced at that version ignores the resend. For an entry synced below it,
+ * each resent event either ended its part when it first arrived, so ending
+ * it again changes nothing, or was lost when the connection dropped, so it
+ * ends the part now. The first open after a page load also resends the
+ * commits above the page's snapshot version that the page holds, because the
+ * server reads that version before the rest of the page. Such a commit ends
+ * the part of an action clicked before the first sync, so the action's result
+ * disappears until its own event arrives.
+ */
+type PendingEntry = {
+	id: number;
+	// The snapshot version synced at the click. An event at or below it is
+	// from a commit before the request.
+	syncedVersion: number;
+	// Set for a delete.
+	isRowGone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
+	// The message a send or promote adds, in the transcript or the queue.
+	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
+	editedMessage?: TypesGen.ChatMessage;
+	// The queue change of a delete, promote, edit or errored-chat send.
+	queue?: QueueEdit;
+	// Hides the history from the edited message on.
+	history?: { fromID: number };
+};
+
+type PendingPart = "message" | "editedMessage" | "queue" | "history";
+
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
 	streamState: StreamState | null;
 	chatStatus: TypesGen.ChatStatus | null;
-	streamError: ChatDetailError | null;
+	// A failure of this client, such as a rejected request.
+	clientError: ChatDetailError | null;
 	retryState: RetryState | null;
+	// The error the chat's last reported turn ended with.
+	turnError: ChatDetailError | null;
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-	// Hides queued IDs from the visible queue while the backend is
-	// in a transient state that would briefly include them. Used by
-	// the running-case promote, where the backend reorders the
-	// queued message to the front before auto-promoting it.
-	suppressedQueuedMessageIDs: ReadonlySet<number>;
-	// IDs confirmed deleted from the queue because the send response
-	// contained their promoted user rows.
-	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	// Whether older messages exist below the oldest held one.
+	hasMoreMessages: boolean;
+	// These change only what view shows. view applies them in request order.
+	pendingEntries: readonly PendingEntry[];
+	// Built once per state, so selectors reading one state get the same
+	// values, which useSyncExternalStore requires.
+	view: ChatView;
 };
 
 export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
 	batch: (fn: () => void) => void;
-	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
-	upsertDurableMessage: (message: TypesGen.ChatMessage) => {
-		isDuplicate: boolean;
-		changed: boolean;
-	};
-	upsertDurableMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+	// Fills a new store with the newest messages page. After that, only
+	// stream events and older pages change its messages and queue.
+	seed: (page: TypesGen.ChatMessagesResponse) => void;
+	// Applies a history_reset: drops the messages with IDs at or above fromID.
+	resetHistoryFrom: (fromID: number, snapshotVersion: number) => void;
+	getHistoryResetCount: () => number;
+	// Drops the page if a history reset was applied since resetCount.
+	prependOlderMessages: (
+		messages: readonly TypesGen.ChatMessage[],
+		hasMore: boolean,
+		resetCount: number,
+	) => void;
+	// userMessageVersion is the highest snapshot version of the user messages.
+	upsertDurableMessages: (
+		messages: readonly TypesGen.ChatMessage[],
+		userMessageVersion: number,
+	) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+		snapshotVersion: number,
 	) => void;
-	// Server-truthful queue snapshot, filtered through the
-	// suppression set. Use for SSE queue_update and REST hydration;
-	// optimistic writes go through setQueuedMessages so they don't
-	// lift suppression.
-	applyAuthoritativeQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-	) => void;
-	// Advances when an accepted snapshot or active-chat change invalidates an
-	// in-flight convergence request. Discarded snapshots do not advance it.
-	getQueueConvergenceFence: () => number;
-	// Applies a promotion refetch only while the chat and fence still match.
-	// Clears that ID's markers and returns the filtered queue for cache mirroring.
-	applyPromoteRefetchQueuedMessages: (
-		chatID: string,
-		promotedID: number,
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-		baselineFence: number,
-	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
-	suppressQueuedMessageID: (id: number) => void;
-	markQueuedMessagePromoted: (id: number) => void;
-	// Distinguishes a tail still in flight from one the server listed and later removed.
-	hasObservedQueuedMessageID: (id: number) => boolean;
-	setActiveChatID: (chatID: string | null) => void;
-	getActiveChatID: () => string | null;
-	// Counts server-reported status events, including repeats of the
-	// current value, so a caller can tell that the server spoke during a
-	// request even when the status did not change.
-	getServerChatStatusVersion: () => number;
+	// Applies a status event, and clears the turn error unless the status is
+	// error.
 	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
-	unsuppressQueuedMessageID: (id: number) => void;
-	clearSuppressedQueuedMessageIDs: () => void;
-	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
-	setStreamState: (streamState: StreamState | null) => void;
-	setStreamError: (reason: ChatDetailError | null) => void;
-	clearStreamError: () => void;
+	setTurnError: (reason: ChatDetailError) => void;
+	// The highest snapshot version of the newest page and the applied events.
+	getSyncedSnapshotVersion: () => number;
+	advanceSnapshotVersion: (version: number) => void;
+	// Shows the action until a stream update ends it or request rejects.
+	// status is the chat status the page shows, which places the message.
+	runPendingAction: (
+		action: PendingAction,
+		status: TypesGen.ChatStatus | null,
+		request: () => Promise<unknown>,
+	) => Promise<void>;
+	setClientError: (reason: ChatDetailError | null) => void;
+	clearClientError: () => void;
 	setRetryState: (state: RetryState) => void;
 	clearRetryState: () => void;
 	setReconnectState: (state: ReconnectState) => void;
@@ -193,28 +240,33 @@ export type ChatStore = {
 	resetTransientState: () => void;
 };
 
-const createInitialState = (): ChatStoreState => ({
-	messagesByID: new Map(),
-	orderedMessageIDs: [],
-	streamState: null,
-	chatStatus: null,
-	streamError: null,
-	retryState: null,
-	reconnectState: null,
-	queuedMessages: [],
-	suppressedQueuedMessageIDs: new Set(),
-	promotedQueuedMessageIDs: new Set(),
-	subagentStatusOverrides: new Map(),
-});
+const createInitialState = (): ChatStoreState => {
+	const state: Omit<ChatStoreState, "view"> = {
+		messagesByID: new Map(),
+		orderedMessageIDs: [],
+		streamState: null,
+		chatStatus: null,
+		clientError: null,
+		retryState: null,
+		turnError: null,
+		reconnectState: null,
+		queuedMessages: [],
+		subagentStatusOverrides: new Map(),
+		hasMoreMessages: false,
+		pendingEntries: [],
+	};
+	return { ...state, view: buildView(state) };
+};
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
-	// Bookkeeping, deliberately outside the rendered state so observing a
-	// server event cannot trigger a re-render.
-	let observedQueuedMessageIDs = new Set<number>();
-	let queueConvergenceFence = 0;
-	let serverChatStatusVersion = 0;
-	let activeChatID: string | null = null;
+	// Kept outside the rendered state, so changing them never triggers a
+	// re-render.
+	let historyResets = 0;
+	let syncedSnapshotVersion = 0;
+	// Every reset at or below this version is in the store.
+	let historyResetVersion = 0;
+	let nextPendingActionID = 1;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -243,18 +295,36 @@ export const createChatStore = (): ChatStore => {
 	};
 
 	const setState = (
-		updater: (current: ChatStoreState) => ChatStoreState,
+		updater: (current: ChatStoreState) => Omit<ChatStoreState, "view">,
 	): void => {
 		const next = updater(state);
 		if (next === state) {
 			return;
 		}
-		state = next;
+		state = { ...next, view: buildView(next) };
 		if (batchDepth > 0) {
 			batchDirty = true;
 		} else {
 			emit();
 		}
+	};
+
+	const endPending = (
+		parts: readonly PendingPart[],
+		version: number,
+		rows?: readonly TypesGen.ChatQueuedMessage[],
+	): void => {
+		setState((current) => {
+			const pendingEntries = endPendingParts(
+				current.pendingEntries,
+				parts,
+				version,
+				rows,
+			);
+			return arraysEqual(pendingEntries, current.pendingEntries)
+				? current
+				: { ...current, pendingEntries };
+		});
 	};
 
 	const replaceMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
@@ -286,52 +356,19 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
-	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
-		// Use `state` for the early-return guard so we can return
-		// the result synchronously. The actual mutation below uses
-		// `current` inside the updater to avoid overwriting a
-		// concurrent state change (TOCTOU).
-		const existing = state.messagesByID.get(message.id);
-		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing && isEqual(existing, message)) {
-			return { isDuplicate, changed: false };
-		}
-
-		let actuallyChanged = false;
-		setState((current) => {
-			// Re-check inside the updater: another call may have
-			// already applied this exact message.
-			const curExisting = current.messagesByID.get(message.id);
-			if (curExisting && isEqual(curExisting, message)) {
-				return current;
-			}
-
-			actuallyChanged = true;
-
-			const nextMessagesByID = new Map(current.messagesByID);
-			nextMessagesByID.set(message.id, message);
-
-			const curIsDuplicate = current.messagesByID.has(message.id);
-			const needsReorder =
-				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
-			const nextOrderedMessageIDs = needsReorder
-				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-				: current.orderedMessageIDs;
-
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
-		});
-		return { isDuplicate, changed: actuallyChanged };
+	const seed = (page: TypesGen.ChatMessagesResponse): void => {
+		syncedSnapshotVersion = page.snapshot_version ?? 0;
+		historyResetVersion = syncedSnapshotVersion;
+		setState((current) => ({
+			...current,
+			messagesByID: buildMessageMap(page.messages),
+			orderedMessageIDs: buildOrderedMessageIDs(page.messages),
+			queuedMessages: page.queued_messages,
+			hasMoreMessages: page.has_more,
+		}));
 	};
 
-	// Bulk variant that applies all messages in a single pass —
-	// one Map copy and one sort instead of N copies and N sorts.
-	const upsertDurableMessages = (
-		messages: readonly TypesGen.ChatMessage[],
-	): void => {
+	const writeMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
 		if (messages.length === 0) {
 			return;
 		}
@@ -364,6 +401,45 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
+	const addPendingAction = (
+		action: PendingAction,
+		status: TypesGen.ChatStatus | null,
+	): number => {
+		const id = nextPendingActionID++;
+		const entry = pendingEntry(id, action, state.view, status);
+		// An action that shows nothing gets no entry, and
+		// removePendingAction ignores its ID.
+		if (
+			!entry.message &&
+			!entry.editedMessage &&
+			!entry.queue &&
+			!entry.history
+		) {
+			return id;
+		}
+		setState((current) => ({
+			...current,
+			pendingEntries: [
+				...current.pendingEntries,
+				{ ...entry, syncedVersion: syncedSnapshotVersion },
+			],
+		}));
+		return id;
+	};
+
+	const removePendingAction = (id: number): void => {
+		setState((current) =>
+			current.pendingEntries.some((entry) => entry.id === id)
+				? {
+						...current,
+						pendingEntries: current.pendingEntries.filter(
+							(entry) => entry.id !== id,
+						),
+					}
+				: current,
+		);
+	};
+
 	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
@@ -393,240 +469,110 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		replaceMessages,
-		upsertDurableMessage,
-		upsertDurableMessages,
+		upsertDurableMessages: (messages, userMessageVersion) => {
+			batch(() => {
+				writeMessages(messages);
+				if (messages.some((message) => message.role === "user")) {
+					endPending(["message", "editedMessage"], userMessageVersion);
+				}
+			});
+		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
-		setQueuedMessages: (queuedMessages) => {
-			setState((current) => {
-				if (isEqual(current.queuedMessages, queuedMessages)) {
-					return current;
-				}
-				return { ...current, queuedMessages };
+		setQueuedMessages: (queuedMessages, snapshotVersion) => {
+			batch(() => {
+				setState((current) =>
+					isEqual(current.queuedMessages, queuedMessages)
+						? current
+						: { ...current, queuedMessages },
+				);
+				endPending(["message", "queue"], snapshotVersion, queuedMessages);
 			});
 		},
-		applyAuthoritativeQueuedMessages: (queuedMessages) => {
-			const incoming = queuedMessages ?? [];
-			for (const message of incoming) {
-				observedQueuedMessageIDs.add(message.id);
-			}
-			// A snapshot containing a confirmed promoted ID predates its queue
-			// deletion. Applying it would also drop newer queued messages, and
-			// counting it would discard the fresher refetch racing it.
-			if (
-				incoming.some((message) =>
-					state.promotedQueuedMessageIDs.has(message.id),
-				)
-			) {
+		seed,
+		resetHistoryFrom: (fromID, snapshotVersion) => {
+			// A commit has at most one reset, so a reset at or below
+			// historyResetVersion is a resend. On the first open, a reset above
+			// the page's snapshot_version can be one the page already holds: it
+			// applies again and drops an older page in flight, which
+			// ChatMessageScroller requests again while the transcript start is
+			// in view.
+			if (snapshotVersion <= historyResetVersion) {
 				return;
 			}
-			queueConvergenceFence++;
-			setState((current) => {
-				let nextSuppressed = current.suppressedQueuedMessageIDs;
-				if (current.suppressedQueuedMessageIDs.size > 0) {
-					const incomingIDs = new Set(incoming.map((message) => message.id));
-					let copy: Set<number> | null = null;
-					for (const id of current.suppressedQueuedMessageIDs) {
-						if (!incomingIDs.has(id)) {
-							if (!copy) {
-								copy = new Set(current.suppressedQueuedMessageIDs);
-							}
-							copy.delete(id);
-						}
-					}
-					if (copy) {
-						nextSuppressed = copy;
-					}
-				}
-				const filtered =
-					nextSuppressed.size === 0
-						? incoming
-						: incoming.filter((message) => !nextSuppressed.has(message.id));
-				const sameQueue = isEqual(current.queuedMessages, filtered);
-				const sameSuppressed =
-					nextSuppressed === current.suppressedQueuedMessageIDs;
-				const nextPromoted =
-					current.promotedQueuedMessageIDs.size === 0
-						? current.promotedQueuedMessageIDs
-						: new Set<number>();
-				const samePromoted = nextPromoted === current.promotedQueuedMessageIDs;
-				if (sameQueue && sameSuppressed && samePromoted) {
-					return current;
-				}
-				return {
-					...current,
-					queuedMessages: sameQueue ? current.queuedMessages : filtered,
-					suppressedQueuedMessageIDs: nextSuppressed,
-					promotedQueuedMessageIDs: nextPromoted,
-				};
+			historyResetVersion = snapshotVersion;
+			historyResets++;
+			batch(() => {
+				replaceMessages(
+					[...state.messagesByID.values()].filter(
+						(message) => message.id < fromID,
+					),
+				);
+				endPending(["history"], snapshotVersion);
 			});
 		},
-		getQueueConvergenceFence: () => queueConvergenceFence,
-		applyPromoteRefetchQueuedMessages: (
-			chatID,
-			promotedID,
-			queuedMessages,
-			baselineFence,
-		) => {
-			// The fence covers ordering, including navigation. This identity check
-			// additionally keeps a response that names another chat out of the
-			// shared store even if its caller captured the fence incorrectly.
-			if (activeChatID !== chatID) {
-				return undefined;
-			}
-			if (queueConvergenceFence !== baselineFence) {
-				return undefined;
-			}
-			queueConvergenceFence++;
-			for (const message of queuedMessages) {
-				observedQueuedMessageIDs.add(message.id);
-			}
-			const suppressed = new Set(state.suppressedQueuedMessageIDs);
-			suppressed.delete(promotedID);
-			const promoted = new Set(state.promotedQueuedMessageIDs);
-			promoted.delete(promotedID);
-			const applied =
-				suppressed.size === 0
-					? queuedMessages
-					: queuedMessages.filter((message) => !suppressed.has(message.id));
-			setState((current) => ({
-				...current,
-				queuedMessages: isEqual(current.queuedMessages, applied)
-					? current.queuedMessages
-					: applied,
-				suppressedQueuedMessageIDs: suppressed,
-				promotedQueuedMessageIDs: promoted,
-			}));
-			return applied;
-		},
-		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
-		suppressQueuedMessageID: (id) => {
-			setState((current) => {
-				if (current.suppressedQueuedMessageIDs.has(id)) {
-					return current;
-				}
-				const next = new Set(current.suppressedQueuedMessageIDs);
-				next.add(id);
-				return { ...current, suppressedQueuedMessageIDs: next };
-			});
-		},
-		markQueuedMessagePromoted: (id) => {
-			setState((current) => {
-				if (
-					current.suppressedQueuedMessageIDs.has(id) &&
-					current.promotedQueuedMessageIDs.has(id)
-				) {
-					return current;
-				}
-				const suppressed = new Set(current.suppressedQueuedMessageIDs);
-				suppressed.add(id);
-				const promoted = new Set(current.promotedQueuedMessageIDs);
-				promoted.add(id);
-				return {
-					...current,
-					suppressedQueuedMessageIDs: suppressed,
-					promotedQueuedMessageIDs: promoted,
-				};
-			});
-		},
-		unsuppressQueuedMessageID: (id) => {
-			setState((current) => {
-				if (
-					!current.suppressedQueuedMessageIDs.has(id) &&
-					!current.promotedQueuedMessageIDs.has(id)
-				) {
-					return current;
-				}
-				const suppressed = new Set(current.suppressedQueuedMessageIDs);
-				suppressed.delete(id);
-				const promoted = new Set(current.promotedQueuedMessageIDs);
-				promoted.delete(id);
-				return {
-					...current,
-					suppressedQueuedMessageIDs: suppressed,
-					promotedQueuedMessageIDs: promoted,
-				};
-			});
-		},
-		clearSuppressedQueuedMessageIDs: () => {
-			observedQueuedMessageIDs = new Set();
-			setState((current) => {
-				if (
-					current.suppressedQueuedMessageIDs.size === 0 &&
-					current.promotedQueuedMessageIDs.size === 0
-				) {
-					return current;
-				}
-				return {
-					...current,
-					suppressedQueuedMessageIDs: new Set(),
-					promotedQueuedMessageIDs: new Set(),
-				};
-			});
-		},
-		setChatStatus: (status) => {
-			if (state.chatStatus === status) {
+		getHistoryResetCount: () => historyResets,
+		prependOlderMessages: (messages, hasMore, resetCount) => {
+			if (resetCount !== historyResets) {
 				return;
 			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
+			const older = messages.filter(
+				(message) => !state.messagesByID.has(message.id),
+			);
+			writeMessages(older);
+			setState((current) =>
+				current.hasMoreMessages === hasMore
+					? current
+					: { ...current, hasMoreMessages: hasMore },
+			);
 		},
-		setActiveChatID: (chatID) => {
-			if (activeChatID === chatID) {
-				return;
-			}
-			activeChatID = chatID;
-			// Leaving a chat strands any convergence request issued for it, so a
-			// later return to the same chat cannot revive one.
-			queueConvergenceFence++;
-		},
-		getActiveChatID: () => activeChatID,
-		getServerChatStatusVersion: () => serverChatStatusVersion,
 		applyServerChatStatus: (status) => {
-			serverChatStatusVersion++;
-			if (state.chatStatus === status) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
-		},
-		setStreamState: (streamState) => {
-			if (state.streamState === streamState) {
-				return;
-			}
 			setState((current) => {
-				if (current.streamState === streamState) {
+				const turnError = status === "error" ? current.turnError : null;
+				if (current.chatStatus === status && current.turnError === turnError) {
+					return current;
+				}
+				return { ...current, chatStatus: status, turnError };
+			});
+		},
+		setTurnError: (reason) => {
+			setState((current) =>
+				chatDetailErrorsEqual(current.turnError, reason)
+					? current
+					: { ...current, turnError: reason },
+			);
+		},
+		getSyncedSnapshotVersion: () => syncedSnapshotVersion,
+		advanceSnapshotVersion: (version) => {
+			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, version);
+		},
+		runPendingAction: async (action, status, request) => {
+			const id = addPendingAction(action, status);
+			try {
+				await request();
+			} catch (error) {
+				removePendingAction(id);
+				throw error;
+			}
+		},
+		setClientError: (reason) => {
+			setState((current) => {
+				if (chatDetailErrorsEqual(current.clientError, reason)) {
 					return current;
 				}
 				return {
 					...current,
-					streamState,
+					clientError: reason,
 				};
 			});
 		},
-		setStreamError: (reason) => {
-			setState((current) => {
-				if (chatDetailErrorsEqual(current.streamError, reason)) {
-					return current;
-				}
-				return {
-					...current,
-					streamError: reason,
-				};
-			});
-		},
-		clearStreamError: () => {
-			if (state.streamError === null) {
+		clearClientError: () => {
+			if (state.clientError === null) {
 				return;
 			}
 			setState((current) => ({
 				...current,
-				streamError: null,
+				clientError: null,
 			}));
 		},
 		setRetryState: (retryState) => {
@@ -682,7 +628,8 @@ export const createChatStore = (): ChatStore => {
 			if (
 				state.reconnectState === null &&
 				state.streamState === null &&
-				state.streamError === null
+				state.clientError === null &&
+				state.retryState === null
 			) {
 				return;
 			}
@@ -690,7 +637,8 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				reconnectState: null,
 				streamState: null,
-				streamError: null,
+				clientError: null,
+				retryState: null,
 			}));
 		},
 		setSubagentStatusOverride: (chatID, status) => {
@@ -709,8 +657,10 @@ export const createChatStore = (): ChatStore => {
 		resetTransientState: () => {
 			if (
 				state.streamState === null &&
-				state.streamError === null &&
+				state.chatStatus === null &&
+				state.clientError === null &&
 				state.retryState === null &&
+				state.turnError === null &&
 				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
@@ -719,8 +669,10 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamState: null,
-				streamError: null,
+				chatStatus: null,
+				clientError: null,
 				retryState: null,
+				turnError: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
 			}));
@@ -728,43 +680,251 @@ export const createChatStore = (): ChatStore => {
 	};
 };
 
-export const selectMessagesByID = (state: ChatStoreState) => state.messagesByID;
+type ChatView = Pick<
+	ChatStoreState,
+	"messagesByID" | "orderedMessageIDs" | "queuedMessages" | "streamState"
+>;
+
+const queuedRow = (
+	message: TypesGen.ChatMessage,
+): TypesGen.ChatQueuedMessage => ({
+	id: message.id,
+	chat_id: message.chat_id,
+	model_config_id: message.model_config_id,
+	content: message.content ?? [],
+	created_at: message.created_at,
+});
+
+const sentQueuedMessage = (
+	id: number,
+	row: TypesGen.ChatQueuedMessage,
+): TypesGen.ChatMessage => ({
+	id,
+	chat_id: row.chat_id,
+	created_at: row.created_at,
+	role: "user",
+	content: row.content,
+	model_config_id: row.model_config_id,
+	queued_message_id: row.id,
+});
+
+const withoutRow =
+	(id: number): QueueEdit =>
+	(rows) =>
+		rows.filter((row) => row.id !== id);
+
+// Pending rows take IDs from the top of the safe integer range, above any ID
+// the database assigns, so a later edit hides them with the rest of the
+// history from the edited message on. The IDs stay above the floor while a
+// store creates fewer than maxPendingActions actions.
+const maxPendingActions = 2 ** 32;
+const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - maxPendingActions;
+
+/**
+ * Whether a shown message or queued row comes from a pending action. The
+ * server does not know such a row's ID, so nothing may act on it by ID.
+ */
+export const isPendingRowID = (id: number) => id > pendingRowIDFloor;
+
+// pendingEntry places a request's message as chatstate SendMessage and
+// PromoteQueuedMessage do, but by the state shown at the click. The server
+// uses the state the request finds, which can differ.
+const pendingEntry = (
+	id: number,
+	action: PendingAction,
+	view: ChatView,
+	status: TypesGen.ChatStatus | null,
+): Omit<PendingEntry, "syncedVersion"> => {
+	const pendingRowID = Number.MAX_SAFE_INTEGER - id;
+	const running = status === "running" || status === "interrupting";
+	switch (action.kind) {
+		case "send": {
+			const sent = { ...action.message, id: pendingRowID };
+			const row = queuedRow(sent);
+			const head = status === "error" ? view.queuedMessages[0] : undefined;
+			// A busy or paused chat queues the message, and so does an errored chat
+			// whose queue head is under edit.
+			if (
+				isActiveChatStatus(status) ||
+				status === "paused" ||
+				head?.editing_since
+			) {
+				return { id, message: { queue: (rows) => [...rows, row] } };
+			}
+			// An errored chat with a queue sends its head and queues this one.
+			if (head) {
+				return {
+					id,
+					message: { shown: sentQueuedMessage(pendingRowID, head) },
+					queue: (rows) => [...withoutRow(head.id)(rows), row],
+				};
+			}
+			return { id, message: { shown: sent } };
+		}
+		case "promoteQueued": {
+			const target = view.queuedMessages.find(
+				(row) => row.id === action.queuedMessageID,
+			);
+			if (!target) {
+				return { id };
+			}
+			// A running chat ends the row's edit and moves the row to the head. For
+			// a head that is not under edit, the server sends no queue update.
+			if (running) {
+				const ready = { ...target, editing_since: undefined };
+				return {
+					id,
+					queue:
+						view.queuedMessages[0] === target && !target.editing_since
+							? undefined
+							: (rows) => [ready, ...withoutRow(target.id)(rows)],
+				};
+			}
+			return {
+				id,
+				message: { shown: sentQueuedMessage(pendingRowID, target) },
+				queue: withoutRow(target.id),
+			};
+		}
+		case "edit":
+			return {
+				id,
+				history: { fromID: action.editedMessageID },
+				editedMessage: action.message && {
+					...action.message,
+					id: pendingRowID,
+				},
+				// The server sends no queue update when the queue is already empty.
+				queue: view.queuedMessages.length > 0 ? () => [] : undefined,
+			};
+		case "deleteQueued":
+			return {
+				id,
+				isRowGone: (rows) =>
+					!rows.some((row) => row.id === action.queuedMessageID),
+				queue: withoutRow(action.queuedMessageID),
+			};
+	}
+};
+
+const endPendingParts = (
+	entries: readonly PendingEntry[],
+	ended: readonly PendingPart[],
+	version: number,
+	rows?: readonly TypesGen.ChatQueuedMessage[],
+): readonly PendingEntry[] =>
+	entries.flatMap((entry) => {
+		if (
+			version <= entry.syncedVersion ||
+			(rows && entry.isRowGone && !entry.isRowGone(rows))
+		) {
+			return [entry];
+		}
+		const message = ended.includes("message") ? undefined : entry.message;
+		const editedMessage = ended.includes("editedMessage")
+			? undefined
+			: entry.editedMessage;
+		const queue = ended.includes("queue") ? undefined : entry.queue;
+		const history = ended.includes("history") ? undefined : entry.history;
+		if (!message && !editedMessage && !queue && !history) {
+			return [];
+		}
+		if (
+			message === entry.message &&
+			editedMessage === entry.editedMessage &&
+			queue === entry.queue &&
+			history === entry.history
+		) {
+			return [entry];
+		}
+		return [{ ...entry, message, editedMessage, queue, history }];
+	});
+
+const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
+	const view: ChatView = {
+		messagesByID: state.messagesByID,
+		orderedMessageIDs: state.orderedMessageIDs,
+		queuedMessages: state.queuedMessages,
+		streamState: state.streamState,
+	};
+	const show = (message: TypesGen.ChatMessage) => {
+		view.messagesByID = new Map(view.messagesByID).set(message.id, message);
+		view.orderedMessageIDs = [...view.orderedMessageIDs, message.id];
+	};
+	for (const {
+		message,
+		editedMessage,
+		queue,
+		history,
+	} of state.pendingEntries) {
+		if (history) {
+			view.messagesByID = new Map(
+				[...view.messagesByID].filter(([id]) => id < history.fromID),
+			);
+			view.orderedMessageIDs = view.orderedMessageIDs.filter(
+				(id) => id < history.fromID,
+			);
+			view.streamState = null;
+		}
+		if (editedMessage) {
+			show(editedMessage);
+		}
+		if (queue) {
+			view.queuedMessages = queue(view.queuedMessages);
+		}
+		if (message?.shown) {
+			show(message.shown);
+		}
+		if (message?.queue) {
+			view.queuedMessages = message.queue(view.queuedMessages);
+		}
+	}
+	return view;
+};
+
+export const selectMessagesByID = (state: ChatStoreState) =>
+	state.view.messagesByID;
 export const selectOrderedMessageIDs = (state: ChatStoreState) =>
-	state.orderedMessageIDs;
-export const selectStreamState = (state: ChatStoreState) => state.streamState;
+	state.view.orderedMessageIDs;
+export const selectStreamState = (state: ChatStoreState) =>
+	state.view.streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
-	state.streamState !== null;
+	state.view.streamState !== null;
 export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
-export const selectStreamError = (state: ChatStoreState) => state.streamError;
+export const selectShownError = (state: ChatStoreState) =>
+	state.clientError ?? state.turnError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
-	state.queuedMessages;
+	state.view.queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
+export const selectHasMoreMessages = (state: ChatStoreState) =>
+	state.hasMoreMessages;
+/**
+ * The oldest stored message's ID. Unlike the oldest row useChatMessages
+ * shows, it is never a pending row's ID, so it is a valid before_id.
+ */
+export const selectOldestStoredMessageID = (state: ChatStoreState) =>
+	state.orderedMessageIDs[0];
 
-const selectLatestDurableMessage = (
-	state: ChatStoreState,
-): TypesGen.ChatMessage | undefined => {
+const latestMessage = (view: ChatView): TypesGen.ChatMessage | undefined => {
 	const latestMessageID =
-		state.orderedMessageIDs[state.orderedMessageIDs.length - 1];
+		view.orderedMessageIDs[view.orderedMessageIDs.length - 1];
 	return latestMessageID === undefined
 		? undefined
-		: state.messagesByID.get(latestMessageID);
+		: view.messagesByID.get(latestMessageID);
 };
 
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
 ): boolean => {
-	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
-		latestMessage?.role !== "assistant";
-	// Show the Thinking indicator when the store has no stream
-	// data yet, the chat is running, and the conversation is
-	// waiting for an assistant response (any non-assistant latest
-	// message).
-	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
+		latestMessage(state.view)?.role !== "assistant";
+	// A pending edit clears the shown stream state, so an edit to a running
+	// chat shows Thinking.
+	if (state.view.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
 	return state.chatStatus === "running";
@@ -778,7 +938,10 @@ export const useChatSelector = <T>(
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
 
-/** The store's durable messages, oldest first. */
+/**
+ * The shown messages, oldest first. They include pending rows, so check an ID
+ * with isPendingRowID before sending it to the server.
+ */
 export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -787,8 +950,7 @@ export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 		if (!message && process.env.NODE_ENV !== "production") {
 			console.warn(
 				`[useChatMessages] orderedMessageIDs contains ID ${messageID} ` +
-					"not found in messagesByID. This may indicate a store/cache " +
-					"desync bug.",
+					"not found in messagesByID. This may indicate a store bug.",
 			);
 		}
 		return message ? [message] : [];

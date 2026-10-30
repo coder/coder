@@ -77,7 +77,6 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 		chatId: MockChat.id,
 		isVisible: true,
 		hasMoreMessages: false,
-		isHydratingMessages: false,
 	},
 	render: (args) => <ChatSummaryPanel {...args} store={createChatStore()} />,
 };
@@ -136,7 +135,7 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 
 const createAttachmentStore = (messages = mockAttachmentMessages) => {
 	const store = createChatStore();
-	store.replaceMessages(messages);
+	store.upsertDurableMessages(messages, 1);
 	return store;
 };
 
@@ -280,21 +279,6 @@ export const WithEarlierAttachments: Story = {
 	},
 };
 
-export const EarlierAttachmentsWhileFinalPageHydrates: Story = {
-	args: { isHydratingMessages: true },
-	render: renderWithLatestMessages,
-	parameters: {
-		queries: [
-			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
-			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
-			{
-				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
-				data: { attachments: [mockEarlierScreenshot, mockEarlierUpload] },
-			},
-		],
-	},
-};
-
 export const EarlierAttachmentsLoading: Story = {
 	args: { hasMoreMessages: true },
 	beforeEach: () => {
@@ -413,29 +397,6 @@ export const EarlierAttachmentsRefetchAfterFailedRetry: Story = {
 		await canvas.findByText("context deadline exceeded");
 		onlineManager.setOnline(false);
 		onlineManager.setOnline(true);
-	},
-};
-
-export const LoadingMessages: Story = {
-	args: { isHydratingMessages: true },
-	parameters: {
-		queries: [
-			{ key: chatEntityKey(MockChat.id), data: MockChat },
-			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
-		],
-	},
-};
-
-export const LiveMessageArriving: Story = {
-	args: { isHydratingMessages: true },
-	render: (args) => (
-		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
-	),
-	parameters: {
-		queries: [
-			{ key: chatEntityKey(MockChat.id), data: MockChat },
-			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
-		],
 	},
 };
 

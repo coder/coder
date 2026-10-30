@@ -934,3 +934,35 @@ describe("ConversationTimeline attachment previews", () => {
 		await waitFor(() => expect(attachment).toHaveFocus());
 	});
 });
+
+describe("ConversationTimeline user message actions", () => {
+	it("offers no edit for a row a pending action shows", async () => {
+		const user = userEvent.setup();
+		const userMessage = (id: number, text: string): ChatMessage => ({
+			...MockChatMessage,
+			id,
+			role: "user",
+			content: [{ type: "text", text }],
+		});
+		const onEditUserMessage = vi.fn();
+		renderTimeline({
+			messages: [
+				userMessage(1, "stored"),
+				userMessage(Number.MAX_SAFE_INTEGER - 1, "pending"),
+			],
+			onEditUserMessage,
+		});
+
+		const stored = screen.getByTestId("chat-message-message:1");
+		const pending = screen.getByTestId(
+			`chat-message-message:${Number.MAX_SAFE_INTEGER - 1}`,
+		);
+		await user.click(
+			within(stored).getByRole("button", { name: "Edit message" }),
+		);
+		expect(onEditUserMessage.mock.calls.map(([id]) => id)).toEqual([1]);
+		expect(
+			within(pending).queryByRole("button", { name: "Edit message" }),
+		).toBeNull();
+	});
+});
