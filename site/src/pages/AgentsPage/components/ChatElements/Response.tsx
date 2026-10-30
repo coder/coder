@@ -16,30 +16,24 @@ import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import {
+	type InlineNode,
 	inlineNodeIndexProperty,
+	joinInlineNodes,
 	rehypeInlineNodes,
-	replaceInlineNodePlaceholders,
+	resolveInlineNodeText,
 } from "./inlineNodes";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
-/** A React element that replaces a placeholder, with its plain text form. */
-export type InlineNode = {
-	element: React.ReactNode;
-	/** Plain text shown where the node lands inside fenced code. */
-	text: string;
-};
-
 type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
-	children: string;
+	/** Markdown text, or a list of text and chips to show inline. */
+	children: string | readonly (string | InlineNode)[];
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend). Pass true only for live-streaming
 	 * output. */
 	streaming?: boolean;
-	/** Nodes that replace `inlineNodePlaceholder(index)` in the source. */
-	inlineNodes?: readonly InlineNode[];
-	/** Render single newlines as line breaks, as typed text expects. */
+	/** Keep single line breaks, the way the user typed them. */
 	preserveLineBreaks?: boolean;
 };
 
@@ -53,9 +47,10 @@ const chatRehypePlugins = [
 	defaultRehypePlugins.harden,
 ];
 
-// Placeholders resolve after sanitization, which strips the index
-// property the plugin adds, and before hardening, so shortened links are
-// still validated.
+// Only used when chips are passed in, so odd characters in agent replies
+// never turn into chips. The chip step must run after the safety cleanup
+// (which would strip the chip number we add) and before the link check (so
+// links it shortens still get checked).
 const inlineNodeRehypePlugins = [
 	defaultRehypePlugins.sanitize,
 	rehypeInlineNodes,
@@ -141,8 +136,7 @@ const markdownFileViewerStyle = {
 	"--diffs-line-height": "20px",
 };
 
-// Renders the inline node a placeholder span stands for, and every other
-// span unchanged.
+// Shows the chip for a marker span. Other spans render as normal.
 const InlineNodeSpan = ({
 	node,
 	...props
@@ -276,9 +270,9 @@ const createComponents = (
 					c.startsWith("language-"),
 				);
 				const lang = langClass?.replace(/^language-/, "") ?? "text";
-				const content = replaceInlineNodePlaceholders(
+				const content = resolveInlineNodeText(
 					getHastText(codeChild).trimEnd(),
-					inlineNodes.map((inlineNode) => inlineNode.text),
+					inlineNodes,
 				);
 				if (content) {
 					const isMermaid = lang === "mermaid";
@@ -349,7 +343,6 @@ export const Response = ({
 	ref,
 	urlTransform,
 	streaming,
-	inlineNodes,
 	preserveLineBreaks,
 	...props
 }: ResponseProps) => {
@@ -357,6 +350,10 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
+	const { markdown, inlineNodes } =
+		typeof children === "string"
+			? { markdown: children, inlineNodes: undefined }
+			: joinInlineNodes(children);
 
 	return (
 		<div
@@ -390,7 +387,7 @@ export const Response = ({
 					// scrolling internally.
 					tableMaxHeight={0}
 				>
-					{children}
+					{markdown}
 				</Streamdown>
 			</InlineNodesContext>
 		</div>

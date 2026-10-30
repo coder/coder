@@ -1,12 +1,9 @@
 import { cn } from "cn";
 import type { UrlTransform } from "streamdown";
 import { getSkillAlias } from "../../utils/skillAliases";
-import {
-	escapeInlineNodeDelimiters,
-	inlineNodePlaceholder,
-} from "../ChatElements/inlineNodes";
+import type { InlineNode } from "../ChatElements/inlineNodes";
 import { Message, MessageContent } from "../ChatElements/Message";
-import { type InlineNode, Response } from "../ChatElements/Response";
+import { Response } from "../ChatElements/Response";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
 	getFileReferenceDisplay,
@@ -76,21 +73,13 @@ const renderUserChip = (
 	};
 };
 
-// Joins text and chips into one Markdown source so Markdown spans across
-// chips, with each chip held by a placeholder that Response resolves.
-const buildUserMarkdown = (blocks: readonly UserInlineRenderBlock[]) => {
+const getUserMessageParts = (blocks: readonly UserInlineRenderBlock[]) => {
 	const inlineParts = getInlineParts(blocks);
-	const inlineNodes: InlineNode[] = [];
-	let markdown = "";
-	for (const [blockIndex, block] of blocks.entries()) {
-		if (block.type === "response") {
-			markdown += escapeInlineNodeDelimiters(block.text);
-			continue;
-		}
-		markdown += inlineNodePlaceholder(inlineNodes.length);
-		inlineNodes.push(renderUserChip(inlineParts, block, blockIndex));
-	}
-	return { markdown, inlineNodes };
+	return blocks.map((block, index) =>
+		block.type === "response"
+			? block.text
+			: renderUserChip(inlineParts, block, index),
+	);
 };
 
 export const UserMessageContent: React.FC<{
@@ -111,10 +100,6 @@ export const UserMessageContent: React.FC<{
 	onTextFileClick,
 	urlTransform,
 }) => {
-	const body =
-		displayState.userInlineContent.length > 0
-			? buildUserMarkdown(displayState.userInlineContent)
-			: { markdown: escapeInlineNodeDelimiters(markdown), inlineNodes: [] };
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -130,11 +115,12 @@ export const UserMessageContent: React.FC<{
 							{displayState.hasUserMessageBody && (
 								<Response
 									className="min-w-0 flex-1 whitespace-normal"
-									inlineNodes={body.inlineNodes}
 									preserveLineBreaks
 									urlTransform={urlTransform}
 								>
-									{body.markdown}
+									{displayState.userInlineContent.length > 0
+										? getUserMessageParts(displayState.userInlineContent)
+										: markdown}
 								</Response>
 							)}
 						</div>

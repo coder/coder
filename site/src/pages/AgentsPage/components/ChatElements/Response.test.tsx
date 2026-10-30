@@ -2,10 +2,6 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "#/testHelpers/renderHelpers";
-import {
-	escapeInlineNodeDelimiters,
-	inlineNodePlaceholder,
-} from "./inlineNodes";
 import { Response } from "./Response";
 
 // jsdom's stylesheet parser throws on the real FileViewer's shadow-DOM styles.
@@ -14,6 +10,8 @@ vi.mock("@pierre/diffs/react", () => ({
 		<pre>{file.contents}</pre>
 	),
 }));
+
+const chip = { element: <button>chip</button>, text: "chip" };
 
 const sampleFileCode = `package auth
 
@@ -40,17 +38,19 @@ describe("Response", () => {
 		expect(writeText).toHaveBeenCalledWith(sampleFileCode);
 	});
 
-	it("copies an inline node inside fenced code as its fallback text", async () => {
+	it("copies an inline node inside fenced code as its text", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
 
 		render(
-			<Response
-				inlineNodes={[{ element: <button>chip</button>, text: "main.go:L1" }]}
-			>
-				{`\`\`\`\nopen ${inlineNodePlaceholder(0)}\n\`\`\``}
+			<Response>
+				{[
+					"```\nopen ",
+					{ element: <button>chip</button>, text: "main.go:L1" },
+					"\n```",
+				]}
 			</Response>,
 		);
 
@@ -61,11 +61,7 @@ describe("Response", () => {
 
 	it("ends an autolink at an inline node that touches the URL", async () => {
 		render(
-			<Response
-				inlineNodes={[{ element: <button>chip</button>, text: "chip" }]}
-			>
-				{`See https://example.com/docs${inlineNodePlaceholder(0)} now`}
-			</Response>,
+			<Response>{["See https://example.com/docs", chip, " now"]}</Response>,
 		);
 
 		const link = await screen.findByRole("link");
@@ -74,15 +70,9 @@ describe("Response", () => {
 	});
 
 	it("never resolves typed delimiters, including character references", async () => {
-		render(
-			<Response
-				inlineNodes={[{ element: <button>chip</button>, text: "chip" }]}
-			>
-				{escapeInlineNodeDelimiters("\uE0000\uE001 &#xE000;0&#57345;")}
-			</Response>,
-		);
+		render(<Response>{["\uE0000\uE001 &#xE000;0&#57345; ", chip]}</Response>);
 
-		await screen.findByText("\uFFFD0\uFFFD \uFFFD0\uFFFD");
-		expect(screen.queryByRole("button", { name: "chip" })).toBeNull();
+		await screen.findByText(/\uFFFD0\uFFFD \uFFFD0\uFFFD/);
+		expect(screen.getAllByRole("button", { name: "chip" })).toHaveLength(1);
 	});
 });
