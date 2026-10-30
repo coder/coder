@@ -173,6 +173,10 @@ var testCases = []testCase{
 		name:          "single_stack_ipv6",
 		expectedError: "",
 	},
+	{
+		name:          "image_repo_deprecated",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

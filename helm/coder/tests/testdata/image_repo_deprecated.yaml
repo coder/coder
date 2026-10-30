@@ -1,0 +1,4 @@
+coder:
+  image:
+    repo: registry.example.com/coder
+    tag: latest

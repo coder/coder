@@ -13,9 +13,10 @@
         "envFrom": {"type": "array", "items": {"type": "object"}},
         "image": {
           "type": "object", "additionalProperties": false,
-          "required": ["repo", "tag", "pullPolicy", "pullSecrets"],
+          "required": ["repository", "tag", "pullPolicy", "pullSecrets"],
           "properties": {
-            "repo": {"type": "string", "minLength": 1},
+            "repository": {"type": "string", "minLength": 1},
+            "repo": {"type": "string", "minLength": 1, "deprecated": true, "description": "Deprecated: use repository."},
             "tag": {"type": "string"},
             "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
             "pullSecrets": {"type": "array", "items": {"type": "object"}}
