@@ -679,6 +679,8 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 // Clear the user's session cookie.
 //
 // @Summary Log out user
+// @Description Signs you out by deleting the API key that authenticated the request and clearing the session cookie.
+// @Description Also deletes the API keys that workspace apps on subdomains use, so those apps ask you to sign in again.
 // @ID log-out-user
 // @Security CoderSessionToken
 // @Produce json
@@ -791,6 +793,9 @@ func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOp
 }
 
 // @Summary Get authentication methods
+// @Description Returns whether password, GitHub, and OpenID Connect (OIDC) sign-in are enabled, plus the text and icon for the OIDC sign-in button.
+// @Description Use it to decide which sign-in options to offer.
+// @Description Doesn't require a session token.
 // @ID get-authentication-methods
 // @Security CoderSessionToken
 // @Produce json
@@ -826,6 +831,9 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get Github device auth.
+// @Description Starts the device authorization flow for GitHub and returns the `device_code`, `user_code`, and `verification_uri` to show to the user.
+// @Description Returns `400` unless GitHub OAuth2 and its device flow are enabled.
+// @Description Doesn't require a session token.
 // @ID get-github-device-auth
 // @Security CoderSessionToken
 // @Produce json
@@ -873,6 +881,9 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary OAuth 2.0 GitHub Callback
+// @Description Finishes a GitHub sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in, or returning that path as `redirect_url` when GitHub device flow is enabled.
+// @Description GitHub redirects the browser here after you authorize, so you don't call this route directly.
+// @Description Doesn't require a session token.
 // @ID oauth-20-github-callback
 // @Security CoderSessionToken
 // @Tags Users
@@ -1216,6 +1227,9 @@ func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
 }
 
 // @Summary OpenID Connect Callback
+// @Description Finishes an OpenID Connect (OIDC) sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in.
+// @Description Your identity provider redirects the browser here after you sign in, so you don't call this route directly.
+// @Description Doesn't require a session token.
 // @ID openid-connect-callback
 // @Security CoderSessionToken
 // @Tags Users

@@ -18,14 +18,17 @@ curl -X GET http://coder-server:8080/api/v2/users \
 
 `GET /api/v2/users`
 
+Returns the users you can read, filtered by the `q` search query and paged with `limit`, `offset`, or `after_id`.
+Use it to find users by status, role, or login type, for example `status:active role:owner`.
+
 ### Parameters
 
-| Name       | In    | Type         | Required | Description  |
-|------------|-------|--------------|----------|--------------|
-| `q`        | query | string       | false    | Search query |
-| `after_id` | query | string(uuid) | false    | After ID     |
-| `limit`    | query | integer      | false    | Page limit   |
-| `offset`   | query | integer      | false    | Page offset  |
+| Name       | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                   |
+|------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`        | query | string       | false    | Search query, for example `status:active role:owner`. A bare term matches the email, username, or name. Use `key:value` terms to filter on `username`, `email`, `name`, `status`, `role`, `service_account`, `login_type`, `github_com_user_id`, `last_seen_before`, `last_seen_after`, `created_before`, or `created_after`. |
+| `after_id` | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                   |
+| `limit`    | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                   |
+| `offset`   | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                           |
 
 ### Example responses
 
@@ -86,6 +89,10 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 `POST /api/v2/users`
 
+Creates a user account, or a service account for automation when `service_account` is `true`.
+Requires permission to create users, which the Owner and User Admin roles have.
+Creating a service account also requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -108,9 +115,9 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-|--------|------|--------------------------------------------------------------------|----------|---------------------|
-| `body` | body | [codersdk.CreateUserRequest](schemas.md#codersdkcreateuserrequest) | true     | Create user request |
+| Name   | In   | Type                                                               | Required | Description                                                                                                                                                               |
+|--------|------|--------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CreateUserRequest](schemas.md#codersdkcreateuserrequest) | true     | User account to create. Set `organization_ids` to at least one organization, or `service_account` to `true` for a service account, which can't have an email or password. |
 
 ### Example responses
 
@@ -165,6 +172,10 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
 
 `GET /api/v2/users/authmethods`
 
+Returns whether password, GitHub, and OpenID Connect (OIDC) sign-in are enabled, plus the text and icon for the OIDC sign-in button.
+Use it to decide which sign-in options to offer.
+Doesn't require a session token.
+
 ### Example responses
 
 > 200 Response
@@ -208,6 +219,10 @@ curl -X GET http://coder-server:8080/api/v2/users/first \
 
 `GET /api/v2/users/first`
 
+Returns `200` when the deployment already has its initial user and `404` when it doesn't.
+Call it before `POST /api/v2/users/first` to check whether the deployment still needs its initial user.
+Doesn't require a session token.
+
 ### Example responses
 
 > 200 Response
@@ -247,6 +262,10 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 
 `POST /api/v2/users/first`
 
+Creates the initial user in the default organization and gives the user the Owner role.
+Works only while the deployment has no users, and returns `409` after that.
+Doesn't require a session token.
+
 > Body parameter
 
 ```json
@@ -274,9 +293,9 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description        |
-|--------|------|------------------------------------------------------------------------------|----------|--------------------|
-| `body` | body | [codersdk.CreateFirstUserRequest](schemas.md#codersdkcreatefirstuserrequest) | true     | First user request |
+| Name   | In   | Type                                                                         | Required | Description                                                                       |
+|--------|------|------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CreateFirstUserRequest](schemas.md#codersdkcreatefirstuserrequest) | true     | Initial user account to create. `email`, `username`, and `password` are required. |
 
 ### Example responses
 
@@ -309,6 +328,9 @@ curl -X POST http://coder-server:8080/api/v2/users/logout \
 ```
 
 `POST /api/v2/users/logout`
+
+Signs you out by deleting the API key that authenticated the request and clearing the session cookie.
+Also deletes the API keys that workspace apps on subdomains use, so those apps ask you to sign in again.
 
 ### Example responses
 
@@ -347,6 +369,10 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
 
 `GET /api/v2/users/oauth2/github/callback`
 
+Finishes a GitHub sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in, or returning that path as `redirect_url` when GitHub device flow is enabled.
+GitHub redirects the browser here after you authorize, so you don't call this route directly.
+Doesn't require a session token.
+
 ### Responses
 
 | Status | Meaning                                                                 | Description        | Schema |
@@ -367,6 +393,10 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
 ```
 
 `GET /api/v2/users/oauth2/github/device`
+
+Starts the device authorization flow for GitHub and returns the `device_code`, `user_code`, and `verification_uri` to show to the user.
+Returns `400` unless GitHub OAuth2 and its device flow are enabled.
+Doesn't require a session token.
 
 ### Example responses
 
@@ -403,6 +433,9 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc-claims \
 
 `GET /api/v2/users/oidc-claims`
 
+Returns the merged OpenID Connect (OIDC) claims from your last OIDC login, where userinfo claims take precedence over ID token claims.
+Returns `400` unless your account uses the `oidc` login type.
+
 ### Example responses
 
 > 200 Response
@@ -433,6 +466,10 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc/callback \
 
 `GET /api/v2/users/oidc/callback`
 
+Finishes an OpenID Connect (OIDC) sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in.
+Your identity provider redirects the browser here after you sign in, so you don't call this route directly.
+Doesn't require a session token.
+
 ### Responses
 
 | Status | Meaning                                                                 | Description        | Schema |
@@ -454,11 +491,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
 
 `GET /api/v2/users/{user}`
 
+Returns a user's account details, including status, login type, and organization IDs.
+You can read your own account, and reading other users requires permission to read users, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -512,11 +552,15 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 
 `DELETE /api/v2/users/{user}`
 
+Deletes a user account and notifies the deployment's user admins.
+Requires permission to delete users, which the Owner and User Admin roles have.
+You can't delete yourself or a user who still has workspaces, so delete their workspaces first.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Responses
 
@@ -539,11 +583,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
 
 `GET /api/v2/users/{user}/appearance`
 
+Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.
+You can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -581,6 +628,9 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 
 `PUT /api/v2/users/{user}/appearance`
 
+Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.
+You can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -595,10 +645,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                   | Required | Description             |
-|--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `user` | path | string                                                                                                 | true     | User ID, name, or me    |
-| `body` | body | [codersdk.UpdateUserAppearanceSettingsRequest](schemas.md#codersdkupdateuserappearancesettingsrequest) | true     | New appearance settings |
+| Name   | In   | Type                                                                                                   | Required | Description                                                                                                                                                                                                                                    |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                                                 | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                         |
+| `body` | body | [codersdk.UpdateUserAppearanceSettingsRequest](schemas.md#codersdkupdateuserappearancesettingsrequest) | true     | New appearance settings. `theme_preference` and `terminal_font` are required. Set `theme_mode` to `single` or `sync`, and set `theme_light` and `theme_dark` when `theme_mode` is `sync`. Omit `theme_mode` to keep the saved mode and themes. |
 
 ### Example responses
 
@@ -635,11 +685,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/gitsshkey \
 
 `GET /api/v2/users/{user}/gitsshkey`
 
+Returns the user's public Git SSH key and never the private key.
+You can read your own key, and reading another user's key requires permission to read personal user data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -675,11 +728,15 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/gitsshkey \
 
 `PUT /api/v2/users/{user}/gitsshkey`
 
+Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.
+Update your Git provider with the new public key, because Coder no longer has the old private key.
+You can regenerate your own key, and regenerating another user's key requires permission to update personal user data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -715,11 +772,14 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
 
 `POST /api/v2/users/{user}/keys`
 
+Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.
+The new key can't grant more than the key you call with, and creating a key for another user requires the Owner role.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -752,12 +812,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 `GET /api/v2/users/{user}/keys/tokens`
 
+Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
+Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires the Owner role.
+Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
+
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                        |
-|-------------------|-------|---------|----------|------------------------------------|
-| `user`            | path  | string  | true     | User ID, name, or me               |
-| `include_expired` | query | boolean | false    | Include expired tokens in the list |
+| Name              | In    | Type    | Required | Description                                                      |
+|-------------------|-------|---------|----------|------------------------------------------------------------------|
+| `user`            | path  | string  | true     | User ID, username, or `me` for the authenticated user.           |
+| `include_expired` | query | boolean | false    | Set to `true` to include expired tokens. The default is `false`. |
 
 ### Example responses
 
@@ -841,6 +905,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 `POST /api/v2/users/{user}/keys/tokens`
 
+Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.
+Without `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.
+The token can't grant more than the key you call with, and creating a token for another user requires the Owner role.
+
 > Body parameter
 
 ```json
@@ -862,10 +930,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 ### Parameters
 
-| Name   | In   | Type                                                                 | Required | Description          |
-|--------|------|----------------------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                               | true     | User ID, name, or me |
-| `body` | body | [codersdk.CreateTokenRequest](schemas.md#codersdkcreatetokenrequest) | true     | Create token request |
+| Name   | In   | Type                                                                 | Required | Description                                                                                                                                                                                                                                                                                                       |
+|--------|------|----------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                               | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                            |
+| `body` | body | [codersdk.CreateTokenRequest](schemas.md#codersdkcreatetokenrequest) | true     | Token to create. `lifetime` is a duration in nanoseconds. `scopes` lists the scopes to grant, from `GET /api/v2/auth/scopes`, and defaults to the scopes of the key you call with. `token_name` names the token, and a name is generated when you omit it. `allow_list` limits the resources the token can reach. |
 
 ### Example responses
 
@@ -898,12 +966,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 
 `GET /api/v2/users/{user}/keys/tokens/{keyname}`
 
+Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.
+The response never includes the token secret.
+You can read your own tokens, and reading another user's tokens requires the Owner role.
+
 ### Parameters
 
-| Name      | In   | Type           | Required | Description          |
-|-----------|------|----------------|----------|----------------------|
-| `user`    | path | string         | true     | User ID, name, or me |
-| `keyname` | path | string(string) | true     | Key Name             |
+| Name      | In   | Type           | Required | Description                                                    |
+|-----------|------|----------------|----------|----------------------------------------------------------------|
+| `user`    | path | string         | true     | User ID, username, or `me` for the authenticated user.         |
+| `keyname` | path | string(string) | true     | Name of the token, as set by `token_name` when you created it. |
 
 ### Example responses
 
@@ -954,12 +1026,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 `GET /api/v2/users/{user}/keys/{keyid}`
 
+Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.
+The response never includes the key secret.
+You can read your own API keys, and reading another user's keys requires the Owner role.
+
 ### Parameters
 
-| Name    | In   | Type           | Required | Description          |
-|---------|------|----------------|----------|----------------------|
-| `user`  | path | string         | true     | User ID, name, or me |
-| `keyid` | path | string(string) | true     | Key ID               |
+| Name    | In   | Type           | Required | Description                                                        |
+|---------|------|----------------|----------|--------------------------------------------------------------------|
+| `user`  | path | string         | true     | User ID, username, or `me` for the authenticated user.             |
+| `keyid` | path | string(string) | true     | ID of the API key, which is the part of the key before the hyphen. |
 
 ### Example responses
 
@@ -1009,12 +1085,15 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 `DELETE /api/v2/users/{user}/keys/{keyid}`
 
+Deletes an API key by its ID, so the key can no longer authenticate requests.
+You can delete your own API keys, and deleting another user's key requires the Owner role.
+
 ### Parameters
 
-| Name    | In   | Type           | Required | Description          |
-|---------|------|----------------|----------|----------------------|
-| `user`  | path | string         | true     | User ID, name, or me |
-| `keyid` | path | string(string) | true     | Key ID               |
+| Name    | In   | Type           | Required | Description                                                        |
+|---------|------|----------------|----------|--------------------------------------------------------------------|
+| `user`  | path | string         | true     | User ID, username, or `me` for the authenticated user.             |
+| `keyid` | path | string(string) | true     | ID of the API key, which is the part of the key before the hyphen. |
 
 ### Responses
 
@@ -1037,12 +1116,16 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/keys/{keyid}/expire \
 
 `PUT /api/v2/users/{user}/keys/{keyid}/expire`
 
+Expires an API key immediately by setting its expiry to now, which keeps the key's record.
+Does nothing when the key has already expired.
+You can expire your own API keys, and expiring another user's key requires the Owner role.
+
 ### Parameters
 
-| Name    | In   | Type           | Required | Description          |
-|---------|------|----------------|----------|----------------------|
-| `user`  | path | string         | true     | User ID, name, or me |
-| `keyid` | path | string(string) | true     | Key ID               |
+| Name    | In   | Type           | Required | Description                                                        |
+|---------|------|----------------|----------|--------------------------------------------------------------------|
+| `user`  | path | string         | true     | User ID, username, or `me` for the authenticated user.             |
+| `keyid` | path | string(string) | true     | ID of the API key, which is the part of the key before the hyphen. |
 
 ### Example responses
 
@@ -1071,11 +1154,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/login-type \
 
 `GET /api/v2/users/{user}/login-type`
 
+Returns the user's login type, such as `password`, `github`, or `oidc`.
+You can only query your own login type, so use `me` or your own user ID, because the call fails for any other user.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -1108,11 +1194,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
 
 `GET /api/v2/users/{user}/organizations`
 
+Returns the organizations the user belongs to.
+Returns only the organizations you can read.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -1174,12 +1263,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
 
 `GET /api/v2/users/{user}/organizations/{organizationname}`
 
+Returns the organization with the given name if you can read it.
+The lookup uses only the organization name, so it doesn't check that the user is a member.
+
 ### Parameters
 
-| Name               | In   | Type   | Required | Description          |
-|--------------------|------|--------|----------|----------------------|
-| `user`             | path | string | true     | User ID, name, or me |
-| `organizationname` | path | string | true     | Organization name    |
+| Name               | In   | Type   | Required | Description                                            |
+|--------------------|------|--------|----------|--------------------------------------------------------|
+| `user`             | path | string | true     | User ID, username, or `me` for the authenticated user. |
+| `organizationname` | path | string | true     | Name of the organization, not its ID.                  |
 
 ### Example responses
 
@@ -1222,6 +1314,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
 
 `PUT /api/v2/users/{user}/password`
 
+Changes a user's password and revokes all of the user's API keys.
+Works only for users with the `password` login type, and changing your own password requires `old_password`.
+Changing another user's password requires permission to update personal user data, which the Owner and User Admin roles have, and only an Owner can change an Owner's password.
+
 > Body parameter
 
 ```json
@@ -1233,10 +1329,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description             |
-|--------|------|------------------------------------------------------------------------------------|----------|-------------------------|
-| `user` | path | string                                                                             | true     | User ID, name, or me    |
-| `body` | body | [codersdk.UpdateUserPasswordRequest](schemas.md#codersdkupdateuserpasswordrequest) | true     | Update password request |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                  |
+|--------|------|------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                             | true     | User ID, username, or `me` for the authenticated user.                                                                       |
+| `body` | body | [codersdk.UpdateUserPasswordRequest](schemas.md#codersdkupdateuserpasswordrequest) | true     | Current password in `old_password`, which is required when you change your own password, and the new password in `password`. |
 
 ### Responses
 
@@ -1259,11 +1355,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 
 `GET /api/v2/users/{user}/preferences`
 
+Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.
+You can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -1301,6 +1400,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 `PUT /api/v2/users/{user}/preferences`
 
+Updates the user's Coder Agents chat preferences and returns all of them.
+Fields you omit keep their current values.
+You can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1315,10 +1418,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                   | Required | Description             |
-|--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `user` | path | string                                                                                                 | true     | User ID, name, or me    |
-| `body` | body | [codersdk.UpdateUserPreferenceSettingsRequest](schemas.md#codersdkupdateuserpreferencesettingsrequest) | true     | New preference settings |
+| Name   | In   | Type                                                                                                   | Required | Description                                                                                                                                                                                                                                                                                           |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                                                 | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                |
+| `body` | body | [codersdk.UpdateUserPreferenceSettingsRequest](schemas.md#codersdkupdateuserpreferencesettingsrequest) | true     | New preference settings. `thinking_display_mode` accepts `auto`, `preview`, `always_expanded`, or `always_collapsed`. `shell_tool_display_mode` and `code_diff_display_mode` accept `auto`, `always_expanded`, or `always_collapsed`. `agent_chat_send_shortcut` accepts `enter` or `modifier_enter`. |
 
 ### Example responses
 
@@ -1356,6 +1459,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 
 `PUT /api/v2/users/{user}/profile`
 
+Updates a user's username, display name, and avatar URL.
+Changing a username, including your own, requires permission to update users, which the Owner and User Admin roles have, and so does updating another user's profile.
+The avatar URL applies only to users with the `password` or `none` login type.
+
 > Body parameter
 
 ```json
@@ -1368,10 +1475,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description          |
-|--------|------|----------------------------------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                                           | true     | User ID, name, or me |
-| `body` | body | [codersdk.UpdateUserProfileRequest](schemas.md#codersdkupdateuserprofilerequest) | true     | Updated profile      |
+| Name   | In   | Type                                                                             | Required | Description                                                                                                             |
+|--------|------|----------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                           | true     | User ID, username, or `me` for the authenticated user.                                                                  |
+| `body` | body | [codersdk.UpdateUserProfileRequest](schemas.md#codersdkupdateuserprofilerequest) | true     | Updated profile. `username` is required. `avatar_url` is ignored for users whose login type isn't `password` or `none`. |
 
 ### Example responses
 
@@ -1426,11 +1533,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
 
 `GET /api/v2/users/{user}/roles`
 
+Returns the user's site-wide roles and their roles in each organization.
+You can read your own roles, and reading another user's roles requires permission to read personal user data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -1486,6 +1596,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
 
 `PUT /api/v2/users/{user}/roles`
 
+Replaces the user's site-wide roles with the given `roles`.
+Requires permission to assign roles, which the Owner and User Admin roles have, but you can assign only roles your own roles allow, so the Owner role can assign any site role and the User Admin role can assign only Member.
+You can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.
+
 > Body parameter
 
 ```json
@@ -1498,10 +1612,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
 
 ### Parameters
 
-| Name   | In   | Type                                                   | Required | Description          |
-|--------|------|--------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                 | true     | User ID, name, or me |
-| `body` | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request |
+| Name   | In   | Type                                                   | Required | Description                                                                                                     |
+|--------|------|--------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                 | true     | User ID, username, or `me` for the authenticated user.                                                          |
+| `body` | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Site-wide role names to assign, such as `template-admin`. The list replaces the user's current site-wide roles. |
 
 ### Example responses
 
@@ -1556,11 +1670,14 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
 
 `PUT /api/v2/users/{user}/status/activate`
 
+Sets a user's status to `active`, for example to reactivate a suspended account.
+Requires permission to update users, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -1615,11 +1732,15 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
 
 `PUT /api/v2/users/{user}/status/suspend`
 
+Suspends a user account by setting its status to `suspended`, which stops the user from signing in.
+Requires permission to update users, which the Owner and User Admin roles have.
+You can't suspend yourself or a user with the Owner role.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
