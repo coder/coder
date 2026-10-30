@@ -59,3 +59,18 @@ export const OpenPicker: Story = {
 		await expect(dialog).toBeVisible();
 	},
 };
+
+/** Shows the focus indicator on the emoji reached with the arrow keys. */
+export const KeyboardActiveEmoji: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Pick an emoji or icon" }),
+		);
+		const search = await screen.findByRole("searchbox", {
+			name: "Search emojis and icons",
+		});
+		await userEvent.type(search, "apple");
+		await userEvent.keyboard("{ArrowDown}{ArrowRight}");
+	},
+};
