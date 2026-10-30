@@ -403,14 +403,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	// Add the PrintDeprecatedOptions and client session ID middleware to all
-	// commands. clientSessionIDMiddleware runs first so the resolved ID is on
-	// the invocation context for every downstream middleware and handler.
+	// clientSessionIDMiddleware runs first so the resolved ID is on the invocation
+	// context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions(), WarnConflictingOptions())
 		} else {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions(), WarnConflictingOptions())
 		}
 	})
 
@@ -1954,6 +1953,46 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+// WarnConflictingOptions warns to stderr for each check in
+// conflictingOptionChecks that finds explicitly set options in a combination
+// where one of them has no effect. The command still runs normally.
+func WarnConflictingOptions() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			for _, check := range conflictingOptionChecks {
+				if warning := check(inv); warning != "" {
+					cliui.Warn(inv.Stderr, warning)
+				}
+			}
+			return next(inv)
+		}
+	}
+}
+
+// conflictingOptionChecks are run by WarnConflictingOptions. Each check returns
+// a warning when it finds conflicting options, or an empty string otherwise.
+// Add new conflicting-option checks here.
+var conflictingOptionChecks = []func(inv *serpent.Invocation) string{
+	columnWithoutTableOutput,
+}
+
+// columnWithoutTableOutput reports --column/-c passed explicitly when the
+// resolved --output format is not "table", since --column only affects table
+// rendering.
+func columnWithoutTableOutput(inv *serpent.Invocation) string {
+	columnFlag := inv.ParsedFlags().Lookup("column")
+	if columnFlag == nil || !columnFlag.Changed {
+		return ""
+	}
+
+	outputFlag := inv.ParsedFlags().Lookup("output")
+	if outputFlag == nil || outputFlag.Value.String() == "table" {
+		return ""
+	}
+
+	return "--column only applies to table output; add -o table to use it"
 }
 
 // PrintDeprecatedOptions loops through all command options, and
