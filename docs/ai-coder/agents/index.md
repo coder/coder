@@ -145,6 +145,21 @@ After a turn ends, an **Attachments** button at the end of the turn opens a list
 The **Attachments** section of the chat's **Summary** tab lists the files the agent attached across the chat.
 In either list, you can download the files, and open PNG, JPEG, GIF, and WebP images and plain text, Markdown, CSV, and JSON files in the chat.
 
+### Chat overview
+
+On a wide screen, a chat shows an overview card in its top-right corner while the right panel is closed.
+The card lists the chat's cost, the uncommitted changes in each repository, the pull requests, the subagents that are not idle, and the attachments.
+The cost appears when the deployment has the AI Gateway entitlement and the chat has sent at least one model request.
+A repository without uncommitted changes shows zero added and zero deleted lines, and you cannot select it.
+
+Select a row to open the matching tab in the right panel, or select a subagent to open its chat.
+The card returns when you close the right panel.
+
+The card shows by default.
+To hide or show it, select the list icon in the chat top bar.
+Your browser remembers the choice for every chat.
+The card does not appear when the chat uses the full width.
+
 ## Security benefits of the control plane architecture
 
 Running the agent loop in the control plane rather than inside the developer workspace is an architectural decision that directly addresses the primary concerns regulated organizations have with AI coding tools: how do you give developers access to coding agents without introducing unnecessary risk?

@@ -1,3 +1,5 @@
+import { cn } from "cn";
+import { ListIcon } from "lucide-react";
 import { type UseQueryResult, useQuery } from "react-query";
 import { useOutletContext } from "react-router";
 import { chatCost } from "#/api/queries/chats";
@@ -6,6 +8,7 @@ import type {
 	ChatCost,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { useChatAttachments } from "../hooks/useChatAttachments";
@@ -22,6 +25,32 @@ import {
 	type OverviewTarget,
 } from "./ChatOverviewCardView";
 import { countRepoChanges, repoBranchLabel } from "./GitPanel/gitViews";
+
+/** The card's stored open state and the handler that flips it. */
+export type ChatOverviewToggleProps = {
+	isOpen: boolean;
+	onToggle: () => void;
+};
+
+/** The top bar button that shows and hides the card. */
+export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
+	isOpen,
+	onToggle,
+}) => (
+	<Button
+		variant="subtle"
+		size="icon"
+		onClick={onToggle}
+		className={cn(
+			"size-7 text-content-secondary hover:text-content-primary",
+			isOpen && "bg-surface-secondary text-content-primary",
+		)}
+		aria-label="Toggle overview"
+		aria-expanded={isOpen}
+	>
+		<ListIcon className="size-4" />
+	</Button>
+);
 
 type ChatOverviewCardProps = {
 	chat: Chat;

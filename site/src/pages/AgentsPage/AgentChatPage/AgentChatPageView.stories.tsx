@@ -53,6 +53,9 @@ import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
 import type { EditingTarget } from "../components/ChatConversation/types";
+import { LEFT_SIDEBAR_DEFAULT_WIDTH } from "../components/ChatsSidebar/sidebarWidth";
+import { chatFullWidthStorageKey } from "../hooks/useChatFullWidth";
+import { overviewCardOpenStorageKey } from "../utils/overviewCardStorage";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -893,6 +896,119 @@ export const EmbeddedViewport: Story = {
 		),
 	],
 	render: () => <StoryAgentChatPageView store={embeddedViewportStore} />,
+};
+
+const overviewCardStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 12),
+);
+
+const mockOverviewCardChat: Partial<TypesGen.Chat> = {
+	diff_statuses: [
+		{ ...MockChatDiffStatus, chat_id: AGENT_ID, additions: 42, deletions: 7 },
+	],
+	children: [
+		buildChat({
+			id: "overview-sub-1",
+			title: "Find the flaky queue test",
+			status: "running",
+			parent_chat_id: AGENT_ID,
+		}),
+	],
+};
+
+const mockOverviewCardGitWatcher: React.ComponentProps<
+	typeof AgentChatPageView
+>["gitWatcher"] = {
+	...buildGitWatcher(),
+	repositories: new Map([
+		[
+			"/home/coder/coder",
+			{
+				repo_root: "/home/coder/coder",
+				branch: "ci/queue-only-jobs",
+				unified_diff: [
+					"diff --git a/ci.yaml b/ci.yaml",
+					"--- a/ci.yaml",
+					"+++ b/ci.yaml",
+					"@@ -1,3 +1,4 @@",
+					"-jobs: all",
+					"+jobs: changed",
+					"+queue: true",
+				].join("\n"),
+			},
+		],
+		[
+			"/home/coder/docs",
+			{ repo_root: "/home/coder/docs", branch: "main", unified_diff: "" },
+		],
+	]),
+};
+
+const overviewCardFrame =
+	(chatWidth: number): Decorator =>
+	(Story) => (
+		<div style={{ display: "flex", height: 640, width: chatWidth }}>
+			<Story />
+		</div>
+	);
+
+/** Clears the overview and full-width keys before and after each story. */
+const resetOverviewCardStorage = () => {
+	const reset = () => {
+		localStorage.removeItem(overviewCardOpenStorageKey);
+		localStorage.removeItem(chatFullWidthStorageKey);
+	};
+	reset();
+	return reset;
+};
+
+const renderOverviewCardStory = () => (
+	<StoryAgentChatPageView
+		store={overviewCardStore}
+		chat={mockOverviewCardChat}
+		gitWatcher={mockOverviewCardGitWatcher}
+	/>
+);
+
+export const OverviewCardBesideTranscript: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+/**
+ * Below 84rem the card would cover the transcript, so the chat shows
+ * neither the card nor its toggle, though the user left the card open.
+ */
+export const OverviewCardHiddenWhenNarrow: Story = {
+	decorators: [overviewCardFrame(1280 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: resetOverviewCardStorage,
+	render: renderOverviewCardStory,
+};
+
+/**
+ * A full-width transcript leaves no margin, so the chat shows neither the
+ * card nor its toggle, though the user left the card open.
+ */
+export const OverviewCardHiddenInFullWidth: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: () => {
+		const reset = resetOverviewCardStorage();
+		localStorage.setItem(chatFullWidthStorageKey, "true");
+		return reset;
+	},
+	render: renderOverviewCardStory,
+};
+
+/** The user hid the card, so a wide chat shows only its toggle. */
+export const OverviewCardHiddenByUser: Story = {
+	decorators: [overviewCardFrame(1920 - LEFT_SIDEBAR_DEFAULT_WIDTH)],
+	beforeEach: () => {
+		const reset = resetOverviewCardStorage();
+		localStorage.setItem(overviewCardOpenStorageKey, "false");
+		return reset;
+	},
+	render: renderOverviewCardStory,
 };
 
 const otherUserActionMessages: TypesGen.ChatMessage[] = [
