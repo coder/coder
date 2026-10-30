@@ -5,7 +5,12 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useChatAttachments } from "../hooks/useChatAttachments";
 import { ChatAttachments } from "./ChatAttachments";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
-import type { ChatStore } from "./ChatConversation/chatStore";
+import {
+	type ChatStore,
+	selectOldestStoredMessageID,
+	useChatMessages,
+	useChatSelector,
+} from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
 	getEarlierMessageAttachments,
@@ -41,17 +46,14 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
 
-	const {
-		messages,
-		earlierAttachments,
-		attachments,
-		earlierAttachmentsRequest,
-	} = useChatAttachments({
-		chatId,
+	const messages = useChatMessages(store);
+	const oldestLoadedMessageId = useChatSelector(
 		store,
-		hasMoreMessages,
-		isHydratingMessages,
-		enabled: isVisible,
+		selectOldestStoredMessageID,
+	);
+	const earlierAttachmentsQuery = useQuery({
+		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
+		enabled: isVisible && hasMoreMessages,
 	});
 	const earlierAttachments =
 		hasMoreMessages && earlierAttachmentsQuery.data
