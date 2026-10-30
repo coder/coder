@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import {
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
@@ -96,5 +96,27 @@ export const OneModifiedFilter: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await openFilterMenu(canvasElement);
+	},
+};
+
+export const SourceSubmenu: Story = {
+	play: async ({ canvasElement }) => {
+		const user = await openFilterMenu(canvasElement);
+		await user.click(
+			await screen.findByRole("menuitem", {
+				name: "Source",
+			}),
+		);
+	},
+};
+
+export const GroupBySubmenu: Story = {
+	play: async ({ canvasElement }) => {
+		const user = await openFilterMenu(canvasElement);
+		await user.click(
+			await screen.findByRole("menuitem", {
+				name: "Grouped by Date",
+			}),
+		);
 	},
 };
