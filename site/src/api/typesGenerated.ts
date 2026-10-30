@@ -3874,7 +3874,7 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 /**
  * ChatStreamKeepaliveIntervalSeconds is how long the chat stream goes
  * without writing before the server writes an empty batch. The web client
- * derives its silence timeout from it.
+ * derives its WebSocket silence timeout from it.
  */
 export const ChatStreamKeepaliveIntervalSeconds = 15;
 

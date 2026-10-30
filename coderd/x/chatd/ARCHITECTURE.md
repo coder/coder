@@ -1388,7 +1388,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
-The endpoint writes events to the WebSocket in batches: JSON arrays of up to 256 events. When the endpoint has written nothing for `codersdk.ChatStreamKeepaliveIntervalSeconds` (15 seconds), it writes an empty batch, which the web client and `codersdk.Client.StreamChat` skip. The web client closes the stream and reconnects when it receives no message for 75 seconds (`CHAT_STREAM_SILENCE_TIMEOUT_MS` in `useChatStore.ts`). The comment on the keepalive ticker in `streamChat` (`coderd/exp_chats.go`) explains why the endpoint writes empty batches.
+The endpoint writes events to the WebSocket in batches: JSON arrays of up to `chatStreamBatchSize` (256) events. When the endpoint has written nothing for `codersdk.ChatStreamKeepaliveIntervalSeconds` (15 seconds), it writes an empty batch, which the web client and `codersdk.Client.StreamChat` skip. The web client closes the stream and reconnects when it receives no message for 75 seconds (`CHAT_SOCKET_SILENCE_TIMEOUT_MS` in `useChatStore.ts`). The comment on the keepalive ticker in `streamChat` (`coderd/exp_chats.go`) explains why the endpoint writes empty batches.
 
 ## Endpoint lifecycle
 
