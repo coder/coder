@@ -170,7 +170,7 @@ describe("AskUserQuestionTool", () => {
 		await user.tab();
 		await user.tab();
 		expect(otherRadio).not.toBeChecked();
-		await user.click(screen.getByRole("textbox", { name: /other response/i }));
+		await user.click(screen.getByRole("textbox", { name: /something else/i }));
 		expect(otherRadio).toBeChecked();
 	});
 
@@ -204,7 +204,7 @@ describe("AskUserQuestionTool", () => {
 		await user.keyboard("3");
 		expect(radios[2]).toBeChecked();
 		expect(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 		).toHaveFocus();
 	});
 
@@ -225,7 +225,7 @@ describe("AskUserQuestionTool", () => {
 		);
 
 		await user.type(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 			"2",
 		);
 		expect(screen.getByRole("radio", { name: "Other" })).toBeChecked();
@@ -373,7 +373,7 @@ describe("AskUserQuestionTool", () => {
 		);
 		const firstRender = renderComponent(<DraftQuestion />);
 		await user.type(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 			"Two migrations",
 		);
 		await user.click(screen.getByRole("button", { name: "Next" }));
@@ -384,7 +384,7 @@ describe("AskUserQuestionTool", () => {
 		expect(backButton).toBeEnabled();
 		await user.click(backButton);
 		expect(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 		).toHaveValue("Two migrations");
 		await user.click(screen.getByRole("button", { name: "Next" }));
 		await user.click(screen.getByRole("button", { name: "Submit" }));
@@ -396,7 +396,7 @@ describe("AskUserQuestionTool", () => {
 		);
 		expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
 		expect(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 		).toHaveValue("");
 	});
 
@@ -421,7 +421,7 @@ describe("AskUserQuestionTool", () => {
 		);
 		const { rerender } = renderComponent(<DraftQuestion />);
 		await user.type(
-			screen.getByRole("textbox", { name: /other response/i }),
+			screen.getByRole("textbox", { name: /something else/i }),
 			"Later",
 		);
 		expect(localStorage).toHaveLength(1);

@@ -47,6 +47,7 @@ type AskUserQuestionToolProps = {
 };
 
 const OTHER_OPTION_VALUE = "other";
+const OTHER_PLACEHOLDER = "Something else: type your own answer";
 
 const getQuestionHeader = (
 	question: AskUserQuestion,
@@ -304,10 +305,10 @@ const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 			</RadioGroupPrimitive.Item>
 			<Input
 				ref={textRef}
-				aria-label={`Other response for ${questionHeader}`}
+				aria-label={`${OTHER_PLACEHOLDER} for ${questionHeader}`}
 				className="h-8 border-0 px-0 text-sm shadow-none focus-visible:ring-0"
 				disabled={!isEnabled}
-				placeholder="Something else: type your own answer"
+				placeholder={OTHER_PLACEHOLDER}
 				value={otherText}
 				onClick={onSelect}
 				onChange={(event) => {
