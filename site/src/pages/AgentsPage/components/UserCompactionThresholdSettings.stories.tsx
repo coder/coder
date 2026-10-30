@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { Link } from "react-router";
+import { fn, screen, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatModel,
@@ -176,30 +178,21 @@ export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	},
 };
 
-export const SaveAll: Story = {
-	play: async ({ canvasElement, args }) => {
+export const MultipleUnsavedRows: Story = {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-
-		// Edit both models
-		await userEvent.type(gpt4oInput, "95");
-		await userEvent.type(claudeInput, "50");
-
-		// Actions should show "Save 2 changes"
-		const saveButton = await canvas.findByRole("button", {
-			name: /Save 2 changes/i,
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 95);
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
-		});
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"95",
+		);
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /Claude Sonnet compaction threshold/i,
+			}),
+			"50",
+		);
 	},
 };
 
@@ -209,42 +202,6 @@ export const WithOverrides: Story = {
 			{ model_config_id: "model-1", threshold_percent: 90 },
 			{ model_config_id: "model-2", threshold_percent: 50 },
 		],
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-
-		expect(gpt4oInput).toHaveValue("90");
-		expect(claudeInput).toHaveValue("50");
-
-		// Reset buttons should be visible for both overridden models
-		const resetButtons = canvas.getAllByRole("button", {
-			name: /Reset .+ to default/i,
-		});
-		expect(resetButtons).toHaveLength(2);
-
-		await userEvent.click(resetButtons[0]);
-		await waitFor(() => {
-			expect(args.onResetThreshold).toHaveBeenCalledWith("model-1");
-		});
-	},
-};
-
-export const CancelChanges: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-
-		await userEvent.type(gpt4oInput, "42");
-		const cancelButton = await canvas.findByRole("button", { name: /Cancel/i });
-		await userEvent.click(cancelButton);
 	},
 };
 
@@ -390,8 +347,8 @@ export const Loading: Story = {
 	},
 };
 
-export const PartialSaveFailure: Story = {
-	name: "Partial Save Failure",
+export const RowSaveFailure: Story = {
+	name: "Row Save Failure",
 	args: {
 		onSaveThreshold: fn(async (modelId: string) => {
 			if (modelId === "model-2") {
@@ -399,36 +356,13 @@ export const PartialSaveFailure: Story = {
 			}
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-
-		await userEvent.type(gpt4oInput, "90");
-		await userEvent.type(claudeInput, "55");
-
-		const saveButton = await canvas.findByRole("button", {
-			name: /Save 2 changes/i,
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 90);
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 55);
-		});
-
-		// model-2 should show an error, and Save should show "Save 1 change"
-		// for the failed row
-		await waitFor(() => {
-			expect(canvas.getByText("Network error")).toBeInTheDocument();
-			expect(
-				canvas.getByRole("button", { name: /Save 1 change/i }),
-			).toBeInTheDocument();
-		});
+	play: async ({ canvasElement }) => {
+		const claudeRow = within(
+			within(canvasElement).getByRole("row", { name: /Claude Sonnet/i }),
+		);
+		await userEvent.type(claudeRow.getByRole("textbox"), "55");
+		await userEvent.click(claudeRow.getByRole("button", { name: /^Save / }));
+		await claudeRow.findByText("Network error");
 	},
 };
 
@@ -450,8 +384,8 @@ export const OrganizationFilter: Story = {
 		});
 
 		await userEvent.click(filter);
-		const option = await within(document.body).findByRole("option", {
-			name: MockOrganization2.display_name,
+		const option = await screen.findByRole("option", {
+			name: new RegExp(`${MockOrganization2.display_name}$`),
 		});
 		await userEvent.click(option);
 	},
@@ -459,7 +393,7 @@ export const OrganizationFilter: Story = {
 
 export const SingleOrganizationHidesFilter: Story = {};
 
-export const OrganizationFilterScopesSaveActions: Story = {
+export const OrganizationFilterPreservesDraft: Story = {
 	args: {
 		models: [
 			mockModels[0],
@@ -470,67 +404,127 @@ export const OrganizationFilterScopesSaveActions: Story = {
 		],
 		organizations: [modelsOrganization, MockOrganization2],
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		await userEvent.type(gpt4oInput, "95");
-		await canvas.findByRole("button", { name: /Save 1 change/i });
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"95",
+		);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(`${MockOrganization2.display_name}$`),
+			}),
+		);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(`${modelsOrganization.display_name}$`),
+			}),
+		);
+	},
+};
 
-		// Switch to the other organization: the draft belongs to a hidden
-		// row, so the save actions must disappear.
-		await userEvent.click(
-			canvas.getByRole("combobox", {
-				name: `Organization ${modelsOrganization.display_name}`,
-			}),
+export const SavedRow: Story = {
+	play: async ({ canvasElement }) => {
+		const row = within(
+			within(canvasElement).getByRole("row", { name: /GPT-4o/i }),
 		);
-		await userEvent.click(
-			await within(document.body).findByRole("option", {
-				name: MockOrganization2.display_name,
-			}),
-		);
-		await waitFor(() => {
-			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
-		});
+		await userEvent.type(row.getByRole("textbox"), "90");
+		await userEvent.click(row.getByRole("button", { name: /^Save / }));
+		await row.findByText("Saved");
+	},
+};
 
-		// Editing the visible row saves only that row.
-		const claudeInput = await canvas.findByRole("textbox", {
-			name: /Claude Sonnet compaction threshold/i,
-		});
-		await userEvent.type(claudeInput, "50");
-		await userEvent.click(
-			await canvas.findByRole("button", { name: /Save 1 change/i }),
+export const ClearedOverrideDraft: Story = {
+	args: {
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(
+			within(canvasElement).getByRole("row", { name: /GPT-4o/i }),
 		);
-		await waitFor(() => {
-			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
-			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
-		});
+		await userEvent.clear(row.getByRole("textbox"));
+	},
+};
 
-		// Switching back restores the hidden draft and its save action.
-		await userEvent.click(
-			canvas.getByRole("combobox", {
-				name: `Organization ${MockOrganization2.display_name}`,
+export const PendingRowSave: Story = {
+	args: {
+		onSaveThreshold: fn(() => new Promise<void>(() => {})),
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(
+			within(canvasElement).getByRole("row", { name: /GPT-4o/i }),
+		);
+		await userEvent.type(row.getByRole("textbox"), "90");
+		await userEvent.click(row.getByRole("button", { name: /^Save / }));
+	},
+};
+
+export const UnsavedLeaveDialog: Story = {
+	decorators: [
+		(Story) => (
+			<>
+				<Link to="/general">General settings</Link>
+				<Story />
+			</>
+		),
+	],
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/compaction" },
+			routing: [
+				{ path: "/compaction", useStoryElement: true },
+				{ path: "/general", element: <h1>General settings</h1> },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
 			}),
+			"95",
 		);
 		await userEvent.click(
-			await within(document.body).findByRole("option", {
-				name: modelsOrganization.display_name,
-			}),
+			canvas.getByRole("link", { name: "General settings" }),
 		);
-		const restoredInput = await canvas.findByRole("textbox", {
-			name: /GPT-4o compaction threshold/i,
-		});
-		expect(restoredInput).toHaveValue("95");
-		// Wait out the temporary "Saved" state (2.5s) before the
-		// action buttons reappear.
-		await waitFor(
-			() => {
-				expect(
-					canvas.getByRole("button", { name: /Save 1 change/i }),
-				).toBeInTheDocument();
-			},
-			{ timeout: 5000 },
+	},
+};
+
+export const LongListNarrowViewport: Story = {
+	args: {
+		models: Array.from({ length: 12 }, (_, index) => ({
+			...mockModels[0],
+			id: `model-long-list-${index}`,
+			display_name: `GPT-4o model ${index + 1}`,
+		})),
+	},
+	globals: { viewport: { value: "ipad" } },
+	play: async ({ canvasElement }) => {
+		await userEvent.type(
+			await within(canvasElement).findByRole("textbox", {
+				name: /GPT-4o model 1 compaction threshold/i,
+			}),
+			"95",
+		);
+	},
+};
+
+export const MobileEditedRow: Story = {
+	args: {
+		models: [mockModels[0]],
+	},
+	globals: { viewport: { value: "iphone12" } },
+	play: async ({ canvasElement }) => {
+		await userEvent.type(
+			await within(canvasElement).findByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"95",
 		);
 	},
 };

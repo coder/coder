@@ -1,11 +1,12 @@
 import { cn } from "cn";
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { UnsavedChangesDialog } from "#/components/Dialog/UnsavedChangesDialog/UnsavedChangesDialog";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -38,6 +39,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
@@ -88,6 +90,15 @@ const parseThresholdDraft = (value: string): number | null => {
 
 	return parsedValue;
 };
+
+const isThresholdDraftDirty = (
+	draft: string | undefined,
+	existingOverride: number | undefined,
+): boolean =>
+	draft !== undefined &&
+	(draft.trim() === ""
+		? existingOverride !== undefined
+		: parseThresholdDraft(draft) !== existingOverride);
 
 type ContextCompactionHeaderProps = {
 	mayHaveOrganizationCompactionOverride: boolean;
@@ -250,6 +261,8 @@ type CompactionThresholdRowProps = {
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
 	organizationOverrideNotLoaded: boolean;
 	onDraftChange: (value: string) => void;
+	onSave: (thresholdPercent: number, onSuccess: () => void) => void;
+	onCancel: () => void;
 	onReset: () => void;
 };
 
@@ -264,13 +277,19 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	organizationTrigger,
 	organizationOverrideNotLoaded,
 	onDraftChange,
+	onSave,
+	onCancel,
 	onReset,
 }) => {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
+	const isDirty = isThresholdDraftDirty(draft, existingOverride);
 	const hasOverride = existingOverride !== undefined;
 	const draftValue =
 		draft ?? (existingOverride !== undefined ? String(existingOverride) : "");
 	const parsedDraftValue = parseThresholdDraft(draftValue);
-	const isInvalid = draftValue.length > 0 && parsedDraftValue === null;
+	const isInvalid =
+		parsedDraftValue === null && (draftValue.length > 0 || isDirty);
 	// Only warn when user-typed, not when loaded from the server.
 	const isDraftDisablingCompaction =
 		draftValue === String(compactionDisabledThresholdPercent) &&
@@ -356,11 +375,21 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				{modelConfig.compression_threshold}%
 			</TableCell>
 			<TableCell className="w-0 whitespace-nowrap">
-				<div className="flex items-center gap-1.5">
+				<form
+					className="grid grid-cols-[auto_auto] items-center gap-1.5 sm:flex"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (isDirty && parsedDraftValue !== null && !isThisModelMutating) {
+							inputRef.current?.focus({ preventScroll: true });
+							onSave(parsedDraftValue, showSavedState);
+						}
+					}}
+				>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<div className="relative">
 								<Input
+									ref={inputRef}
 									aria-label={`${modelName} compaction threshold for ${organizationName}`}
 									aria-invalid={isInvalid || undefined}
 									type="text"
@@ -376,7 +405,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 									value={draftValue}
 									placeholder={String(modelConfig.compression_threshold)}
 									onChange={(event) => onDraftChange(event.target.value)}
-									disabled={isThisModelMutating}
+									readOnly={isThisModelMutating}
 								/>
 								<span
 									aria-hidden="true"
@@ -403,6 +432,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 									"size-7",
 									hasOverride ? "opacity-100" : "pointer-events-none opacity-0",
 								)}
+								type="button"
 								aria-label={`Reset ${modelName} for ${organizationName} to default`}
 								aria-hidden={!hasOverride}
 								tabIndex={hasOverride ? 0 : -1}
@@ -418,7 +448,38 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 							</TooltipContent>
 						)}
 					</Tooltip>
-				</div>
+					{isDirty ? (
+						<div className="flex flex-col gap-1.5 sm:flex-row">
+							<Button
+								size="xs"
+								type="submit"
+								disabled={parsedDraftValue === null || isThisModelMutating}
+								aria-busy={isThisModelMutating}
+								aria-label={`Save ${modelName} threshold for ${organizationName}`}
+							>
+								{isThisModelMutating && (
+									<Spinner loading size="sm" aria-hidden />
+								)}
+								Save
+							</Button>
+							<Button
+								size="xs"
+								variant="outline"
+								type="button"
+								onClick={() => {
+									inputRef.current?.focus({ preventScroll: true });
+									onCancel();
+								}}
+								aria-label={`Cancel ${modelName} threshold for ${organizationName}`}
+								disabled={isThisModelMutating}
+							>
+								Cancel
+							</Button>
+						</div>
+					) : isSavedVisible ? (
+						<TemporarySavedState />
+					) : null}
+				</form>
 				{isInvalid && (
 					<span className="sr-only" aria-live="polite">
 						Enter a whole number between 0 and 100.
@@ -463,7 +524,6 @@ export const UserCompactionThresholdSettings: React.FC<
 	const [selectedOrganizationID, setSelectedOrganizationID] = useState<
 		string | null
 	>(null);
-	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const enabledModels = models.filter((config) => config.enabled);
 	const organizationNameByID = new Map(
@@ -551,79 +611,38 @@ export const UserCompactionThresholdSettings: React.FC<
 			});
 	};
 
-	// Save/cancel act only on visible rows; drafts hidden by the org
-	// picker are kept untouched.
-	const visibleModelIDs = new Set(visibleModels.map((config) => config.id));
-	const dirtyRows: Array<{ modelId: string; value: number }> = [];
-	for (const modelConfig of visibleModels) {
-		const draft = drafts[modelConfig.id];
-		if (draft === undefined) continue;
-		const parsed = parseThresholdDraft(draft);
-		if (parsed === null) continue;
-		const existingOverride = overridesByModelID.get(modelConfig.id);
-		if (parsed === existingOverride) continue;
-		dirtyRows.push({ modelId: modelConfig.id, value: parsed });
-	}
-
-	const handleSaveAll = () => {
-		const saves = dirtyRows.map(({ modelId, value }) => {
-			clearRowError(modelId);
-			addPending(modelId);
-			return onSaveThreshold(modelId, value)
-				.then(() => {
-					clearDraft(modelId);
-					clearRowError(modelId);
-					return true;
-				})
-				.catch((error: unknown) => {
-					setRowErrors((currentErrors) => ({
-						...currentErrors,
-						[modelId]: getErrorMessage(
-							error,
-							"Failed to save compaction threshold.",
-						),
-					}));
-					return false;
-				})
-				.finally(() => {
-					removePending(modelId);
-				});
-		});
-		void Promise.all(saves).then((results) => {
-			if (results.length > 0 && results.every(Boolean)) {
-				showSavedState();
-			}
-		});
+	const handleSave = (
+		modelId: string,
+		thresholdPercent: number,
+		onSuccess: () => void,
+	) => {
+		clearRowError(modelId);
+		addPending(modelId);
+		onSaveThreshold(modelId, thresholdPercent)
+			.then(() => {
+				clearDraft(modelId);
+				clearRowError(modelId);
+				onSuccess();
+			})
+			.catch((error: unknown) => {
+				setRowErrors((currentErrors) => ({
+					...currentErrors,
+					[modelId]: getErrorMessage(
+						error,
+						"Failed to save compaction threshold.",
+					),
+				}));
+			})
+			.finally(() => {
+				removePending(modelId);
+			});
 	};
 
-	const handleCancelAll = () => {
-		setDrafts((currentDrafts) =>
-			Object.fromEntries(
-				Object.entries(currentDrafts).filter(
-					([modelID]) => !visibleModelIDs.has(modelID),
-				),
-			),
-		);
-		setRowErrors((currentErrors) =>
-			Object.fromEntries(
-				Object.entries(currentErrors).filter(
-					([modelID]) => !visibleModelIDs.has(modelID),
-				),
-			),
-		);
-	};
-
-	const hasAnyPending = [...pendingModels].some((modelID) =>
-		visibleModelIDs.has(modelID),
+	const unsavedChanges = useUnsavedChangesPrompt(
+		Object.entries(drafts).some(([modelId, draft]) =>
+			isThresholdDraftDirty(draft, overridesByModelID.get(modelId)),
+		),
 	);
-	const hasAnyErrors = Object.keys(rowErrors).some((modelID) =>
-		visibleModelIDs.has(modelID),
-	);
-	const hasAnyDrafts = Object.keys(drafts).some((modelID) =>
-		visibleModelIDs.has(modelID),
-	);
-	const shouldShowActions =
-		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
 	const isTableLoading = isThresholdsLoading || isLoadingModels;
 	const showRows =
 		!isTableLoading && thresholdsError == null && enabledModels.length > 0;
@@ -726,6 +745,13 @@ export const UserCompactionThresholdSettings: React.FC<
 										}));
 										clearRowError(modelConfig.id);
 									}}
+									onSave={(thresholdPercent, onSuccess) =>
+										handleSave(modelConfig.id, thresholdPercent, onSuccess)
+									}
+									onCancel={() => {
+										clearDraft(modelConfig.id);
+										clearRowError(modelConfig.id);
+									}}
 									onReset={() => handleReset(modelConfig.id)}
 								/>
 							))
@@ -733,41 +759,11 @@ export const UserCompactionThresholdSettings: React.FC<
 					</TableBody>
 				</Table>
 			)}
-			{showRows && (
-				<div className="flex h-6 items-center justify-end gap-2">
-					{isSavedVisible ? (
-						<TemporarySavedState />
-					) : (
-						shouldShowActions && (
-							<>
-								<Button
-									size="xs"
-									variant="outline"
-									type="button"
-									onClick={handleCancelAll}
-									disabled={hasAnyPending}
-								>
-									Cancel
-								</Button>
-								{dirtyRows.length > 0 && (
-									<Button
-										size="xs"
-										type="button"
-										className="h-6"
-										disabled={hasAnyPending}
-										onClick={handleSaveAll}
-									>
-										{hasAnyPending && <Spinner loading size="sm" />}
-										{hasAnyPending
-											? "Saving..."
-											: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
-									</Button>
-								)}
-							</>
-						)
-					)}
-				</div>
-			)}
+			<UnsavedChangesDialog
+				open={unsavedChanges.isOpen}
+				onClose={unsavedChanges.onCancel}
+				onConfirm={unsavedChanges.onConfirm}
+			/>
 		</div>
 	);
 };
