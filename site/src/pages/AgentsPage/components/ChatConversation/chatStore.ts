@@ -124,6 +124,10 @@ export type ChatStoreState = {
 	// the running-case promote, where the backend reorders the
 	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
+	// Messages that a promote took out of the visible queue. One counts as
+	// undelivered until the transcript has its row or a queue update lifts
+	// its suppression.
+	promotingQueuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	// IDs confirmed deleted from the queue because the send response
 	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
@@ -164,6 +168,7 @@ export type ChatStore = {
 		baselineFence: number,
 	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
+	holdPromotingQueuedMessage: (message: TypesGen.ChatQueuedMessage) => void;
 	markQueuedMessagePromoted: (id: number) => void;
 	// Distinguishes a tail still in flight from one the server listed and later removed.
 	hasObservedQueuedMessageID: (id: number) => boolean;
@@ -203,9 +208,25 @@ const createInitialState = (): ChatStoreState => ({
 	reconnectState: null,
 	queuedMessages: [],
 	suppressedQueuedMessageIDs: new Set(),
+	promotingQueuedMessages: [],
 	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
 });
+
+// The server links the user row that it creates from a promoted message
+// through queued_message_id.
+const withoutDeliveredMessages = (
+	promotingQueuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	messages: readonly TypesGen.ChatMessage[],
+): readonly TypesGen.ChatQueuedMessage[] => {
+	const undelivered = promotingQueuedMessages.filter(
+		(held) =>
+			!messages.some((message) => message.queued_message_id === held.id),
+	);
+	return undelivered.length === promotingQueuedMessages.length
+		? promotingQueuedMessages
+		: undelivered;
+};
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
@@ -282,6 +303,10 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				promotingQueuedMessages: withoutDeliveredMessages(
+					current.promotingQueuedMessages,
+					messages,
+				),
 			};
 		});
 	};
@@ -322,6 +347,10 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				promotingQueuedMessages: withoutDeliveredMessages(
+					current.promotingQueuedMessages,
+					[message],
+				),
 			};
 		});
 		return { isDuplicate, changed: actuallyChanged };
@@ -360,6 +389,10 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				promotingQueuedMessages: withoutDeliveredMessages(
+					current.promotingQueuedMessages,
+					messages,
+				),
 			};
 		});
 	};
@@ -511,6 +544,19 @@ export const createChatStore = (): ChatStore => {
 				return { ...current, suppressedQueuedMessageIDs: next };
 			});
 		},
+		holdPromotingQueuedMessage: (message) => {
+			setState((current) => ({
+				...current,
+				promotingQueuedMessages: [
+					...current.promotingQueuedMessages.filter(
+						(held) =>
+							held.id !== message.id &&
+							current.suppressedQueuedMessageIDs.has(held.id),
+					),
+					message,
+				],
+			}));
+		},
 		markQueuedMessagePromoted: (id) => {
 			setState((current) => {
 				if (
@@ -554,6 +600,7 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => {
 				if (
 					current.suppressedQueuedMessageIDs.size === 0 &&
+					current.promotingQueuedMessages.length === 0 &&
 					current.promotedQueuedMessageIDs.size === 0
 				) {
 					return current;
@@ -561,6 +608,7 @@ export const createChatStore = (): ChatStore => {
 				return {
 					...current,
 					suppressedQueuedMessageIDs: new Set(),
+					promotingQueuedMessages: [],
 					promotedQueuedMessageIDs: new Set(),
 				};
 			});
@@ -738,6 +786,10 @@ export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
 export const selectStreamError = (state: ChatStoreState) => state.streamError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.queuedMessages;
+const selectPromotingQueuedMessages = (state: ChatStoreState) =>
+	state.promotingQueuedMessages;
+const selectSuppressedQueuedMessageIDs = (state: ChatStoreState) =>
+	state.suppressedQueuedMessageIDs;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
@@ -793,6 +845,32 @@ export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 		}
 		return message ? [message] : [];
 	});
+};
+
+/**
+ * The queue plus the promoted messages that the transcript does not have
+ * yet, for callers that must not lose a message while its promote runs.
+ * A selector cannot build this list: useSyncExternalStore needs a stable
+ * snapshot.
+ */
+export const useUndeliveredQueuedMessages = (
+	store: ChatStore,
+): TypesGen.ChatQueuedMessage[] => {
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const promotingQueuedMessages = useChatSelector(
+		store,
+		selectPromotingQueuedMessages,
+	);
+	const suppressedQueuedMessageIDs = useChatSelector(
+		store,
+		selectSuppressedQueuedMessageIDs,
+	);
+	return [
+		...queuedMessages,
+		...promotingQueuedMessages.filter((message) =>
+			suppressedQueuedMessageIDs.has(message.id),
+		),
+	];
 };
 
 export { useChatStore } from "./useChatStore";
