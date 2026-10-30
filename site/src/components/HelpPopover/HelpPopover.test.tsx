@@ -4,7 +4,7 @@ import { HelpPopoverLink } from "./HelpPopover";
 describe(HelpPopoverLink.name, () => {
 	it("announces that the link opens in a new tab", () => {
 		render(
-			<HelpPopoverLink href="https://coder.com/docs">
+			<HelpPopoverLink href="https://docs.example.com">
 				Read the docs
 			</HelpPopoverLink>,
 		);
