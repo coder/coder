@@ -3110,6 +3110,7 @@ const docTemplate = `{
         },
         "/api/v2/chats": {
             "get": {
+                "description": "Lists chats, ordering pinned chats first and the rest by most recent update.\nBy default it returns only the non-archived chats you own, so use ` + "`" + `q` + "`" + ` to include archived chats or chats shared with you, for example ` + "`" + `source:shared_with_me` + "`" + `.\nIt returns up to 50 chats unless you set ` + "`" + `limit` + "`" + `, and each result is a root chat with its sub-agent chats in ` + "`" + `children` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -3138,19 +3139,19 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
@@ -3180,6 +3181,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a chat in an organization, and starts generating a reply when you include initial ` + "`" + `content` + "`" + `.\nSet ` + "`" + `organization_id` + "`" + `, which is required, and optionally ` + "`" + `workspace_id` + "`" + `, ` + "`" + `model_config_id` + "`" + `, or ` + "`" + `project_id` + "`" + `. Setting ` + "`" + `owner_id` + "`" + ` to create a chat for another user requires permission to create API keys for that user, which the Owner role has, and ` + "`" + `inline_mcp_servers` + "`" + ` requires the ` + "`" + `chat-inline-mcp-servers` + "`" + ` experiment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3193,7 +3195,7 @@ const docTemplate = `{
                 "operationId": "create-chat",
                 "parameters": [
                     {
-                        "description": "Create chat request",
+                        "description": "Chat to create. ` + "`" + `organization_id` + "`" + ` is required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3231,6 +3233,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/by-workspace": {
             "get": {
+                "description": "Returns the most recently updated non-archived chat ID for each workspace in ` + "`" + `workspace_ids` + "`" + `, as an object keyed by workspace ID.\nUse it to find the chat that belongs to each workspace in a list. Workspaces with no chat you can read are left out.",
                 "produces": [
                     "application/json"
                 ],
@@ -3242,7 +3245,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comma-separated workspace IDs",
+                        "description": "Comma-separated workspace IDs, up to 25. An empty value returns an empty object.",
                         "name": "workspace_ids",
                         "in": "query"
                     }
@@ -4012,6 +4015,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/files": {
             "post": {
+                "description": "Uploads a file of up to 10 MiB and returns its ID, which you can attach to a chat message as a file part.\nSend the file bytes as the request body, set ` + "`" + `Content-Disposition` + "`" + ` to carry the file name, and set ` + "`" + `organization` + "`" + ` to the organization that stores the file.",
                 "consumes": [
                     "image/png",
                     "image/jpeg",
@@ -4036,7 +4040,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "ID of the organization that stores the file. You need permission to create chats in it.",
                         "name": "organization",
                         "in": "query",
                         "required": true
@@ -4044,7 +4048,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "description": "Attachment disposition that carries the file name, which is required.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -4085,6 +4089,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}": {
             "get": {
+                "description": "Returns the contents of an uploaded chat file and its stored media type.\nYou can read a file you uploaded, or a file attached to a chat you can read.",
                 "produces": [
                     "image/png",
                     "image/jpeg",
@@ -4235,6 +4240,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}": {
             "get": {
+                "description": "Returns a chat and, for a root chat, its sub-agent chats in ` + "`" + `children` + "`" + `.\nUse it to check a chat's status or inspect its pinned workspace context, which ` + "`" + `GET /api/v2/chats` + "`" + ` leaves out.",
                 "produces": [
                     "application/json"
                 ],
@@ -4268,6 +4274,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.\nSend only the fields you want to change.\nOnly the chat owner can change ` + "`" + `workspace_id` + "`" + ` or ` + "`" + `read` + "`" + `, and archiving needs the chat to be idle or in an error state.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4286,7 +4293,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update chat request",
+                        "description": "Chat fields to change. Omitted fields stay as they are.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4415,7 +4422,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return attachments from messages with id \u003c before_id",
+                        "description": "Message ID to page back from. Returns only attachments from messages with a lower ID.",
                         "name": "before_id",
                         "in": "query"
                     }
@@ -4515,6 +4522,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/context": {
             "put": {
+                "description": "Re-pins a chat to the latest workspace context its workspace agent reported, and clears the chat's ` + "`" + `context.dirty` + "`" + ` flag.\nUse it when ` + "`" + `context.dirty` + "`" + ` is ` + "`" + `true` + "`" + ` and you want the chat to pick up changed instructions, skills, or MCP configuration.",
                 "produces": [
                     "application/json"
                 ],
@@ -4586,6 +4594,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/diff": {
             "get": {
+                "description": "Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.\nThe ` + "`" + `diff` + "`" + ` field is empty when the chat tracks no repository, no git provider matches the remote, or the chat owner has no access token for it.\nSet ` + "`" + `origin` + "`" + ` and ` + "`" + `branch` + "`" + ` together to pick one tracked ref, or omit both to use the chat's primary ref.",
                 "produces": [
                     "application/json"
                 ],
@@ -4605,13 +4614,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Remote origin selecting the ref to diff",
+                        "description": "Git remote origin of the tracked ref to diff. Set it together with ` + "`" + `branch` + "`" + `, or omit both to use the primary ref.",
                         "name": "origin",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Git branch selecting the ref to diff",
+                        "description": "Git branch of the tracked ref to diff. Set it together with ` + "`" + `origin` + "`" + `, or omit both to use the primary ref.",
                         "name": "branch",
                         "in": "query"
                     }
@@ -4633,6 +4642,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.\nA running chat moves to ` + "`" + `interrupting` + "`" + ` until the chat worker stops it, and an idle chat returns a ` + "`" + `409` + "`" + ` conflict.",
                 "produces": [
                     "application/json"
                 ],
@@ -4668,6 +4678,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/messages": {
             "get": {
+                "description": "Returns a page of a chat's messages, newest first.\nPass ` + "`" + `before_id` + "`" + ` to page back through older messages, and check ` + "`" + `has_more` + "`" + ` to see whether another page exists.\nPass only ` + "`" + `after_id` + "`" + ` to poll for newer messages, oldest first, and expect ` + "`" + `queued_messages` + "`" + ` only when you pass neither cursor.",
                 "produces": [
                     "application/json"
                 ],
@@ -4687,13 +4698,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return messages with id \u003c before_id",
+                        "description": "Message ID to page back from. Returns only messages with a lower ID.",
                         "name": "before_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Return messages with id \u003e after_id",
+                        "description": "Message ID to page forward from. Returns only messages with a higher ID. It must be lower than ` + "`" + `before_id` + "`" + ` when you set both.",
                         "name": "after_id",
                         "in": "query"
                     },
@@ -4719,6 +4730,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Sends a message to a chat, which starts the chat worker generating a reply.\nWhen the chat is busy, the message is queued by default, and setting ` + "`" + `busy_behavior` + "`" + ` to ` + "`" + `interrupt` + "`" + ` stops the active run and sends it first.\nOnly the chat owner can send messages, and setting ` + "`" + `inline_mcp_servers` + "`" + ` requires the ` + "`" + `chat-inline-mcp-servers` + "`" + ` experiment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4740,7 +4752,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Create chat message request",
+                        "description": "Message to send. ` + "`" + `content` + "`" + ` holds the message parts.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4766,6 +4778,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/messages/{message}": {
             "patch": {
+                "description": "Replaces an earlier user message in a chat, discards the messages after it, and runs the chat again from the edited message.\nOnly the chat owner can edit messages, and only user messages can be edited. The response lists the IDs of the removed messages in ` + "`" + `deleted_message_ids` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4788,13 +4801,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Message ID",
+                        "description": "ID of the user message to edit.",
                         "name": "message",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Edit chat message request",
+                        "description": "Replacement content for the message, and optional model, reasoning effort, and MCP server overrides.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4862,6 +4875,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}": {
             "delete": {
+                "description": "Removes a message from a chat's queue before the chat worker runs it.\nUse it to cancel a message you sent while the chat was busy.",
                 "tags": [
                     "Chats"
                 ],
@@ -4878,7 +4892,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Queued message ID",
+                        "description": "ID of the queued message to remove.",
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
@@ -4944,6 +4958,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
             "post": {
+                "description": "Promotes a queued message into the chat's history so it runs now instead of waiting its turn in the queue.\nIf the chat is running, the call interrupts the active run first, and the response is ` + "`" + `202` + "`" + ` once the promotion is accepted. Only the chat owner can promote queued messages.",
                 "produces": [
                     "application/json"
                 ],
@@ -4963,7 +4978,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Queued message ID",
+                        "description": "ID of the queued message to promote.",
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
@@ -4986,6 +5001,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/reconcile-invalid": {
             "post": {
+                "description": "Recovers a chat stuck in an invalid execution state by moving it to an error state.\nQueued messages are kept and pending client-executed tool calls are canceled. The call returns a ` + "`" + `409` + "`" + ` conflict when the chat isn't in an invalid state.",
                 "produces": [
                     "application/json"
                 ],
@@ -5141,6 +5157,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/title/propose": {
             "post": {
+                "description": "Generates a suggested title for a chat from its visible messages, without saving it.\nUse ` + "`" + `PATCH /api/v2/chats/{chat}` + "`" + ` with ` + "`" + `title` + "`" + ` to save the one you choose. Only the chat owner can call this.",
                 "produces": [
                     "application/json"
                 ],
@@ -5176,6 +5193,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/tool-results": {
             "post": {
+                "description": "Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.\nUse it when the chat is in the ` + "`" + `requires_action` + "`" + ` status after calling a tool you declared in ` + "`" + `unsafe_dynamic_tools` + "`" + `.\nOnly the chat owner can submit results, and deployments that turn off caller-supplied tools reject the call.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5194,7 +5212,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "Results to submit, one for each pending tool call, matched by ` + "`" + `tool_call_id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14124,6 +14142,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai-provider-keys": {
             "get": {
+                "description": "Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.\nIt never returns key values. Reading another user's configuration requires permission to read that user's personal data, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -14135,7 +14154,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14161,6 +14180,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai-provider-keys/{aiProvider}": {
             "put": {
+                "description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns ` + "`" + `403` + "`" + ` when the deployment turns off user-supplied keys with ` + "`" + `--ai-gateway-allow-byok` + "`" + `, and it fails when the provider isn't enabled. Changing another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14175,7 +14195,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14189,7 +14209,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "API key to store for the provider. It can't be empty or have leading or trailing whitespace.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14213,6 +14233,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a user's stored API key for an AI provider.\nDeleting another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.",
                 "tags": [
                     "Chats"
                 ],
@@ -14221,7 +14242,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true

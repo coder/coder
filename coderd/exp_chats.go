@@ -382,10 +382,12 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 type chatsByWorkspaceResponse map[uuid.UUID]uuid.UUID
 
 // @Summary List chats by workspace
+// @Description Returns the most recently updated non-archived chat ID for each workspace in `workspace_ids`, as an object keyed by workspace ID.
+// @Description Use it to find the chat that belongs to each workspace in a list. Workspaces with no chat you can read are left out.
 // @ID list-chats-by-workspace
 // @Security CoderSessionToken
 // @Tags Chats
-// @Param workspace_ids query string false "Comma-separated workspace IDs"
+// @Param workspace_ids query string false "Comma-separated workspace IDs, up to 25. An empty value returns an empty object."
 // @Produce json
 // @Success 200 {object} chatsByWorkspaceResponse
 // @Router /api/v2/chats/by-workspace [get]
@@ -451,15 +453,18 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List chats
+// @Description Lists chats, ordering pinned chats first and the rest by most recent update.
+// @Description By default it returns only the non-archived chats you own, so use `q` to include archived chats or chats shared with you, for example `source:shared_with_me`.
+// @Description It returns up to 50 chats unless you set `limit`, and each result is a root chat with its sub-agent chats in `children`.
 // @ID list-chats
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting\|paused>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
-// @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default is `50`."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Param project_id query string false "Only chats in this project." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
@@ -1287,12 +1292,14 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 }
 
 // @Summary Create chat
+// @Description Creates a chat in an organization, and starts generating a reply when you include initial `content`.
+// @Description Set `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, which the Owner role has, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
 // @ID create-chat
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
-// @Param request body codersdk.CreateChatRequest true "Create chat request"
+// @Param request body codersdk.CreateChatRequest true "Chat to create. `organization_id` is required."
 // @Success 201 {object} codersdk.Chat
 // @Failure 400 {object} codersdk.Response
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
@@ -1825,6 +1832,8 @@ func (api *API) createChatError(err error) error {
 }
 
 // @Summary Get chat by ID
+// @Description Returns a chat and, for a root chat, its sub-agent chats in `children`.
+// @Description Use it to check a chat's status or inspect its pinned workspace context, which `GET /api/v2/chats` leaves out.
 // @ID get-chat-by-id
 // @Security CoderSessionToken
 // @Tags Chats
@@ -1942,13 +1951,16 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List chat messages
+// @Description Returns a page of a chat's messages, newest first.
+// @Description Pass `before_id` to page back through older messages, and check `has_more` to see whether another page exists.
+// @Description Pass only `after_id` to poll for newer messages, oldest first, and expect `queued_messages` only when you pass neither cursor.
 // @ID list-chat-messages
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param before_id query int false "Return messages with id < before_id"
-// @Param after_id query int false "Return messages with id > after_id"
+// @Param before_id query int false "Message ID to page back from. Returns only messages with a lower ID."
+// @Param after_id query int false "Message ID to page forward from. Returns only messages with a higher ID. It must be lower than `before_id` when you set both."
 // @Param limit query int false "Page size, 1 to 200. Defaults to 50."
 // @Success 200 {object} codersdk.ChatMessagesResponse
 // @Router /api/v2/chats/{chat}/messages [get]
@@ -2200,7 +2212,7 @@ func (api *API) getChatUserPrompts(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param before_id query int false "Return attachments from messages with id < before_id"
+// @Param before_id query int false "Message ID to page back from. Returns only attachments from messages with a lower ID."
 // @Success 200 {object} codersdk.ChatAttachmentsResponse
 // @Router /api/v2/chats/{chat}/attachments [get]
 // @Description Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
@@ -2638,6 +2650,8 @@ func (api *API) applyChatTitleUpdate(
 // and clears the dirty marker.
 //
 // @Summary Refresh chat context
+// @Description Re-pins a chat to the latest workspace context its workspace agent reported, and clears the chat's `context.dirty` flag.
+// @Description Use it when `context.dirty` is `true` and you want the chat to pick up changed instructions, skills, or MCP configuration.
 // @ID refresh-chat-context
 // @Security CoderSessionToken
 // @Tags Chats
@@ -2694,12 +2708,15 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // and the owner's read state.
 //
 // @Summary Update chat
+// @Description Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.
+// @Description Send only the fields you want to change.
+// @Description Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state.
 // @ID update-chat
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param request body codersdk.UpdateChatRequest true "Update chat request"
+// @Param request body codersdk.UpdateChatRequest true "Chat fields to change. Omitted fields stay as they are."
 // @Success 204
 // @Failure 400 {object} codersdk.Response
 // @Router /api/v2/chats/{chat} [patch]
@@ -3141,13 +3158,16 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 }
 
 // @Summary Send chat message
+// @Description Sends a message to a chat, which starts the chat worker generating a reply.
+// @Description When the chat is busy, the message is queued by default, and setting `busy_behavior` to `interrupt` stops the active run and sends it first.
+// @Description Only the chat owner can send messages, and setting `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
 // @ID send-chat-message
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
+// @Param request body codersdk.CreateChatMessageRequest true "Message to send. `content` holds the message parts."
 // @Success 200 {object} codersdk.CreateChatMessageResponse
 // @Router /api/v2/chats/{chat}/messages [post]
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
@@ -3407,14 +3427,16 @@ func (api *API) sendChatMessageError(err error) error {
 }
 
 // @Summary Edit chat message
+// @Description Replaces an earlier user message in a chat, discards the messages after it, and runs the chat again from the edited message.
+// @Description Only the chat owner can edit messages, and only user messages can be edited. The response lists the IDs of the removed messages in `deleted_message_ids`.
 // @ID edit-chat-message
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param message path int true "Message ID"
-// @Param request body codersdk.EditChatMessageRequest true "Edit chat message request"
+// @Param message path int true "ID of the user message to edit."
+// @Param request body codersdk.EditChatMessageRequest true "Replacement content for the message, and optional model, reasoning effort, and MCP server overrides."
 // @Success 200 {object} codersdk.EditChatMessageResponse
 // @Router /api/v2/chats/{chat}/messages/{message} [patch]
 func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
@@ -3566,11 +3588,13 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete chat queued message
+// @Description Removes a message from a chat's queue before the chat worker runs it.
+// @Description Use it to cancel a message you sent while the chat was busy.
 // @ID delete-chat-queued-message
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path int true "Queued message ID"
+// @Param queuedMessage path int true "ID of the queued message to remove."
 // @Success 204
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
@@ -3638,11 +3662,13 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Promote chat queued message
+// @Description Promotes a queued message into the chat's history so it runs now instead of waiting its turn in the queue.
+// @Description If the chat is running, the call interrupts the active run first, and the response is `202` once the promotion is accepted. Only the chat owner can promote queued messages.
 // @ID promote-chat-queued-message
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path int true "Queued message ID"
+// @Param queuedMessage path int true "ID of the queued message to promote."
 // @Produce json
 // @Success 202 {object} codersdk.Response
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage}/promote [post]
@@ -4067,6 +4093,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Interrupt chat
+// @Description Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.
+// @Description A running chat moves to `interrupting` until the chat worker stops it, and an idle chat returns a `409` conflict.
 // @ID interrupt-chat
 // @Security CoderSessionToken
 // @Tags Chats
@@ -4254,6 +4282,8 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Reconcile invalid chat state
+// @Description Recovers a chat stuck in an invalid execution state by moving it to an error state.
+// @Description Queued messages are kept and pending client-executed tool calls are canceled. The call returns a `409` conflict when the chat isn't in an invalid state.
 // @ID reconcile-invalid-chat-state
 // @Security CoderSessionToken
 // @Tags Chats
@@ -4303,6 +4333,8 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Propose chat title
+// @Description Generates a suggested title for a chat from its visible messages, without saving it.
+// @Description Use `PATCH /api/v2/chats/{chat}` with `title` to save the one you choose. Only the chat owner can call this.
 // @ID propose-chat-title
 // @Security CoderSessionToken
 // @Tags Chats
@@ -4362,13 +4394,16 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get chat diff contents
+// @Description Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.
+// @Description The `diff` field is empty when the chat tracks no repository, no git provider matches the remote, or the chat owner has no access token for it.
+// @Description Set `origin` and `branch` together to pick one tracked ref, or omit both to use the chat's primary ref.
 // @ID get-chat-diff-contents
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param origin query string false "Remote origin selecting the ref to diff"
-// @Param branch query string false "Git branch selecting the ref to diff"
+// @Param origin query string false "Git remote origin of the tracked ref to diff. Set it together with `branch`, or omit both to use the primary ref."
+// @Param branch query string false "Git branch of the tracked ref to diff. Set it together with `origin`, or omit both to use the primary ref."
 // @Success 200 {object} codersdk.ChatDiffContents
 // @Router /api/v2/chats/{chat}/diff [get]
 //
@@ -7038,13 +7073,15 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 }
 
 // @Summary Upload chat file
+// @Description Uploads a file of up to 10 MiB and returns its ID, which you can attach to a chat message as a file part.
+// @Description Send the file bytes as the request body, set `Content-Disposition` to carry the file name, and set `organization` to the organization that stores the file.
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
-// @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param organization query string true "ID of the organization that stores the file. You need permission to create chats in it." format(uuid)
+// @Param Content-Disposition header string true "Attachment disposition that carries the file name, which is required." example(attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
@@ -7310,6 +7347,8 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get chat file
+// @Description Returns the contents of an uploaded chat file and its stored media type.
+// @Description You can read a file you uploaded, or a file attached to a chat you can read.
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
@@ -8132,10 +8171,12 @@ func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderS
 }
 
 // @Summary List user AI provider key configurations
+// @Description Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.
+// @Description It never returns key values. Reading another user's configuration requires permission to read that user's personal data, which the Owner and User Admin roles have.
 // @ID list-user-ai-provider-key-configurations
 // @Security CoderSessionToken
 // @Tags Chats
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Produce json
 // @Success 200 {array} codersdk.UserAIProviderKeyConfig
 // @Router /api/v2/users/{user}/ai-provider-keys [get]
@@ -8202,13 +8243,15 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Update user AI provider key
+// @Description Sets a user's own API key for an AI provider, replacing any key already stored.
+// @Description The call returns `403` when the deployment turns off user-supplied keys with `--ai-gateway-allow-byok`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
 // @ID update-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Param aiProvider path string true "AI provider ID" format(uuid)
 // @Accept json
-// @Param request body codersdk.CreateUserAIProviderKeyRequest true "Request body"
+// @Param request body codersdk.CreateUserAIProviderKeyRequest true "API key to store for the provider. It can't be empty or have leading or trailing whitespace."
 // @Produce json
 // @Success 200 {object} codersdk.UserAIProviderKeyConfig
 // @Router /api/v2/users/{user}/ai-provider-keys/{aiProvider} [put]
@@ -8289,10 +8332,12 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Delete user AI provider key
+// @Description Deletes a user's stored API key for an AI provider.
+// @Description Deleting another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
 // @ID delete-user-ai-provider-key
 // @Security CoderSessionToken
 // @Tags Chats
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Param aiProvider path string true "AI provider ID" format(uuid)
 // @Success 204
 // @Router /api/v2/users/{user}/ai-provider-keys/{aiProvider} [delete]
@@ -9474,12 +9519,15 @@ var (
 )
 
 // @Summary Submit chat tool results
+// @Description Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.
+// @Description Use it when the chat is in the `requires_action` status after calling a tool you declared in `unsafe_dynamic_tools`.
+// @Description Only the chat owner can submit results, and deployments that turn off caller-supplied tools reject the call.
 // @ID submit-chat-tool-results
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
 // @Accept json
-// @Param request body codersdk.SubmitToolResultsRequest true "Request body"
+// @Param request body codersdk.SubmitToolResultsRequest true "Results to submit, one for each pending tool call, matched by `tool_call_id`."
 // @Success 204
 // @Router /api/v2/chats/{chat}/tool-results [post]
 //

@@ -50,15 +50,19 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 `GET /api/v2/chats`
 
+Lists chats, ordering pinned chats first and the rest by most recent update.
+By default it returns only the non-archived chats you own, so use `q` to include archived chats or chats shared with you, for example `source:shared_with_me`.
+It returns up to 50 chats unless you set `limit`, and each result is a root chat with its sub-agent chats in `children`.
+
 ### Parameters
 
 | Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 |--------------|-------|---------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting\|paused>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
 | `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `after_id`   | query | string(uuid)  | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `limit`      | query | integer       | false    | Maximum number of results to return. The default is `50`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `offset`     | query | integer       | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `project_id` | query | string(uuid)  | false    | Only chats in this project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Example responses
@@ -380,6 +384,9 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 
 `POST /api/v2/chats`
 
+Creates a chat in an organization, and starts generating a reply when you include initial `content`.
+Set `organization_id`, which is required, and optionally `workspace_id`, `model_config_id`, or `project_id`. Setting `owner_id` to create a chat for another user requires permission to create API keys for that user, which the Owner role has, and `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
+
 > Body parameter
 
 ```json
@@ -451,9 +458,9 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-|--------|------|--------------------------------------------------------------------|----------|---------------------|
-| `body` | body | [codersdk.CreateChatRequest](schemas.md#codersdkcreatechatrequest) | true     | Create chat request |
+| Name   | In   | Type                                                               | Required | Description                                    |
+|--------|------|--------------------------------------------------------------------|----------|------------------------------------------------|
+| `body` | body | [codersdk.CreateChatRequest](schemas.md#codersdkcreatechatrequest) | true     | Chat to create. `organization_id` is required. |
 
 ### Example responses
 
@@ -784,11 +791,14 @@ curl -X GET http://coder-server:8080/api/v2/chats/by-workspace \
 
 `GET /api/v2/chats/by-workspace`
 
+Returns the most recently updated non-archived chat ID for each workspace in `workspace_ids`, as an object keyed by workspace ID.
+Use it to find the chat that belongs to each workspace in a list. Workspaces with no chat you can read are left out.
+
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                   |
-|-----------------|-------|--------|----------|-------------------------------|
-| `workspace_ids` | query | string | false    | Comma-separated workspace IDs |
+| Name            | In    | Type   | Required | Description                                                                      |
+|-----------------|-------|--------|----------|----------------------------------------------------------------------------------|
+| `workspace_ids` | query | string | false    | Comma-separated workspace IDs, up to 25. An empty value returns an empty object. |
 
 ### Example responses
 
@@ -1512,13 +1522,16 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 `POST /api/v2/chats/files`
 
+Uploads a file of up to 10 MiB and returns its ID, which you can attach to a chat message as a file part.
+Send the file bytes as the request body, set `Content-Disposition` to carry the file name, and set `organization` to the organization that stores the file.
+
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                                             |
+|-----------------------|--------|--------------|----------|-----------------------------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | ID of the organization that stores the file. You need permission to create chats in it. |
+| `Content-Disposition` | header | string       | true     | Attachment disposition that carries the file name, which is required.                   |
+| `body`                | body   | string       | true     | Raw file binary data                                                                    |
 
 ### Example responses
 
@@ -1550,6 +1563,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/files/{file} \
 ```
 
 `GET /api/v2/chats/files/{file}`
+
+Returns the contents of an uploaded chat file and its stored media type.
+You can read a file you uploaded, or a file attached to a chat you can read.
 
 ### Parameters
 
@@ -1795,6 +1811,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
 ```
 
 `GET /api/v2/chats/{chat}`
+
+Returns a chat and, for a root chat, its sub-agent chats in `children`.
+Use it to check a chat's status or inspect its pinned workspace context, which `GET /api/v2/chats` leaves out.
 
 ### Parameters
 
@@ -2130,6 +2149,10 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 
 `PATCH /api/v2/chats/{chat}`
 
+Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.
+Send only the fields you want to change.
+Only the chat owner can change `workspace_id` or `read`, and archiving needs the chat to be idle or in an error state.
+
 > Body parameter
 
 ```json
@@ -2150,10 +2173,10 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-|--------|------|--------------------------------------------------------------------|----------|---------------------|
-| `chat` | path | string(uuid)                                                       | true     | Chat ID             |
-| `body` | body | [codersdk.UpdateChatRequest](schemas.md#codersdkupdatechatrequest) | true     | Update chat request |
+| Name   | In   | Type                                                               | Required | Description                                             |
+|--------|------|--------------------------------------------------------------------|----------|---------------------------------------------------------|
+| `chat` | path | string(uuid)                                                       | true     | Chat ID                                                 |
+| `body` | body | [codersdk.UpdateChatRequest](schemas.md#codersdkupdatechatrequest) | true     | Chat fields to change. Omitted fields stay as they are. |
 
 ### Example responses
 
@@ -2185,10 +2208,10 @@ Returns every file part in the user-visible user and assistant messages of a cha
 
 ### Parameters
 
-| Name        | In    | Type         | Required | Description                                          |
-|-------------|-------|--------------|----------|------------------------------------------------------|
-| `chat`      | path  | string(uuid) | true     | Chat ID                                              |
-| `before_id` | query | integer      | false    | Return attachments from messages with id < before_id |
+| Name        | In    | Type         | Required | Description                                                                           |
+|-------------|-------|--------------|----------|---------------------------------------------------------------------------------------|
+| `chat`      | path  | string(uuid) | true     | Chat ID                                                                               |
+| `before_id` | query | integer      | false    | Message ID to page back from. Returns only attachments from messages with a lower ID. |
 
 ### Example responses
 
@@ -2233,6 +2256,9 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
 ```
 
 `PUT /api/v2/chats/{chat}/context`
+
+Re-pins a chat to the latest workspace context its workspace agent reported, and clears the chat's `context.dirty` flag.
+Use it when `context.dirty` is `true` and you want the chat to pick up changed instructions, skills, or MCP configuration.
 
 ### Parameters
 
@@ -2617,13 +2643,17 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff \
 
 `GET /api/v2/chats/{chat}/diff`
 
+Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.
+The `diff` field is empty when the chat tracks no repository, no git provider matches the remote, or the chat owner has no access token for it.
+Set `origin` and `branch` together to pick one tracked ref, or omit both to use the chat's primary ref.
+
 ### Parameters
 
-| Name     | In    | Type         | Required | Description                             |
-|----------|-------|--------------|----------|-----------------------------------------|
-| `chat`   | path  | string(uuid) | true     | Chat ID                                 |
-| `origin` | query | string       | false    | Remote origin selecting the ref to diff |
-| `branch` | query | string       | false    | Git branch selecting the ref to diff    |
+| Name     | In    | Type         | Required | Description                                                                                                       |
+|----------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------------|
+| `chat`   | path  | string(uuid) | true     | Chat ID                                                                                                           |
+| `origin` | query | string       | false    | Git remote origin of the tracked ref to diff. Set it together with `branch`, or omit both to use the primary ref. |
+| `branch` | query | string       | false    | Git branch of the tracked ref to diff. Set it together with `origin`, or omit both to use the primary ref.        |
 
 ### Example responses
 
@@ -2660,6 +2690,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 ```
 
 `POST /api/v2/chats/{chat}/interrupt`
+
+Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.
+A running chat moves to `interrupting` until the chat worker stops it, and an idle chat returns a `409` conflict.
 
 ### Parameters
 
@@ -2994,14 +3027,18 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 `GET /api/v2/chats/{chat}/messages`
 
+Returns a page of a chat's messages, newest first.
+Pass `before_id` to page back through older messages, and check `has_more` to see whether another page exists.
+Pass only `after_id` to poll for newer messages, oldest first, and expect `queued_messages` only when you pass neither cursor.
+
 ### Parameters
 
-| Name        | In    | Type         | Required | Description                          |
-|-------------|-------|--------------|----------|--------------------------------------|
-| `chat`      | path  | string(uuid) | true     | Chat ID                              |
-| `before_id` | query | integer      | false    | Return messages with id < before_id  |
-| `after_id`  | query | integer      | false    | Return messages with id > after_id   |
-| `limit`     | query | integer      | false    | Page size, 1 to 200. Defaults to 50. |
+| Name        | In    | Type         | Required | Description                                                                                                                   |
+|-------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
+| `chat`      | path  | string(uuid) | true     | Chat ID                                                                                                                       |
+| `before_id` | query | integer      | false    | Message ID to page back from. Returns only messages with a lower ID.                                                          |
+| `after_id`  | query | integer      | false    | Message ID to page forward from. Returns only messages with a higher ID. It must be lower than `before_id` when you set both. |
+| `limit`     | query | integer      | false    | Page size, 1 to 200. Defaults to 50.                                                                                          |
 
 ### Example responses
 
@@ -3192,6 +3229,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 `POST /api/v2/chats/{chat}/messages`
 
+Sends a message to a chat, which starts the chat worker generating a reply.
+When the chat is busy, the message is queued by default, and setting `busy_behavior` to `interrupt` stops the active run and sends it first.
+Only the chat owner can send messages, and setting `inline_mcp_servers` requires the `chat-inline-mcp-servers` experiment.
+
 > Body parameter
 
 ```json
@@ -3244,10 +3285,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description                 |
-|--------|------|----------------------------------------------------------------------------------|----------|-----------------------------|
-| `chat` | path | string(uuid)                                                                     | true     | Chat ID                     |
-| `body` | body | [codersdk.CreateChatMessageRequest](schemas.md#codersdkcreatechatmessagerequest) | true     | Create chat message request |
+| Name   | In   | Type                                                                             | Required | Description                                         |
+|--------|------|----------------------------------------------------------------------------------|----------|-----------------------------------------------------|
+| `chat` | path | string(uuid)                                                                     | true     | Chat ID                                             |
+| `body` | body | [codersdk.CreateChatMessageRequest](schemas.md#codersdkcreatechatmessagerequest) | true     | Message to send. `content` holds the message parts. |
 
 ### Example responses
 
@@ -3519,6 +3560,9 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
 
 `PATCH /api/v2/chats/{chat}/messages/{message}`
 
+Replaces an earlier user message in a chat, discards the messages after it, and runs the chat again from the edited message.
+Only the chat owner can edit messages, and only user messages can be edited. The response lists the IDs of the removed messages in `deleted_message_ids`.
+
 > Body parameter
 
 ```json
@@ -3551,11 +3595,11 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
 
 ### Parameters
 
-| Name      | In   | Type                                                                         | Required | Description               |
-|-----------|------|------------------------------------------------------------------------------|----------|---------------------------|
-| `chat`    | path | string(uuid)                                                                 | true     | Chat ID                   |
-| `message` | path | integer                                                                      | true     | Message ID                |
-| `body`    | body | [codersdk.EditChatMessageRequest](schemas.md#codersdkeditchatmessagerequest) | true     | Edit chat message request |
+| Name      | In   | Type                                                                         | Required | Description                                                                                          |
+|-----------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------|
+| `chat`    | path | string(uuid)                                                                 | true     | Chat ID                                                                                              |
+| `message` | path | integer                                                                      | true     | ID of the user message to edit.                                                                      |
+| `body`    | body | [codersdk.EditChatMessageRequest](schemas.md#codersdkeditchatmessagerequest) | true     | Replacement content for the message, and optional model, reasoning effort, and MCP server overrides. |
 
 ### Example responses
 
@@ -3805,12 +3849,15 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 
 `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
+Removes a message from a chat's queue before the chat worker runs it.
+Use it to cancel a message you sent while the chat was busy.
+
 ### Parameters
 
-| Name            | In   | Type         | Required | Description       |
-|-----------------|------|--------------|----------|-------------------|
-| `chat`          | path | string(uuid) | true     | Chat ID           |
-| `queuedMessage` | path | integer      | true     | Queued message ID |
+| Name            | In   | Type         | Required | Description                         |
+|-----------------|------|--------------|----------|-------------------------------------|
+| `chat`          | path | string(uuid) | true     | Chat ID                             |
+| `queuedMessage` | path | integer      | true     | ID of the queued message to remove. |
 
 ### Responses
 
@@ -3890,12 +3937,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
 
 `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
+Promotes a queued message into the chat's history so it runs now instead of waiting its turn in the queue.
+If the chat is running, the call interrupts the active run first, and the response is `202` once the promotion is accepted. Only the chat owner can promote queued messages.
+
 ### Parameters
 
-| Name            | In   | Type         | Required | Description       |
-|-----------------|------|--------------|----------|-------------------|
-| `chat`          | path | string(uuid) | true     | Chat ID           |
-| `queuedMessage` | path | integer      | true     | Queued message ID |
+| Name            | In   | Type         | Required | Description                          |
+|-----------------|------|--------------|----------|--------------------------------------|
+| `chat`          | path | string(uuid) | true     | Chat ID                              |
+| `queuedMessage` | path | integer      | true     | ID of the queued message to promote. |
 
 ### Example responses
 
@@ -3934,6 +3984,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
 ```
 
 `POST /api/v2/chats/{chat}/reconcile-invalid`
+
+Recovers a chat stuck in an invalid execution state by moving it to an error state.
+Queued messages are kept and pending client-executed tool calls are canceled. The call returns a `409` conflict when the chat isn't in an invalid state.
 
 ### Parameters
 
@@ -4727,6 +4780,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/title/propose \
 
 `POST /api/v2/chats/{chat}/title/propose`
 
+Generates a suggested title for a chat from its visible messages, without saving it.
+Use `PATCH /api/v2/chats/{chat}` with `title` to save the one you choose. Only the chat owner can call this.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -4764,6 +4820,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 
 `POST /api/v2/chats/{chat}/tool-results`
 
+Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.
+Use it when the chat is in the `requires_action` status after calling a tool you declared in `unsafe_dynamic_tools`.
+Only the chat owner can submit results, and deployments that turn off caller-supplied tools reject the call.
+
 > Body parameter
 
 ```json
@@ -4782,10 +4842,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description  |
-|--------|------|----------------------------------------------------------------------------------|----------|--------------|
-| `chat` | path | string(uuid)                                                                     | true     | Chat ID      |
-| `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Request body |
+| Name   | In   | Type                                                                             | Required | Description                                                                   |
+|--------|------|----------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------|
+| `chat` | path | string(uuid)                                                                     | true     | Chat ID                                                                       |
+| `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Results to submit, one for each pending tool call, matched by `tool_call_id`. |
 
 ### Responses
 
@@ -5545,11 +5605,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
 
 `GET /api/v2/users/{user}/ai-provider-keys`
 
+Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.
+It never returns key values. Reading another user's configuration requires permission to read that user's personal data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -5621,6 +5684,9 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 
 `PUT /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
+Sets a user's own API key for an AI provider, replacing any key already stored.
+The call returns `403` when the deployment turns off user-supplied keys with `--ai-gateway-allow-byok`, and it fails when the provider isn't enabled. Changing another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
+
 > Body parameter
 
 ```json
@@ -5631,11 +5697,11 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 
 ### Parameters
 
-| Name         | In   | Type                                                                                         | Required | Description              |
-|--------------|------|----------------------------------------------------------------------------------------------|----------|--------------------------|
-| `user`       | path | string                                                                                       | true     | User ID, username, or me |
-| `aiProvider` | path | string(uuid)                                                                                 | true     | AI provider ID           |
-| `body`       | body | [codersdk.CreateUserAIProviderKeyRequest](schemas.md#codersdkcreateuseraiproviderkeyrequest) | true     | Request body             |
+| Name         | In   | Type                                                                                         | Required | Description                                                                                  |
+|--------------|------|----------------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------|
+| `user`       | path | string                                                                                       | true     | User ID, username, or `me` for the authenticated user.                                       |
+| `aiProvider` | path | string(uuid)                                                                                 | true     | AI provider ID                                                                               |
+| `body`       | body | [codersdk.CreateUserAIProviderKeyRequest](schemas.md#codersdkcreateuseraiproviderkeyrequest) | true     | API key to store for the provider. It can't be empty or have leading or trailing whitespace. |
 
 ### Example responses
 
@@ -5678,12 +5744,15 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 
 `DELETE /api/v2/users/{user}/ai-provider-keys/{aiProvider}`
 
+Deletes a user's stored API key for an AI provider.
+Deleting another user's key requires permission to update that user's personal data, which the Owner and User Admin roles have.
+
 ### Parameters
 
-| Name         | In   | Type         | Required | Description              |
-|--------------|------|--------------|----------|--------------------------|
-| `user`       | path | string       | true     | User ID, username, or me |
-| `aiProvider` | path | string(uuid) | true     | AI provider ID           |
+| Name         | In   | Type         | Required | Description                                            |
+|--------------|------|--------------|----------|--------------------------------------------------------|
+| `user`       | path | string       | true     | User ID, username, or `me` for the authenticated user. |
+| `aiProvider` | path | string(uuid) | true     | AI provider ID                                         |
 
 ### Responses
 
