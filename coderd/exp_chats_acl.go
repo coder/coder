@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"maps"
 	"net/http"
@@ -63,12 +62,14 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, ok := api.chatACLUsers(ctx, rw, chat, chatACL.Users)
-	if !ok {
+	users, err := resolveACLUsers(ctx, api.Database, chatACL.Users, chatACLUser)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
-	groups, ok := api.chatACLGroups(ctx, rw, chat, chatACL.Groups)
-	if !ok {
+	groups, err := resolveACLGroups(ctx, api.Database, uuid.Nil, chatACL.Groups, chatACLGroup)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 
@@ -165,24 +166,8 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		oldChat = current
 		oldChat.UserACL = maps.Clone(current.UserACL)
 
-		for id, role := range req.UserRoles {
-			if role == codersdk.ChatRoleDeleted {
-				delete(current.UserACL, id)
-				continue
-			}
-			current.UserACL[id] = database.ChatACLEntry{
-				Permissions: db2sdk.ChatRoleActions(role),
-			}
-		}
-		for id, role := range req.GroupRoles {
-			if role == codersdk.ChatRoleDeleted {
-				delete(current.GroupACL, id)
-				continue
-			}
-			current.GroupACL[id] = database.ChatACLEntry{
-				Permissions: db2sdk.ChatRoleActions(role),
-			}
-		}
+		applyACLReadRoles(current.UserACL, req.UserRoles)
+		applyACLReadRoles(current.GroupACL, req.GroupRoles)
 
 		if err := tx.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
 			ID:       chat.ID,
@@ -285,77 +270,6 @@ func (api *API) directChatReaders(chat database.Chat) []uuid.UUID {
 		readers = append(readers, userID)
 	}
 	return slice.Unique(readers)
-}
-
-func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatUser, bool) {
-	userIDs := make([]uuid.UUID, 0, len(entries))
-	for userID := range entries {
-		id, err := uuid.Parse(userID)
-		if err != nil {
-			api.Logger.Warn(ctx, "found invalid user uuid in chat acl", slog.Error(err), slog.F("chat_id", chat.ID))
-			continue
-		}
-		userIDs = append(userIDs, id)
-	}
-
-	//nolint:gocritic // Users who can read the chat ACL should see shared users even without user read permission.
-	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return nil, false
-	}
-
-	users := make([]codersdk.ChatUser, 0, len(dbUsers))
-	for _, user := range dbUsers {
-		entry := entries[user.ID.String()]
-		users = append(users, codersdk.ChatUser{
-			MinimalUser: db2sdk.MinimalUser(user),
-			Role:        convertToChatRole(entry.Permissions),
-		})
-	}
-	return users, true
-}
-
-func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatGroup, bool) {
-	groupIDs := make([]uuid.UUID, 0, len(entries))
-	for groupID := range entries {
-		id, err := uuid.Parse(groupID)
-		if err != nil {
-			api.Logger.Warn(ctx, "found invalid group uuid in chat acl", slog.Error(err), slog.F("chat_id", chat.ID))
-			continue
-		}
-		groupIDs = append(groupIDs, id)
-	}
-
-	dbGroups := make([]database.GetGroupsRow, 0)
-	if len(groupIDs) > 0 {
-		var err error
-		//nolint:gocritic // Users who can read the chat ACL should see shared groups even without group read permission.
-		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.InternalServerError(rw, err)
-			return nil, false
-		}
-	}
-
-	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
-	for _, group := range dbGroups {
-		//nolint:gocritic // Users who can read the chat ACL should see shared group sizes even without group read permission.
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return nil, false
-		}
-		entry := entries[group.Group.ID.String()]
-		groups = append(groups, codersdk.ChatGroup{
-			Group: db2sdk.Group(group, nil, int(memberCount)),
-			Role:  convertToChatRole(entry.Permissions),
-		})
-	}
-	return groups, true
 }
 
 func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter) bool {

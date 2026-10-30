@@ -258,11 +258,11 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// resolveACLUsers resolves user ACL entries for callers that already passed
-// the resource's share check.
+// resolveACLUsers resolves user ACL entries for callers that already
+// authorized reading the resource's ACL.
 func resolveACLUsers[T any](ctx context.Context, db database.Store, entries database.ChatACL, entry func(codersdk.MinimalUser, database.ChatACLEntry) T) ([]T, error) {
 	ids := parseACLIDs(entries)
-	//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
+	//nolint:gocritic // Callers that can read the ACL see shared users without user read permission.
 	users, err := db.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get ACL users: %w", err)
@@ -275,14 +275,14 @@ func resolveACLUsers[T any](ctx context.Context, db database.Store, entries data
 }
 
 // resolveACLGroups resolves group ACL entries, including member counts, for
-// callers that already passed the resource's share check. Unless
+// callers that already authorized reading the resource's ACL. Unless
 // organizationID is uuid.Nil, groups from other organizations are left out.
 func resolveACLGroups[T any](ctx context.Context, db database.Store, organizationID uuid.UUID, entries database.ChatACL, entry func(codersdk.Group, database.ChatACLEntry) T) ([]T, error) {
 	ids := parseACLIDs(entries)
 	var groups []database.GetGroupsRow
 	if len(ids) > 0 {
 		var err error
-		//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
+		//nolint:gocritic // Callers that can read the ACL see shared groups without group read permission.
 		groups, err = db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{OrganizationID: organizationID, GroupIds: ids})
 		if err != nil {
 			return nil, xerrors.Errorf("get ACL groups: %w", err)
@@ -292,7 +292,7 @@ func resolveACLGroups[T any](ctx context.Context, db database.Store, organizatio
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.Group.ID)
 	}
-	//nolint:gocritic // ACL managers may resolve group sizes after the share gate passes.
+	//nolint:gocritic // Callers that can read the ACL see shared group sizes without group read permission.
 	countByGroup, err := aclGroupMemberCounts(dbauthz.AsSystemRestricted(ctx), db, groupIDs)
 	if err != nil {
 		return nil, err
