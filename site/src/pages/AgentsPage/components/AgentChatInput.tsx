@@ -1226,6 +1226,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
+		// An empty composer sends the queue head unless the head is under edit or
+		// is a pending row, which the server does not have yet.
 		if (
 			!busyBehavior &&
 			!text &&
