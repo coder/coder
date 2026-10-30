@@ -199,6 +199,8 @@ func (p *Server) SendMessage(
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
+			FileIDs:      chatprompt.FileIDs(contentParts),
+			MaxFileLinks: p.chatLimits.MaxAttachmentsPerChat,
 		})
 		if err != nil {
 			return err
@@ -220,10 +222,6 @@ func (p *Server) SendMessage(
 		promotedQueuedAt = sendResult.PromotedQueuedAt
 		finishedInterruption = sendResult.FinishedInterruption
 
-		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
-			return err
-		}
 		if firstUserTurn && !result.Queued {
 			result.FirstUserTurn = true
 			// Persist the fallback title with the message so a failed
@@ -409,6 +407,8 @@ func (p *Server) EditMessage(
 			Content:                 content,
 			ModelConfigIDOverride:   modelOverride,
 			ReasoningEffortOverride: reasoningEffortOverride,
+			FileIDs:                 chatprompt.FileIDs(contentParts),
+			MaxFileLinks:            p.chatLimits.MaxAttachmentsPerChat,
 		})
 		if err != nil {
 			if errors.Is(err, chatstate.ErrEditedMessageNotUser) {
@@ -423,7 +423,7 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		return chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat)
+		return nil
 	})
 	if err != nil {
 		return EditMessageResult{}, err
@@ -643,6 +643,7 @@ func (p *Server) EditQueuedMessage(
 	input := chatstate.EditQueuedMessageInput{
 		QueuedMessageID: opts.QueuedMessageID,
 		Editing:         opts.Editing,
+		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
 	}
 	if len(contentParts) > 0 {
 		content, err := chatprompt.MarshalParts(contentParts)
@@ -650,6 +651,7 @@ func (p *Server) EditQueuedMessage(
 			return xerrors.Errorf("marshal message content: %w", err)
 		}
 		input.Content = content.RawMessage
+		input.FileIDs = chatprompt.FileIDs(contentParts)
 		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
 			input.ReasoningEffortOverride = database.NullChatReasoningEffort{
 				ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort),
@@ -675,16 +677,7 @@ func (p *Server) EditQueuedMessage(
 			}
 		}
 		edited, err = tx.EditQueuedMessage(input)
-		if err != nil {
-			return err
-		}
-		if len(contentParts) > 0 {
-			// File-link errors must roll back the edit.
-			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
-				return err
-			}
-		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return err

@@ -468,6 +468,10 @@ type SendMessageInput struct {
 	// MaxQueueSize is the maximum number of messages that can be queued
 	// in the chat. It must be positive when the message is queued.
 	MaxQueueSize int
+	// FileIDs are linked to the chat by [LinkFiles], which caps the
+	// chat at MaxFileLinks files.
+	FileIDs      []uuid.UUID
+	MaxFileLinks int
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -514,6 +518,9 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 	}
 	if err := sendMessageQueueCapacityError(from, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
+		return SendMessageResult{}, err
+	}
+	if err := LinkFiles(tx.ctx, tx.store, tx.chatID, input.FileIDs, input.MaxFileLinks); err != nil {
 		return SendMessageResult{}, err
 	}
 	if sendMessageInsertsDirectly(from, input.BusyBehavior) {
@@ -701,6 +708,10 @@ type EditMessageInput struct {
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
+	// FileIDs are linked to the chat by [LinkFiles], which caps the
+	// chat at MaxFileLinks files.
+	FileIDs      []uuid.UUID
+	MaxFileLinks int
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -738,6 +749,9 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 			ErrEditedMessageNotUser,
 			"only user messages can be edited",
 		)
+	}
+	if err := LinkFiles(tx.ctx, tx.store, tx.chatID, input.FileIDs, input.MaxFileLinks); err != nil {
+		return EditMessageResult{}, err
 	}
 
 	suffix, err := tx.store.GetChatMessagesByChatID(tx.ctx, database.GetChatMessagesByChatIDParams{
@@ -976,10 +990,13 @@ type EditQueuedMessageInput struct {
 	QueuedMessageID int64
 	// Content is the chatprompt.MarshalParts encoding of the message parts.
 	Content json.RawMessage
-	// ModelConfigIDOverride and ReasoningEffortOverride apply only
-	// together with Content.
+	// ModelConfigIDOverride, ReasoningEffortOverride, and FileIDs apply
+	// only together with Content. FileIDs are linked to the chat by
+	// [LinkFiles], which caps the chat at MaxFileLinks files.
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
+	FileIDs                 []uuid.UUID
+	MaxFileLinks            int
 	// Editing begins (true) or ends (false) the row's edit.
 	Editing *bool
 }
@@ -1041,6 +1058,9 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 		})
 		if err != nil {
 			return EditQueuedMessageResult{}, xerrors.Errorf("update queued content: %w", err)
+		}
+		if err := LinkFiles(tx.ctx, tx.store, tx.chatID, input.FileIDs, input.MaxFileLinks); err != nil {
+			return EditQueuedMessageResult{}, err
 		}
 	}
 	if input.Editing != nil {
