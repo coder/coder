@@ -133,6 +133,27 @@ export const RunningEmptyQuestions: Story = {
 	},
 };
 
+export const InteractiveLabelOnlyOptions: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify({
+			questions: [
+				{
+					header: "Implementation Approach",
+					question: "How should we structure the database migration?",
+					options: [
+						{ label: "Use a single migration." },
+						{ label: "Split the change into incremental migrations." },
+					],
+				},
+			],
+		}),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
 export const InteractiveSingleQuestion: Story = {
 	args: {
 		status: "completed",
