@@ -74,7 +74,7 @@ type ChatTopBarProps = {
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
 	/** Leave it out to hide the overview toggle. */
-	overview?: ChatOverviewToggleProps;
+	overviewToggle?: ChatOverviewToggleProps;
 };
 
 const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
@@ -118,7 +118,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
-	overview,
+	overviewToggle,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -370,7 +370,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						organizationId={chat.organization_id}
 					/>
 				)}
-				{overview && <ChatOverviewToggle {...overview} />}
+				{overviewToggle && <ChatOverviewToggle {...overviewToggle} />}
 				{!isEmbedded && (
 					<Button
 						variant="subtle"

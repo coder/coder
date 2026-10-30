@@ -797,7 +797,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onToggleSidebar: () =>
 										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
-								overview={overview.toggle}
+								overviewToggle={overview.toggle}
 							/>
 							{modelCatalogError != null && (
 								<ErrorAlert error={modelCatalogError} />
