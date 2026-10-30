@@ -10,6 +10,14 @@ import {
 	getMessageAttachments,
 } from "../components/ChatConversation/messageHelpers";
 
+/** The state of the server's list of earlier attachments. */
+export type EarlierAttachmentsRequest = {
+	isLoading: boolean;
+	error: unknown;
+	isRetrying: boolean;
+	retry: () => void;
+};
+
 type UseChatAttachmentsOptions = {
 	chatId: string;
 	store: ChatStore;
@@ -67,7 +75,7 @@ export const useChatAttachments = ({
 		hasMoreMessages && !earlierAttachmentsQuery.data
 			? (earlierAttachmentsQuery.error ?? retriedError)
 			: null;
-	const earlierAttachmentsRequest = {
+	const earlierAttachmentsRequest: EarlierAttachmentsRequest = {
 		isLoading: hasMoreMessages && !earlierAttachmentsQuery.data && !error,
 		error,
 		isRetrying: earlierAttachmentsQuery.isFetching,
