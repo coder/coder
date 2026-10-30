@@ -161,8 +161,21 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx = agplaibridge.WithAttribution(ctx, attribution)
 
+	// coderd resolves the organization once, in IsAuthorized. The budget check
+	// and the interception record both reuse it. A request without one is
+	// rejected so it never falls back to site-wide budget and cost.
+	org, err := requestOrganizationFromAuthorization(resp)
+	if err != nil {
+		logger.Warn(ctx, "invalid authorization organization", slog.Error(err))
+		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		return
+	}
+	ctx = agplaibridge.WithRequestOrganization(ctx, org)
+	logger = logger.With(slog.F("organization_id", org.ID), slog.F("organization_source", org.Source))
+
 	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
-		UserId: id.String(),
+		UserId:         id.String(),
+		OrganizationId: org.ID.String(),
 	})
 	if err != nil {
 		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
@@ -213,4 +226,28 @@ func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridg
 		return agplaibridge.Attribution{}, xerrors.Errorf("parse workspace ID: %w", err)
 	}
 	return agplaibridge.Attribution{WorkspaceID: workspaceID}, nil
+}
+
+// requestOrganizationFromAuthorization extracts the organization coderd
+// resolved for the request. A missing ID or source, or a malformed ID, is an
+// error. coderd at v1.6 or later always sends one, and an older coderd rejects
+// this gateway's version, so a missing organization is never expected. The
+// source value itself is not checked, so a newer coderd can add sources
+// without breaking this gateway.
+func requestOrganizationFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.RequestOrganization, error) {
+	rawID, source := resp.GetOrganizationId(), resp.GetOrganizationSource()
+	switch {
+	case rawID == "":
+		return agplaibridge.RequestOrganization{}, xerrors.New("no organization ID")
+	case source == "":
+		return agplaibridge.RequestOrganization{}, xerrors.New("organization ID set without organization source")
+	}
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return agplaibridge.RequestOrganization{}, xerrors.Errorf("parse organization ID: %w", err)
+	}
+	if id == uuid.Nil {
+		return agplaibridge.RequestOrganization{}, xerrors.New("organization ID is the nil UUID")
+	}
+	return agplaibridge.RequestOrganization{ID: id, Source: source}, nil
 }

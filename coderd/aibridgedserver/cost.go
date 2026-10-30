@@ -88,16 +88,20 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	var result tokenUsageCost
 
 	// Resolve the effective group for attribution, independent of whether the
-	// model is priced.
-	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, intc.InitiatorID, uuid.NullUUID{}, s.budgetPolicy)
+	// model is priced. The group is resolved inside the organization stored on
+	// the interception, which IsAuthorized resolved for the request. A null
+	// organization (an older gateway, or no org resolved) means site-wide.
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, intc.InitiatorID, intc.OrganizationID, s.budgetPolicy)
 	if err != nil {
 		return tokenUsageCost{}, xerrors.Errorf("resolve effective AI group for user %q with policy %q: %w", intc.InitiatorID, s.budgetPolicy, err)
 	}
 	if !ok {
 		// A user should always resolve to at least their Everyone group, so log
-		// this unexpected case. Spend is still recorded, with a NULL group.
+		// this unexpected case. It can happen when the user left the stored
+		// organization mid-request. Spend is still recorded, with a NULL group.
 		s.logger.Warn(ctx, "no effective group for user, AI spend not attributed",
-			slog.F("user_id", intc.InitiatorID))
+			slog.F("user_id", intc.InitiatorID),
+			slog.F("organization_id", intc.OrganizationID))
 	} else {
 		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveGroup.GroupID, Valid: true}
 		// Limit is nil for the unlimited Everyone fallback; only a budgeted
