@@ -86,9 +86,10 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-// The keepalive interval plus 60 s, so a single message that downloads within
-// 60 s arrives, for example 14 MB at about 1.9 Mbit/s. A slower message times
-// out and is requested again.
+// The keepalive interval plus 60 s. A message starts at most 15 s after the
+// previous one, so the timer leaves at least 60 s for it to download, for
+// example 14 MB at about 1.9 Mbit/s. The server's WSWatcher probe can close a
+// slow stream sooner.
 export const CHAT_STREAM_SILENCE_TIMEOUT_MS =
 	(ChatStreamKeepaliveIntervalSeconds + 60) * 1000;
 
