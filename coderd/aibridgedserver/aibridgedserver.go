@@ -57,9 +57,10 @@ var (
 	ErrInactiveUser              = xerrors.New("inactive user")
 	ErrSystemUser                = xerrors.New("system user")
 	ErrAmbiguousAuth             = xerrors.New("both key and key_id set; exactly one required")
+	ErrInvalidChatOrganization   = xerrors.New("chat_organization_id must be a valid UUID set only with key_id")
 	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
 	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
-	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
+	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the request organization")
 	ErrNoOrganization            = xerrors.New("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
@@ -835,6 +836,16 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		}
 	}
 
+	// The chat organization is only trusted from delegated in-process callers.
+	var chatOrgID uuid.NullUUID
+	if raw := in.GetChatOrganizationId(); raw != "" {
+		id, err := uuid.Parse(raw)
+		if !delegated || err != nil || id == uuid.Nil {
+			return nil, ErrInvalidChatOrganization
+		}
+		chatOrgID = uuid.NullUUID{UUID: id, Valid: true}
+	}
+
 	// Key exists.
 	key, err := s.store.GetAPIKeyByID(ctx, keyID)
 	if err != nil {
@@ -889,7 +900,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		}
 	}
 
-	org, err := s.resolveOrganization(ctx, user.ID, orgResolverInput{WorkspaceID: workspaceID})
+	org, err := s.resolveOrganization(ctx, user.ID, orgResolverInput{WorkspaceID: workspaceID, ChatOrganizationID: chatOrgID})
 	if err != nil {
 		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
 		return nil, err

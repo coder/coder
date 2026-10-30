@@ -32,9 +32,12 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.6:
 //   - Adds organization_source to IsAuthorizedResponse.
 //   - Adds organization_id to IsBudgetExceededRequest.
+//
+// API v1.7:
+//   - Adds chat_organization_id to IsAuthorizedRequest.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 6
+	CurrentMinor = 7
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway
