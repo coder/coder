@@ -11601,6 +11601,7 @@ const docTemplate = `{
         },
         "/api/v2/prebuilds/settings": {
             "get": {
+                "description": "Returns the deployment-wide prebuilds settings, which hold the ` + "`" + `reconciliation_paused` + "`" + ` flag.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -11624,6 +11625,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with ` + "`" + `reconciliation_paused` + "`" + `.\nReturns ` + "`" + `304 Not Modified` + "`" + ` when the settings are unchanged.\nRequires a Premium license and permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11637,7 +11639,7 @@ const docTemplate = `{
                 "operationId": "update-prebuilds-settings",
                 "parameters": [
                     {
-                        "description": "Prebuilds settings request",
+                        "description": "Prebuilds settings to apply. Set ` + "`" + `reconciliation_paused` + "`" + ` to ` + "`" + `true` + "`" + ` to pause prebuild reconciliation for all templates.",
                         "name": "request",
                         "in": "body",
                         "required": true,
