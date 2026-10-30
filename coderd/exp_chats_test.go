@@ -10752,13 +10752,10 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 	cited := []string{"https://example.com/cited"}
 
 	tests := []struct {
-		name       string
-		store      *bool
-		webSearch  chattest.OpenAIWebSearchCall
-		wantArgs   string
-		wantResult string
-		wantError  bool
-		wantFound  []string
+		name      string
+		store     *bool
+		webSearch chattest.OpenAIWebSearchCall
+		want      chatWebSearchWant
 		// wantReplay is the web_search_call input item the next turn
 		// sends. gpt-4o produces no reasoning, so stored searches cannot
 		// go back as item references and replay inline too.
@@ -10770,9 +10767,11 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				Queries: []string{"tokyo population", "tokyo census 2025"},
 				Query:   "tokyo population",
 			},
-			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
-			wantResult: `{}`,
-			wantFound:  found,
+			want: chatWebSearchWant{
+				args:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
+				result: `{}`,
+				found:  found,
+			},
 			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","queries":["tokyo population","tokyo census 2025"],"query":"tokyo population"}}`,
 		},
 		{
@@ -10781,9 +10780,11 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				Queries: []string{"tokyo population"},
 				Status:  "failed",
 			},
-			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
-			wantResult: `{"error":"web search failed"}`,
-			wantError:  true,
+			want: chatWebSearchWant{
+				args:    `{"type":"search","queries":["tokyo population"]}`,
+				result:  `{"error":"web search failed"}`,
+				isError: true,
+			},
 			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
 		},
 		{
@@ -10793,9 +10794,11 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				Queries: []string{"tokyo population", "tokyo census 2025"},
 				Query:   "tokyo population",
 			},
-			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
-			wantResult: `{}`,
-			wantFound:  found,
+			want: chatWebSearchWant{
+				args:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
+				result: `{}`,
+				found:  found,
+			},
 			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","queries":["tokyo population","tokyo census 2025"],"query":"tokyo population"}}`,
 		},
 		{
@@ -10805,8 +10808,10 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				ActionType: "open_page",
 				URL:        "https://www.metro.tokyo.lg.jp/",
 			},
-			wantArgs:   `{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}`,
-			wantResult: `{}`,
+			want: chatWebSearchWant{
+				args:   `{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}`,
+				result: `{}`,
+			},
 			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}}`,
 		},
 		{
@@ -10817,8 +10822,10 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				URL:        "https://www.metro.tokyo.lg.jp/",
 				Pattern:    "population",
 			},
-			wantArgs:   `{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}`,
-			wantResult: `{}`,
+			want: chatWebSearchWant{
+				args:   `{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}`,
+				result: `{}`,
+			},
 			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}}`,
 		},
 		{
@@ -10828,9 +10835,11 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				Queries: []string{"tokyo population"},
 				Status:  "failed",
 			},
-			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
-			wantResult: `{"error":"web search failed"}`,
-			wantError:  true,
+			want: chatWebSearchWant{
+				args:    `{"type":"search","queries":["tokyo population"]}`,
+				result:  `{"error":"web search failed"}`,
+				isError: true,
+			},
 			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
 		},
 	}
@@ -10839,11 +10848,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
 			webSearchID := "ws_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-
-			// The model turn waits until the test subscribes to the chat
-			// stream so the streamed parts cannot be missed.
 			streamReady := make(chan struct{})
 			var requestIncludes atomic.Pointer[[]string]
 			followUpBody := make(chan []byte, 1)
@@ -10871,27 +10876,16 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(answer)...)
 				webSearch := tt.webSearch
 				webSearch.ID = webSearchID
-				webSearch.Sources = tt.wantFound
+				webSearch.Sources = tt.want.found
 				webSearch.SummaryOnlySources = cited
 				resp.WebSearch = &webSearch
 				return resp
 			})
 
-			client, _, api := newChatClientWithoutAIBridge(t)
-			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-				Type:    codersdk.AIProviderTypeOpenAI,
-				Name:    "test-openai-" + uuid.NewString(),
-				BaseURL: baseURL,
-				Enabled: true,
-				APIKeys: []string{coderdtest.TestChatProviderAPIKey},
-			})
-			require.NoError(t, err)
-			_, err = client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-				AIProviderID: &provider.ID,
+			followUp := &chatWebSearchFollowUp{prompt: followUpPrompt, body: followUpBody}
+			streamed, reloaded := runChatWebSearch(t, streamReady, webSearchID, followUp, codersdk.AIProviderTypeOpenAI, baseURL, codersdk.CreateChatModelRequest{
 				Model:        "gpt-4o",
 				ContextLimit: ptr.Ref(int64(128000)),
-				IsDefault:    ptr.Ref(true),
 				ModelConfig: &codersdk.ChatModelCallConfig{
 					OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: ptr.Ref(true)},
 					ProviderOptions: &codersdk.ChatModelProviderOptions{
@@ -10902,148 +10896,25 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 					},
 				},
 			})
-			require.NoError(t, err)
-			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: firstUser.OrganizationID,
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "How many people live in Tokyo?",
-				}},
-			})
-			require.NoError(t, err)
-
-			events, closer, err := client.StreamChat(ctx, chat.ID, nil)
-			require.NoError(t, err)
-			defer closer.Close()
-			close(streamReady)
-
-			// requireWebSearchParts checks what the UI renders for the
-			// search: the call with its action, the result that finishes
-			// it, and its found pages as sources tagged with the search.
-			requireWebSearchParts := func(t *testing.T, call, result *codersdk.ChatMessagePart, foundURLs []string) {
-				t.Helper()
-				require.NotNil(t, call, "missing web_search tool-call part")
-				require.True(t, call.ProviderExecuted)
-				require.JSONEq(t, tt.wantArgs, string(call.Args))
-				require.NotNil(t, result, "missing web_search tool-result part")
-				require.True(t, result.ProviderExecuted)
-				require.Equal(t, tt.wantError, result.IsError)
-				require.JSONEq(t, tt.wantResult, string(result.Result))
-				require.Equal(t, tt.wantFound, foundURLs)
-			}
-			isWebSearchPart := func(part codersdk.ChatMessagePart, partType codersdk.ChatMessagePartType) bool {
-				return part.Type == partType && part.ToolName == "web_search" && part.ToolCallID == webSearchID
-			}
-			foundURL := func(t *testing.T, part codersdk.ChatMessagePart) (string, bool) {
-				t.Helper()
-				if part.Type != codersdk.ChatMessagePartTypeSource {
-					return "", false
-				}
-				require.Equal(t, webSearchID, part.ToolCallID, "source %q should be tagged with the search", part.URL)
-				require.NotContains(t, cited, part.URL, "a cited page must not become a found page")
-				return part.URL, true
-			}
-
-			var streamedCall, streamedResult *codersdk.ChatMessagePart
-			var streamedFound []string
-			for streamedResult == nil {
-				select {
-				case <-ctx.Done():
-					require.FailNow(t, "timed out waiting for the streamed web_search result")
-				case event, ok := <-events:
-					require.True(t, ok, "stream closed before the web_search result")
-					require.NotEqual(t, codersdk.ChatStreamEventTypeError, event.Type)
-					if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
-						continue
-					}
-					part := event.MessagePart.Part
-					if url, ok := foundURL(t, part); ok {
-						streamedFound = append(streamedFound, url)
-					}
-					switch {
-					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolCall):
-						streamedCall = &part
-					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolResult):
-						streamedResult = &part
-					}
-				}
-			}
-			// The search's found pages arrive before its result.
-			requireWebSearchParts(t, streamedCall, streamedResult, streamedFound)
-
-			settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-			require.Equal(t, database.ChatStatusWaiting, settled.Status)
 
 			includes := requestIncludes.Load()
 			require.NotNil(t, includes, "the provider did not receive the streaming request")
 			require.Contains(t, *includes, "web_search_call.action.sources")
+			// The exact found list also proves no cited page became a found page.
+			requireChatWebSearch(t, streamed, webSearchID, tt.want)
+			requireChatWebSearch(t, reloaded, webSearchID, tt.want)
+			require.Equal(t, answer, reloaded.text)
 
-			// Reloading the conversation reads the persisted rows.
-			messages, err := client.GetChatMessages(ctx, chat.ID, nil)
-			require.NoError(t, err)
-			var reloadedCall, reloadedResult *codersdk.ChatMessagePart
-			var reloadedFound []string
-			var reloadedText string
-			for _, message := range messages.Messages {
-				if message.Role != codersdk.ChatMessageRoleAssistant {
-					continue
-				}
-				for _, part := range message.Content {
-					require.Empty(t, part.ProviderMetadata, "API responses must strip provider metadata")
-					if url, ok := foundURL(t, part); ok {
-						reloadedFound = append(reloadedFound, url)
-					}
-					switch {
-					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolCall):
-						reloadedCall = &part
-					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolResult):
-						reloadedResult = &part
-					case part.Type == codersdk.ChatMessagePartTypeText:
-						reloadedText += part.Text
-					}
-				}
-			}
-			requireWebSearchParts(t, reloadedCall, reloadedResult, reloadedFound)
-			require.Equal(t, answer, reloadedText)
-
-			// The next turn builds its prompt from the saved history.
-			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: followUpPrompt,
-				}},
-			})
-			require.NoError(t, err)
-			// The fake server rejects an invalid request before the
-			// handler sees it, so the chat's error is the only signal.
-			var rawFollowUp []byte
-			for rawFollowUp == nil {
-				select {
-				case <-ctx.Done():
-					require.FailNow(t, "timed out waiting for the follow-up request")
-				case rawFollowUp = <-followUpBody:
-				case event, ok := <-events:
-					require.True(t, ok, "stream closed before the follow-up request")
-					if event.Type == codersdk.ChatStreamEventTypeError {
-						require.FailNowf(t, "follow-up turn failed", "%+v", event.Error)
-					}
-				}
-			}
-			settled = coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-			require.Equal(t, database.ChatStatusWaiting, settled.Status)
-
-			var followUp struct {
+			var followUpRequest struct {
 				Store *bool             `json:"store"`
 				Input []json.RawMessage `json:"input"`
 			}
-			require.NoError(t, json.Unmarshal(rawFollowUp, &followUp))
-			require.NotNil(t, followUp.Store)
-			require.Equal(t, tt.store == nil || *tt.store, *followUp.Store)
+			require.NoError(t, json.Unmarshal(followUp.sent, &followUpRequest))
+			require.NotNil(t, followUpRequest.Store)
+			require.Equal(t, tt.store == nil || *tt.store, *followUpRequest.Store)
 			var inputKinds []string
 			var replayed json.RawMessage
-			for _, raw := range followUp.Input {
+			for _, raw := range followUpRequest.Input {
 				var item struct {
 					Type string `json:"type"`
 					Role string `json:"role"`
@@ -11065,6 +10936,267 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			require.JSONEq(t, tt.wantReplay, string(replayed))
 		})
 	}
+}
+
+// TestChatAnthropicWebSearch runs provider-executed Anthropic web searches
+// through the chat API and the AI Gateway daemon with the real fantasy
+// Anthropic provider, then checks the streamed parts and the reloaded
+// messages the chat UI renders.
+func TestChatAnthropicWebSearch(t *testing.T) {
+	t.Parallel()
+
+	const (
+		answer = "Tokyo has about 14 million residents."
+		query  = "tokyo population"
+	)
+	results := []chattest.AnthropicWebSearchResult{
+		{URL: "https://www.metro.tokyo.lg.jp/", Title: "Tokyo Metropolitan Government", PageAge: "1 week ago"},
+		{URL: "https://example.com/tokyo", Title: "Tokyo"},
+	}
+
+	tests := []struct {
+		name      string
+		webSearch chattest.AnthropicWebSearch
+		want      chatWebSearchWant
+	}{
+		{
+			name:      "Results",
+			webSearch: chattest.AnthropicWebSearch{Query: query, Results: results},
+			want: chatWebSearchWant{
+				args:   `{"query":"tokyo population"}`,
+				result: `{}`,
+				found:  []string{results[0].URL, results[1].URL},
+			},
+		},
+		{
+			name:      "ErrorCode",
+			webSearch: chattest.AnthropicWebSearch{Query: query, ErrorCode: "max_uses_exceeded"},
+			want: chatWebSearchWant{
+				args:    `{"query":"tokyo population"}`,
+				result:  `{"error":"web search failed: max_uses_exceeded"}`,
+				isError: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			webSearchID := "srvtoolu_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+			streamReady := make(chan struct{})
+			var requestTools atomic.Pointer[[]string]
+			baseURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				if !req.Stream {
+					return chattest.AnthropicNonStreamingResponse(`{"title": "Tokyo population"}`)
+				}
+				tools := make([]string, 0, len(req.Tools))
+				for _, tool := range req.Tools {
+					tools = append(tools, tool.Name)
+				}
+				requestTools.Store(&tools)
+				select {
+				case <-streamReady:
+				case <-req.Context().Done():
+				}
+				webSearch := tt.webSearch
+				webSearch.ID = webSearchID
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicWebSearchChunks(webSearch, answer)...)
+			})
+
+			streamed, reloaded := runChatWebSearch(t, streamReady, webSearchID, nil, codersdk.AIProviderTypeAnthropic, baseURL, codersdk.CreateChatModelRequest{
+				Model:        "claude-sonnet-4-5",
+				ContextLimit: ptr.Ref(int64(200000)),
+				ModelConfig: &codersdk.ChatModelCallConfig{
+					ProviderOptions: &codersdk.ChatModelProviderOptions{
+						Anthropic: &codersdk.ChatModelAnthropicProviderOptions{WebSearchEnabled: ptr.Ref(true)},
+					},
+				},
+			})
+
+			tools := requestTools.Load()
+			require.NotNil(t, tools, "the provider did not receive the streaming request")
+			require.Contains(t, *tools, "web_search")
+			requireChatWebSearch(t, streamed, webSearchID, tt.want)
+			requireChatWebSearch(t, reloaded, webSearchID, tt.want)
+			require.Equal(t, answer, reloaded.text)
+		})
+	}
+}
+
+// chatWebSearchParts are the chat message parts for one provider-executed
+// web search: its call, the result that finishes it, every source part,
+// and the assistant text.
+type chatWebSearchParts struct {
+	call    *codersdk.ChatMessagePart
+	result  *codersdk.ChatMessagePart
+	sources []codersdk.ChatMessagePart
+	text    string
+}
+
+func (p *chatWebSearchParts) add(part codersdk.ChatMessagePart, searchID string) {
+	isSearch := part.ToolName == "web_search" && part.ToolCallID == searchID
+	switch {
+	case part.Type == codersdk.ChatMessagePartTypeSource:
+		p.sources = append(p.sources, part)
+	case part.Type == codersdk.ChatMessagePartTypeToolCall && isSearch:
+		p.call = &part
+	case part.Type == codersdk.ChatMessagePartTypeToolResult && isSearch:
+		p.result = &part
+	case part.Type == codersdk.ChatMessagePartTypeText:
+		p.text += part.Text
+	}
+}
+
+// chatWebSearchWant is what the chat UI must render for a web search.
+type chatWebSearchWant struct {
+	// args is the tool call's JSON arguments.
+	args string
+	// result is the tool result's JSON body.
+	result  string
+	isError bool
+	// found are the URLs of the pages the search found, in order.
+	found []string
+}
+
+// requireChatWebSearch checks the call with its arguments, the result that
+// finishes it, and that every source part is a found page tagged with the
+// search.
+func requireChatWebSearch(t *testing.T, got chatWebSearchParts, searchID string, want chatWebSearchWant) {
+	t.Helper()
+	require.NotNil(t, got.call, "missing web_search tool-call part")
+	require.True(t, got.call.ProviderExecuted)
+	require.JSONEq(t, want.args, string(got.call.Args))
+	require.NotNil(t, got.result, "missing web_search tool-result part")
+	require.True(t, got.result.ProviderExecuted)
+	require.Equal(t, want.isError, got.result.IsError)
+	require.JSONEq(t, want.result, string(got.result.Result))
+	var found []string
+	for _, source := range got.sources {
+		require.Equal(t, searchID, source.ToolCallID, "source %q should be tagged with the search", source.URL)
+		found = append(found, source.URL)
+	}
+	require.Equal(t, want.found, found)
+}
+
+// chatWebSearchFollowUp is a second chat turn after the web search. The
+// fake provider must send the request body of the turn that carries
+// prompt to body; runChatWebSearch stores it in sent.
+type chatWebSearchFollowUp struct {
+	prompt string
+	body   <-chan []byte
+	sent   []byte
+}
+
+// runChatWebSearch creates a chat on a model of providerType served at
+// baseURL, routed through the AI Gateway daemon, and returns the parts of
+// web search searchID that the chat stream delivered and that the reloaded
+// messages hold. The fake provider should hold its streamed reply until
+// streamReady closes, which happens once the test subscribes to the chat
+// stream, so no streamed part is missed. A non-nil followUp runs after the
+// messages are reloaded.
+func runChatWebSearch(
+	t *testing.T,
+	streamReady chan<- struct{},
+	searchID string,
+	followUp *chatWebSearchFollowUp,
+	providerType codersdk.AIProviderType,
+	baseURL string,
+	model codersdk.CreateChatModelRequest,
+) (streamed, reloaded chatWebSearchParts) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    providerType,
+		Name:    fmt.Sprintf("test-%s-%s", providerType, uuid.NewString()),
+		BaseURL: baseURL,
+		Enabled: true,
+		APIKeys: []string{coderdtest.TestChatProviderAPIKey},
+	})
+	require.NoError(t, err)
+	model.AIProviderID = &provider.ID
+	model.IsDefault = ptr.Ref(true)
+	_, err = client.CreateChatModel(ctx, firstUser.OrganizationID, model)
+	require.NoError(t, err)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "How many people live in Tokyo?",
+		}},
+	})
+	require.NoError(t, err)
+
+	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer.Close()
+	close(streamReady)
+
+	// Collecting stops at the result, so found pages that arrive after it
+	// are missing from streamed.sources.
+	for streamed.result == nil {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for the streamed web_search result")
+		case event, ok := <-events:
+			require.True(t, ok, "stream closed before the web_search result")
+			require.NotEqual(t, codersdk.ChatStreamEventTypeError, event.Type)
+			if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
+				continue
+			}
+			streamed.add(event.MessagePart.Part, searchID)
+		}
+	}
+
+	settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, settled.Status)
+
+	// Reloading the conversation reads the persisted rows.
+	messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	for _, message := range messages.Messages {
+		if message.Role != codersdk.ChatMessageRoleAssistant {
+			continue
+		}
+		for _, part := range message.Content {
+			require.Empty(t, part.ProviderMetadata, "API responses must strip provider metadata")
+			reloaded.add(part, searchID)
+		}
+	}
+	if followUp == nil {
+		return streamed, reloaded
+	}
+
+	// The next turn builds its prompt from the saved history.
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: followUp.prompt,
+		}},
+	})
+	require.NoError(t, err)
+	// The fake server rejects an invalid request before the handler sees
+	// it, so the chat's error is the only signal.
+	for followUp.sent == nil {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for the follow-up request")
+		case followUp.sent = <-followUp.body:
+		case event, ok := <-events:
+			require.True(t, ok, "stream closed before the follow-up request")
+			if event.Type == codersdk.ChatStreamEventTypeError {
+				require.FailNowf(t, "follow-up turn failed", "%+v", event.Error)
+			}
+		}
+	}
+	settled = coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, settled.Status)
+	return streamed, reloaded
 }
 
 func TestInterruptChat(t *testing.T) {
