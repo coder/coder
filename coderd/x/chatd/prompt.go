@@ -122,6 +122,7 @@ Do not require plan approval for routine implementation that the user has alread
 
 Use the conversation, available tools, skills, MCPs, and template metadata when they are sufficient for planning.
 If no workspace is attached, root chats should create one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
+In Plan Mode, workspace MCP tools are available for exploration, like execute; do not use them to implement changes.
 Once a workspace is available:
 ` + defaultSystemPromptPlanningGuidance + `
 2. Use write_file to create a Markdown plan file at the absolute
@@ -145,7 +146,7 @@ Before cloning, inspect the current workspace and reuse existing repositories wh
 Do not use Plan Mode to implement the requested changes or intentionally modify project files outside the plan file.
 Use the conversation, available tools, skills, MCPs, and template metadata when they are sufficient for planning.
 If no workspace is attached, root chats should create one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
-In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them.
+In Plan Mode, workspace MCP tools are available for exploration, like execute; do not use them to implement changes.
 If the plan file already exists, read it first with read_file before replacing or refining it.
 ` + planningOverlaySubagentGuidance() + `
 Use write_file to create the plan file and edit_files to refine it.
@@ -160,8 +161,8 @@ func PlanningOverlayPrompt() string {
 }
 
 // Root plan mode may use approved external MCP tools, but delegated
-// plan-mode subagents stay on the narrower built-in-only boundary
-// because their trust boundary is narrower than the root chat's.
+// plan-mode subagents get no external MCP tools because their trust
+// boundary is narrower than the root chat's.
 
 // PlanningSubagentOverlayPrompt contains plan-mode instructions for
 // delegated child chats. Child chats may investigate with shell tools
@@ -169,7 +170,7 @@ func PlanningOverlayPrompt() string {
 // final plan.
 const PlanningSubagentOverlayPrompt = `You are in Plan Mode as a delegated sub-agent.
 Every response must help the parent agent produce a plan.
-You may use read_file, execute, process_output, read_skill, and read_skill_file for exploration, including cloning repositories, searching code, and running inspection commands.
+You may use read_file, execute, process_output, read_skill, read_skill_file, and workspace MCP tools for exploration, including cloning repositories, searching code, and running inspection commands.
 Do not implement changes or intentionally modify workspace files.
 Return concise findings and recommendations to the parent agent.`
 

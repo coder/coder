@@ -71,6 +71,16 @@ const (
 
 type FindToolsOptions struct {
 	Entries []FindToolCatalogEntry
+	// WorkspaceMCPNote explains an incomplete workspace MCP inventory
+	// (discovery pending, stale, or failed sources) so an empty result is
+	// distinguishable from a finished discovery with no match. Empty when
+	// the inventory needs no explanation.
+	WorkspaceMCPNote string
+	// LoadEntries, when set, replaces the catalog once, before the first
+	// call, so tools registered by same-step lifecycle tools (a workspace
+	// created or started in this step) become searchable without a new
+	// preparation. It shares the existing activation budget.
+	LoadEntries func(context.Context) FindToolsCatalog
 	// SchemaTokenBudget caps the aggregate SchemaTokens all searches on
 	// this tool instance may activate, so results never report
 	// activations that the activation budget would immediately shed.
@@ -95,11 +105,21 @@ type FindToolsMatch struct {
 	Description string `json:"description"`
 }
 
+// FindToolsCatalog is the searchable catalog LoadEntries resolves.
+type FindToolsCatalog struct {
+	Entries          []FindToolCatalogEntry
+	WorkspaceMCPNote string
+}
+
 // FindToolsResult is persisted as the tool result and re-read on later steps.
 type FindToolsResult struct {
 	Matches       []FindToolsMatch `json:"matches"`
 	Activated     []string         `json:"activated"`
 	TotalDeferred int              `json:"total_deferred"`
+	// WorkspaceMCP is set when workspace MCP discovery is incomplete,
+	// stale, or has failed sources, so "no match" is distinguishable from
+	// "not discovered yet".
+	WorkspaceMCP string `json:"workspace_mcp,omitempty"`
 }
 
 // findToolsTool opts find_tools into in-order execution when one step
@@ -112,6 +132,7 @@ type findToolsTool struct {
 	reserveStepCalls  func(names []string)
 	settleStepResults func(names []string, errored []bool)
 	onDecodeRejected  func(ctx context.Context)
+	loadEntries       func(ctx context.Context)
 }
 
 func (findToolsTool) SerialToolCalls() bool { return true }
@@ -127,6 +148,7 @@ func (t findToolsTool) ObserveStepToolResults(names []string, errored []bool) {
 // call metrics. The response itself still comes from the wrapper's own
 // decode so its wording stays canonical.
 func (t findToolsTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	t.loadEntries(ctx)
 	var args FindToolsArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil && t.onDecodeRejected != nil {
 		t.onDecodeRejected(ctx)
@@ -137,6 +159,7 @@ func (t findToolsTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
 func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	entries := slices.Clone(options.Entries)
+	workspaceMCPNote := options.WorkspaceMCPNote
 	schemaTokensByName := make(map[string]float64, len(entries))
 	for _, entry := range entries {
 		schemaTokensByName[entry.Name] = entry.SchemaTokens
@@ -178,7 +201,13 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 				continue
 			}
 			seen[call.name] = struct{}{}
-			weight := schemaTokensByName[call.name]
+			// Names are filtered against the catalog here rather than at
+			// rebuild so a catalog loaded after the step's calls were
+			// observed still charges the right siblings.
+			weight, known := schemaTokensByName[call.name]
+			if !known {
+				continue
+			}
 			if len(reserved) > 0 && charged+weight > options.SchemaTokenBudget {
 				unclaimable[call.name] = struct{}{}
 				continue
@@ -191,9 +220,6 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	rebuild := func(names []string, errored []bool) {
 		stepCalls = stepCalls[:0]
 		for i, name := range names {
-			if _, ok := schemaTokensByName[name]; !ok {
-				continue
-			}
 			stepCalls = append(stepCalls, stepToolCall{name: name, errored: len(errored) > i && errored[i]})
 		}
 		recompute()
@@ -217,6 +243,26 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 		defer budgetMu.Unlock()
 		rebuild(names, errored)
 	}
+	var loadOnce sync.Once
+	loadEntries := func(ctx context.Context) {
+		loadOnce.Do(func() {
+			if options.LoadEntries == nil {
+				return
+			}
+			loaded := options.LoadEntries(ctx)
+			budgetMu.Lock()
+			defer budgetMu.Unlock()
+			entries = slices.Clone(loaded.Entries)
+			workspaceMCPNote = loaded.WorkspaceMCPNote
+			clear(schemaTokensByName)
+			for _, entry := range entries {
+				schemaTokensByName[entry.Name] = entry.SchemaTokens
+			}
+			if options.SchemaTokenBudget > 0 {
+				recompute()
+			}
+		})
+	}
 	onDecodeRejected := func(ctx context.Context) {
 		if options.OnCall != nil {
 			options.OnCall(ctx, FindToolsCall{
@@ -225,7 +271,7 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			})
 		}
 	}
-	return findToolsTool{reserveStepCalls: reserve, settleStepResults: settle, onDecodeRejected: onDecodeRejected, AgentTool: fantasy.NewAgentTool(
+	return findToolsTool{loadEntries: loadEntries, reserveStepCalls: reserve, settleStepResults: settle, onDecodeRejected: onDecodeRejected, AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
 		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -313,6 +359,7 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 					}
 				}
 			}
+			result.WorkspaceMCP = workspaceMCPNote
 			budgetMu.Unlock()
 			// Unclaimable entries stay deferred; report the full count.
 			result.TotalDeferred = len(entries)

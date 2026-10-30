@@ -116,6 +116,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				Time:  now,
 				Valid: true,
 			},
+			McpDiscoveryStartedAt: sql.NullTime{Time: now, Valid: true},
 		}).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
 			CreatedAt:        buildCreatedAt,
@@ -141,6 +142,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Metrics:     metrics,
 			// Test that nil publish fn works.
 			PublishWorkspaceUpdateFn: nil,
+			TimeNowFn:                func() time.Time { return now },
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -182,6 +184,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				Time:  now,
 				Valid: true,
 			},
+			McpDiscoveryStartedAt: sql.NullTime{Time: now, Valid: true},
 		}).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
 			CreatedAt:        buildCreatedAt,
@@ -210,6 +213,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				publishCalled = true
 				return nil
 			},
+			TimeNowFn: func() time.Time { return now },
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -253,6 +257,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				Time:  now,
 				Valid: true,
 			},
+			McpDiscoveryStartedAt: sql.NullTime{Time: now, Valid: true},
 		})
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
 			CreatedAt:        buildCreatedAt,
@@ -314,6 +319,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		var publishCalled atomic.Int64
 		reg := prometheus.NewRegistry()
 		metrics := agentapi.NewLifecycleMetrics(reg)
+		serverNow := now.Add(-time.Minute)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -327,6 +333,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				publishCalled.Add(1)
 				return nil
 			},
+			TimeNowFn: func() time.Time { return serverNow },
 		}
 
 		states := []agentproto.Lifecycle_State{
@@ -351,18 +358,24 @@ func TestUpdateLifecycle(t *testing.T) {
 
 			expectedStartedAt := agent.StartedAt
 			expectedReadyAt := agent.ReadyAt
+			expectedMCPDiscoveryStartedAt := agent.McpDiscoveryStartedAt
 			if state == agentproto.Lifecycle_STARTING {
 				expectedStartedAt = sql.NullTime{Valid: true, Time: stateNow}
+				expectedMCPDiscoveryStartedAt = sql.NullTime{}
 			}
 			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_TIMEOUT || state == agentproto.Lifecycle_START_ERROR {
 				expectedReadyAt = sql.NullTime{Valid: true, Time: stateNow}
+				if !expectedMCPDiscoveryStartedAt.Valid {
+					expectedMCPDiscoveryStartedAt = sql.NullTime{Valid: true, Time: serverNow}
+				}
 			}
 
 			dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-				ID:             agent.ID,
-				LifecycleState: database.WorkspaceAgentLifecycleState(strings.ToLower(state.String())),
-				StartedAt:      expectedStartedAt,
-				ReadyAt:        expectedReadyAt,
+				ID:                    agent.ID,
+				LifecycleState:        database.WorkspaceAgentLifecycleState(strings.ToLower(state.String())),
+				StartedAt:             expectedStartedAt,
+				ReadyAt:               expectedReadyAt,
+				McpDiscoveryStartedAt: expectedMCPDiscoveryStartedAt,
 			}).Times(1).Return(nil)
 
 			// The first ready state triggers the build duration metric query.
@@ -389,7 +402,60 @@ func TestUpdateLifecycle(t *testing.T) {
 			// For future iterations:
 			agent.StartedAt = expectedStartedAt
 			agent.ReadyAt = expectedReadyAt
+			agent.McpDiscoveryStartedAt = expectedMCPDiscoveryStartedAt
 		}
+	})
+
+	t.Run("MCPDiscoveryStartedAtUsesServerClock", func(t *testing.T) {
+		t.Parallel()
+
+		// The agent clock is far behind the server; the anchor must not
+		// follow it because chats compare it with the server clock.
+		agentChangedAt := someTime
+		serverNow := now
+		agent := agentStarting
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			TimeNowFn:   func() time.Time { return serverNow },
+		}
+		update := func(state agentproto.Lifecycle_State, wantAnchor sql.NullTime) {
+			t.Helper()
+			dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+					require.Equal(t, wantAnchor, arg.McpDiscoveryStartedAt, "state %s", state)
+					agent.LifecycleState = arg.LifecycleState
+					agent.StartedAt = arg.StartedAt
+					agent.ReadyAt = arg.ReadyAt
+					agent.McpDiscoveryStartedAt = arg.McpDiscoveryStartedAt
+					return nil
+				})
+			dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), gomock.Any()).
+				Return(database.GetWorkspaceBuildMetricsByResourceIDRow{}, nil).MaxTimes(1)
+			_, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+				Lifecycle: &agentproto.Lifecycle{State: state, ChangedAt: timestamppb.New(agentChangedAt)},
+			})
+			require.NoError(t, err)
+		}
+
+		update(agentproto.Lifecycle_READY, sql.NullTime{Time: serverNow, Valid: true})
+		require.Equal(t, agentChangedAt, agent.ReadyAt.Time, "ready_at keeps the agent clock")
+
+		firstReady := serverNow
+		serverNow = serverNow.Add(time.Minute)
+		update(agentproto.Lifecycle_READY, sql.NullTime{Time: firstReady, Valid: true})
+
+		update(agentproto.Lifecycle_STARTING, sql.NullTime{})
+
+		update(agentproto.Lifecycle_START_ERROR, sql.NullTime{Time: serverNow, Valid: true})
+		serverNow = serverNow.Add(time.Minute)
+		update(agentproto.Lifecycle_STARTING, sql.NullTime{})
+		update(agentproto.Lifecycle_START_TIMEOUT, sql.NullTime{Time: serverNow, Valid: true})
 	})
 
 	t.Run("UnknownLifecycleState", func(t *testing.T) {
@@ -606,6 +672,7 @@ func TestUpdateLifecycle(t *testing.T) {
 				Time:  now,
 				Valid: true,
 			},
+			McpDiscoveryStartedAt: sql.NullTime{Time: now, Valid: true},
 		}).Return(nil)
 		// GetWorkspaceBuildMetricsByResourceID should NOT be called
 		// because sub-agents should be skipped before querying.
@@ -620,6 +687,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Log:                      testutil.Logger(t),
 			Metrics:                  metrics,
 			PublishWorkspaceUpdateFn: nil,
+			TimeNowFn:                func() time.Time { return now },
 		}
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
 			Lifecycle: lifecycle,

@@ -98,12 +98,14 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 
 	startedAt := workspaceAgent.StartedAt
 	readyAt := workspaceAgent.ReadyAt
+	mcpDiscoveryStartedAt := workspaceAgent.McpDiscoveryStartedAt
 	switch lifecycleState {
 	case database.WorkspaceAgentLifecycleStateStarting:
 		startedAt = dbChangedAt
 		// This agent is (re)starting, so it's not ready yet.
 		readyAt.Time = time.Time{}
 		readyAt.Valid = false
+		mcpDiscoveryStartedAt = sql.NullTime{}
 	case database.WorkspaceAgentLifecycleStateReady,
 		database.WorkspaceAgentLifecycleStateStartTimeout,
 		database.WorkspaceAgentLifecycleStateStartError:
@@ -111,13 +113,20 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 			startedAt = dbChangedAt
 		}
 		readyAt = dbChangedAt
+		// Chats compare this anchor with the server clock, so it uses
+		// the server clock rather than the agent-reported changedAt. A
+		// repeated report keeps it so the run's wait limit cannot move.
+		if !mcpDiscoveryStartedAt.Valid {
+			mcpDiscoveryStartedAt = sql.NullTime{Time: a.now(), Valid: true}
+		}
 	}
 
 	err = a.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-		ID:             workspaceAgent.ID,
-		LifecycleState: lifecycleState,
-		StartedAt:      startedAt,
-		ReadyAt:        readyAt,
+		ID:                    workspaceAgent.ID,
+		LifecycleState:        lifecycleState,
+		StartedAt:             startedAt,
+		ReadyAt:               readyAt,
+		McpDiscoveryStartedAt: mcpDiscoveryStartedAt,
 	})
 	if err != nil {
 		if !database.IsQueryCanceledError(err) {

@@ -71,7 +71,10 @@ type CreateWorkspaceOptions struct {
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
-	Logger                         slog.Logger
+	// WaitForMCPDiscovery waits within the agent run's discovery limit.
+	// Nil skips discovery for turns that do not expose workspace MCP tools.
+	WaitForMCPDiscovery MCPDiscoveryWaiter
+	Logger              slog.Logger
 }
 
 type createWorkspaceArgs struct {
@@ -97,9 +100,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"request. Readiness does not guarantee skills, MCP tools, or "+
 			"context have finished loading; use capabilities actually exposed "+
 			"and continue with workspace file and shell tools where possible. "+
-			"Do not recreate the workspace to retry discovery. In Plan Mode, "+
-			"workspace MCP tools remain unavailable; "+
-			"do not create a workspace solely to access them. Prefer existing "+
+			"Do not recreate the workspace to retry discovery. Prefer existing "+
 			"tools and context when they are sufficient. Requires a "+
 			"template_id from list_templates; follow its "+NextStepField+" "+
 			"before calling. Optionally provide a name (one is generated if "+
@@ -300,7 +301,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 
 			// Wait for the agent to come online and startup scripts to finish.
 			if selectedAgent.ID != uuid.Nil {
-				agentStatus, err := waitForAgentReady(ctx, db, selectedAgent, options.AgentConnFn)
+				agentStatus, err := waitForAgentReady(ctx, db, selectedAgent, options.AgentConnFn, options.WaitForMCPDiscovery)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
@@ -425,7 +426,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				)
 				selected = agents[0]
 			}
-			agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn)
+			agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn, o.WaitForMCPDiscovery)
 			if err != nil {
 				return existingWorkspaceResult{Err: err}
 			}
@@ -473,7 +474,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			switch status.Status {
 			case database.WorkspaceAgentStatusConnected:
 				result["message"] = "workspace is already running and recently connected"
-				agentStatus, err := waitForAgentReady(ctx, db, selected, nil)
+				agentStatus, err := waitForAgentReady(ctx, db, selected, nil, o.WaitForMCPDiscovery)
 				if err != nil {
 					return existingWorkspaceResult{Err: err}
 				}
@@ -483,7 +484,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusConnecting:
 				result["message"] = "workspace exists and the agent is still connecting"
-				agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn)
+				agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn, o.WaitForMCPDiscovery)
 				if err != nil {
 					return existingWorkspaceResult{Err: err}
 				}
@@ -596,13 +597,18 @@ func externalAgentReadyError(
 }
 
 // waitForAgentReady waits for the workspace agent to become
-// reachable and for its startup scripts to finish. It returns
-// status fields suitable for merging into a tool response.
+// reachable and for its startup scripts to finish, then for the agent's
+// workspace MCP discovery within the agent run's discovery limit. It returns
+// status fields suitable for merging into a tool response; a ready agent
+// reports its discovery outcome under "mcp_discovery" so the model can
+// explain an incomplete initialization. The discovery wait is skipped
+// when readiness itself failed.
 func waitForAgentReady(
 	ctx context.Context,
 	db database.Store,
 	agent database.WorkspaceAgent,
 	agentConnFn AgentConnFunc,
+	waitMCP MCPDiscoveryWaiter,
 ) (map[string]any, error) {
 	result := map[string]any{}
 	agentID := agent.ID
@@ -674,6 +680,9 @@ func waitForAgentReady(
 				database.WorkspaceAgentLifecycleStateStarting:
 				// Still in progress, keep polling.
 			case database.WorkspaceAgentLifecycleStateReady:
+				if waitMCP != nil {
+					result["mcp_discovery"] = waitMCP(ctx, agentID)
+				}
 				return result, nil
 			default:
 				// Terminal non-ready state.

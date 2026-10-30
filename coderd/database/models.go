@@ -6905,6 +6905,8 @@ type WorkspaceAgent struct {
 	Deleted bool `db:"deleted" json:"deleted"`
 	// UUID the agent process generates once and reports in Startup. Stable across RPC reconnects, changes on process restart, empty for agents that predate the field. A context snapshot with the same agent_run_id was published by the current process.
 	AgentRunID string `db:"agent_run_id" json:"agent_run_id"`
+	// Coder server clock time at which coderd recorded that the agent run's startup scripts finished (lifecycle ready, start_error, or start_timeout); the agent starts workspace MCP discovery at that moment. NULL while startup scripts run. Chats wait for MCP discovery at most a fixed time after this.
+	McpDiscoveryStartedAt sql.NullTime `db:"mcp_discovery_started_at" json:"mcp_discovery_started_at"`
 }
 
 // Per-resource state for the latest pushed workspace agent context snapshot.

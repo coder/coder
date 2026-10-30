@@ -623,6 +623,84 @@ func TestFindToolsSharedSchemaBudget(t *testing.T) {
 	require.True(t, resp.IsError, "the spent budget rejects further new activations")
 }
 
+func TestFindToolsLoadedCatalogBudget(t *testing.T) {
+	t.Parallel()
+	loads := 0
+	tool := FindTools(FindToolsOptions{
+		Entries:          []FindToolCatalogEntry{{Name: "old__removed", SchemaTokens: 100}},
+		WorkspaceMCPNote: "Workspace MCP discovery is still initializing.",
+		LoadEntries: func(context.Context) FindToolsCatalog {
+			loads++
+			return FindToolsCatalog{Entries: []FindToolCatalogEntry{
+				{Name: "new__direct", SchemaTokens: 60},
+				{Name: "new__errored", SchemaTokens: 60},
+				{Name: "new__search", SchemaTokens: 30},
+				{Name: "new__next", SchemaTokens: 30},
+			}}
+		},
+		SchemaTokenBudget: 100,
+	})
+	observer, ok := tool.(interface {
+		ObserveStepToolCalls([]string)
+		ObserveStepToolResults([]string, []bool)
+	})
+	require.True(t, ok)
+	names := []string{"old__removed", "new__direct", "new__errored"}
+	observer.ObserveStepToolCalls(names)
+	observer.ObserveStepToolResults(names, []bool{false, false, true})
+	_, _ = tool.Run(context.Background(), fantasy.ToolCall{Input: "{"})
+	require.Equal(t, 1, loads, "load precedes argument decoding")
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["new__search"]}`})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "removed and errored sibling names must not reserve schema weight")
+	var result FindToolsResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, []string{"new__search"}, result.Activated)
+	require.Empty(t, result.WorkspaceMCP, "the loaded catalog replaces the preparation-time note")
+	resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["new__next"]}`})
+	require.NoError(t, err)
+	require.True(t, resp.IsError, "newly loaded sibling schemas and earlier searches share the budget")
+	require.Equal(t, 1, loads, "all calls use one loaded catalog")
+}
+
+func TestFindToolsWorkspaceMCPNote(t *testing.T) {
+	t.Parallel()
+	t.Run("FromOptions", func(t *testing.T) {
+		t.Parallel()
+		tool := FindTools(FindToolsOptions{
+			Entries:          []FindToolCatalogEntry{{Name: "srv__echo", Description: "echo"}},
+			WorkspaceMCPNote: "Workspace MCP discovery is still initializing.",
+		})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"queries":["missing"]}`})
+		require.NoError(t, err)
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Empty(t, result.Matches)
+		require.Equal(t, "Workspace MCP discovery is still initializing.", result.WorkspaceMCP,
+			"no match must stay distinguishable from not discovered yet")
+	})
+	t.Run("FromLoadedCatalog", func(t *testing.T) {
+		t.Parallel()
+		tool := FindTools(FindToolsOptions{
+			LoadEntries: func(context.Context) FindToolsCatalog {
+				return FindToolsCatalog{WorkspaceMCPNote: "Failed servers: broken (exec: not found)."}
+			},
+		})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"queries":["anything"]}`})
+		require.NoError(t, err)
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, "Failed servers: broken (exec: not found).", result.WorkspaceMCP)
+	})
+	t.Run("OmittedWhenComplete", func(t *testing.T) {
+		t.Parallel()
+		tool := FindTools(FindToolsOptions{Entries: []FindToolCatalogEntry{{Name: "srv__echo", Description: "echo"}}})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"queries":["echo"]}`})
+		require.NoError(t, err)
+		require.NotContains(t, resp.Content, "workspace_mcp")
+	})
+}
+
 func TestBuildFindToolsDescription(t *testing.T) {
 	t.Parallel()
 	entries := []FindToolCatalogEntry{

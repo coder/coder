@@ -399,6 +399,7 @@ func (p *Server) buildTurnEnvironment(
 		inlineMCPTools      []fantasy.AgentTool
 		inlineMCPSummaries  []mcpclient.ConnectSummary
 		workspaceMCPTools   []fantasy.AgentTool
+		workspaceMCPNote    string
 		workspaceSkills     []chattool.SkillMeta
 		personalSkills      []skillspkg.Skill
 		orgSkills           []skillspkg.Skill
@@ -437,6 +438,10 @@ func (p *Server) buildTurnEnvironment(
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
 
+	// loadWorkspaceContext runs in the parallel phase below so the bounded
+	// discovery wait overlaps the external MCP connections instead of
+	// preceding them.
+	var loadWorkspaceContext func() error
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
 		// BuildID bindings are up to date before the chatworker
@@ -452,19 +457,44 @@ func (p *Server) buildTurnEnvironment(
 			}
 			logger.Debug(ctx, "workspace agent lookup failed, instruction header stays undecorated", slog.Error(agentErr))
 		}
+		exposesWorkspaceMCP := !isExploreSubagent
 
-		// API-created chats bind their agent lazily here, after
-		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
-		// bound agent's pushed snapshot now if it is still unpinned, so the
-		// first turn reads workspace context instead of waiting for the
-		// agent's next push. Idempotent and snapshot-gated; runs before the
-		// pinned context is read below.
-		p.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
+		loadWorkspaceContext = func() error {
+			// Turns that expose workspace MCP tools wait, within the agent
+			// run's discovery limit shared with the lifecycle tools, for
+			// the current agent process to finish discovery so the first
+			// turn sees its tools. Timeouts fail open with whatever has
+			// been discovered.
+			if exposesWorkspaceMCP && agent.ID != uuid.Nil {
+				chattool.WaitForMCPDiscovery(ctx, p.db, agent.ID)
+			}
 
-		var resolveErr error
-		instruction, workspaceSkills, resolveErr = p.resolveTurnWorkspaceContext(ctx, chat, agent)
-		if resolveErr != nil {
-			return turnEnvironment{}, resolveErr
+			// API-created chats bind their agent lazily here, after
+			// hydrateChatContextOnCreate ran with no agent. Pin the chat to
+			// the bound agent's pushed snapshot now if it is still unpinned,
+			// so the first turn reads workspace context instead of waiting
+			// for the agent's next push. Idempotent and snapshot-gated; runs
+			// before the pinned context is read below.
+			chatSnap := workspaceCtx.currentChatSnapshot()
+			p.ensureChatContextPinnedOnFirstTurn(ctx, chatSnap)
+
+			var resolveErr error
+			instruction, workspaceSkills, resolveErr = p.resolveTurnWorkspaceContext(ctx, chat, agent)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			if exposesWorkspaceMCP {
+				// One view feeds both the model-facing note and the tool
+				// set, so what the model is told about discovery matches
+				// the tools it is offered.
+				var mcpErr error
+				workspaceMCPTools, workspaceMCPNote, mcpErr = p.workspaceMCPForTurn(ctx, chatSnap, workspaceCtx.getWorkspaceConn)
+				if mcpErr != nil {
+					return mcpErr
+				}
+				instruction = appendWorkspaceMCPNote(instruction, workspaceMCPNote)
+			}
+			return nil
 		}
 	}
 
@@ -492,6 +522,9 @@ func (p *Server) buildTurnEnvironment(
 
 	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
+	if loadWorkspaceContext != nil {
+		g2.Go(loadWorkspaceContext)
+	}
 	g2.Go(func() error {
 		var err error
 		// Key the file-part acceptance on model.Provider() (the fantasy
@@ -628,13 +661,6 @@ func (p *Server) buildTurnEnvironment(
 				internalMCPConnectServers,
 			)
 			return nil
-		})
-	}
-	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
-		g2.Go(func() error {
-			var err error
-			workspaceMCPTools, err = p.resolveWorkspaceMCPTools(ctx, chat, &workspaceCtx)
-			return err
 		})
 	}
 	// Resolve the per-chat plan path block in the parallel phase. It dials
@@ -852,7 +878,7 @@ func (p *Server) buildTurnEnvironment(
 	for _, config := range mcpConnectConfigs {
 		mcpConfigByID[config.ID] = config
 	}
-	deferredCandidates := collectDeferredMCPCandidates(deferredMCPCandidateInput{
+	candidateInput := deferredMCPCandidateInput{
 		mcpTools:              mcpTools,
 		workspaceMCPTools:     workspaceMCPTools,
 		mcpConfigByID:         mcpConfigByID,
@@ -860,7 +886,8 @@ func (p *Server) buildTurnEnvironment(
 		parentChatID:          chat.ParentChatID,
 		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
 		includeWorkspaceTools: !isExploreSubagent,
-	})
+	}
+	deferredCandidates := collectDeferredMCPCandidates(candidateInput)
 	tools = mcpclient.AppendTools(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	// chatloop reads an empty active tool list as every tool, so Explore
@@ -925,13 +952,45 @@ func (p *Server) buildTurnEnvironment(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
+	// Root turns may create or start a workspace in the same step as a
+	// find_tools call, so find_tools stays available with an empty catalog
+	// and reloads it once before its first call.
+	canLoadWorkspaceCatalog := !chat.ParentChatID.Valid && !isExploreSubagent
 	if decideMCPToolSearch(mcpToolSearchInput{
+		allowEmpty:       canLoadWorkspaceCatalog,
 		candidates:       deferredCandidates,
 		dynamicToolNames: dynamicToolNames,
 	}) {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
+		var loadEntries func(context.Context) chattool.FindToolsCatalog
+		if canLoadWorkspaceCatalog {
+			loadEntries = func(callCtx context.Context) chattool.FindToolsCatalog {
+				// The catalog prepared for this turn stays in place unless the
+				// reload succeeds: FindTools loads once per generation, so a
+				// transient read failure must not hide tools that were valid
+				// at turn start.
+				input := candidateInput
+				catalog := chattool.FindToolsCatalog{WorkspaceMCPNote: workspaceMCPNote}
+				if _, err := workspaceCtx.getWorkspaceAgent(callCtx); err == nil {
+					chatSnap := workspaceCtx.currentChatSnapshot()
+					p.ensureChatContextPinnedOnFirstTurn(callCtx, chatSnap)
+					tools, note, err := p.workspaceMCPForTurn(callCtx, chatSnap, workspaceCtx.getWorkspaceConn)
+					if err != nil {
+						logger.Warn(callCtx, "failed to read pinned workspace MCP tools for find_tools",
+							slog.F("chat_id", chat.ID), slog.Error(err))
+					} else {
+						input.workspaceMCPTools = tools
+						catalog.WorkspaceMCPNote = note
+					}
+				}
+				catalog.Entries = deferredMCPToolEntries(collectDeferredMCPCandidates(input))
+				return catalog
+			}
+		}
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
 			Entries:            deferredMCPToolEntries(deferredCandidates),
+			WorkspaceMCPNote:   workspaceMCPNote,
+			LoadEntries:        loadEntries,
 			SchemaTokenBudget:  activationTokenBudget,
 			CatalogTokenBudget: activationTokenBudget,
 			// Calls total is counted in executeLocalTools, which also
@@ -2061,6 +2120,12 @@ func toolAllowedForTurn(
 	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
 		return true
 	}
+	// Workspace MCP tools run inside the workspace like execute, so plan
+	// mode allows them for root chats and subagents alike. External MCP
+	// servers need plan-mode approval instead.
+	if _, ok := tool.(*chattool.WorkspaceMCPTool); ok {
+		return true
+	}
 	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)
 	if !ok {
 		return false
@@ -2565,6 +2630,10 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
+	waitForMCPDiscovery := func(ctx context.Context, agentID uuid.UUID) chattool.MCPDiscoveryOutcome {
+		return chattool.WaitForMCPDiscovery(ctx, p.db, agentID)
+	}
+
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID: opts.chat.OwnerID,
@@ -2583,15 +2652,17 @@ func (p *Server) appendRootChatTools(
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
+			WaitForMCPDiscovery:            waitForMCPDiscovery,
 			Logger:                         p.logger,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
+			OwnerID:             opts.chat.OwnerID,
+			StartFn:             p.startWorkspaceFn,
+			AgentConnFn:         chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:         opts.workspaceMu,
+			OnChatUpdated:       onChatUpdated,
+			WaitForMCPDiscovery: waitForMCPDiscovery,
+			Logger:              p.logger,
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,

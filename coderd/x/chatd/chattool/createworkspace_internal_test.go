@@ -32,7 +32,20 @@ func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 		GetTemplateVersionByID(gomock.Any(), gomock.Any()).
 		Return(database.TemplateVersion{}, sql.ErrNoRows).
 		AnyTimes()
+	// A legacy snapshot ends the MCP discovery wait immediately.
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), gomock.Any()).
+		Return(database.WorkspaceAgent{}, nil).AnyTimes()
+	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+		Return(database.WorkspaceAgentContextSnapshot{}, nil).AnyTimes()
+	db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
 	return db
+}
+
+// noMCPWait skips the MCP discovery wait so readiness tests stay focused on
+// the agent connection and lifecycle phases.
+func noMCPWait(context.Context, uuid.UUID) MCPDiscoveryOutcome {
+	return MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown}
 }
 
 func TestCreateWorkspaceDescriptionSupportsWorkspaceFallback(t *testing.T) {
@@ -49,7 +62,6 @@ func TestCreateWorkspaceDescriptionSupportsWorkspaceFallback(t *testing.T) {
 	require.Contains(t, info.Description, "Prefer existing tools and context when they are sufficient")
 	require.Contains(t, info.Description, "Readiness does not guarantee skills, MCP tools, or context have finished loading")
 	require.Contains(t, info.Description, "Do not recreate the workspace to retry discovery")
-	require.Contains(t, info.Description, "In Plan Mode, workspace MCP tools remain unavailable; do not create a workspace solely to access them")
 	require.NotContains(t, info.Description, "only when workspace-backed")
 	require.NotContains(t, info.Description, "Do not use this as a default first step")
 }
@@ -75,9 +87,10 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn, noMCPWait)
 		require.NoError(t, err)
-		require.Empty(t, result)
+		require.Equal(t, map[string]any{"mcp_discovery": noMCPWait(context.Background(), agentID)}, result,
+			"a ready agent reports only its discovery outcome")
 	})
 
 	t.Run("AgentConnectTimeout", func(t *testing.T) {
@@ -95,7 +108,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn, noMCPWait)
 		require.NoError(t, err)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
@@ -133,7 +146,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result, err := waitForAgentReady(ctx, db, agent, connFn)
+		result, err := waitForAgentReady(ctx, db, agent, connFn, noMCPWait)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, attempts, 1)
 		require.Equal(t, "not_ready", result["agent_status"])
@@ -171,7 +184,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result, err := waitForAgentReady(context.Background(), db, agent, connFn)
+		result, err := waitForAgentReady(context.Background(), db, agent, connFn, noMCPWait)
 		require.NoError(t, err)
 		require.Equal(t, 2, attempts, "second attempt must run for Connecting external agents")
 		require.NotContains(t, result, "agent_status", "successful late connect must not surface not_ready")
@@ -209,7 +222,7 @@ func TestWaitForAgentReady(t *testing.T) {
 				}
 
 				agent := database.WorkspaceAgent{ID: agentID, FirstConnectedAt: tc.firstConnectedAt}
-				waitForAgentReady(context.Background(), db, agent, connFn)
+				waitForAgentReady(context.Background(), db, agent, connFn, noMCPWait)
 				require.Equal(t, tc.wantProbeTimeout, errors.Is(cause, workspacesdk.ErrReadinessProbeTimeout), "cause: %v", cause)
 			})
 		}
@@ -232,7 +245,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn, noMCPWait)
 		require.NoError(t, err)
 		require.Equal(t, "startup_scripts_failed", result["startup_scripts"])
 		require.Equal(t, "start_error", result["lifecycle_state"])
@@ -248,7 +261,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
 			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{}, xerrors.New("db down"))
 
-		_, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		_, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil, noMCPWait)
 		require.ErrorContains(t, err, "db down")
 	})
 
@@ -267,7 +280,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 		defer cancel()
 
-		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, nil)
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, nil, noMCPWait)
 		require.NoError(t, err)
 		require.Equal(t, "startup_scripts_timeout", result["startup_scripts"])
 	})
@@ -285,9 +298,14 @@ func TestWaitForAgentReady(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			}, nil)
 
-		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil, func(_ context.Context, id uuid.UUID) MCPDiscoveryOutcome {
+			require.Equal(t, agentID, id)
+			return MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete, ServersOK: 2, WaitTimedOut: true}
+		})
 		require.NoError(t, err)
-		require.Empty(t, result)
+		require.Equal(t, map[string]any{"mcp_discovery": MCPDiscoveryOutcome{
+			Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete, ServersOK: 2, WaitTimedOut: true,
+		}}, result, "a ready agent reports its discovery outcome")
 	})
 
 	t.Run("NilDB", func(t *testing.T) {
@@ -300,7 +318,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result, err := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn)
+		result, err := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn, noMCPWait)
 		require.NoError(t, err)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])

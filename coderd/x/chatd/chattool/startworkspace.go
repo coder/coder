@@ -31,7 +31,10 @@ type StartWorkspaceOptions struct {
 	AgentConnFn   AgentConnFunc
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
-	Logger        slog.Logger
+	// WaitForMCPDiscovery waits within the agent run's discovery limit.
+	// Nil skips discovery for turns that do not expose workspace MCP tools.
+	WaitForMCPDiscovery MCPDiscoveryWaiter
+	Logger              slog.Logger
 }
 
 type startWorkspaceArgs struct {
@@ -116,7 +119,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 						xerrors.Errorf("waiting for in-progress build: %w", err),
 					), nil
 				}
-				result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
+				result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID, options.WaitForMCPDiscovery)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
@@ -143,7 +146,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 							return fantasy.NewTextErrorResponse(err.Error()), nil
 						}
 					}
-					result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil)
+					result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil, options.WaitForMCPDiscovery)
 					if err != nil {
 						return fantasy.NewTextErrorResponse(err.Error()), nil
 					}
@@ -205,7 +208,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
+			result, err := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID, options.WaitForMCPDiscovery)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
@@ -255,6 +258,7 @@ func waitForAgentAndRespond(
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
 	buildID uuid.UUID,
+	waitMCP MCPDiscoveryWaiter,
 ) (map[string]any, error) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil {
@@ -292,7 +296,7 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn)
+	agentStatus, err := waitForAgentReady(ctx, db, selected, agentConnFn, waitMCP)
 	if err != nil {
 		return nil, err
 	}

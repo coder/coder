@@ -94,7 +94,8 @@ Refer to [Platform Controls](./platform-controls/index.md#template-routing) for 
 
 The examples in the first column assume the available tools and context are sufficient.
 Any request, including planning or Q&A, can require a workspace if the agent lacks the capabilities or context to complete it.
-Creating a workspace doesn't change the current mode's tool restrictions: workspace MCP tools remain unavailable in Plan Mode.
+Creating a workspace doesn't change the current mode's tool restrictions.
+In Plan Mode, the agent can use workspace MCP tools for exploration, as it can use `execute`.
 Workspace skills, MCP tools, and context can finish loading after the workspace reports ready.
 The agent can continue with available file and shell tools, but provisioning doesn't guarantee immediate access to a missing MCP tool.
 
@@ -264,7 +265,8 @@ Sub-agents do not have access to these tools and cannot create workspaces or spa
 `propose_plan` and `ask_user_question` are only available while plan mode is active.
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
-Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
+Workspace MCP tools remain available in plan mode for exploration, like `execute`, including for plan-mode sub-agents.
+Plan-mode sub-agents receive no external MCP tools.
 
 ## Plan mode
 
@@ -280,8 +282,9 @@ While plan mode is active:
 - `ask_user_question` can gather structured clarification from the user before a plan is proposed.
 - `propose_plan` snapshots the current plan file into the transcript so you can review it before implementation starts.
 - `execute` and `process_output` remain available for exploration, such as cloning repositories, searching code, and running inspection commands.
+- Workspace MCP tools remain available for exploration, like `execute`, in root chats and plan-mode sub-agents.
 - External MCP tools are available to root chats only for the server configurations an administrator approved for plan mode.
-   Workspace MCP tools and MCP tools for plan-mode sub-agents are not available.
+   Plan-mode sub-agents receive no external MCP tools.
 - Dynamic tools, provider-native tools, and computer-use tools are not available.
 - Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 
