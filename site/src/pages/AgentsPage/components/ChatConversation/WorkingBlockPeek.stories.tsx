@@ -440,8 +440,14 @@ const TimelinePane: React.FC<TimelinePaneProps> = ({
 		: {
 				streamState: null,
 				streamTools: [],
+				// As the chat store decides it: the turn waits on the model when
+				// the newest message is not the assistant's, such as a tool result.
 				liveStatus: {
-					phase: state.status === "running" ? "starting" : "idle",
+					phase:
+						state.status === "running" &&
+						state.messages.at(-1)?.role !== "assistant"
+							? "starting"
+							: "idle",
 					hasAccumulatedOutput: false,
 				} as const,
 			};
