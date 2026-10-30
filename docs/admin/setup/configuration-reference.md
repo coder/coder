@@ -2164,6 +2164,18 @@ Time to force cancel provisioning tasks that are stuck.
 - YAML key: `provisioning.forceCancelInterval`
 - Default value: `10m0s`
 
+### Job reaper maximum pending age
+
+Maximum time since creation before a pending provisioner job becomes eligible for automatic termination, even if a provisioner daemon that matches the job's organization, provisioner type, and tags was last seen by Coder within the past 90 seconds.
+Pending jobs with no such provisioner become eligible for termination 30 minutes after their last update.
+Must be greater than 30 minutes.
+
+- Type: `duration`
+- Environment variable: `CODER_JOB_REAPER_MAX_PENDING_AGE`
+- CLI flag: [`--job-reaper-max-pending-age`](../../reference/cli/server/index.md#--job-reaper-max-pending-age)
+- YAML key: `provisioning.jobReaperMaxPendingAge`
+- Default value: `2h0m0s`
+
 ### Provisioner daemon pre-shared key (PSK)
 
 Pre-shared key to authenticate external provisioner daemons to Coder server.

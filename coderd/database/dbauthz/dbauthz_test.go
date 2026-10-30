@@ -5766,7 +5766,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetProvisionerJobsToBeReaped", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetProvisionerJobsToBeReapedParams{}
 		dbm.EXPECT().GetProvisionerJobsToBeReaped(gomock.Any(), arg).Return([]database.ProvisionerJob{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead, rbac.ResourceProvisionerDaemon, policy.ActionRead)
 	}))
 	s.Run("InsertMissingGroups", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertMissingGroupsParams{}

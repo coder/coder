@@ -8716,7 +8716,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "daemons": 0,
       "disable_module_cache": true,
-      "force_cancel_interval": 0
+      "force_cancel_interval": 0,
+      "job_reaper_max_pending_age": 0
     },
     "proxy_health_status_interval": 0,
     "proxy_trusted_headers": [
@@ -9354,7 +9355,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "daemons": 0,
     "disable_module_cache": true,
-    "force_cancel_interval": 0
+    "force_cancel_interval": 0,
+    "job_reaper_max_pending_age": 0
   },
   "proxy_health_status_interval": 0,
   "proxy_trusted_headers": [
@@ -14070,21 +14072,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "daemons": 0,
   "disable_module_cache": true,
-  "force_cancel_interval": 0
+  "force_cancel_interval": 0,
+  "job_reaper_max_pending_age": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `daemon_poll_interval`  | integer         | false    |              |                                                                                                                                                            |
-| `daemon_poll_jitter`    | integer         | false    |              |                                                                                                                                                            |
-| `daemon_psk`            | string          | false    |              |                                                                                                                                                            |
-| `daemon_types`          | array of string | false    |              |                                                                                                                                                            |
-| `daemons`               | integer         | false    |              | Daemons is the number of built-in terraform provisioners.                                                                                                  |
-| `disable_module_cache`  | boolean         | false    |              | Disable module cache disables the reuse of Terraform modules cached at template import for every template in the deployment. Templates cannot opt back in. |
-| `force_cancel_interval` | integer         | false    |              |                                                                                                                                                            |
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                                |
+|------------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `daemon_poll_interval`       | integer         | false    |              |                                                                                                                                                            |
+| `daemon_poll_jitter`         | integer         | false    |              |                                                                                                                                                            |
+| `daemon_psk`                 | string          | false    |              |                                                                                                                                                            |
+| `daemon_types`               | array of string | false    |              |                                                                                                                                                            |
+| `daemons`                    | integer         | false    |              | Daemons is the number of built-in terraform provisioners.                                                                                                  |
+| `disable_module_cache`       | boolean         | false    |              | Disable module cache disables the reuse of Terraform modules cached at template import for every template in the deployment. Templates cannot opt back in. |
+| `force_cancel_interval`      | integer         | false    |              |                                                                                                                                                            |
+| `job_reaper_max_pending_age` | integer         | false    |              |                                                                                                                                                            |
 
 ## codersdk.ProvisionerDaemon
 

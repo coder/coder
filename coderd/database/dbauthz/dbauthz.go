@@ -313,11 +313,12 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "jobreaper"},
 				DisplayName: "Job Reaper Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:         {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceProvisionerJobs.Type:  {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceSystem.Type:            {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:          {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspaceDormant.Type:  {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -4997,6 +4998,12 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 
 func (q *querier) GetProvisionerJobsToBeReaped(ctx context.Context, arg database.GetProvisionerJobsToBeReapedParams) ([]database.ProvisionerJob, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+		return nil, err
+	}
+	// The reaper's locked recheck filters out unauthorized daemons. Require
+	// read permission here so missing access cannot look like an absence of
+	// eligible online provisioners and cause protected pending jobs to be reaped.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon); err != nil {
 		return nil, err
 	}
 	return q.db.GetProvisionerJobsToBeReaped(ctx, arg)

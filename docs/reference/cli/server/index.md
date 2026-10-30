@@ -837,6 +837,17 @@ Deprecated and ignored.
 
 Time to force cancel provisioning tasks that are stuck.
 
+### --job-reaper-max-pending-age
+
+| Property    | Value                                            |
+|-------------|--------------------------------------------------|
+| Type        | <code>duration</code>                            |
+| Environment | <code>$CODER_JOB_REAPER_MAX_PENDING_AGE</code>   |
+| YAML        | <code>provisioning.jobReaperMaxPendingAge</code> |
+| Default     | <code>2h0m0s</code>                              |
+
+Maximum time since creation before a pending provisioner job becomes eligible for automatic termination, even if a provisioner daemon that matches the job's organization, provisioner type, and tags was last seen by Coder within the past 90 seconds. Pending jobs with no such provisioner become eligible for termination 30 minutes after their last update. Must be greater than 30 minutes.
+
 ### --provisioner-disable-module-cache
 
 | Property    | Value                                                |
