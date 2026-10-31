@@ -109,7 +109,11 @@ const OrganizationProvisionerJobsPageView: React.FC<
 					<SettingsHeaderDescription>
 						Provisioner Jobs are the individual tasks assigned to Provisioners
 						when the workspaces are being built.{" "}
-						<Link href={docs("/admin/provisioners/manage-provisioner-jobs")}>
+						<Link
+							href={docs("/admin/provisioners/manage-provisioner-jobs")}
+							target="_blank"
+							rel="noreferrer"
+						>
 							View docs
 						</Link>
 					</SettingsHeaderDescription>

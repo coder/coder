@@ -309,6 +309,8 @@ export const ModelFormFields: React.FC<{
 										"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
 									)}
 									size="sm"
+									target="_blank"
+									rel="noreferrer"
 								>
 									Learn how to configure model prices.
 								</Link>

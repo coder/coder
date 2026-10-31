@@ -110,6 +110,8 @@ export const TemplateParametersPageView: React.FC<
 						href={docs(
 							"/admin/templates/extending-templates/parameters/compatibility-mode",
 						)}
+						target="_blank"
+						rel="noreferrer"
 					>
 						Learn more
 					</Link>

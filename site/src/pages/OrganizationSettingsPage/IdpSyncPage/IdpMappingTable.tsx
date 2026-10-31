@@ -44,6 +44,8 @@ export const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 									href={docs(
 										`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
 									)}
+									target="_blank"
+									rel="noreferrer"
 								>
 									How to setup IdP {type.toLocaleLowerCase()} sync
 								</Link>
