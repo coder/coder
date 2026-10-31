@@ -239,22 +239,24 @@ describe("theme CSS variables", () => {
 			);
 		});
 
-		it("uses the default theme's surface in the PWA manifest", () => {
-			const surface = surfaceOf(`.${DEFAULT_THEME}`);
-			const manifest: { theme_color?: string; background_color?: string } =
-				JSON.parse(
-					fs.readFileSync(
-						path.resolve(__dirname, "../../static/manifest.json"),
-						"utf8",
-					),
-				);
+		for (const file of ["manifest.json", "manifest.webmanifest"]) {
+			it(`uses the default theme's surface in ${file}`, () => {
+				const surface = surfaceOf(`.${DEFAULT_THEME}`);
+				const manifest: { theme_color?: string; background_color?: string } =
+					JSON.parse(
+						fs.readFileSync(
+							path.resolve(__dirname, "../../static", file),
+							"utf8",
+						),
+					);
 
-			expect(toRGB("manifest.json theme_color", manifest.theme_color)).toBe(
-				surface,
-			);
-			expect(
-				toRGB("manifest.json background_color", manifest.background_color),
-			).toBe(surface);
-		});
+				expect(toRGB(`${file} theme_color`, manifest.theme_color)).toBe(
+					surface,
+				);
+				expect(
+					toRGB(`${file} background_color`, manifest.background_color),
+				).toBe(surface);
+			});
+		}
 	});
 });
