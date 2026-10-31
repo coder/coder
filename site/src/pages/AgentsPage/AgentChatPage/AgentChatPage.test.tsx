@@ -1,16 +1,20 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Outlet } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	CreateChatMessageResponse,
+} from "#/api/typesGenerated";
 import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockUserPreferenceSettings,
 	mockApiError,
@@ -18,8 +22,10 @@ import {
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { createMockWebSocket } from "#/testHelpers/websockets";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { MockAsyncQuestionMessages } from "../components/ChatConversation/storyFixtures";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -33,6 +39,8 @@ const outletContext: Partial<AgentsPageOutletContext> = {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+	localStorage.clear();
 });
 
 const mockChatPageAPI = (messages: ChatMessage[] = []) => {
@@ -108,6 +116,93 @@ describe("AgentChatPage", () => {
 			),
 		);
 	});
+
+	const answerFromDockOnNarrowScreen = async () => {
+		const originalMatchMedia = window.matchMedia;
+		vi.stubGlobal("matchMedia", (query: string) => {
+			const result = originalMatchMedia(query);
+			return query === mobileViewportMediaQuery
+				? { ...result, matches: true }
+				: result;
+		});
+		const user = userEvent.setup();
+		renderChatPage();
+		const dock = await screen.findByRole("region", { name: "Open question" });
+		const composer = screen.getByRole("textbox", { name: "Chat message" });
+		// jsdom focuses the editor only while the DOM selection is in it, and a
+		// click on the form would move the selection out, so answer by keyboard.
+		await user.click(composer);
+		act(() =>
+			within(dock)
+				.getByRole("radio", { name: /^Frontend/ })
+				.focus(),
+		);
+		await user.keyboard(" ");
+		act(() => within(dock).getByRole("button", { name: "Submit" }).focus());
+		await user.keyboard("{Enter}");
+		return { dock, composer };
+	};
+
+	it("focuses the chat input after an answer sends on a narrow screen", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		vi.spyOn(API.experimental, "createChatMessage").mockResolvedValue({
+			queued: true,
+		});
+
+		const { composer } = await answerFromDockOnNarrowScreen();
+
+		await waitFor(() => expect(composer).toHaveFocus());
+	});
+
+	it("leaves focus out of the chat input when an answer fails to send", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		vi.spyOn(API.experimental, "createChatMessage").mockRejectedValue(
+			new Error("The answer failed."),
+		);
+
+		const { dock, composer } = await answerFromDockOnNarrowScreen();
+
+		await within(dock).findByText("The answer failed.");
+		// jsdom keeps the focus on the Submit button that the send disabled, and
+		// browsers move it to the page body, so only the chat input is checked.
+		expect(composer).not.toHaveFocus();
+	});
+
+	it.each([
+		{
+			moveKind: "to another control",
+			moveFocus: async () => {
+				const editButton = screen.getByRole("button", {
+					name: "Edit message",
+				});
+				act(() => editButton.focus());
+				return editButton;
+			},
+		},
+		{
+			moveKind: "by a click on the page background",
+			moveFocus: async () => {
+				await userEvent.click(document.body);
+				return document.body;
+			},
+		},
+	])(
+		"leaves focus that the user moved $moveKind while an answer was sending",
+		async ({ moveFocus }) => {
+			mockChatPageAPI(MockAsyncQuestionMessages);
+			const pendingSend = createDeferred<CreateChatMessageResponse>();
+			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+				pendingSend.promise,
+			);
+
+			const { composer } = await answerFromDockOnNarrowScreen();
+			const focusTarget = await moveFocus();
+			await act(async () => pendingSend.resolve({ queued: true }));
+
+			expect(focusTarget).toHaveFocus();
+			expect(composer).not.toHaveFocus();
+		},
+	);
 
 	it("keeps the call line when an async answer that starts with a skill chip is edited", async () => {
 		mockChatPageAPI([

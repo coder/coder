@@ -12,6 +12,12 @@ export type AskUserQuestionState = {
 	isLatestAnswered: boolean;
 	/** Values keep the prefix line of answers that name their call. */
 	responseTextByTool: ReadonlyMap<MergedTool, string>;
+	/**
+	 * The latest question while it is async and has no delivered answer. A
+	 * queued answer leaves it open because the queue can drop the answer
+	 * before delivery.
+	 */
+	openAsyncQuestion: MergedTool | undefined;
 };
 
 // A call supersedes nothing until its result arrives without an error. A
@@ -97,7 +103,16 @@ export const deriveAskUserQuestionState = (
 		latestToolById.set(liveQuestion.id, liveQuestion);
 	}
 
-	// A queued answer only records its text, so the card shows it.
+	const openAsyncQuestion =
+		latestTool &&
+		isAsyncAskUserQuestionResult(latestTool.result) &&
+		!responseTextByTool.has(latestTool)
+			? latestTool
+			: undefined;
+
+	// A queued answer only records its text, so the card shows it and the
+	// page hides the dock. openAsyncQuestion is set before this loop, so the
+	// dock comes back if the queue drops the answer.
 	for (const queuedMessage of queuedMessages) {
 		const asyncAnswer = parseAsyncAnswerContent(queuedMessage.content);
 		const answeredTool =
@@ -116,5 +131,6 @@ export const deriveAskUserQuestionState = (
 		latestTool,
 		isLatestAnswered,
 		responseTextByTool,
+		openAsyncQuestion,
 	};
 };
