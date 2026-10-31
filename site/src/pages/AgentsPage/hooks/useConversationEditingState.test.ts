@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import { getEditableContentPayload } from "../components/ChatConversation/messageParsing";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
 import { useConversationEditingState } from "./useConversationEditingState";
@@ -301,6 +302,204 @@ describe("useConversationEditingState", () => {
 			attachments: undefined,
 			workspaceUploads: undefined,
 			editingTarget: { kind: "history", id: 7 },
+		});
+		unmount();
+	});
+
+	it("edits an async answer without its prefix line and sends it back with the line", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle();
+		vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
+			{ type: "text", text: "Frontend" },
+		]);
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		expect(result.current.editorInitialValue).toBe("Backend");
+
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editingTarget: { kind: "history", id: 7 },
+			composerParts: [
+				{
+					type: "text",
+					text: "Answer to ask_user_question call question:\nFrontend",
+				},
+			],
+		});
+		unmount();
+	});
+
+	it("puts an edited async answer's prefix line before a leading chip", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle();
+		const mockSkill = {
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
+		} as const;
+		vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
+			mockSkill,
+			{ type: "text", text: " Frontend" },
+		]);
+		result.current.chatInputRef.current = mockInput.handle;
+		const { text, editorState } = getEditableContentPayload([
+			{ type: "text", text: "Answer to ask_user_question call question:" },
+			{
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: "triage",
+			},
+			{ type: "text", text: "Backend" },
+		]);
+
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				text,
+				undefined,
+				editorState,
+			);
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: " Frontend" });
+		});
+
+		expect(onSend).toHaveBeenCalledWith(
+			expect.objectContaining({
+				composerParts: [
+					{
+						type: "text",
+						text: "Answer to ask_user_question call question:\n",
+					},
+					mockSkill,
+					{ type: "text", text: " Frontend" },
+				],
+			}),
+		);
+		unmount();
+	});
+
+	it("keeps an async answer's prefix line for the retry when its edit fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		onSend.mockRejectedValueOnce(new Error("boom"));
+
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput({ message: "Frontend" }),
+			).rejects.toThrow("boom");
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenLastCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editingTarget: { kind: "history", id: 7 },
+		});
+		unmount();
+	});
+
+	it("keeps a newer edit when an earlier edit fails to send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise<void>((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		let firstSend: Promise<void> = Promise.resolve();
+		act(() => {
+			firstSend = result.current.handleSendFromInput({ message: "Frontend" });
+		});
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 8 },
+				"plain message",
+			);
+		});
+		await act(async () => {
+			rejectSend(new Error("boom"));
+			await expect(firstSend).rejects.toThrow("boom");
+		});
+
+		expect(result.current.editorInitialValue).toBe("plain message");
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "edited" });
+		});
+		expect(onSend).toHaveBeenLastCalledWith({
+			message: "edited",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editingTarget: { kind: "history", id: 8 },
+		});
+		unmount();
+	});
+
+	it("keeps a newer async answer edit's prefix line when an earlier edit finishes sending", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		let resolveSend: () => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"plain message",
+			);
+		});
+		let firstSend: Promise<void> = Promise.resolve();
+		act(() => {
+			firstSend = result.current.handleSendFromInput({ message: "edited" });
+		});
+		act(() => {
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 8 },
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		await act(async () => {
+			resolveSend();
+			await firstSend;
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenLastCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editingTarget: { kind: "history", id: 8 },
 		});
 		unmount();
 	});

@@ -3,12 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatPromptsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
+import {
+	asyncAnswerLead,
+	getAsyncAnswerPrefix,
+} from "./ChatElements/tools/asyncAnswer";
 import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
 
 const skillResource = (
@@ -189,6 +194,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	localStorage.clear();
 	Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
 });
 
@@ -233,6 +239,40 @@ describe("ChatPageInput", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
+	});
+
+	it("leaves async question answers out of the prompt history", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
+			prompts: [
+				{ id: 5, text: `${getAsyncAnswerPrefix("call 3")}Backend first.` },
+				{ id: 4, text: `${asyncAnswerLead}behavior in this code` },
+				// A chip after the call line drops its line break from the history.
+				{ id: 3, text: `${asyncAnswerLead}call-2:on the rollout plan.` },
+				{
+					id: 2,
+					text: `${getAsyncAnswerPrefix("call-1")}Frontend first, then the API.`,
+				},
+				{ id: 1, text: "Build the settings page" },
+			],
+		});
+		const inputRef = createRef<ChatMessageInputRef>();
+		const { queryClient } = renderChatPageInput(createChatStore(), {
+			chat: { ...MockChat, id: "chat-1", organization_id: "" },
+			inputRef,
+		});
+		await waitFor(() =>
+			expect(queryClient.getQueryData(chatPromptsKey("chat-1"))).toBeDefined(),
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowUp}");
+		expect(inputRef.current?.getValue()).toBe(
+			`${asyncAnswerLead}behavior in this code`,
+		);
+		await user.keyboard("{ArrowUp}");
+
+		expect(inputRef.current?.getValue()).toBe("Build the settings page");
 	});
 
 	it("rehydrates edited workspace file references only from the bound workspace", async () => {

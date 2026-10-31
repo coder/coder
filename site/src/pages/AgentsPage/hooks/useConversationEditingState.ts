@@ -3,7 +3,12 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { EditingTarget } from "../components/ChatConversation/types";
+import {
+	getAsyncAnswerPrefix,
+	parseAsyncAnswer,
+} from "../components/ChatElements/tools/asyncAnswer";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import {
 	draftInputStorageKeyPrefix,
 	type ParsedDraft,
@@ -14,6 +19,24 @@ export class BuiltInCommandPendingError extends Error {}
 
 export type SendChatTurnOptions = SendChatMessageOptions & {
 	editingTarget?: EditingTarget;
+	/** Content to send in place of the composer's current parts. */
+	composerParts?: readonly ChatComposerContentPart[];
+};
+
+// Returns undefined for an empty composer, so the send falls back to the
+// message text, which already starts with the prefix line.
+const prependAnswerPrefix = (
+	prefix: string,
+	parts: readonly ChatComposerContentPart[],
+): readonly ChatComposerContentPart[] | undefined => {
+	if (parts.length === 0) {
+		return undefined;
+	}
+	const [firstPart, ...restParts] = parts;
+	if (firstPart.type === "text") {
+		return [{ type: "text", text: prefix + firstPart.text }, ...restParts];
+	}
+	return [{ type: "text", text: prefix }, ...parts];
 };
 
 /** @internal Exported for testing. */
@@ -62,6 +85,12 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
+	// The composer shows an async answer without its prefix line, so the
+	// send adds the line back to keep the answer tied to its question.
+	const [editingAnswerPrefix, setEditingAnswerPrefix] = useState("");
+	// Counts opened edits, so an edit that finishes sending after the user
+	// opened another one leaves the newer edit's composer and state alone.
+	const openedEditCountRef = useRef(0);
 
 	const handleBeginEdit = (
 		target: EditingTarget,
@@ -69,6 +98,7 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
 	) => {
+		openedEditCountRef.current += 1;
 		if (editingTarget === null) {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
@@ -81,14 +111,19 @@ export function useConversationEditingState(deps: {
 				editorState: currentEditorState,
 			});
 		}
+		const asyncAnswer = parseAsyncAnswer(text);
+		const editText = asyncAnswer?.body ?? text;
+		setEditingAnswerPrefix(
+			asyncAnswer ? getAsyncAnswerPrefix(asyncAnswer.toolCallId) : "",
+		);
 		setEditingTarget(target);
 		setDraftState({
-			editorInitialValue: text,
+			editorInitialValue: editText,
 			initialEditorState: editorState,
 		});
 		serializedEditorStateRef.current = editorState;
 		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
+		inputValueRef.current = editText;
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
@@ -105,6 +140,7 @@ export function useConversationEditingState(deps: {
 		setEditingTarget(null);
 		setDraftBeforeEdit(null);
 		setEditingFileBlocks([]);
+		setEditingAnswerPrefix("");
 	};
 
 	// Clears the composer for an in-flight edit and returns a rollback
@@ -145,6 +181,7 @@ export function useConversationEditingState(deps: {
 		if (target !== undefined) {
 			setDraftBeforeEdit(null);
 			setEditingFileBlocks([]);
+			setEditingAnswerPrefix("");
 		}
 	};
 
@@ -155,11 +192,19 @@ export function useConversationEditingState(deps: {
 		workspaceUploads,
 	}: SendChatMessageOptions) => {
 		const target = editingTarget ?? undefined;
+		const answerPrefix = target !== undefined ? editingAnswerPrefix : "";
+		const openedEditCount = openedEditCountRef.current;
 		const sendPromise = onSend({
-			message,
+			message: answerPrefix + message,
 			attachments,
 			workspaceUploads,
 			editingTarget: target,
+			composerParts: answerPrefix
+				? prependAnswerPrefix(
+						answerPrefix,
+						chatInputRef.current?.getContentParts() ?? [],
+					)
+				: undefined,
 		});
 
 		const rollback =
@@ -171,10 +216,18 @@ export function useConversationEditingState(deps: {
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
-			rollback?.();
+			if (openedEditCountRef.current === openedEditCount) {
+				rollback?.();
+			}
 			throw error;
 		}
 
+		if (
+			target !== undefined &&
+			openedEditCountRef.current !== openedEditCount
+		) {
+			return;
+		}
 		finalizeSuccessfulSend(target);
 	};
 

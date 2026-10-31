@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { Fragment } from "react";
 import { Message, MessageContent } from "../ChatElements/Message";
+import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
 	hasInlineContentAfter,
@@ -70,6 +71,25 @@ const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
 	);
 };
 
+// An async question answer starts with a line that names the call for the
+// model.
+const splitAsyncAnswer = (
+	blocks: readonly UserInlineRenderBlock[],
+): { isAsyncAnswer: boolean; blocks: readonly UserInlineRenderBlock[] } => {
+	const [firstBlock, ...restBlocks] = blocks;
+	if (firstBlock?.type !== "response") {
+		return { isAsyncAnswer: false, blocks };
+	}
+	const answer = parseAsyncAnswer(firstBlock.text);
+	if (!answer) {
+		return { isAsyncAnswer: false, blocks };
+	}
+	return {
+		isAsyncAnswer: true,
+		blocks: [{ ...firstBlock, text: answer.body }, ...restBlocks],
+	};
+};
+
 export const UserMessageContent: React.FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
@@ -80,6 +100,7 @@ export const UserMessageContent: React.FC<{
 		trigger: HTMLButtonElement,
 	) => void;
 }> = ({ displayState, markdown, isEditing, onImageClick, onTextFileClick }) => {
+	const inlineContent = splitAsyncAnswer(displayState.userInlineContent);
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -94,8 +115,13 @@ export const UserMessageContent: React.FC<{
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
-									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(displayState.userInlineContent)
+									{inlineContent.isAsyncAnswer && (
+										<span className="block text-xs text-content-secondary">
+											Answer
+										</span>
+									)}
+									{inlineContent.blocks.length > 0
+										? renderUserInlineContent(inlineContent.blocks)
 										: markdown || ""}
 								</span>
 							)}

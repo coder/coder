@@ -934,3 +934,45 @@ describe("ConversationTimeline attachment previews", () => {
 		await waitFor(() => expect(attachment).toHaveFocus());
 	});
 });
+
+describe("ConversationTimeline async answers", () => {
+	it.each<[string, ChatMessage["content"]]>([
+		[
+			"text",
+			[
+				{
+					type: "text",
+					text: "Answer to ask_user_question call question:\nBackend first, then the UI.",
+				},
+			],
+		],
+		[
+			"a leading skill chip",
+			[
+				{ type: "text", text: "Answer to ask_user_question call question:" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Backend first, then the UI." },
+			],
+		],
+	])("copies an answer with %s without its prefix line", async (_, content) => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({
+			messages: [{ ...MockChatMessage, id: 6, role: "user", content }],
+		});
+
+		await user.click(
+			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
+				name: "Copy message",
+			}),
+		);
+
+		expect(writeText).toHaveBeenCalledWith("Backend first, then the UI.");
+	});
+});

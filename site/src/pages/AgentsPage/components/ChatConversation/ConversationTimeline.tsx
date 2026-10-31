@@ -249,8 +249,8 @@ const ChatMessageItem = memo<{
 				: undefined;
 
 		const copyText =
-			displayState?.hasCopyableContent && parsed && !hideSliceActions
-				? parsed.markdown
+			displayState?.hasCopyableContent && !hideSliceActions
+				? displayState.copyText
 				: undefined;
 
 		if (displayState?.shouldHide) {
