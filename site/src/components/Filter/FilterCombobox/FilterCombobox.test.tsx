@@ -2304,6 +2304,22 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(search).toHaveFocus());
 	});
 
+	it("returns focus to the combobox when the pointer leaves a focused flyout search", async () => {
+		const { user, input, filtersButton } = setup([manyOwnersCategory], {
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await user.click(search);
+		await user.unhover(search);
+
+		expect(input).toHaveFocus();
+		await user.type(input, "alice");
+		expect(input).toHaveValue("alice");
+	});
+
 	describe("Owner scope", () => {
 		type Harness = ReturnType<typeof setup>;
 		type Via = "input" | "menu";
