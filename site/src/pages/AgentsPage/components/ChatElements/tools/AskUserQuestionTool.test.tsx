@@ -294,6 +294,9 @@ describe("AskUserQuestionTool", () => {
 			renderTool({ questions: [{ ...questions[0], options: [] }] }),
 		);
 		rerender(renderTool({}));
+		expect(
+			screen.getByText("Asking for clarification...").closest("[role=status]"),
+		).toHaveAttribute("aria-live", "polite");
 		rerender(
 			renderTool({
 				status: "completed",
@@ -519,6 +522,7 @@ describe("AskUserQuestionTool", () => {
 
 		expect(screen.getByRole("status")).toHaveTextContent("The agent asked");
 	});
+
 	it("leaves a skipped question out of the collapsed panel's answered count", async () => {
 		const user = userEvent.setup();
 		const queryClient = createTestQueryClient();
@@ -541,5 +545,33 @@ describe("AskUserQuestionTool", () => {
 		expect(
 			screen.getByRole("button", { expanded: false }),
 		).toHaveAccessibleName(/0\/2 questions answered/);
+	});
+
+	it("drops a saved draft once a newer question replaces it", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const DraftQuestion: React.FC<{ isLatest: boolean }> = ({ isLatest }) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion={isLatest}
+					toolCallId="call-replaced"
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = renderComponent(<DraftQuestion isLatest />);
+		await user.type(
+			screen.getByRole("textbox", { name: /something else/i }),
+			"Later",
+		);
+		expect(localStorage).toHaveLength(1);
+
+		rerender(<DraftQuestion isLatest={false} />);
+
+		expect(localStorage).toHaveLength(0);
 	});
 });

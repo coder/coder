@@ -620,6 +620,17 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		Boolean(onSubmitAnswer);
 	const isClosed =
 		isAsync && isCompleted && !isLatestAskUserQuestion && !isAnswered;
+	const draftKey =
+		toolCallId === undefined
+			? undefined
+			: getQuestionCallKey(toolCallId, startedAt);
+
+	// Only the latest question takes an answer, so an older one's draft goes.
+	useEffect(() => {
+		if (!isLatestAskUserQuestion && draftKey !== undefined) {
+			removeFormDraft(draftKey);
+		}
+	}, [isLatestAskUserQuestion, draftKey]);
 
 	// The agent keeps working, so the question needs its own announcement.
 	// Screen readers announce only changes to a live region that already
@@ -692,11 +703,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 					questions={questions}
 					previousResponseText={previousResponseText}
 					asyncToolCallId={asyncToolCallId}
-					draftKey={
-						toolCallId === undefined
-							? undefined
-							: getQuestionCallKey(toolCallId, startedAt)
-					}
+					draftKey={draftKey}
 					showSubmittedAnswer={isLatestAskUserQuestion}
 					onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
 				/>
