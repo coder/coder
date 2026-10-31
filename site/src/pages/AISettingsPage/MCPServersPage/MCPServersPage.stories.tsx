@@ -967,8 +967,23 @@ export const AddFailurePreservesEnteredValues: Story = {
 		await waitFor(() => {
 			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
 		});
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /client registration/i }),
+		);
+		await userEvent.click(body.getByRole("option", { name: "Manual" }));
+		await waitFor(() => {
+			expect(body.queryByRole("option", { name: "Manual" })).toBeNull();
+		});
 		await userEvent.type(canvas.getByLabelText(/client id/i), "client-id");
 		await userEvent.type(canvas.getByLabelText(/client secret/i), "secret");
+		await userEvent.type(
+			canvas.getByLabelText(/authorization url/i),
+			"https://idp.example.com/authorize",
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/token url/i),
+			"https://idp.example.com/token",
+		);
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
 		await expect(
 			await body.findByText("Invalid client credentials."),
