@@ -2549,6 +2549,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		create := testutil.RequireReceive(ctx, t, createdCh)
 		require.NoError(t, create.err)
 		created := create.config
+		require.Equal(t, codersdk.MCPServerOAuth2ClientRegistrationDynamic, created.OAuth2ClientRegistration)
 		require.Equal(t, "auto-discovered-client-id", created.OAuth2ClientID)
 		require.True(t, created.HasOAuth2Secret)
 		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
@@ -2575,6 +2576,29 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "https://override.example.com/revoke", overridden.OAuth2RevocationURL)
 		require.Equal(t, "https://override.example.com/mcp", overridden.OAuth2Resource)
+
+		// Resending the registered client ID keeps the client dynamic, and
+		// replacing it makes the client manual.
+		updated, err := client.UpdateMCPServerConfig(ctx, overridden.OrganizationID, overridden.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2ClientID: &overridden.OAuth2ClientID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.MCPServerOAuth2ClientRegistrationDynamic, updated.OAuth2ClientRegistration)
+		replacedClientID := "replaced-client-id"
+		updated, err = client.UpdateMCPServerConfig(ctx, overridden.OrganizationID, overridden.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2ClientID: &replacedClientID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.MCPServerOAuth2ClientRegistrationManual, updated.OAuth2ClientRegistration)
+
+		// Leaving oauth2 resets the registration method with the other
+		// OAuth2 fields.
+		authTypeNone := "none"
+		updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			AuthType: &authTypeNone,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.MCPServerOAuth2ClientRegistrationManual, updated.OAuth2ClientRegistration)
 	})
 
 	t.Run("CreateOnlyScopeAllowed", func(t *testing.T) {
@@ -3131,6 +3155,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			ToolDenyList:   []string{},
 		})
 		require.NoError(t, err)
+		require.Equal(t, codersdk.MCPServerOAuth2ClientRegistrationManual, created.OAuth2ClientRegistration)
 		require.Equal(t, "manual-client-id", created.OAuth2ClientID)
 		require.Equal(t, "https://auth.example.com/authorize", created.OAuth2AuthURL)
 		require.Equal(t, "https://auth.example.com/token", created.OAuth2TokenURL)

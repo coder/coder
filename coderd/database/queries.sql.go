@@ -20048,7 +20048,7 @@ func (q *sqlQuerier) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mc
 
 const getEnabledMCPServerConfigsByOrganization = `-- name: GetEnabledMCPServerConfigsByOrganization :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20105,6 +20105,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganization(ctx context.Contex
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
 			&i.OAuth2Resource,
+			&i.OAuth2ClientRegistration,
 		); err != nil {
 			return nil, err
 		}
@@ -20121,7 +20122,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganization(ctx context.Contex
 
 const getEnabledMCPServerConfigsByOrganizationAndIDs = `-- name: GetEnabledMCPServerConfigsByOrganizationAndIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20184,6 +20185,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
 			&i.OAuth2Resource,
+			&i.OAuth2ClientRegistration,
 		); err != nil {
 			return nil, err
 		}
@@ -20200,7 +20202,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.
 
 const getForcedMCPServerConfigsByOrganization = `-- name: GetForcedMCPServerConfigsByOrganization :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20258,6 +20260,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigsByOrganization(ctx context.Context
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
 			&i.OAuth2Resource,
+			&i.OAuth2ClientRegistration,
 		); err != nil {
 			return nil, err
 		}
@@ -20274,7 +20277,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigsByOrganization(ctx context.Context
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20322,13 +20325,14 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.SigningSecret,
 		&i.SigningSecretKeyID,
 		&i.OAuth2Resource,
+		&i.OAuth2ClientRegistration,
 	)
 	return i, err
 }
 
 const getMCPServerConfigByIDForUpdate = `-- name: GetMCPServerConfigByIDForUpdate :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20377,13 +20381,14 @@ func (q *sqlQuerier) GetMCPServerConfigByIDForUpdate(ctx context.Context, id uui
 		&i.SigningSecret,
 		&i.SigningSecretKeyID,
 		&i.OAuth2Resource,
+		&i.OAuth2ClientRegistration,
 	)
 	return i, err
 }
 
 const getMCPServerConfigByOrganizationAndSlug = `-- name: GetMCPServerConfigByOrganizationAndSlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20437,13 +20442,14 @@ func (q *sqlQuerier) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context
 		&i.SigningSecret,
 		&i.SigningSecretKeyID,
 		&i.OAuth2Resource,
+		&i.OAuth2ClientRegistration,
 	)
 	return i, err
 }
 
 const getMCPServerConfigsByOrganization = `-- name: GetMCPServerConfigsByOrganization :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 FROM
     mcp_server_configs
 WHERE
@@ -20501,6 +20507,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByOrganization(ctx context.Context, orga
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
 			&i.OAuth2Resource,
+			&i.OAuth2ClientRegistration,
 		); err != nil {
 			return nil, err
 		}
@@ -20643,6 +20650,7 @@ INSERT INTO mcp_server_configs (
     oauth2_revocation_url,
     oauth2_resource,
     oauth2_scopes,
+    oauth2_client_registration,
     api_key_header,
     api_key_value,
     api_key_value_key_id,
@@ -20686,58 +20694,60 @@ INSERT INTO mcp_server_configs (
     $22::text,
     $23::text,
     $24::text,
-    $25::text[],
+    $25::text,
     $26::text[],
-    $27::text,
-    $28::boolean,
+    $27::text[],
+    $28::text,
     $29::boolean,
     $30::boolean,
     $31::boolean,
-    $32,
+    $32::boolean,
     $33,
-    $34::uuid,
-    $35::uuid
+    $34,
+    $35::uuid,
+    $36::uuid
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 `
 
 type InsertMCPServerConfigParams struct {
-	ID                      uuid.UUID      `db:"id" json:"id"`
-	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
-	DisplayName             string         `db:"display_name" json:"display_name"`
-	Slug                    string         `db:"slug" json:"slug"`
-	Description             string         `db:"description" json:"description"`
-	IconURL                 string         `db:"icon_url" json:"icon_url"`
-	Transport               string         `db:"transport" json:"transport"`
-	Url                     string         `db:"url" json:"url"`
-	AuthType                string         `db:"auth_type" json:"auth_type"`
-	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
-	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
-	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
-	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
-	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
-	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
-	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
-	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
-	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
-	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string         `db:"availability" json:"availability"`
-	Enabled                 bool           `db:"enabled" json:"enabled"`
-	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
-	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
-	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
-	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
-	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
-	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
-	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	ID                       uuid.UUID      `db:"id" json:"id"`
+	OrganizationID           uuid.UUID      `db:"organization_id" json:"organization_id"`
+	DisplayName              string         `db:"display_name" json:"display_name"`
+	Slug                     string         `db:"slug" json:"slug"`
+	Description              string         `db:"description" json:"description"`
+	IconURL                  string         `db:"icon_url" json:"icon_url"`
+	Transport                string         `db:"transport" json:"transport"`
+	Url                      string         `db:"url" json:"url"`
+	AuthType                 string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID           string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret       string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID  sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL            string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL           string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2RevocationURL      string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OAuth2Resource           string         `db:"oauth2_resource" json:"oauth2_resource"`
+	OAuth2Scopes             string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	OAuth2ClientRegistration string         `db:"oauth2_client_registration" json:"oauth2_client_registration"`
+	APIKeyHeader             string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue              string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID         sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders            string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID       sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	SigningSecret            string         `db:"signing_secret" json:"signing_secret"`
+	SigningSecretKeyID       sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	ToolAllowList            []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList             []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability             string         `db:"availability" json:"availability"`
+	Enabled                  bool           `db:"enabled" json:"enabled"`
+	ModelIntent              bool           `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode          bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	ForwardCoderHeaders      bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	GroupACL                 ChatACL        `db:"group_acl" json:"group_acl"`
+	UserACL                  ChatACL        `db:"user_acl" json:"user_acl"`
+	CreatedBy                uuid.UUID      `db:"created_by" json:"created_by"`
+	UpdatedBy                uuid.UUID      `db:"updated_by" json:"updated_by"`
 }
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
@@ -20759,6 +20769,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.OAuth2RevocationURL,
 		arg.OAuth2Resource,
 		arg.OAuth2Scopes,
+		arg.OAuth2ClientRegistration,
 		arg.APIKeyHeader,
 		arg.APIKeyValue,
 		arg.APIKeyValueKeyID,
@@ -20817,6 +20828,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.SigningSecret,
 		&i.SigningSecretKeyID,
 		&i.OAuth2Resource,
+		&i.OAuth2ClientRegistration,
 	)
 	return i, err
 }
@@ -20888,60 +20900,62 @@ SET
     oauth2_revocation_url = $13::text,
     oauth2_resource = $14::text,
     oauth2_scopes = $15::text,
-    api_key_header = $16::text,
-    api_key_value = $17::text,
-    api_key_value_key_id = $18::text,
-    custom_headers = $19::text,
-    custom_headers_key_id = $20::text,
-    signing_secret = $21::text,
-    signing_secret_key_id = $22::text,
-    tool_allow_list = $23::text[],
-    tool_deny_list = $24::text[],
-    availability = $25::text,
-    enabled = $26::boolean,
-    model_intent = $27::boolean,
-    allow_in_plan_mode = $28::boolean,
-    forward_coder_headers = $29::boolean,
-    updated_by = $30::uuid,
+    oauth2_client_registration = $16::text,
+    api_key_header = $17::text,
+    api_key_value = $18::text,
+    api_key_value_key_id = $19::text,
+    custom_headers = $20::text,
+    custom_headers_key_id = $21::text,
+    signing_secret = $22::text,
+    signing_secret_key_id = $23::text,
+    tool_allow_list = $24::text[],
+    tool_deny_list = $25::text[],
+    availability = $26::text,
+    enabled = $27::boolean,
+    model_intent = $28::boolean,
+    allow_in_plan_mode = $29::boolean,
+    forward_coder_headers = $30::boolean,
+    updated_by = $31::uuid,
     updated_at = NOW()
 WHERE
-    id = $31::uuid
+    id = $32::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl, signing_secret, signing_secret_key_id, oauth2_resource, oauth2_client_registration
 `
 
 type UpdateMCPServerConfigParams struct {
-	DisplayName             string         `db:"display_name" json:"display_name"`
-	Slug                    string         `db:"slug" json:"slug"`
-	Description             string         `db:"description" json:"description"`
-	IconURL                 string         `db:"icon_url" json:"icon_url"`
-	Transport               string         `db:"transport" json:"transport"`
-	Url                     string         `db:"url" json:"url"`
-	AuthType                string         `db:"auth_type" json:"auth_type"`
-	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
-	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
-	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
-	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
-	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
-	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
-	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
-	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
-	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
-	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string         `db:"availability" json:"availability"`
-	Enabled                 bool           `db:"enabled" json:"enabled"`
-	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
-	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
-	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
-	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
-	ID                      uuid.UUID      `db:"id" json:"id"`
+	DisplayName              string         `db:"display_name" json:"display_name"`
+	Slug                     string         `db:"slug" json:"slug"`
+	Description              string         `db:"description" json:"description"`
+	IconURL                  string         `db:"icon_url" json:"icon_url"`
+	Transport                string         `db:"transport" json:"transport"`
+	Url                      string         `db:"url" json:"url"`
+	AuthType                 string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID           string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret       string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID  sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL            string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL           string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2RevocationURL      string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OAuth2Resource           string         `db:"oauth2_resource" json:"oauth2_resource"`
+	OAuth2Scopes             string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	OAuth2ClientRegistration string         `db:"oauth2_client_registration" json:"oauth2_client_registration"`
+	APIKeyHeader             string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue              string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID         sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders            string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID       sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	SigningSecret            string         `db:"signing_secret" json:"signing_secret"`
+	SigningSecretKeyID       sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	ToolAllowList            []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList             []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability             string         `db:"availability" json:"availability"`
+	Enabled                  bool           `db:"enabled" json:"enabled"`
+	ModelIntent              bool           `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode          bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	ForwardCoderHeaders      bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	UpdatedBy                uuid.UUID      `db:"updated_by" json:"updated_by"`
+	ID                       uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error) {
@@ -20961,6 +20975,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		arg.OAuth2RevocationURL,
 		arg.OAuth2Resource,
 		arg.OAuth2Scopes,
+		arg.OAuth2ClientRegistration,
 		arg.APIKeyHeader,
 		arg.APIKeyValue,
 		arg.APIKeyValueKeyID,
@@ -21017,6 +21032,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.SigningSecret,
 		&i.SigningSecretKeyID,
 		&i.OAuth2Resource,
+		&i.OAuth2ClientRegistration,
 	)
 	return i, err
 }
