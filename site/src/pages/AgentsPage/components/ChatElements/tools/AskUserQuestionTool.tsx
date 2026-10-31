@@ -10,6 +10,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { Response } from "../Response";
 import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
 import { QuestionStep } from "./QuestionStep";
@@ -74,21 +79,14 @@ type QuestionPanelHeaderProps = {
 	label: string;
 	progress: string | undefined;
 	isCollapsed: boolean;
-	onToggle: () => void;
 };
 
 const QuestionPanelHeader: React.FC<QuestionPanelHeaderProps> = ({
 	label,
 	progress,
 	isCollapsed,
-	onToggle,
 }) => (
-	<button
-		type="button"
-		aria-expanded={!isCollapsed}
-		className="flex w-full appearance-none items-center gap-1.5 px-3 py-2.5 text-left font-sans text-xs text-content-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
-		onClick={onToggle}
-	>
+	<CollapsibleTrigger className="flex w-full appearance-none items-center gap-1.5 px-3 py-2.5 text-left font-sans text-xs text-content-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link">
 		<MessageCircleQuestionIcon
 			aria-hidden="true"
 			className="size-3.5 shrink-0"
@@ -100,7 +98,7 @@ const QuestionPanelHeader: React.FC<QuestionPanelHeaderProps> = ({
 		) : (
 			<ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />
 		)}
-	</button>
+	</CollapsibleTrigger>
 );
 
 type AskedQuestionsProps = {
@@ -437,13 +435,8 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 					: undefined
 			}
 			isCollapsed={isCollapsed}
-			onToggle={onToggleCollapsed}
 		/>
 	);
-
-	if (panelHeader && isCollapsed) {
-		return panelHeader;
-	}
 
 	const content = (
 		<>
@@ -579,10 +572,10 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 
 	return panelHeader ? (
-		<>
+		<Collapsible open={!isCollapsed} onOpenChange={onToggleCollapsed}>
 			{panelHeader}
-			<div className="px-3 pb-3">{body}</div>
-		</>
+			<CollapsibleContent className="px-3 pb-3">{body}</CollapsibleContent>
+		</Collapsible>
 	) : (
 		body
 	);
