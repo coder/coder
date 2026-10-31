@@ -315,7 +315,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 													key={key}
 													value={key}
 													disabled={requiresPremium}
-													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
+													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link data-disabled:pointer-events-none data-disabled:opacity-50"
 												>
 													<span className="absolute right-2 top-2 flex items-center justify-center">
 														<SelectPrimitive.ItemIndicator>

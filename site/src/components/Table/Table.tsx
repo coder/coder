@@ -78,7 +78,7 @@ const tableRowVariants = cva(
 			hover: {
 				false: null,
 				true: cn(
-					"cursor-pointer outline-none hover:outline-solid hover:outline-1 focus-visible:outline-solid focus-visible:outline-1 -outline-offset-1 outline-border-secondary",
+					"cursor-pointer outline-none hover:outline-solid hover:outline-1 -outline-offset-1 outline-border-secondary focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-content-link",
 					"first:rounded-t-md last:rounded-b-md",
 				),
 			},
