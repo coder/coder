@@ -1,20 +1,18 @@
-import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { API } from "#/api/api";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { groupsByUserId } from "#/api/queries/groups";
 import { paginatedUsers } from "#/api/queries/users";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
-import { parseFilterQuery } from "#/components/Filter/filterQuery";
+import { useFilter } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import {
-	LAST_SEEN_PRESET_PARAM,
-	lastSeenUrlState,
 	resolveLastSeen,
+	resolveRelativeLastSeen,
 	withLastSeen,
 } from "./filter/lastSeenRange";
 import { UsersPageView } from "./UsersPageView";
@@ -36,37 +34,25 @@ const UsersPage: React.FC = () => {
 		enabled: viewDeploymentConfig,
 	});
 
-	const filterQuery = searchParams.get(useFilterParamsKey) ?? "";
-	// Anchors preset ranges so the query key stays stable across renders.
-	const [now, setNow] = useState(() => new Date());
-	const lastSeen = resolveLastSeen(
-		searchParams.get(LAST_SEEN_PRESET_PARAM),
-		parseFilterQuery(filterQuery),
-		now,
-	);
-
-	const usersQuery = usePaginatedQuery(
-		paginatedUsers(searchParams, withLastSeen(filterQuery, lastSeen)),
-	);
+	const usersQuery = usePaginatedQuery({
+		...paginatedUsers(searchParams),
+		// Relative last seen values stay in the query key, so it is stable across
+		// renders, and each fetch resolves them against the time it runs.
+		queryFn: ({ payload, signal }) =>
+			API.getUsers(
+				{ ...payload, q: resolveRelativeLastSeen(payload.q ?? "", new Date()) },
+				signal,
+			),
+	});
 	const useFilterResult = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 		onUpdate: usersQuery.goToFirstPage,
 	});
 
+	const lastSeen = resolveLastSeen(useFilterResult.values, new Date());
 	const onLastSeenChange = (value: DateTimeRangeValue) => {
-		setNow(new Date());
-		const { filter, preset } = lastSeenUrlState(useFilterResult.query, value);
-		if (preset === undefined) {
-			searchParams.delete(LAST_SEEN_PRESET_PARAM);
-		} else {
-			searchParams.set(LAST_SEEN_PRESET_PARAM, preset);
-		}
-		if (filter === useFilterResult.query) {
-			usersQuery.goToFirstPage();
-		} else {
-			useFilterResult.update(filter);
-		}
+		useFilterResult.update(withLastSeen(useFilterResult.query, value));
 	};
 
 	// Indicates if oidc roles are synced from the oidc idp.

@@ -21,10 +21,12 @@ afterEach(() => {
 });
 
 describe("UsersPage", () => {
-	it("resolves a last seen preset from the URL against the current time", async () => {
+	it("resolves relative last seen values from the URL against the current time", async () => {
+		const filter =
+			'status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:-90d';
 		renderWithAuth(<UsersPage />, {
 			path: "/deployment/users",
-			route: "/deployment/users?filter=status%3Aactive&last_seen=over_90d",
+			route: `/deployment/users?filter=${encodeURIComponent(filter)}`,
 		});
 
 		await waitFor(() =>
@@ -37,7 +39,7 @@ describe("UsersPage", () => {
 		);
 	});
 
-	it("stores a picked preset in the URL instead of timestamps", async () => {
+	it("stores a picked preset in the filter as relative values", async () => {
 		const user = userEvent.setup();
 		const { router } = renderWithAuth(<UsersPage />, {
 			path: "/deployment/users",
@@ -49,10 +51,13 @@ describe("UsersPage", () => {
 			await screen.findByRole("radio", { name: "Over 30 days" }),
 		);
 
-		await waitFor(() => {
-			const params = router.state.location.search;
-			expect(new URLSearchParams(params).get("last_seen")).toBe("over_30d");
-			expect(new URLSearchParams(params).get("filter")).toBe("status:active");
-		});
+		await waitFor(() =>
+			expect(
+				new URLSearchParams(router.state.location.search).get("filter"),
+			).toBe(
+				'status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:-30d',
+			),
+		);
+		expect(screen.getByRole("button", { name: /Over 30 days/ })).toBeVisible();
 	});
 });

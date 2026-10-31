@@ -41,9 +41,7 @@ export function usersKey(req: UsersRequest) {
 }
 
 export function paginatedUsers(
-	/** Drives pagination only; the users query comes from `filter`. */
 	searchParams: URLSearchParams,
-	filter: string,
 ): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
 	return {
 		searchParams,
@@ -51,7 +49,7 @@ export function paginatedUsers(
 			return {
 				limit,
 				offset,
-				q: prepareQuery(filter),
+				q: prepareQuery(searchParams.get("filter") ?? ""),
 			};
 		},
 
@@ -245,9 +243,11 @@ export const deleteUserAIBudgetOverride = (
 	};
 };
 
+export const apiKeyQueryKey = [...meKey, "apiKey"];
+
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 	return {
-		queryKey: [...meKey, "apiKey"],
+		queryKey: apiKeyQueryKey,
 		queryFn: () => API.getApiKey(),
 	};
 }
@@ -332,6 +332,9 @@ export const logout = (queryClient: QueryClient): MutationOptions => {
 			 * should be moved.
 			 */
 			defaultMetadataManager.clearMetadataByKey("user");
+			// Experiments are decided per user, so the embedded list must not
+			// seed the next user's session.
+			defaultMetadataManager.clearMetadataByKey("experiments");
 			queryClient.removeQueries();
 		},
 	};
