@@ -10,7 +10,6 @@ import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	MockChatAttachment,
@@ -20,20 +19,22 @@ import {
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockPngBase64 } from "#/testHelpers/files";
 import {
-	createTestQueryClient,
+	createPreferenceSeededQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ConversationTimeline } from "./ConversationTimeline";
-import {
-	getPendingToolCallIDs,
-	parseMessagesWithMergedTools,
-} from "./messageParsing";
+import { getPendingToolCallIDs } from "./messageParsing";
 import {
 	attachmentStepMessages,
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	buildStreamRenderState,
+	MockAsyncQuestionMessages,
+	MockAsyncQuestionResult,
+	MockAsyncQuestionThenUnrelatedMessages,
 	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
@@ -43,6 +44,7 @@ import {
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
+	workingStepMessages,
 } from "./storyFixtures";
 import { createEmptyStreamState } from "./streamState";
 
@@ -60,12 +62,7 @@ type TimelineStage = {
 } & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
 function renderTimeline(initial: TimelineStage = {}) {
-	const queryClient = createTestQueryClient();
-	queryClient.setQueryDefaults(preferenceSettingsKey, {
-		staleTime: Number.POSITIVE_INFINITY,
-	});
-	queryClient.setQueryData(
-		preferenceSettingsKey,
+	const queryClient = createPreferenceSeededQueryClient(
 		MockCollapsedStepsPreferences,
 	);
 
@@ -88,9 +85,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								subagentStatusOverrides={new Map()}
 								subagentTitles={new Map()}
 								subagentVariants={new Map()}
-								parsedMessages={parseMessagesWithMergedTools(messages, {
-									pendingToolCallIDs,
-								})}
+								{...buildQuestionTimelineArgs(messages, { pendingToolCallIDs })}
 								chatStatus={null}
 								hasMoreMessages={false}
 								isChatCompleted
@@ -974,5 +969,66 @@ describe("ConversationTimeline async answers", () => {
 		);
 
 		expect(writeText).toHaveBeenCalledWith("Backend first, then the UI.");
+	});
+});
+
+describe("ConversationTimeline async questions", () => {
+	it("answers an async question after an unrelated message while the chat runs", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		renderTimeline({
+			messages: MockAsyncQuestionThenUnrelatedMessages,
+			isChatCompleted: false,
+			onSendAskUserQuestionResponse,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Answer to ask_user_question call question:\nBackend first, then the UI.",
+		);
+	});
+
+	it("answers only the newest question when a provider reuses its call ID", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const [question] = MockAsyncQuestionResult.questions;
+		renderTimeline({
+			messages: [
+				...MockAsyncQuestionMessages,
+				{
+					...MockChatMessage,
+					id: 6,
+					role: "user",
+					created_at: workingFixtureTime(7),
+					content: [
+						{
+							type: "text",
+							text: `${getAsyncAnswerPrefix("question")}Backend first, then the UI.`,
+						},
+					],
+				},
+				...workingStepMessages(7, "question", 8, 9, {
+					toolName: "ask_user_question",
+					args: {},
+					result: {
+						output: JSON.stringify({
+							...MockAsyncQuestionResult,
+							questions: [
+								{ ...question, options: question.options.toReversed() },
+							],
+						}),
+					},
+				}),
+			],
+			isChatCompleted: false,
+			onSendAskUserQuestionResponse,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Answer to ask_user_question call question:\nFrontend first, then the API.",
+		);
 	});
 });

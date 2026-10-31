@@ -21,7 +21,13 @@ import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import { buildLiveStatus } from "./storyFixtures";
+import {
+	buildLiveStatus,
+	buildQuestionTimelineArgs,
+	MockAsyncQuestionThenUnrelatedMessages,
+	MockEmptyQuestionState,
+	MockQueuedQuestionAnswer,
+} from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -431,6 +437,7 @@ const defaultArgs: Omit<
 	isAwaitingFirstStreamChunk: false,
 	chatStatus: null,
 	hasMoreMessages: false,
+	askUserQuestionState: MockEmptyQuestionState,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -1802,7 +1809,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: true,
-		parsedMessages: buildMessages([
+		...buildQuestionTimelineArgs([
 			{
 				...baseMessage,
 				id: 1,
@@ -1840,6 +1847,35 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 				id: 4,
 				role: "user",
 				content: [{ type: "text", text: askUserQuestionSubmittedResponse }],
+			},
+		]),
+	},
+};
+
+export const AsyncAskUserQuestionAnswerQueued: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: false,
+		onSendAskUserQuestionResponse: fn(),
+		...buildQuestionTimelineArgs(MockAsyncQuestionThenUnrelatedMessages, {
+			queuedMessages: [MockQueuedQuestionAnswer],
+		}),
+	},
+};
+
+export const AsyncAskUserQuestionAnsweredAfterUnrelatedMessage: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: true,
+		...buildQuestionTimelineArgs([
+			...MockAsyncQuestionThenUnrelatedMessages,
+			{
+				...baseMessage,
+				id: 8,
+				role: "user",
+				content: [
+					{ type: "text", text: `${getAsyncAnswerPrefix("question")}Backend` },
+				],
 			},
 		]),
 	},

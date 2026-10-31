@@ -17,6 +17,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import type { AskUserQuestionState } from "./askUserQuestionState";
 import { isActiveChatStatus } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
@@ -27,6 +28,7 @@ import {
 import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
+	showsStreamOutput,
 } from "./liveStatusModel";
 import {
 	AssistantMessageActions,
@@ -61,23 +63,6 @@ import {
 	type WorkingBlock,
 	wholeRowItem,
 } from "./workingBlockGrouping";
-
-const getChatMessageTextContent = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): string | undefined => {
-	if (!content) {
-		return undefined;
-	}
-
-	let textContent = "";
-	for (const part of content) {
-		if (part.type === "text") {
-			textContent += part.text;
-		}
-	}
-
-	return textContent.length > 0 ? textContent : undefined;
-};
 
 // Avoid announcing historical hook notices as live alerts.
 const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
@@ -145,9 +130,9 @@ const ChatMessageItem = memo<{
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	latestAskUserQuestionToolId?: string;
-	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
-	hasUserResponseAfterAskQuestion?: boolean;
+	latestAskUserQuestion?: MergedTool;
+	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
+	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage?: (messageKey: string) => void;
@@ -175,9 +160,9 @@ const ChatMessageItem = memo<{
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
-		latestAskUserQuestionToolId,
-		askUserQuestionResponseTextByToolId,
-		hasUserResponseAfterAskQuestion = false,
+		latestAskUserQuestion,
+		askUserQuestionResponseTextByTool,
+		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
 		nextUserMessageKey,
 		onJumpToUserMessage,
@@ -326,12 +311,12 @@ const ChatMessageItem = memo<{
 									onImplementPlan={onImplementPlan}
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
-									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-									askUserQuestionResponseTextByToolId={
-										askUserQuestionResponseTextByToolId
+									latestAskUserQuestion={latestAskUserQuestion}
+									askUserQuestionResponseTextByTool={
+										askUserQuestionResponseTextByTool
 									}
-									hasUserResponseAfterAskQuestion={
-										hasUserResponseAfterAskQuestion
+									isLatestAskUserQuestionAnswered={
+										isLatestAskUserQuestionAnswered
 									}
 									onImageClick={openImagePreview}
 									onTextFileClick={openTextPreview}
@@ -402,6 +387,7 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
+	askUserQuestionState: AskUserQuestionState;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -428,6 +414,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
+		askUserQuestionState,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -452,12 +439,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
 		const renderRows = assignTimelineRows(displayMessages, hasLiveAssistant);
 
-		// A live turn only reveals its stream blocks once output has accumulated.
-		// Before that the callout and thinking indicator stand in for the turn.
-		const showsStreamOutput =
-			liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
-		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
-		const liveTools = showsStreamOutput ? streamTools : [];
+		const isStreamOutputShown = showsStreamOutput(liveStatus);
+		const liveBlocks = isStreamOutputShown ? (streamState?.blocks ?? []) : [];
+		const liveTools = isStreamOutputShown ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
 		const turnAttachmentsByRow = getTurnAttachmentsByRow(renderRows, {
@@ -545,40 +529,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				nextKey: i < userRowKeys.length - 1 ? userRowKeys[i + 1] : undefined,
 			});
 		}
-		let latestAskUserQuestionToolId: string | undefined;
-		let hasUserResponseAfterAskQuestion = false;
-		const askUserQuestionResponseTextByToolId = new Map<string, string>();
-		let pendingAskUserQuestionToolId: string | undefined;
-		for (const { message, parsed } of parsedMessages) {
-			let askUserQuestionToolIdInMessage: string | undefined;
-			for (const tool of parsed.tools) {
-				if (tool.name === "ask_user_question") {
-					askUserQuestionToolIdInMessage = tool.id;
-					latestAskUserQuestionToolId = tool.id;
-					hasUserResponseAfterAskQuestion = false;
-				}
-			}
-
-			if (askUserQuestionToolIdInMessage) {
-				pendingAskUserQuestionToolId = askUserQuestionToolIdInMessage;
-			}
-
-			if (pendingAskUserQuestionToolId && message.role === "user") {
-				hasUserResponseAfterAskQuestion =
-					pendingAskUserQuestionToolId === latestAskUserQuestionToolId;
-				const responseText = getChatMessageTextContent(message.content);
-				if (responseText !== undefined) {
-					askUserQuestionResponseTextByToolId.set(
-						pendingAskUserQuestionToolId,
-						responseText,
-					);
-				}
-				pendingAskUserQuestionToolId = undefined;
-			}
-		}
-		const historicalAskUserQuestionResponseTextByToolId =
-			askUserQuestionResponseTextByToolId.size > 0
-				? askUserQuestionResponseTextByToolId
+		const latestAskUserQuestion = askUserQuestionState.latestTool;
+		const askUserQuestionResponseTextByTool =
+			askUserQuestionState.responseTextByTool.size > 0
+				? askUserQuestionState.responseTextByTool
 				: undefined;
 
 		const renderSlice = (
@@ -602,8 +556,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
+						latestAskUserQuestion={latestAskUserQuestion}
+						askUserQuestionResponseTextByTool={
+							askUserQuestionResponseTextByTool
+						}
+						isLatestAskUserQuestionAnswered={
+							askUserQuestionState.isLatestAnswered
+						}
 						subagentStatusOverrides={
-							showsStreamOutput ? subagentStatusOverrides : undefined
+							isStreamOutputShown ? subagentStatusOverrides : undefined
 						}
 						subagentTitles={subagentTitles}
 						subagentVariants={subagentVariants}
@@ -629,11 +590,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
-					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-					askUserQuestionResponseTextByToolId={
-						historicalAskUserQuestionResponseTextByToolId
+					latestAskUserQuestion={latestAskUserQuestion}
+					askUserQuestionResponseTextByTool={askUserQuestionResponseTextByTool}
+					isLatestAskUserQuestionAnswered={
+						askUserQuestionState.isLatestAnswered
 					}
-					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 					urlTransform={urlTransform}
 					// A block's item dims and inerts its slices as a whole.
 					isAfterEditingMessage={

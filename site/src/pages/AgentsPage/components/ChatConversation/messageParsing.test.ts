@@ -887,6 +887,49 @@ describe("pending durable tool parsing", () => {
 		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
 		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
 	});
+
+	it("keeps an older result off a newer call that reuses its ID", () => {
+		const messages = [
+			msg(1, "assistant", [toolCall("call-reused")]),
+			msg(2, "tool", [toolResult("call-reused")]),
+			msg(3, "user", [{ type: "text", text: "again" }]),
+			msg(4, "assistant", [toolCall("call-reused")]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+		});
+
+		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
+	});
+
+	it("pairs each result with the call before it when a call ID is reused", () => {
+		const messages = [
+			msg(1, "assistant", [toolCall("call-reused")]),
+			msg(2, "tool", [toolResult("call-reused", "create_workspace", true)]),
+			msg(3, "user", [{ type: "text", text: "again" }]),
+			msg(4, "assistant", [toolCall("call-reused")]),
+			msg(5, "tool", [toolResult("call-reused")]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(messages);
+
+		expect(parsed[0]?.parsed.tools[0]?.status).toBe("error");
+		expect(parsed[3]?.parsed.tools[0]?.status).toBe("completed");
+	});
+
+	it("keeps a newer result off an older call that reuses its ID", () => {
+		const messages = [
+			msg(1, "assistant", [toolCall("call-reused")]),
+			msg(2, "user", [{ type: "text", text: "again" }]),
+			msg(3, "assistant", [toolCall("call-reused")]),
+			msg(4, "tool", [toolResult("call-reused")]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(messages);
+
+		expect(parsed[0]?.parsed.tools[0]?.result).toBeUndefined();
+	});
 });
 
 describe("live tool result overlay", () => {

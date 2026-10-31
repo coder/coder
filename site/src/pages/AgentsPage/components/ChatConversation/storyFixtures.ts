@@ -1,12 +1,18 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MockPngBase64 } from "#/testHelpers/files";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
 	type LiveStatusModel,
 } from "./liveStatusModel";
+import { parseMessagesWithMergedTools } from "./messageParsing";
 import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
 import type {
 	MergedTool,
@@ -97,6 +103,35 @@ export const buildStreamRenderState = (
 	};
 };
 
+/** Pass liveTools only when the story shows stream output, as the page does. */
+export const buildQuestionTimelineArgs = (
+	messages: readonly TypesGen.ChatMessage[],
+	{
+		pendingToolCallIDs,
+		liveTools = [],
+		queuedMessages = [],
+	}: {
+		pendingToolCallIDs?: ReadonlySet<string>;
+		liveTools?: readonly MergedTool[];
+		queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	} = {},
+) => {
+	const parsedMessages = parseMessagesWithMergedTools(messages, {
+		pendingToolCallIDs,
+	});
+	return {
+		parsedMessages,
+		askUserQuestionState: deriveAskUserQuestionState(
+			parsedMessages,
+			liveTools,
+			queuedMessages,
+		),
+	};
+};
+
+/** Derived, not written out, so stories get the shape that the page derives. */
+export const MockEmptyQuestionState = deriveAskUserQuestionState([], [], []);
+
 /**
  * Pinned clock for stories that render countdown timers. Stories
  * should mock `Date.now` to return this value so the countdowns
@@ -138,7 +173,8 @@ type ToolStep = {
 	result: TypesGen.ChatToolResultPart["result"];
 };
 
-const workingStepMessages = (
+/** A tool call whose result sits in its own tool message, as the server stores it. */
+export const workingStepMessages = (
 	id: number,
 	toolCallId: string,
 	callAt: number,
@@ -574,6 +610,73 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 		},
 	],
 };
+
+/** An async ask_user_question result; the agent keeps working while it is open. */
+export const MockAsyncQuestionResult = {
+	questions: [
+		{
+			header: "Scope",
+			question: "Which part should change first?",
+			options: [
+				{ label: "Backend first, then the UI." },
+				{ label: "Frontend first, then the API." },
+			],
+		},
+	],
+	async: true,
+};
+
+/** Completes MockQuestionCallMessage's call, so a transcript with both messages has an open async question. */
+const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	role: "tool",
+	created_at: workingFixtureTime(6),
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result: { output: JSON.stringify(MockAsyncQuestionResult) },
+			created_at: workingFixtureTime(6),
+		},
+	],
+};
+
+/** A transcript whose latest step asked an async question that is still open. */
+export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	MockQuestionCallMessage,
+	MockAsyncQuestionResultMessage,
+];
+
+/** Its prefix names MockQuestionCallMessage's call ID, so it answers that call's question. */
+export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	content: [
+		{ type: "text", text: `${getAsyncAnswerPrefix("question")}Frontend` },
+	],
+	created_at: workingFixtureTime(7),
+};
+
+/** MockAsyncQuestionMessages followed by an exchange that leaves the question open. */
+export const MockAsyncQuestionThenUnrelatedMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages,
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "user",
+		created_at: workingFixtureTime(7),
+		content: [{ type: "text", text: "Also update the docs." }],
+	},
+	{
+		...MockChatMessage,
+		id: 7,
+		role: "assistant",
+		created_at: workingFixtureTime(8),
+		content: [{ type: "text", text: "Updating the docs." }],
+	},
+];
 
 /** A client tool call after the first step of MockWorkingMessages. */
 export const MockPendingToolMessage: TypesGen.ChatMessage = {

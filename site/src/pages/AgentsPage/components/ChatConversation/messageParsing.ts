@@ -140,18 +140,17 @@ export const getPendingToolCallIDs = (
 		return undefined;
 	}
 
+	// Only results in or after the newest assistant message settle its calls,
+	// so an older result for a reused call ID does not.
 	const resultIDs = new Set<string>();
-	for (const message of messages) {
+	for (const message of messages.toReversed()) {
+		if (message.role === "user") {
+			return undefined;
+		}
 		for (const part of message.content ?? []) {
 			if (isToolResultPart(part) && part.tool_call_id) {
 				resultIDs.add(part.tool_call_id);
 			}
-		}
-	}
-
-	for (const message of messages.toReversed()) {
-		if (message.role === "user") {
-			return undefined;
 		}
 		if (message.role !== "assistant") {
 			continue;
@@ -407,7 +406,7 @@ const isEditableUserMessageFileBlock = (
  * GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
  * whitespace-only chunks.
  */
-const getMessageText = (
+export const getMessageText = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): string =>
 	(content ?? [])
@@ -480,6 +479,10 @@ export const getEditableContentPayload = (
 	};
 };
 
+/**
+ * Providers can reuse a call ID, so a call takes the nearest result after it
+ * and an older result never completes a newer call.
+ */
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
 	options: MergeToolsOptions = {},
@@ -489,25 +492,20 @@ export const parseMessagesWithMergedTools = (
 		parsed: parseMessageContent(message.content),
 	}));
 
-	const globalToolResults = new Map<string, ParsedToolResult>();
-	for (const { parsed } of rawParsed) {
-		for (const result of parsed.toolResults) {
-			globalToolResults.set(result.id, result);
-		}
-	}
-
-	for (const { parsed } of rawParsed) {
+	// Results not yet claimed by a call, gathered walking backward.
+	const laterResults = new Map<string, ParsedToolResult>();
+	for (const { parsed } of rawParsed.toReversed()) {
 		const resultById = new Map<string, ParsedToolResult>();
 		for (const result of parsed.toolResults) {
 			resultById.set(result.id, result);
+			laterResults.set(result.id, result);
 		}
 		for (const call of parsed.toolCalls) {
-			if (!resultById.has(call.id)) {
-				const global = globalToolResults.get(call.id);
-				if (global) {
-					resultById.set(global.id, global);
-				}
+			const laterResult = laterResults.get(call.id);
+			if (laterResult) {
+				resultById.set(call.id, laterResult);
 			}
+			laterResults.delete(call.id);
 		}
 		parsed.tools = mergeTools(
 			parsed.toolCalls,
