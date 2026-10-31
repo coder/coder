@@ -694,24 +694,22 @@ describe("AgentCreatePage project frame", () => {
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 	});
 
-	it("looks up the owner of a project owned by someone else", async () => {
-		serveProjects({ ...MockChatProject, owner_id: MockUserMember.id });
-		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
-
-		renderAgentsRoutes();
-
-		await waitFor(() => {
-			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
-		});
-	});
-
-	it("does not look up the owner of the user's own project", async () => {
-		serveProjects(MockChatProject);
+	it("shows the owner of a project owned by someone else from its ACL", async () => {
+		const owner = { ...MockUserMember, name: "Jane Doe" };
+		serveProjects({ ...MockChatProject, owner_id: owner.id });
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockResolvedValue({ owner, users: [], groups: [] });
 		const getUser = vi.spyOn(API, "getUser");
 
 		renderAgentsRoutes();
 
-		await screen.findByRole("button", { name: "Project actions" });
+		const details = await screen.findByRole("region", { name: "Details" });
+		await within(details).findByText(owner.name);
+		expect(getACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
 		expect(getUser).not.toHaveBeenCalled();
 	});
 });
