@@ -208,6 +208,7 @@ type QuestionStepProps = {
 	onOtherTextChange: (text: string) => void;
 };
 
+/** One question with its answer options and the Other field. */
 export const QuestionStep: React.FC<QuestionStepProps> = ({
 	question,
 	questionIndex,
