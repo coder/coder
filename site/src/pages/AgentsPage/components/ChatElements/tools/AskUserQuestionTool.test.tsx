@@ -289,9 +289,9 @@ describe("AskUserQuestionTool", () => {
 			renderTool({ questions: [{ ...questions[0], options: [] }] }),
 		);
 		rerender(renderTool({}));
-		expect(screen.getByRole("status")).toHaveTextContent(
-			"Asking for clarification...",
-		);
+		expect(
+			screen.getByText("Asking for clarification...").closest("[role=status]"),
+		).toHaveAttribute("aria-live", "polite");
 		rerender(
 			renderTool({
 				status: "completed",
