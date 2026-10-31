@@ -550,6 +550,34 @@ WHERE chat_id = @chat_id::uuid
     AND content @> '[{"type": "file"}]'::jsonb
 ORDER BY id DESC;
 
+-- name: GetChatOpenPreviewResults :many
+-- Returns the results of successful built-in open_preview calls that the
+-- user can see in a chat, oldest first. The jsonb_typeof guard skips legacy
+-- V0 rows whose content is a scalar JSON string (predates migration 000434)
+-- so the lateral jsonb_array_elements never raises "cannot extract elements
+-- from a scalar". The containment check skips messages without an
+-- open_preview result before their parts are expanded.
+SELECT
+    (part->'result')::jsonb AS result
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = @chat_id::uuid
+    AND cm.role = 'tool'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND jsonb_typeof(cm.content) = 'array'
+    AND cm.content @> '[{"type": "tool-result", "tool_name": "open_preview"}]'::jsonb
+    AND part->>'type' = 'tool-result'
+    AND part->>'tool_name' = 'open_preview'
+    AND part ? 'result'
+    AND part->>'mcp_server_config_id' IS NULL
+    AND part->'is_error' IS DISTINCT FROM 'true'::jsonb
+    AND part->'provider_executed' IS DISTINCT FROM 'true'::jsonb
+ORDER BY
+    cm.id, ordinality;
+
 -- name: GetChatTurnStartID :one
 SELECT
     id
