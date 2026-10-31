@@ -482,11 +482,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			: getQuestionCallKey(toolCallId, startedAt);
 
 	// Only the latest question takes an answer, so an older one's draft goes.
+	// A newer question still streaming can fail, so the draft waits for it.
 	useEffect(() => {
-		if (!isLatestAskUserQuestion && draftKey !== undefined) {
+		if (isChatCompleted && !isLatestAskUserQuestion && draftKey !== undefined) {
 			removeFormDraft(draftKey);
 		}
-	}, [isLatestAskUserQuestion, draftKey]);
+	}, [isChatCompleted, isLatestAskUserQuestion, draftKey]);
 
 	const runningHeader = (
 		<ToolCall.Root
