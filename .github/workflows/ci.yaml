@@ -1253,6 +1253,46 @@ jobs:
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
+  migration-numbers:
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test migration tooling
+        run: node --test .github/scripts/migration-numbers.test.cjs
+
+      - name: Check migration numbers
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            # SHAs are fetched as data, with no branch text interpolated into a command.
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+            if [[ "$BASE_REF" == "main" ]]; then
+              git fetch --no-tags origin main
+              BASE_SHA="$(git rev-parse FETCH_HEAD)"
+            fi
+            node .github/scripts/migration-numbers.cjs "$BASE_SHA" "$HEAD_SHA"
+          else
+            node .github/scripts/migration-numbers.cjs HEAD
+          fi
+
   required:
     runs-on: ubuntu-latest
     needs:
@@ -1261,6 +1301,7 @@ jobs:
       - lint
       - lint-docs
       - lint-actions
+      - migration-numbers
       - gen
       - test-go-pg
       - test-go-pg-17
@@ -1287,6 +1328,7 @@ jobs:
           echo "- lint: ${{ needs.lint.result }}"
           echo "- lint-docs: ${{ needs.lint-docs.result }}"
           echo "- lint-actions: ${{ needs.lint-actions.result }}"
+          echo "- migration-numbers: ${{ needs.migration-numbers.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-pg-17: ${{ needs.test-go-pg-17.result }}"
