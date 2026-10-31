@@ -15,7 +15,8 @@ export type QuestionDraft = {
 export type FormDraft = {
 	drafts: QuestionDraft[];
 	questionIndex: number;
-	answeredQuestionCount: number;
+	/** Questions the user moved past, skipped ones included. */
+	completedQuestionCount: number;
 };
 
 const storageKeyPrefix = "agents.ask-user-question-draft.";
@@ -66,7 +67,7 @@ export const readFormDraft = (
 		questions: savedQuestions,
 		drafts,
 		questionIndex,
-		answeredQuestionCount,
+		completedQuestionCount,
 	} = stored;
 	if (
 		!isEqual(savedQuestions, questions) ||
@@ -76,11 +77,11 @@ export const readFormDraft = (
 			isQuestionDraft(draft, questions[index].options.length),
 		) ||
 		!isIntegerInRange(questionIndex, questions.length - 1) ||
-		!isIntegerInRange(answeredQuestionCount, questions.length)
+		!isIntegerInRange(completedQuestionCount, questions.length)
 	) {
 		return undefined;
 	}
-	return { drafts, questionIndex, answeredQuestionCount };
+	return { drafts, questionIndex, completedQuestionCount };
 };
 
 /** Saves the draft with the questions it answers, which a read must match. */

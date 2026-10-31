@@ -180,7 +180,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				: readFormDraft(draftKey, filteredQuestions)) ?? {
 				drafts: filteredQuestions.map(getDefaultDraft),
 				questionIndex: 0,
-				answeredQuestionCount: 0,
+				completedQuestionCount: 0,
 			},
 	);
 	// Set once the queue or transcript shows the answer. After that, the sent
@@ -226,7 +226,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		const draft = formDraft.drafts.at(index);
 		return draft?.selection === undefined ? getDefaultDraft(question) : draft;
 	});
-	const { answeredQuestionCount } = formDraft;
+	const { completedQuestionCount } = formDraft;
 	const activeQuestionIndex = Math.min(
 		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
@@ -329,9 +329,9 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			drafts: nextDrafts,
 			questionIndex: activeQuestionIndex + 1,
 			// Next confirms every question before the one it opens, so Back
-			// does not lower the answered count.
-			answeredQuestionCount: Math.max(
-				answeredQuestionCount,
+			// does not lower the completed count.
+			completedQuestionCount: Math.max(
+				completedQuestionCount,
 				activeQuestionIndex + 1,
 			),
 		});
@@ -418,7 +418,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 
 	// Skip moves past a question without answering it.
 	const answeredCount = drafts
-		.slice(0, answeredQuestionCount)
+		.slice(0, completedQuestionCount)
 		.filter((draft) => draft.selection !== "skipped").length;
 	const panelHeader = onToggleCollapsed && (
 		<QuestionPanelHeader

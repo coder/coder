@@ -16,7 +16,7 @@ const mockFormDraft: FormDraft = {
 		{ selection: "skipped", otherText: "later" },
 	],
 	questionIndex: 1,
-	answeredQuestionCount: 1,
+	completedQuestionCount: 1,
 };
 
 afterEach(() => {
