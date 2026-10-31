@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { UpdateUserQuietHoursScheduleRequest } from "#/api/typesGenerated";
@@ -11,10 +11,14 @@ const fillForm = async ({
 	hour,
 	minute,
 	timezone,
+	search = timezone,
+	keyboard = false,
 }: {
 	hour: number;
 	minute: number;
 	timezone: string;
+	search?: string;
+	keyboard?: boolean;
 }) => {
 	const user = userEvent.setup();
 	// findByLabelText already retries. Wrapping it in waitFor raced two 1s
@@ -28,9 +32,20 @@ const fillForm = async ({
 
 	const timezoneDropdown = screen.getByLabelText("Timezone");
 	await user.click(timezoneDropdown);
-	const list = screen.getByRole("listbox");
-	const option = within(list).getByText(timezone);
-	await user.click(option);
+	await user.type(
+		screen.getByRole("combobox", { name: "Search timezones" }),
+		search,
+	);
+	if (keyboard) {
+		await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+	} else {
+		const list = screen.getByRole("listbox");
+		await user.click(
+			within(list).getByRole("option", {
+				name: timezone.replaceAll("_", " "),
+			}),
+		);
+	}
 };
 
 const submitForm = async () => {
@@ -51,6 +66,24 @@ const cronTests = [
 		timezone: "Australia/Sydney",
 		hour: 0,
 		minute: 0,
+		search: "australia",
+	},
+	{
+		timezone: "America/New_York",
+		hour: 7,
+		minute: 30,
+		search: "new york",
+		keyboard: true,
+	},
+	{
+		timezone: "UTC",
+		hour: 2,
+		minute: 0,
+	},
+	{
+		timezone: "America/Chicago",
+		hour: 0,
+		minute: 0,
 	},
 ] as const;
 
@@ -65,14 +98,22 @@ describe("SchedulePage", () => {
 
 	describe("cron tests", () => {
 		it.each(cronTests)(
-			"case %# has the correct expected time",
+			"submits the selected timezone: $timezone",
 			async (test) => {
+				const onUpdate = vi.fn();
 				server.use(
+					http.get(`/api/v2/users/${MockUserOwner.id}/quiet-hours`, () => {
+						return HttpResponse.json({
+							...defaultQuietHoursResponse,
+							user_set: true,
+						});
+					}),
 					http.put(
 						`/api/v2/users/${MockUserOwner.id}/quiet-hours`,
 						async ({ request }) => {
 							const data =
 								(await request.json()) as UpdateUserQuietHoursScheduleRequest;
+							onUpdate(data);
 							return HttpResponse.json({
 								raw_schedule: data.schedule,
 								user_set: true,
@@ -89,10 +130,11 @@ describe("SchedulePage", () => {
 				renderWithAuth(<SchedulePage />);
 				await fillForm(test);
 				await submitForm();
-				const successMessage = await screen.findByText(
-					"Schedule updated successfully.",
-				);
-				expect(successMessage).toBeDefined();
+				await waitFor(() => {
+					expect(onUpdate).toHaveBeenCalledExactlyOnceWith({
+						schedule: `CRON_TZ=${test.timezone} ${test.minute} ${test.hour} * * *`,
+					});
+				});
 			},
 			15_000,
 		);
