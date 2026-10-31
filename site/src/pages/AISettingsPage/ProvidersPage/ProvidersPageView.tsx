@@ -22,7 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/components/addableProviderTypes";
@@ -115,8 +115,10 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					{isLoading || isFetching ? (
 						<TableLoader />
 					) : providers.length === 0 ? (
-						<TableEmpty
+						<TableEmptyState
+							variant="create"
 							message="No providers configured"
+							description="Connect an AI provider to make its models available."
 							cta={<AddProviderDropdown align="start" />}
 						/>
 					) : (

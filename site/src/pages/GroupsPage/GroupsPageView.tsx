@@ -14,7 +14,6 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
@@ -33,7 +32,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -182,6 +181,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 									canCreateGroup={canCreateGroup}
 									showAIBudget={showAIBudget}
 									filterUsed={filterProps.filter.used}
+									onResetFilters={() => filterProps.filter.update("")}
 								/>
 							</TableBody>
 						</Table>
@@ -197,6 +197,7 @@ type GroupsTableBodyProps = {
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 	filterUsed: boolean;
+	onResetFilters: () => void;
 };
 
 const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
@@ -204,6 +205,7 @@ const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 	canCreateGroup,
 	showAIBudget,
 	filterUsed,
+	onResetFilters,
 }) => {
 	if (groups === undefined) {
 		return <TableLoader showAIBudget={showAIBudget} />;
@@ -213,19 +215,17 @@ const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 		// first group; the org may already have groups that simply don't match.
 		if (filterUsed) {
 			return (
-				<TableRow>
-					<TableCell colSpan={999}>
-						<EmptyState
-							message="No groups match your search"
-							description="Try a different search term."
-						/>
-					</TableCell>
-				</TableRow>
+				<TableEmptyState
+					variant="search"
+					message="No groups match your search"
+					onResetFilters={onResetFilters}
+				/>
 			);
 		}
 		return (
-			<TableEmpty
-				message="No groups yet"
+			<TableEmptyState
+				variant="create"
+				message="No groups configured"
 				description={
 					canCreateGroup
 						? "Create your first group"

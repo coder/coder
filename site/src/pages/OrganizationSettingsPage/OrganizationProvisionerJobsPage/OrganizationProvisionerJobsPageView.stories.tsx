@@ -87,6 +87,13 @@ export const Empty: Story = {
 	},
 };
 
+export const NoJobsMatchingFilter: Story = {
+	args: {
+		jobs: [],
+		filter: { status: "pending", ids: "" },
+	},
+};
+
 export const OnFilter: Story = {
 	render: function FilterWithState({ ...args }) {
 		const [jobs, setJobs] = useState<ProvisionerJob[]>([]);

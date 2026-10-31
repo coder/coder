@@ -64,7 +64,7 @@ export const LoadError: Story = {
 			canvas.findByText("Failed to fetch AI Gateway keys"),
 		).resolves.toBeVisible();
 		await expect(
-			canvas.queryByText("No AI Gateway keys"),
+			canvas.queryByText("No AI Gateway keys configured"),
 		).not.toBeInTheDocument();
 		await expect(
 			canvas.getAllByRole("button", { name: /create key/i }),

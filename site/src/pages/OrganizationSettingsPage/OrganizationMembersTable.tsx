@@ -23,7 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
@@ -50,6 +50,8 @@ export type OrganizationMembersTableProps = {
 	me: string;
 	canEditMembers: boolean;
 	canViewActivity: boolean;
+	filterUsed: boolean;
+	onResetFilters: () => void;
 };
 
 type OrganizationMemberTableEntry = OrganizationMemberWithUserData & {
@@ -96,13 +98,29 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 	me,
 	canEditMembers,
 	canViewActivity,
+	filterUsed,
+	onResetFilters,
 }) => {
 	if (!members) {
 		return <TableLoader />;
 	}
 
 	if (!members.length) {
-		return <TableEmpty message="No members in this organization" />;
+		if (filterUsed) {
+			return (
+				<TableEmptyState
+					variant="search"
+					message="No members match your search"
+					onResetFilters={onResetFilters}
+				/>
+			);
+		}
+		return (
+			<TableEmptyState
+				variant="default"
+				message="No members in this organization"
+			/>
+		);
 	}
 
 	return (
