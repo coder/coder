@@ -80,6 +80,17 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if contentType == tarMimeType {
+		err := archive.ValidateTar(data)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid .tar archive file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	if contentType == zipMimeType || contentType == windowsZipMimeType {
 		zipReader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		if err != nil {
