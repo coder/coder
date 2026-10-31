@@ -55,6 +55,53 @@ const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
 	hookRewritten: false,
 });
 
+/**
+ * Rows inside render as one-line summaries: no toggle, chevron, content, or
+ * header actions. For previews whose full rows render elsewhere.
+ */
+const ToolCallSummaryContext = createContext(false);
+
+const SummaryProvider: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => (
+	<ToolCallSummaryContext.Provider value>
+		{children}
+	</ToolCallSummaryContext.Provider>
+);
+
+/**
+ * PROTOTYPE: rows inside draw a branch to the working block's rail, like the
+ * working block icon's branches: while running, or always for the newest row
+ * of a live peek, where the rail ends.
+ */
+type BranchMode = "off" | "running" | "always";
+
+const ToolCallBranchContext = createContext<BranchMode>("off");
+
+/**
+ * PROTOTYPE: the rail runs `railOffset` left of the rows (the working block's
+ * 1px border and 16px padding), and a branch rises `rise` above the header
+ * row's center, `rowCenter` below its top, so a rail ending inside it reads
+ * as one stroke. Its elbow turns on a `radius` curve and runs straight on to
+ * `arm`, short of the row's icon.
+ */
+export const branchGeometry = {
+	railOffset: 17,
+	rise: 16,
+	radius: 8,
+	arm: 12,
+	rowCenter: 12,
+} as const;
+
+const BranchProvider: React.FC<{
+	mode: BranchMode;
+	children: React.ReactNode;
+}> = ({ mode, children }) => (
+	<ToolCallBranchContext.Provider value={mode}>
+		{children}
+	</ToolCallBranchContext.Provider>
+);
+
 // Some renderer branches render no `ToolCall.Header`, so emitting the
 // badge here rather than in the header keeps attribution on those cards.
 const PolicyProvider: React.FC<{
@@ -153,8 +200,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 				? "expanded"
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
+	const summary = useContext(ToolCallSummaryContext);
 	const expanded = view !== "collapsed";
-	const collapsible = hasContent;
+	const collapsible = hasContent && !summary;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
@@ -183,10 +231,59 @@ const Root: React.FC<ToolCallRootProps> = ({
 				view,
 			}}
 		>
-			<div className={className} {...divProps}>
+			<RailRow active={active} className={className} {...divProps}>
 				{children}
-			</div>
+			</RailRow>
 		</ToolCallContext.Provider>
+	);
+};
+
+type ToolCallRailRowProps = React.ComponentProps<"div"> & {
+	/** Running: a `running` rail shows this row's branch. */
+	active: boolean;
+};
+
+/**
+ * PROTOTYPE: a row of a working block, on its rail. Inside a BranchProvider
+ * it draws its branch from the rail and marks itself so the block can end
+ * the rail at its last row; elsewhere it is a plain div.
+ */
+const RailRow: React.FC<ToolCallRailRowProps> = ({
+	active,
+	className,
+	children,
+	...divProps
+}) => {
+	const branchMode = useContext(ToolCallBranchContext);
+	const branch = branchMode !== "off";
+	const showsBranch =
+		branchMode === "always" || (branchMode === "running" && active);
+	return (
+		<div
+			className={cn(branch && "relative", className)}
+			data-rail-row={branch ? "" : undefined}
+			{...divProps}
+		>
+			{branch && (
+				// It retracts toward the rail when the row stops branching.
+				<span
+					aria-hidden
+					className="pointer-events-none absolute border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+					style={{
+						left: -branchGeometry.railOffset,
+						top: branchGeometry.rowCenter - branchGeometry.rise,
+						height: branchGeometry.rise,
+						width: branchGeometry.arm,
+						borderBottomLeftRadius: branchGeometry.radius,
+						clipPath: showsBranch ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
+					}}
+				/>
+			)}
+			{/* Nested rows, such as a sub-agent's tools, sit off the rail. */}
+			<ToolCallBranchContext.Provider value="off">
+				{children}
+			</ToolCallBranchContext.Provider>
+		</div>
 	);
 };
 type ToolCallHeaderRowProps = {
@@ -216,13 +313,14 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 }) => {
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
 	const { hookRewritten } = useContext(ToolPolicyContext);
+	const summary = useContext(ToolCallSummaryContext);
 	const resolvedAriaLabel =
 		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
 	const buttonAriaLabel =
 		resolvedAriaLabel && hookRewritten
 			? `${resolvedAriaLabel}, modified by policy`
 			: resolvedAriaLabel;
-	if (!collapsible && !alwaysButton) {
+	if (summary || (!collapsible && !alwaysButton)) {
 		return (
 			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
 		);
@@ -368,6 +466,9 @@ const HeaderActions: React.FC<{
 	children: React.ReactNode;
 	className?: string;
 }> = ({ children, className }) => {
+	if (useContext(ToolCallSummaryContext)) {
+		return null;
+	}
 	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;
 };
 
@@ -507,6 +608,9 @@ const Scrollable: React.FC<ToolCallScrollableProps> = ({
 export const ToolCall = {
 	Root,
 	PolicyProvider,
+	SummaryProvider,
+	BranchProvider,
+	RailRow,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

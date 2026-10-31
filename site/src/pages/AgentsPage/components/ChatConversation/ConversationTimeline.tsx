@@ -1,12 +1,16 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
-import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
+import {
+	MessageScroller,
+	useMessageScroller,
+	useMessageScrollerLayoutSync,
+} from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
@@ -39,6 +43,7 @@ import {
 	deriveMessageDisplayState,
 	type MessageAttachment,
 } from "./messageHelpers";
+import { shouldShowGenericThinking } from "./streamingActivity";
 import { TurnAttachments } from "./TurnAttachments";
 import { assignTimelineRows } from "./timelineRows";
 import type {
@@ -50,6 +55,7 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
+import { collectPeekItems } from "./WorkingBlockPeek";
 import {
 	getBlockTurnAttachments,
 	getExpansionKeys,
@@ -402,6 +408,11 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
+	/**
+	 * PROTOTYPE: previews a collapsed live block's newest steps. Defaults to
+	 * true.
+	 */
+	workingBlockPeek?: boolean;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -428,8 +439,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
+		workingBlockPeek,
 	}) => {
+		const peekEnabled = workingBlockPeek ?? true;
 		const { scrollToMessage } = useMessageScroller();
+		const syncLayout = useMessageScrollerLayoutSync();
+		// The item keys of the last commit, for the regroup check below.
+		const committedItemKeys = useRef<ReadonlySet<string>>(new Set());
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
@@ -494,6 +510,34 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		if (nextLiveBlockKeys !== liveBlockKeys) {
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
+
+		// PROTOTYPE: a render that regroups the timeline, such as a live block
+		// dissolving into its reasoning or a turn's blocks merging as it ends,
+		// can shrink it and let the browser clamp the scroll position. The
+		// scroller's own resize pass waits for the next frame, so one frame would
+		// paint the clamped position; reconcile before paint instead. Only when
+		// an item goes away, since only that can shrink the timeline: in
+		// following mode a resize pass scrolls to the end, and an appended
+		// prompt must reach the scroller's anchor handling first.
+		const itemSignature = layout.items
+			.map((item) =>
+				item.type === "block"
+					? (nextLiveBlockKeys.itemKeys.get(item.block.key) ?? item.block.key)
+					: item.slice.key,
+			)
+			.join("\n");
+		const onRegroup = useEffectEvent(() => syncLayout());
+		useLayoutEffect(() => {
+			const keys = new Set(itemSignature.split("\n"));
+			const removed = [...committedItemKeys.current].some(
+				(key) => !keys.has(key),
+			);
+			committedItemKeys.current = keys;
+			if (removed) {
+				onRegroup();
+			}
+		}, [itemSignature]);
+
 		const getItemKey = (block: WorkingBlock) =>
 			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 
@@ -581,6 +625,19 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		// PROTOTYPE: a reply after the live block takes over from its peek. A
+		// whole live row is a status row, such as a retry, not a reply.
+		const lastReplyIndex = layout.items.findLastIndex((item) => {
+			if (item.type !== "slice") {
+				return false;
+			}
+			const row = renderRows[item.slice.rowIndex];
+			if (row.type === "live") {
+				return item.slice.pieceRange !== undefined;
+			}
+			return !(collapseSteps && isAgentAttachmentOnlyRow(row));
+		});
+
 		const renderSlice = (
 			slice: RowSlice,
 			{ inWorkingBlock }: { inWorkingBlock: boolean },
@@ -659,7 +716,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				<LightboxHost>
-					{layout.items.map((item) => {
+					{layout.items.map((item, itemIndex) => {
 						if (item.type === "block") {
 							const { block } = item;
 							const itemKey = getItemKey(block);
@@ -676,6 +733,42 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
+							// The same slice content the expanded block renders.
+							const peekItems =
+								peekEnabled &&
+								block.isLive &&
+								!expanded &&
+								lastReplyIndex < itemIndex
+									? collectPeekItems(
+											block.slices.map(({ rowIndex, pieceRange }) => {
+												const row = renderRows[rowIndex];
+												const source =
+													row.type === "live"
+														? { blocks: liveBlocks, tools: liveTools }
+														: row.entry.parsed;
+												const content = getSliceContent(
+													source.blocks,
+													source.tools,
+													{ pieceRange, hideAttachments: true },
+												);
+												return {
+													...content,
+													isStreaming:
+														row.type === "live" &&
+														liveStatus.phase === "streaming",
+													// As the expanded block's live slice decides it.
+													pending:
+														row.type === "live" &&
+														content.endsRow &&
+														shouldShowGenericThinking({
+															liveStatus,
+															blocks: content.blocks,
+															tools: content.tools,
+														}),
+												};
+											}),
+										)
+									: [];
 
 							const blockAttachments = getBlockTurnAttachments(
 								block,
@@ -697,6 +790,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									<WorkingBlockDisclosure
 										block={block}
 										expanded={expanded}
+										peek={
+											peekEnabled
+												? {
+														items: peekItems,
+														organizationId,
+														mcpServers,
+														subagentTitles,
+														subagentVariants,
+													}
+												: undefined
+										}
 										onExpandedChange={(value) => {
 											keepBlock(block.liveKey);
 											setExpandedBlocks((previous) => {

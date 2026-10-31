@@ -114,7 +114,7 @@ export const AnswerWorkFoldsExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
-				name: "Worked for 15s (3 steps)",
+				name: "Worked for 15s (5 steps)",
 			}),
 		);
 	},
@@ -168,7 +168,9 @@ export const LabeledNarrationFolds: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Worked for 1s" }),
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 1s (1 step)",
+			}),
 		);
 	},
 };
@@ -480,7 +482,7 @@ export const TurnAttachmentsPillBlockExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
-				name: "Worked for 15s (4 steps)",
+				name: "Worked for 15s (6 steps)",
 			}),
 		);
 	},
