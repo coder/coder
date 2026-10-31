@@ -134,6 +134,23 @@ export const AsyncQuestionAnswer: Story = {
 	},
 };
 
+// The server trims each text part, so the prefix line ends its own part.
+export const AsyncQuestionAnswerWithSkillChip: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{ type: "text", text: getAsyncAnswerPrefix("toolu_01ABC").trimEnd() },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Use the backend plan" },
+			]),
+		],
+	},
+};
+
 export const WithSkillChips: Story = {
 	args: {
 		messages: [
