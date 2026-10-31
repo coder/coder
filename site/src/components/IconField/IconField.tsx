@@ -112,8 +112,7 @@ export const IconField: React.FC<IconFieldProps> = ({
 						>
 							<Suspense fallback={<Loader />}>
 								<EmojiPicker
-									onEmojiSelect={(emoji) => {
-										const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
+									onEmojiSelect={(picked) => {
 										onPickEmoji(picked);
 										setOpen(false);
 									}}
