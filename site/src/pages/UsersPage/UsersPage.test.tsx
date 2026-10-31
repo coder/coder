@@ -2,6 +2,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { usersQueryKey } from "#/api/queries/users";
+import type { UsersRequest } from "#/api/typesGenerated";
 import { MockUserOwner } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import UsersPage from "./UsersPage";
@@ -24,7 +26,7 @@ describe("UsersPage", () => {
 	it("resolves relative last seen values from the URL against the current time", async () => {
 		const filter =
 			'status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:-90d';
-		renderWithAuth(<UsersPage />, {
+		const { queryClient } = renderWithAuth(<UsersPage />, {
 			path: "/deployment/users",
 			route: `/deployment/users?filter=${encodeURIComponent(filter)}`,
 		});
@@ -37,6 +39,14 @@ describe("UsersPage", () => {
 				expect.anything(),
 			),
 		);
+
+		// The query key keeps the relative values, so it stays stable as time
+		// passes and each fetch resolves them again.
+		const keyQueries = queryClient
+			.getQueryCache()
+			.findAll({ queryKey: usersQueryKey })
+			.map((query) => (query.queryKey[1] as UsersRequest).q);
+		expect(keyQueries).toContain(filter);
 	});
 
 	it("stores a picked preset in the filter as relative values", async () => {
