@@ -4,6 +4,7 @@ import emojibaseMessages from "emojibase-data/en/messages.json";
 import type { EmojiData } from "frimousse";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
+import { EMOJI_SHEET } from "./emojiSheet";
 
 const COMPONENT_GROUP = 2;
 /** Highest Emoji version in the Apple set shipped in static/emojis. */
@@ -43,6 +44,29 @@ const emojiFile = (emoji: string): string => {
  */
 export const emojiToValue = (emoji: string): string =>
 	emoji.startsWith("/") ? emoji : `/emojis/${emojiFile(emoji)}.png`;
+
+const sheetCells = new Map(
+	EMOJI_SHEET.cells
+		.split(",")
+		.map((file, index): [string, number] => [file, index]),
+);
+
+/**
+ * Returns the column and row of a Unicode emoji in EMOJI_SHEET, or undefined
+ * for custom icons and emoji the sheet does not include.
+ */
+export const emojiSheetCell = (
+	emoji: string,
+): { column: number; row: number } | undefined => {
+	const index = sheetCells.get(emojiFile(emoji));
+	if (index === undefined) {
+		return undefined;
+	}
+	return {
+		column: index % EMOJI_SHEET.columns,
+		row: Math.floor(index / EMOJI_SHEET.columns),
+	};
+};
 
 const isShipped = (emoji: { emoji: string; version: number }) =>
 	emoji.version <= MAX_EMOJI_VERSION && !UNSHIPPED_EMOJI.has(emoji.emoji);
@@ -84,7 +108,7 @@ const skinToneLabel = (tone: keyof EmojiData["skinTones"]) =>
  * Builds the picker data from bundled Emojibase data, so the picker never
  * fetches from a CDN. Only emoji with a shipped PNG are included. Custom
  * icons are added as entries whose `emoji` is the icon path; the picker
- * renders every entry as an image.
+ * draws emoji from EMOJI_SHEET and renders icons as images.
  */
 export const buildEmojiData = (): EmojiData => {
 	const emojis: EmojiData["emojis"] = [];

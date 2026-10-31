@@ -1,7 +1,12 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
-import { buildEmojiData, emojiToValue, ICONS_CATEGORY } from "./emojiData";
+import {
+	buildEmojiData,
+	emojiSheetCell,
+	emojiToValue,
+	ICONS_CATEGORY,
+} from "./emojiData";
 
 const emojisDir = path.resolve(import.meta.dirname, "../../../static/emojis");
 const shippedFiles = readdirSync(emojisDir).filter((file) =>
@@ -24,6 +29,31 @@ describe("emojiData", () => {
 			}
 		}
 		expect(missing).toEqual([]);
+	});
+
+	it("draws every emoji and skin tone from the spritesheet", () => {
+		const missing: string[] = [];
+		for (const entry of buildEmojiData().emojis) {
+			if (entry.category === ICONS_CATEGORY) {
+				continue;
+			}
+			for (const emoji of [entry.emoji, ...Object.values(entry.skins ?? {})]) {
+				if (!emojiSheetCell(emoji)) {
+					missing.push(`${entry.label}: ${emoji}`);
+				}
+			}
+		}
+		expect(missing).toEqual([]);
+	});
+
+	it("finds an emoji's cell in the spritesheet", () => {
+		// Coordinates from emoji-datasource-apple's emoji.json.
+		expect(emojiSheetCell("\u{1F44B}")).toEqual({ column: 12, row: 48 });
+		expect(emojiSheetCell("\u{1F44B}\u{1F3FD}")).toEqual({
+			column: 12,
+			row: 51,
+		});
+		expect(emojiSheetCell("/icon/docker.svg")).toBeUndefined();
 	});
 
 	it("keeps FE0F only after text-presentation characters", () => {

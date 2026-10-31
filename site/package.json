@@ -34,7 +34,7 @@
 		"test:ci": "vitest run --project=unit",
 		"test:watch": "vitest --project=unit",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
+		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && node scripts/generate-emoji-sheet.mjs"
 	},
 	"imports": {
 		"#/*": "./src/*"

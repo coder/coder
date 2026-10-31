@@ -27,18 +27,23 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
-import { buildEmojiData, emojiToValue, ICONS_CATEGORY } from "./emojiData";
+import {
+	buildEmojiData,
+	emojiSheetCell,
+	emojiToValue,
+	ICONS_CATEGORY,
+} from "./emojiData";
+import { EMOJI_SHEET } from "./emojiSheet";
 
 const emojiData = buildEmojiData();
 const resolveEmojiData = () => emojiData;
 
-// Fetch the icon SVGs as soon as the picker chunk loads, so the Icons
-// category does not render empty tiles while they download.
-if (typeof Image !== "undefined") {
-	for (const entry of emojiData.emojis) {
-		if (entry.category === ICONS_CATEGORY) {
-			new Image().src = entry.emoji;
-		}
+// Fetch the emoji spritesheet and the icon SVGs as soon as the picker chunk
+// loads, so tiles do not render empty while they download.
+new Image().src = EMOJI_SHEET.url;
+for (const entry of emojiData.emojis) {
+	if (entry.category === ICONS_CATEGORY) {
+		new Image().src = entry.emoji;
 	}
 }
 
@@ -77,6 +82,34 @@ const Row: React.FC<EmojiPickerListRowProps> = ({ children, ...props }) => (
 	</div>
 );
 
+type EmojiImageProps = { emoji: string };
+
+const EmojiImage: React.FC<EmojiImageProps> = ({ emoji }) => {
+	const cell = emojiSheetCell(emoji);
+	if (!cell) {
+		return (
+			<ExternalImage
+				src={emojiToValue(emoji)}
+				className="pointer-events-none size-6 object-contain"
+				decoding="async"
+			/>
+		);
+	}
+	// Scale the sheet so one cell, padding included, fills the tile.
+	const { columns, rows } = EMOJI_SHEET;
+	return (
+		<span
+			aria-hidden="true"
+			className="pointer-events-none size-6 bg-no-repeat"
+			style={{
+				backgroundImage: `url(${EMOJI_SHEET.url})`,
+				backgroundSize: `${columns * 100}% ${rows * 100}%`,
+				backgroundPosition: `${(cell.column * 100) / (columns - 1)}% ${(cell.row * 100) / (rows - 1)}%`,
+			}}
+		/>
+	);
+};
+
 const Emoji: React.FC<EmojiPickerListEmojiProps> = ({ emoji, ...props }) => (
 	<button
 		type="button"
@@ -88,11 +121,7 @@ const Emoji: React.FC<EmojiPickerListEmojiProps> = ({ emoji, ...props }) => (
 		)}
 		{...props}
 	>
-		<ExternalImage
-			src={emojiToValue(emoji.emoji)}
-			className="pointer-events-none size-6 object-contain"
-			decoding="async"
-		/>
+		<EmojiImage emoji={emoji.emoji} />
 	</button>
 );
 
