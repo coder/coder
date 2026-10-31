@@ -22,10 +22,10 @@ export const isAsyncAnswerPrompt = (text: string): boolean =>
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
 	`${asyncAnswerLead}${toolCallId}:\n`;
 
-/** An answer split at its prefix line. */
+/** The call ID from an answer's prefix line, and the text after that line. */
 export type AsyncAnswer = {
 	toolCallId: string;
-	/** The text after the prefix line. */
+	/** Empty when the prefix line ends the text, as when a chip follows it. */
 	body: string;
 };
 
