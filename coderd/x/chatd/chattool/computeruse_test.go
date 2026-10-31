@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -69,35 +71,78 @@ func TestComputerUseProviderTool(t *testing.T) {
 	t.Parallel()
 
 	geometry := workspacesdk.DefaultDesktopGeometry()
-	def, err := chattool.ComputerUseProviderTool(
-		codersdk.ChatComputerUseProviderAnthropic,
-		geometry.DeclaredWidth,
-		geometry.DeclaredHeight,
-	)
-	require.NoError(t, err)
-	pdt, ok := def.(fantasy.ProviderDefinedTool)
-	require.True(t, ok, "ComputerUseProviderTool should return a ProviderDefinedTool")
-	assert.True(t, fantasyanthropic.IsComputerUseTool(def))
-	assert.Contains(t, pdt.ID, "computer")
-	assert.Equal(t, "computer", pdt.Name)
-	assert.Equal(t, int64(geometry.DeclaredWidth), pdt.Args["display_width_px"])
-	assert.Equal(t, int64(geometry.DeclaredHeight), pdt.Args["display_height_px"])
 
-	openAITool, err := chattool.ComputerUseProviderTool(
-		codersdk.ChatComputerUseProviderOpenAI,
-		geometry.DeclaredWidth,
-		geometry.DeclaredHeight,
-	)
-	require.NoError(t, err)
-	assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
+	tests := []struct {
+		version fantasyanthropic.ComputerUseToolVersion
+		// wantDisplay reports whether the definition carries the
+		// declared display size; the toolset takes none.
+		wantDisplay bool
+		wantZoom    any
+	}{
+		{
+			version:  fantasyanthropic.ComputerUseToolset20260801,
+			wantZoom: false,
+		},
+		{
+			version:     fantasyanthropic.ComputerUse20251124,
+			wantDisplay: true,
+		},
+		{
+			version:     fantasyanthropic.ComputerUse20250124,
+			wantDisplay: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.version), func(t *testing.T) {
+			t.Parallel()
 
-	_, err = chattool.ComputerUseProviderTool(
-		codersdk.ChatComputerUseProvider("unsupported"),
-		geometry.DeclaredWidth,
-		geometry.DeclaredHeight,
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported computer use provider")
+			def, err := chattool.ComputerUseProviderTool(
+				codersdk.ChatComputerUseProviderAnthropic,
+				tt.version,
+				geometry.DeclaredWidth,
+				geometry.DeclaredHeight,
+			)
+			require.NoError(t, err)
+			pdt, ok := def.(fantasy.ProviderDefinedTool)
+			require.True(t, ok, "ComputerUseProviderTool should return a ProviderDefinedTool")
+			assert.True(t, fantasyanthropic.IsComputerUseTool(def))
+			assert.Equal(t, "computer", pdt.Name)
+			assert.Equal(t, string(tt.version), pdt.Args["tool_version"])
+			assert.Equal(t, tt.wantZoom, pdt.Args["enable_zoom"])
+			wantWidth, wantHeight := int64(0), int64(0)
+			if tt.wantDisplay {
+				wantWidth, wantHeight = int64(geometry.DeclaredWidth), int64(geometry.DeclaredHeight)
+			}
+			assert.Equal(t, wantWidth, pdt.Args["display_width_px"])
+			assert.Equal(t, wantHeight, pdt.Args["display_height_px"])
+		})
+	}
+
+	t.Run("OpenAI", func(t *testing.T) {
+		t.Parallel()
+
+		openAITool, err := chattool.ComputerUseProviderTool(
+			codersdk.ChatComputerUseProviderOpenAI,
+			"",
+			geometry.DeclaredWidth,
+			geometry.DeclaredHeight,
+		)
+		require.NoError(t, err)
+		assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
+	})
+
+	t.Run("Unsupported", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := chattool.ComputerUseProviderTool(
+			codersdk.ChatComputerUseProvider("unsupported"),
+			"",
+			geometry.DeclaredWidth,
+			geometry.DeclaredHeight,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported computer use provider")
+	})
 }
 
 func TestComputerUseTool_Run_Screenshot(t *testing.T) {
@@ -123,7 +168,7 @@ func TestComputerUseTool_Run_Screenshot(t *testing.T) {
 		}, nil
 	})
 
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
 
@@ -167,7 +212,7 @@ func TestComputerUseTool_Run_Screenshot_PersistsAttachment(t *testing.T) {
 	var storedName string
 	var storedType string
 	var storedData []byte
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, name string, detectName string, data []byte) (chattool.AttachmentMetadata, error) {
 		storedName = name
@@ -221,7 +266,7 @@ func TestComputerUseTool_Run_Screenshot_StoreErrorFallsBackToImage(t *testing.T)
 		ScreenshotHeight: geometry.DeclaredHeight,
 	}, nil)
 
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		return chattool.AttachmentMetadata{}, xerrors.New("ETOOMANYFILES")
@@ -257,7 +302,7 @@ func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *t
 		ScreenshotHeight: geometry.DeclaredHeight,
 	}, nil)
 
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for oversized screenshots")
@@ -317,7 +362,7 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 		}, nil
 	})
 
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for left_click follow-up screenshots")
@@ -344,19 +389,19 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 func TestComputerUseTool_Run_Wait(t *testing.T) {
 	t.Parallel()
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	geometry := workspacesdk.DefaultDesktopGeometry()
+	mClock := quartz.NewMock(t)
 	followUpScreenshot := base64.StdEncoding.EncodeToString([]byte("after-wait"))
 
 	mockConn.EXPECT().ExecuteDesktopAction(
 		gomock.Any(),
 		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
 	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
-		require.NotNil(t, action.ScaledWidth)
-		require.NotNil(t, action.ScaledHeight)
-		assert.Equal(t, geometry.DeclaredWidth, *action.ScaledWidth)
-		assert.Equal(t, geometry.DeclaredHeight, *action.ScaledHeight)
+		assert.Equal(t, "screenshot", action.Action)
+		assertDesktopActionScaled(t, geometry, action)
 		return workspacesdk.DesktopActionResponse{
 			Output:           "screenshot",
 			ScreenshotData:   followUpScreenshot,
@@ -365,21 +410,38 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 		}, nil
 	})
 
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	trap := mClock.Trap().NewTimer("computeruse", "wait")
+	defer trap.Close()
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for wait screenshots")
 		return chattool.AttachmentMetadata{}, nil
-	}, quartz.NewReal(), slogtest.Make(t, nil))
+	}, mClock, slogtest.Make(t, nil))
 
-	call := fantasy.ToolCall{
-		ID:    "test-3",
-		Name:  "computer",
-		Input: `{"action":"wait","duration":10}`,
+	type toolResult struct {
+		resp fantasy.ToolResponse
+		err  error
 	}
+	resultCh := make(chan toolResult, 1)
+	go func() {
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "test-3",
+			Name:  "computer",
+			Input: `{"action":"wait","duration":10}`,
+		})
+		resultCh <- toolResult{resp: resp, err: err}
+	}()
 
-	resp, err := tool.Run(context.Background(), call)
-	require.NoError(t, err)
+	// Anthropic wait durations are in seconds.
+	call := trap.MustWait(ctx)
+	assert.Equal(t, 10*time.Second, call.Duration)
+	call.MustRelease(ctx)
+	mClock.Advance(10 * time.Second).MustWait(ctx)
+
+	result := testutil.RequireReceive(ctx, t, resultCh)
+	require.NoError(t, result.err)
+	resp := result.resp
 	assert.Equal(t, "image", resp.Type)
 	assert.Equal(t, "image/png", resp.MediaType)
 	expectedBinary, decErr := base64.StdEncoding.DecodeString(followUpScreenshot)
@@ -389,6 +451,343 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
+}
+
+func TestComputerUseTool_Run_AnthropicHoldKeyDurationSeconds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		duration     int64
+		wantDuration int
+	}{
+		{name: "Seconds", duration: 2, wantDuration: 2000},
+		{name: "CappedAt300Seconds", duration: 1000, wantDuration: 300_000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			gomock.InOrder(
+				mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+						assert.Equal(t, "hold_key", action.Action)
+						require.NotNil(t, action.Duration)
+						// The agent desktop takes milliseconds.
+						assert.Equal(t, tt.wantDuration, *action.Duration)
+						return workspacesdk.DesktopActionResponse{Output: "hold_key action performed"}, nil
+					}),
+				expectScreenshot(mockConn),
+			)
+
+			tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUse20251124, mockConn)
+			resp, err := tool.Run(context.Background(), anthropicComputerUseCall(
+				fmt.Sprintf(`{"action":"hold_key","text":"shift","duration":%d}`, tt.duration),
+			))
+			require.NoError(t, err)
+			assert.False(t, resp.IsError, resp.Content)
+		})
+	}
+}
+
+// The computer_toolset_20260801 toolset answers actions with text and sends a
+// screenshot only after the step's last computer call; older versions
+// screenshot after every action.
+func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Toolset", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		gomock.InOrder(
+			expectActionOutput(mockConn, "left_click", "left_click action performed"),
+			expectActionOutput(mockConn, "type", "type action performed"),
+			expectScreenshot(mockConn),
+			expectActionOutput(mockConn, "cursor_position", "x=10,y=20"),
+		)
+
+		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
+		observeStep(t, tool, "computer", "read_file", "computer")
+
+		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"left_click","coordinate":[100,200]}`))
+		require.NoError(t, err)
+		assert.Equal(t, fantasy.NewTextResponse("left_click action performed"), resp)
+
+		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"type","text":"hello"}`))
+		require.NoError(t, err)
+		assert.Equal(t, "image", resp.Type)
+		assert.False(t, resp.IsError)
+
+		// cursor_position answers with the position even as the last
+		// call of a step.
+		observeStep(t, tool, "computer")
+		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"cursor_position"}`))
+		require.NoError(t, err)
+		assert.Equal(t, fantasy.NewTextResponse("x=10,y=20"), resp)
+	})
+
+	t.Run("ToolsetWait", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		// A wait before the step's last call takes no screenshot. The
+		// screenshot is answered so a regression fails on the result
+		// instead of stalling the tool goroutine.
+		expectScreenshot(mockConn).Do(func(context.Context, workspacesdk.DesktopAction) {
+			t.Error("wait before the last call should not take a screenshot")
+		}).AnyTimes()
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTimer("computeruse", "wait")
+		defer trap.Close()
+		geometry := workspacesdk.DefaultDesktopGeometry()
+		tool := chattool.NewComputerUseTool(
+			codersdk.ChatComputerUseProviderAnthropic,
+			fantasyanthropic.ComputerUseToolset20260801,
+			geometry.DeclaredWidth,
+			geometry.DeclaredHeight,
+			func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			nil,
+			mClock,
+			slogtest.Make(t, nil),
+		)
+		observeStep(t, tool, "computer", "computer")
+
+		respCh := make(chan fantasy.ToolResponse, 1)
+		go func() {
+			resp, err := tool.Run(ctx, anthropicComputerUseCall(`{"action":"wait","duration":1}`))
+			assert.NoError(t, err)
+			respCh <- resp
+		}()
+		trap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(time.Second).MustWait(ctx)
+		assert.Equal(t, fantasy.NewTextResponse("wait action performed"), testutil.RequireReceive(ctx, t, respCh))
+	})
+
+	t.Run("Computer20251124", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		gomock.InOrder(
+			expectActionOutput(mockConn, "left_click", "left_click action performed"),
+			expectScreenshot(mockConn),
+			expectActionOutput(mockConn, "type", "type action performed"),
+			expectScreenshot(mockConn),
+		)
+
+		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUse20251124, mockConn)
+		observeStep(t, tool, "computer", "computer")
+
+		for _, input := range []string{
+			`{"action":"left_click","coordinate":[100,200]}`,
+			`{"action":"type","text":"hello"}`,
+		} {
+			resp, err := tool.Run(context.Background(), anthropicComputerUseCall(input))
+			require.NoError(t, err)
+			assert.Equal(t, "image", resp.Type, input)
+		}
+	})
+}
+
+// Later computer calls in a step act on the screen the failed call should
+// have produced, so they must not touch the desktop.
+func TestComputerUseTool_Run_AnthropicHaltsStepAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	gomock.InOrder(
+		mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+				assert.Equal(t, "key", action.Action)
+				return workspacesdk.DesktopActionResponse{}, xerrors.New("unknown key")
+			}),
+		expectScreenshot(mockConn),
+	)
+
+	tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
+	observeStep(t, tool, "computer", "computer", "computer")
+
+	resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"NotAKey"}`))
+	require.NoError(t, err)
+	assert.True(t, resp.IsError)
+	assert.Contains(t, resp.Content, "unknown key")
+
+	for _, input := range []string{
+		`{"action":"type","text":"hello"}`,
+		`{"action":"screenshot"}`,
+	} {
+		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(input))
+		require.NoError(t, err)
+		assert.Equal(t, fantasy.NewTextErrorResponse("Not executed: an earlier computer action in this turn failed."), resp, input)
+	}
+
+	// The failure does not carry into the next step.
+	observeStep(t, tool, "computer")
+	resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"screenshot"}`))
+	require.NoError(t, err)
+	assert.Equal(t, "image", resp.Type)
+	assert.False(t, resp.IsError)
+}
+
+// A computer call rejected before it runs, such as for malformed input, never
+// reaches the tool, yet it fails the step like a call that ran.
+func TestComputerUseTool_AnthropicStepWithRejectedCall(t *testing.T) {
+	t.Parallel()
+
+	rejected := fantasy.ToolCallContent{ToolCallID: "toolu_rejected", ToolName: "computer", Input: `{"action":"left_click",`}
+	click := fantasy.ToolCallContent{ToolCallID: "toolu_click", ToolName: "computer", Input: `{"action":"left_click","coordinate":[100,200]}`}
+	typeText := fantasy.ToolCallContent{ToolCallID: "toolu_type", ToolName: "computer", Input: `{"action":"type","text":"hello"}`}
+
+	// runStep runs the executable calls as chatd does after it rejects the
+	// other observed calls.
+	runStep := func(t *testing.T, conn workspacesdk.AgentConn, observed, executed []fantasy.ToolCallContent) []fantasy.ToolResultContent {
+		t.Helper()
+		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
+			ProviderTools:     []chatloop.ProviderTool{{Runner: newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, conn)}},
+			ToolCalls:         executed,
+			ObservedToolCalls: observed,
+			Clock:             quartz.NewReal(),
+		})
+		require.NoError(t, err)
+		var results []fantasy.ToolResultContent
+		for _, content := range outcome.Content {
+			if result, ok := content.(fantasy.ToolResultContent); ok {
+				results = append(results, result)
+			}
+		}
+		require.Len(t, results, len(executed))
+		return results
+	}
+
+	t.Run("HaltsLaterCalls", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		results := runStep(t, mockConn, []fantasy.ToolCallContent{rejected, typeText}, []fantasy.ToolCallContent{typeText})
+		halted, ok := results[0].Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok, "%T", results[0].Result)
+		require.EqualError(t, halted.Error, "Not executed: an earlier computer action in this turn failed.")
+	})
+
+	t.Run("LastRunCallTakesScreenshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		// The screenshot expectation is the assertion: the last call that
+		// runs attaches the batch's screenshot.
+		gomock.InOrder(
+			expectActionOutput(mockConn, "left_click", "left_click action performed"),
+			expectScreenshot(mockConn),
+		)
+
+		results := runStep(t, mockConn, []fantasy.ToolCallContent{click, rejected}, []fantasy.ToolCallContent{click})
+		_, isError := results[0].Result.(fantasy.ToolResultOutputContentError)
+		require.False(t, isError, "%v", results[0].Result)
+	})
+}
+
+func TestComputerUseTool_Run_AnthropicKeyRepeat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PressesRepeatTimes", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		gomock.InOrder(
+			mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+					assert.Equal(t, "key", action.Action)
+					require.NotNil(t, action.Text)
+					assert.Equal(t, "Down", *action.Text)
+					return workspacesdk.DesktopActionResponse{Output: "key action performed"}, nil
+				}).Times(3),
+			expectScreenshot(mockConn),
+		)
+
+		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
+		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"Down","repeat":3}`))
+		require.NoError(t, err)
+		assert.Equal(t, "image", resp.Type)
+	})
+
+	t.Run("RejectsOutOfRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
+		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"Down","repeat":101}`))
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "repeat must be between 1 and 100")
+	})
+}
+
+func newAnthropicComputerUseTool(t testing.TB, version fantasyanthropic.ComputerUseToolVersion, conn workspacesdk.AgentConn) fantasy.AgentTool {
+	t.Helper()
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	return chattool.NewComputerUseTool(
+		codersdk.ChatComputerUseProviderAnthropic,
+		version,
+		geometry.DeclaredWidth,
+		geometry.DeclaredHeight,
+		func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return conn, nil
+		},
+		nil,
+		quartz.NewReal(),
+		slogtest.Make(t, nil),
+	)
+}
+
+func anthropicComputerUseCall(input string) fantasy.ToolCall {
+	return fantasy.ToolCall{ID: "anthropic-call", Name: "computer", Input: input}
+}
+
+// observeStep announces a step's tool calls as the chat loop does before
+// running them.
+func observeStep(t testing.TB, tool fantasy.AgentTool, names ...string) {
+	t.Helper()
+	observer, ok := tool.(interface{ ObserveStepToolCalls(names []string) })
+	require.True(t, ok, "computer use tool should observe step tool calls")
+	observer.ObserveStepToolCalls(names)
+}
+
+// expectDesktopAction expects one desktop action and answers it with resp.
+// A different action fails the call.
+func expectDesktopAction(conn *agentconnmock.MockAgentConn, action string, resp workspacesdk.DesktopActionResponse) *gomock.Call {
+	return conn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, got workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			if got.Action != action {
+				return workspacesdk.DesktopActionResponse{}, xerrors.Errorf("got action %q, want %q", got.Action, action)
+			}
+			return resp, nil
+		})
+}
+
+func expectActionOutput(conn *agentconnmock.MockAgentConn, action, output string) *gomock.Call {
+	return expectDesktopAction(conn, action, workspacesdk.DesktopActionResponse{Output: output})
+}
+
+func expectScreenshot(conn *agentconnmock.MockAgentConn) *gomock.Call {
+	return expectDesktopAction(conn, "screenshot", workspacesdk.DesktopActionResponse{
+		Output:         "screenshot",
+		ScreenshotData: base64.StdEncoding.EncodeToString([]byte("screenshot")),
+	})
 }
 
 func TestComputerUseTool_Run_ScreenshotDataIsDecodedBinary(t *testing.T) {
@@ -413,6 +812,7 @@ func TestComputerUseTool_Run_ScreenshotDataIsDecodedBinary(t *testing.T) {
 
 	tool := chattool.NewComputerUseTool(
 		codersdk.ChatComputerUseProviderAnthropic,
+		fantasyanthropic.ComputerUse20251124,
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,
 		func(_ context.Context) (workspacesdk.AgentConn, error) {
@@ -454,7 +854,7 @@ func TestComputerUseTool_Run_ConnError(t *testing.T) {
 	t.Parallel()
 
 	geometry := workspacesdk.DefaultDesktopGeometry()
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("workspace not available")
 	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
 
@@ -474,7 +874,7 @@ func TestComputerUseTool_Run_InvalidInput(t *testing.T) {
 	t.Parallel()
 
 	geometry := workspacesdk.DefaultDesktopGeometry()
-	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("should not be called")
 	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
 
@@ -951,6 +1351,7 @@ func newOpenAIComputerUseTool(
 	t.Helper()
 	return chattool.NewComputerUseTool(
 		codersdk.ChatComputerUseProviderOpenAI,
+		"",
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,
 		func(_ context.Context) (workspacesdk.AgentConn, error) {

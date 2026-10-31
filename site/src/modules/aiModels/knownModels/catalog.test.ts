@@ -200,7 +200,9 @@ describe("isKnownComputerUseModel", () => {
 	});
 
 	it("does not match uncurated models, prefixes, or other providers", () => {
-		expect(isKnownComputerUseModel("anthropic", "claude-opus-5-5")).toBe(false);
+		expect(isKnownComputerUseModel("anthropic", "claude-haiku-4-5")).toBe(
+			false,
+		);
 		expect(isKnownComputerUseModel("anthropic", "claude-opus")).toBe(false);
 		expect(isKnownComputerUseModel("openai", "claude-opus-5")).toBe(false);
 	});

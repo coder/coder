@@ -1988,6 +1988,45 @@ export const ComputerError: Story = {
 	},
 };
 
+export const ComputerActionText: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		args: { action: "left_click", coordinate: [512, 300] },
+		result: { output: "left_click action performed" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Left click" });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionHalted: Story = {
+	args: {
+		name: "computer",
+		status: "error",
+		isError: true,
+		args: { action: "type", text: "hello" },
+		result: {
+			error: "Not executed: an earlier computer action in this turn failed.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: /^Type/ });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+		args: { action: "type", text: "hello" },
+	},
+};
+
 export const ComputerPromotedAttachmentArrayResult: Story = {
 	args: {
 		name: "computer",

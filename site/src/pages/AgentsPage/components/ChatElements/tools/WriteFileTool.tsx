@@ -62,9 +62,7 @@ export const WriteFileTool: React.FC<{
 			<ToolCall.Header iconName="write_file" label={label} />
 			<ToolCall.Content>
 				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
+					<ToolCall.ErrorDetail>{errorDetail}</ToolCall.ErrorDetail>
 				)}
 				{showDiff && (
 					<ToolCall.Scrollable

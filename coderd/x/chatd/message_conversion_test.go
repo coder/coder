@@ -1015,6 +1015,41 @@ func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	require.False(t, complete)
 }
 
+func TestDecisionObservesToolCallsAnsweredBeforeExecution(t *testing.T) {
+	t.Parallel()
+
+	// A pre_tool_use hook denied the first computer call at admission, so
+	// its result committed with the assistant step and only the last call is
+	// left to run. Step observers still see the denied call in its place,
+	// while the pending client call stays out.
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("fill in the form")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false,
+			codersdk.ChatMessageToolCall("call-denied", "computer", json.RawMessage(`{"action":"left_click"}`)),
+			codersdk.ChatMessageToolCall("call-client", "client_tool", json.RawMessage(`{}`)),
+			codersdk.ChatMessageToolCall("call-allowed", "computer", json.RawMessage(`{"action":"type","text":"hi"}`)),
+		),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false,
+			codersdk.ChatMessageToolResult("call-denied", "computer", json.RawMessage(`{"error":"denied"}`), true, false)),
+	}
+	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps:         codersdk.DefaultChatMaxStepsPerTurn,
+		messages:         messages,
+		dynamicToolNames: map[string]bool{"client_tool": true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionExecuteLocalTools, decision.kind)
+	callIDs := func(calls []fantasy.ToolCallContent) []string {
+		ids := make([]string, 0, len(calls))
+		for _, call := range calls {
+			ids = append(ids, call.ToolCallID)
+		}
+		return ids
+	}
+	require.Equal(t, []string{"call-allowed"}, callIDs(decision.localToolCalls))
+	require.Equal(t, []string{"call-denied", "call-allowed"}, callIDs(decision.observedToolCalls))
+}
+
 func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *testing.T) {
 	t.Parallel()
 
