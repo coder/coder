@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -463,6 +465,232 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			serverURL, err := url.Parse(tc.serverURL)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, mcpOAuth2ResourceIndicator(serverURL, tc.advertised))
+		})
+	}
+}
+
+func TestPlanMCPServerConfigWrite(t *testing.T) {
+	t.Parallel()
+
+	const (
+		serverURL = "https://mcp.example.com/mcp"
+		otherURL  = "https://other.example.com/mcp"
+		manual    = string(codersdk.MCPServerOAuth2ClientRegistrationManual)
+		dynamic   = string(codersdk.MCPServerOAuth2ClientRegistrationDynamic)
+	)
+	noAuth := database.MCPServerConfig{
+		Url:                      serverURL,
+		AuthType:                 "none",
+		OAuth2ClientRegistration: manual,
+		CustomHeaders:            "{}",
+	}
+	manualOAuth2 := noAuth
+	manualOAuth2.AuthType = "oauth2"
+	manualOAuth2.OAuth2ClientID = "manual-client"
+	manualOAuth2.OAuth2AuthURL = "https://auth.example.com/authorize"
+	manualOAuth2.OAuth2TokenURL = "https://auth.example.com/token"
+	dynamicOAuth2 := manualOAuth2
+	dynamicOAuth2.OAuth2ClientID = "dynamic-client"
+	dynamicOAuth2.OAuth2ClientRegistration = dynamic
+	// A row that an update saved as oauth2 without a client before
+	// updates could register one.
+	brokenOAuth2 := noAuth
+	brokenOAuth2.AuthType = "oauth2"
+
+	cases := []struct {
+		name            string
+		prev            database.MCPServerConfig
+		req             codersdk.UpdateMCPServerConfigRequest
+		wantMode        string
+		wantRegisterFor string
+		wantErr         string
+	}{
+		{
+			name: "CreateWithClientIsManual",
+			req: mcpServerConfigChangeFromCreate(codersdk.CreateMCPServerConfigRequest{
+				URL:            serverURL,
+				AuthType:       "oauth2",
+				OAuth2ClientID: "manual-client",
+				OAuth2AuthURL:  "https://auth.example.com/authorize",
+				OAuth2TokenURL: "https://auth.example.com/token",
+			}),
+			wantMode: manual,
+		},
+		{
+			name: "CreateWithoutClientRegisters",
+			req: mcpServerConfigChangeFromCreate(codersdk.CreateMCPServerConfigRequest{
+				URL:      serverURL,
+				AuthType: "oauth2",
+			}),
+			wantMode:        dynamic,
+			wantRegisterFor: serverURL,
+		},
+		{
+			name:            "NoneToOAuth2Registers",
+			prev:            noAuth,
+			req:             codersdk.UpdateMCPServerConfigRequest{AuthType: ptr.Ref("oauth2"), OAuth2ClientID: ptr.Ref("")},
+			wantMode:        dynamic,
+			wantRegisterFor: serverURL,
+		},
+		{
+			name:            "BrokenOAuth2Registers",
+			prev:            brokenOAuth2,
+			req:             codersdk.UpdateMCPServerConfigRequest{URL: ptr.Ref(serverURL)},
+			wantMode:        dynamic,
+			wantRegisterFor: serverURL,
+		},
+		{
+			name:     "EnabledOnlySkipsAuth",
+			prev:     brokenOAuth2,
+			req:      codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)},
+			wantMode: manual,
+		},
+		{
+			name:            "ManualToDynamicRegisters",
+			prev:            manualOAuth2,
+			req:             codersdk.UpdateMCPServerConfigRequest{OAuth2ClientRegistration: ptr.Ref(codersdk.MCPServerOAuth2ClientRegistrationDynamic)},
+			wantMode:        dynamic,
+			wantRegisterFor: serverURL,
+		},
+		{
+			name:     "ManualURLChangeKeepsClient",
+			prev:     manualOAuth2,
+			req:      codersdk.UpdateMCPServerConfigRequest{URL: ptr.Ref(otherURL)},
+			wantMode: manual,
+		},
+		{
+			name:            "DynamicURLChangeRegisters",
+			prev:            dynamicOAuth2,
+			req:             codersdk.UpdateMCPServerConfigRequest{URL: ptr.Ref(otherURL)},
+			wantMode:        dynamic,
+			wantRegisterFor: otherURL,
+		},
+		{
+			name: "DynamicRepeatedClientKeepsClient",
+			prev: dynamicOAuth2,
+			req: codersdk.UpdateMCPServerConfigRequest{
+				URL:            ptr.Ref(serverURL),
+				OAuth2ClientID: ptr.Ref(dynamicOAuth2.OAuth2ClientID),
+				OAuth2AuthURL:  ptr.Ref(dynamicOAuth2.OAuth2AuthURL),
+				OAuth2TokenURL: ptr.Ref(dynamicOAuth2.OAuth2TokenURL),
+			},
+			wantMode: dynamic,
+		},
+		{
+			name:     "DynamicToManualKeepsClient",
+			prev:     dynamicOAuth2,
+			req:      codersdk.UpdateMCPServerConfigRequest{OAuth2ClientRegistration: ptr.Ref(codersdk.MCPServerOAuth2ClientRegistrationManual)},
+			wantMode: manual,
+		},
+		{
+			name:    "PartialManualClient",
+			prev:    noAuth,
+			req:     codersdk.UpdateMCPServerConfigRequest{AuthType: ptr.Ref("oauth2"), OAuth2ClientID: ptr.Ref("manual-client")},
+			wantErr: "automatic discovery",
+		},
+		{
+			name:    "DynamicRejectsClientChange",
+			prev:    dynamicOAuth2,
+			req:     codersdk.UpdateMCPServerConfigRequest{OAuth2ClientID: ptr.Ref("other-client")},
+			wantErr: "Set oauth2_client_registration to manual",
+		},
+		{
+			name:    "APIKeyWithoutValue",
+			prev:    noAuth,
+			req:     codersdk.UpdateMCPServerConfigRequest{AuthType: ptr.Ref("api_key"), APIKeyHeader: ptr.Ref("X-Api-Key")},
+			wantErr: "requires api_key_header and api_key_value",
+		},
+		{
+			name:    "CustomHeadersWithoutHeader",
+			prev:    noAuth,
+			req:     codersdk.UpdateMCPServerConfigRequest{AuthType: ptr.Ref("custom_headers")},
+			wantErr: "requires at least one custom header",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			w, err := planMCPServerConfigWrite(tc.prev, tc.req, "")
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantMode, w.next.OAuth2ClientRegistration)
+			require.Equal(t, tc.wantRegisterFor, w.registerFor)
+		})
+	}
+}
+
+func TestMCPServerConfigWriteWithRegistration(t *testing.T) {
+	t.Parallel()
+
+	const (
+		serverURL = "https://mcp.example.com/mcp"
+		otherURL  = "https://other.example.com/mcp"
+		clientID  = "dynamic-client"
+	)
+	next := database.MCPServerConfig{
+		Url:                      serverURL,
+		AuthType:                 "oauth2",
+		OAuth2ClientRegistration: string(codersdk.MCPServerOAuth2ClientRegistrationDynamic),
+	}
+	registrationFor := func(u string) *mcpOAuth2Discovery {
+		return &mcpOAuth2Discovery{
+			serverURL: u,
+			clientID:  clientID,
+			authURL:   "https://auth.example.com/authorize",
+			tokenURL:  "https://auth.example.com/token",
+		}
+	}
+
+	cases := []struct {
+		name         string
+		registerFor  string
+		registration *mcpOAuth2Discovery
+		wantClientID string
+		wantConflict bool
+	}{
+		{
+			name: "NoRegistration",
+		},
+		{
+			name:         "MatchingRegistration",
+			registerFor:  serverURL,
+			registration: registrationFor(serverURL),
+			wantClientID: clientID,
+		},
+		{
+			name:         "MissingRegistration",
+			registerFor:  serverURL,
+			wantConflict: true,
+		},
+		{
+			name:         "RegistrationForOtherURL",
+			registerFor:  serverURL,
+			registration: registrationFor(otherURL),
+			wantConflict: true,
+		},
+		{
+			name:         "UnneededRegistration",
+			registration: registrationFor(serverURL),
+			wantConflict: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			w := mcpServerConfigWrite{next: next, registerFor: tc.registerFor}
+			got, err := w.withRegistration(database.MCPServerConfig{}, codersdk.UpdateMCPServerConfigRequest{}, tc.registration)
+			if tc.wantConflict {
+				require.ErrorIs(t, err, errMCPConfigChangedDuringRegistration)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, serverURL, got.Url)
+			require.Equal(t, tc.wantClientID, got.OAuth2ClientID)
 		})
 	}
 }
