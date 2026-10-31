@@ -758,6 +758,22 @@ export const AsyncQuestionDockedDisabled: Story = {
 	},
 };
 
+export const AsyncQuestionDockedSubmitting: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore()}
+			onSendAskUserQuestionResponse={fn(() => new Promise<void>(() => {}))}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const dock = within(
+			within(canvasElement).getByRole("region", { name: "Open question" }),
+		);
+		await userEvent.click(dock.getByRole("button", { name: "Submit" }));
+		await dock.findByRole("button", { name: /submitting/i });
+	},
+};
+
 export const AsyncQuestionDockedSubmitError: Story = {
 	render: () => (
 		<AsyncQuestionChatPage
