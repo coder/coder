@@ -82,8 +82,11 @@ const (
 // required; Clock defaults to a real clock when nil.
 type ListTemplatesOptions struct {
 	OwnerID uuid.UUID
-	Logger  slog.Logger
-	Clock   quartz.Clock
+	// ProjectID limits the list to the project's templates and recommends
+	// its default template.
+	ProjectID uuid.NullUUID
+	Logger    slog.Logger
+	Clock     quartz.Clock
 }
 
 type listTemplatesArgs struct {
@@ -142,9 +145,21 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 					Valid: true,
 				},
 			}
-			templates, err := db.GetTemplatesWithFilter(ctx, filterParams)
+			project, err := loadProjectTemplates(ctx, db, options.ProjectID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			var templates []database.Template
+			// An empty IDs filter matches every template, so a project
+			// without templates skips the query.
+			if project == nil || len(project.templateIDs) > 0 {
+				if project != nil {
+					filterParams.IDs = project.templateIDs
+				}
+				templates, err = db.GetTemplatesWithFilter(ctx, filterParams)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 			}
 
 			query := strings.TrimSpace(args.Query)
@@ -179,6 +194,9 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				visibleTemplateCount,
 				signalsErr,
 			)
+			if project != nil && slices.ContainsFunc(ranked, func(t rankedTemplate) bool { return project.isDefault(t.Template.ID) }) {
+				recommendedID, nextStep = project.defaultTemplateID.UUID, NextStepUseRecommended
+			}
 
 			page := args.Page
 			if page < 1 {
