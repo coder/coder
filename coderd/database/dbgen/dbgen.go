@@ -91,6 +91,11 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Icon:           seed.Icon,
+
+		TemplateIDs:                    seed.TemplateIDs,
+		DefaultTemplateID:              seed.DefaultTemplateID,
+		DefaultTemplateVersionPresetID: seed.DefaultTemplateVersionPresetID,
+		DefaultParameters:              pqtype.NullRawMessage{RawMessage: seed.DefaultParameters, Valid: len(seed.DefaultParameters) > 0},
 	})
 	require.NoError(t, err, "insert chat project")
 	return project

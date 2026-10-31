@@ -23631,6 +23631,9 @@ const docTemplate = `{
                 "permissions": {
                     "$ref": "#/definitions/codersdk.ChatProjectPermissions"
                 },
+                "templates": {
+                    "$ref": "#/definitions/codersdk.ChatProjectTemplates"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -23797,6 +23800,35 @@ const docTemplate = `{
                 "ChatProjectRoleAdmin",
                 "ChatProjectRoleDeleted"
             ]
+        },
+        "codersdk.ChatProjectTemplates": {
+            "type": "object",
+            "properties": {
+                "default_parameters": {
+                    "description": "DefaultParameters are parameter values, keyed by name, applied when a\nchat creates a workspace from the default template. Values the chat\npasses take precedence.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "default_preset_id": {
+                    "description": "DefaultPresetID is a preset of the default template's active version,\napplied when a chat creates a workspace from the default template\nwithout choosing a preset. It is mutually exclusive with\nDefaultParameters.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "default_template_id": {
+                    "description": "DefaultTemplateID is recommended to the project's chats and must be one\nof TemplateIDs.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                }
+            }
         },
         "codersdk.ChatProjectUser": {
             "type": "object",
@@ -24623,6 +24655,14 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "templates": {
+                    "description": "Templates defaults to no templates.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTemplates"
+                        }
+                    ]
                 }
             }
         },
@@ -33028,6 +33068,14 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "templates": {
+                    "description": "Templates replaces the project's templates and defaults as a whole when\nset.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectTemplates"
+                        }
+                    ]
                 }
             }
         },

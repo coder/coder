@@ -1935,6 +1935,7 @@ func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectP
 		Name:           project.Name,
 		Description:    project.Description,
 		Icon:           project.Icon,
+		Templates:      ChatProjectTemplates(project),
 		CreatedAt:      project.CreatedAt,
 		UpdatedAt:      project.UpdatedAt,
 	}
@@ -1957,6 +1958,29 @@ func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDR
 		}
 	}
 	return instructions
+}
+
+// ChatProjectTemplates converts a project's template list and defaults.
+func ChatProjectTemplates(project database.ChatProject) codersdk.ChatProjectTemplates {
+	templates := codersdk.ChatProjectTemplates{
+		TemplateIDs: project.TemplateIDs,
+	}
+	if templates.TemplateIDs == nil {
+		templates.TemplateIDs = []uuid.UUID{}
+	}
+	if project.DefaultTemplateID.Valid {
+		templates.DefaultTemplateID = &project.DefaultTemplateID.UUID
+	}
+	if project.DefaultTemplateVersionPresetID.Valid {
+		templates.DefaultPresetID = &project.DefaultTemplateVersionPresetID.UUID
+	}
+	// The handler writes this column from a map[string]string, so a decode
+	// failure means the row was edited by hand; omit the defaults then.
+	var parameters map[string]string
+	if err := json.Unmarshal(project.DefaultParameters, &parameters); err == nil && len(parameters) > 0 {
+		templates.DefaultParameters = parameters
+	}
+	return templates
 }
 
 func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {

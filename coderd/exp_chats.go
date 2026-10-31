@@ -1435,13 +1435,14 @@ func (api *API) createChat(
 	}
 
 	projectID := uuid.NullUUID{}
+	var project *database.ChatProject
 	if req.ProjectID != nil {
-		var status int
-		var resp *codersdk.Response
-		projectID, status, resp = api.validateChatProjectSelection(ctx, *req.ProjectID, ownerID, req.OrganizationID)
+		fetched, status, resp := api.validateChatProjectSelection(ctx, *req.ProjectID, ownerID, req.OrganizationID)
 		if resp != nil {
 			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(status, *resp)
 		}
+		project = &fetched
+		projectID = uuid.NullUUID{UUID: fetched.ID, Valid: true}
 	}
 
 	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1449,7 +1450,7 @@ func (api *API) createChat(
 		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, *inputError)
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ownerCtx, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ownerCtx, req, project)
 	if validationError != nil {
 		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(validationStatus, *validationError)
 	}
@@ -2870,6 +2871,24 @@ func (api *API) updateChat(
 				Message: "Workspace does not belong to this chat's organization.",
 			})
 		}
+		if chat.ProjectID.Valid {
+			// The chat update is already authorized, and only the project's
+			// template list is read, so this does not require
+			// chat_project:read.
+			//nolint:gocritic // See above.
+			project, err := api.Database.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get chat project.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			if !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, errChatProjectWorkspaceTemplate)
+				return
+			}
+		}
 	}
 
 	var projectUpdate *uuid.NullUUID
@@ -2886,12 +2905,11 @@ func (api *API) updateChat(
 		}
 		projectID := uuid.NullUUID{}
 		if *req.ProjectID != uuid.Nil {
-			var status int
-			var resp *codersdk.Response
-			projectID, status, resp = api.validateChatProjectSelection(ctx, *req.ProjectID, chat.OwnerID, chat.OrganizationID)
+			project, status, resp := api.validateChatProjectSelection(ctx, *req.ProjectID, chat.OwnerID, chat.OrganizationID)
 			if resp != nil {
 				return database.Chat{}, httperror.NewResponseError(status, *resp)
 			}
+			projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 		}
 		projectUpdate = &projectID
 	}
@@ -5067,34 +5085,34 @@ type createChatWorkspaceSelection struct {
 func (api *API) validateChatProjectSelection(
 	ctx context.Context,
 	projectID, ownerID, organizationID uuid.UUID,
-) (uuid.NullUUID, int, *codersdk.Response) {
+) (database.ChatProject, int, *codersdk.Response) {
 	notFound := &codersdk.Response{Message: "Chat project not found."}
 	project, err := api.Database.GetChatProjectByID(ctx, projectID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			return uuid.NullUUID{}, http.StatusNotFound, notFound
+			return database.ChatProject{}, http.StatusNotFound, notFound
 		}
-		return uuid.NullUUID{}, http.StatusInternalServerError, &codersdk.Response{
+		return database.ChatProject{}, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Internal error fetching chat project.",
 			Detail:  err.Error(),
 		}
 	}
 	usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, ownerID)
 	if err != nil {
-		return uuid.NullUUID{}, http.StatusInternalServerError, &codersdk.Response{
+		return database.ChatProject{}, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Internal error checking chat project access.",
 			Detail:  err.Error(),
 		}
 	}
 	if !usable {
-		return uuid.NullUUID{}, http.StatusNotFound, notFound
+		return database.ChatProject{}, http.StatusNotFound, notFound
 	}
 	if project.OrganizationID != organizationID {
-		return uuid.NullUUID{}, http.StatusBadRequest, &codersdk.Response{
+		return database.ChatProject{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Chat project does not belong to this chat's organization.",
 		}
 	}
-	return uuid.NullUUID{UUID: project.ID, Valid: true}, 0, nil
+	return project, 0, nil
 }
 
 func (api *API) validateChatWorkspaceSelection(
@@ -5139,6 +5157,7 @@ func (api *API) validateChatWorkspaceSelection(
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
+	project *database.ChatProject,
 ) (
 	createChatWorkspaceSelection,
 	int,
@@ -5158,8 +5177,18 @@ func (api *API) validateCreateChatWorkspaceSelection(
 			Message: "Workspace does not belong to the specified organization.",
 		}
 	}
+	if project != nil && !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
+		return selection, http.StatusBadRequest, &errChatProjectWorkspaceTemplate
+	}
 
 	return selection, 0, nil
+}
+
+// errChatProjectWorkspaceTemplate rejects attaching a workspace whose
+// template is not one of the chat project's templates. Workspaces already
+// bound to a chat keep working after a template leaves the project.
+var errChatProjectWorkspaceTemplate = codersdk.Response{
+	Message: "This workspace's template is not allowed in the chat's project.",
 }
 
 func (api *API) resolveCreateChatModelConfigID(
