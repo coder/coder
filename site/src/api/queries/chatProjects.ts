@@ -111,6 +111,39 @@ export const chatProjectACL = (project: TypesGen.ChatProject) =>
 			API.experimental.getChatProjectACL(project.organization_id, project.id),
 	});
 
+type SetChatProjectRoleVariables = {
+	project: TypesGen.ChatProject;
+	principal: { readonly kind: "user" | "group"; readonly id: string };
+	role: TypesGen.ChatProjectRole;
+};
+
+/** Sets a user's or group's project role; an empty role removes access. */
+export const setChatProjectRole = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ project, principal, role }: SetChatProjectRoleVariables) =>
+			API.experimental.updateChatProjectACL(
+				project.organization_id,
+				project.id,
+				{
+					[principal.kind === "group" ? "group_roles" : "user_roles"]: {
+						[principal.id]: role,
+					},
+				},
+			),
+		// Also refresh the project: a change or a 403 can revoke the viewer's admin.
+		onSettled: (_data, _error, { project }) =>
+			Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: chatProjectsKey,
+					exact: true,
+				}),
+				queryClient.invalidateQueries({
+					queryKey: chatProjectACLKey(project.id),
+					exact: true,
+				}),
+			]),
+	});
+
 export const updateChatProjectInstructions = (
 	queryClient: QueryClient,
 	project: TypesGen.ChatProject,

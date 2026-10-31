@@ -18,6 +18,8 @@ import {
 	MockChatProject,
 	MockChatProjectACL,
 	MockChatProjectInstructions,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	mockApiError,
@@ -482,7 +484,7 @@ describe("ProjectDetailsPanel", () => {
 
 	it.each([
 		{ source: "the members section", role: "region", name: "Members" },
-		{ source: "the access dialog", role: "dialog", name: "View access" },
+		{ source: "the access dialog", role: "dialog", name: "Manage access" },
 	])("retries loading access from $source", async ({ role, name }) => {
 		mockInstructions(MockChatProjectInstructions);
 		const aclError = mockApiError({ message: "Failed to load." });
@@ -589,14 +591,14 @@ describe("ProjectDetailsPanel", () => {
 		await waitFor(() => expect(skillsButton).toHaveFocus());
 	});
 
-	it("opens the project access dialog from View access, refetches access, and returns focus when it closes", async () => {
+	it("opens the project access dialog from Manage access, refetches access, and returns focus when it closes", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
 			.mockResolvedValue(MockChatProjectACL);
 		const { user } = renderPanel();
 		const accessButton = await screen.findByRole("button", {
-			name: "View access",
+			name: "Manage access",
 		});
 
 		await user.click(accessButton);
@@ -619,6 +621,46 @@ describe("ProjectDetailsPanel", () => {
 
 		await within(screen.getByRole("region", { name: "Details" })).findByText(
 			"Unknown",
+		);
+	});
+
+	it("grants a user access from the access dialog", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			...MockChatProjectACL,
+			users: [],
+		});
+		const updateACL = vi
+			.spyOn(API.experimental, "updateChatProjectACL")
+			.mockResolvedValue();
+		const { user } = renderPanel();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Manage access" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: /^User or group/ }),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockUserMember.username),
+			}),
+		);
+		await user.click(screen.getByRole("combobox", { name: "Role" }));
+		await user.click(await screen.findByRole("option", { name: /Admin/ }));
+		await user.click(screen.getByRole("button", { name: "Add" }));
+
+		await waitFor(() =>
+			expect(updateACL).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ user_roles: { [MockUserMember.id]: "admin" } },
+			),
 		);
 	});
 });
