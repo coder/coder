@@ -138,6 +138,8 @@ export const PublishTemplateVersionDialog: React.FC<
 											href={docs(
 												"/admin/templates/managing-templates#template-update-policies",
 											)}
+											target="_blank"
+											rel="noreferrer"
 										>
 											Review the documentation
 										</Link>

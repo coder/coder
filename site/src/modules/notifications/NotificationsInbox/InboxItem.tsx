@@ -31,7 +31,18 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 					className="text-content-secondary prose-sm font-medium wrap-anywhere"
 					components={{
 						a: ({ node, ...props }) => {
-							return <Link {...props} />;
+							// Notifications also link back into this deployment via
+							// absolute URLs; only other origins open a new tab.
+							const isExternal =
+								props.href?.startsWith("http") &&
+								!props.href.startsWith(location.origin);
+							return (
+								<Link
+									{...props}
+									target={isExternal ? "_blank" : undefined}
+									rel={isExternal ? "noreferrer" : undefined}
+								/>
+							);
 						},
 					}}
 				>

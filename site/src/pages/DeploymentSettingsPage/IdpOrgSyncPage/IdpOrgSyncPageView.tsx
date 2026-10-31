@@ -409,7 +409,11 @@ const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 						message="No organization mappings"
 						isCompact
 						cta={
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+							<Link
+								href={docs("/admin/users/idp-sync#organization-sync")}
+								target="_blank"
+								rel="noreferrer"
+							>
 								How to set up IdP organization sync
 							</Link>
 						}
