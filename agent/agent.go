@@ -1564,9 +1564,15 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
 	}
 
-	// Older servers do not send the build ID.
+	// Older servers do not send the build ID or the template.
 	if manifest.WorkspaceBuildID != uuid.Nil {
 		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
+	}
+	if manifest.TemplateID != uuid.Nil {
+		envs["CODER_WORKSPACE_TEMPLATE_ID"] = manifest.TemplateID.String()
+	}
+	if manifest.TemplateName != "" {
+		envs["CODER_WORKSPACE_TEMPLATE_NAME"] = manifest.TemplateName
 	}
 
 	// Allow any of the current env to override what we defined above.

@@ -1871,6 +1871,47 @@ func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
 	})
 }
 
+func TestAgent_CoderWorkspaceTemplateEnvVars(t *testing.T) {
+	t.Parallel()
+
+	manifest := agentsdk.Manifest{
+		TemplateID:   uuid.New(),
+		TemplateName: "test-template",
+	}
+	for key, want := range map[string]string{
+		"CODER_WORKSPACE_TEMPLATE_ID":   manifest.TemplateID.String(),
+		"CODER_WORKSPACE_TEMPLATE_NAME": manifest.TemplateName,
+	} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			command := "sh -c 'echo $" + key + "'"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo %" + key + "%"
+			}
+			session := setupSSHSession(t, manifest, codersdk.ServiceBannerConfig{}, nil)
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.Equal(t, want, strings.TrimSpace(string(output)))
+
+			// A manifest from a server that predates the template fields
+			// leaves the variable unset.
+			t.Run("Unset", func(t *testing.T) {
+				t.Parallel()
+				if runtime.GOOS == "windows" {
+					t.Skip("uses POSIX parameter expansion")
+				}
+				session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
+					opts.EnvInfo = withoutEnvInfo{exclude: key}
+				})
+				output, err := session.Output("sh -c 'echo ${" + key + "-unset}'")
+				require.NoError(t, err)
+				require.Equal(t, "unset", strings.TrimSpace(string(output)))
+			})
+		})
+	}
+}
+
 // withoutEnvInfo is the system environment without one variable.
 type withoutEnvInfo struct {
 	usershell.SystemEnvInfo
