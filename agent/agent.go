@@ -1540,11 +1540,14 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// and then merge them with the current environment.
 	envs := map[string]string{
 		// Set env vars indicating we're inside a Coder workspace.
-		"CODER":                      "true",
-		"CODER_WORKSPACE_NAME":       manifest.WorkspaceName,
-		"CODER_WORKSPACE_AGENT_NAME": manifest.AgentName,
-		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
-		"CODER_WORKSPACE_ID":         manifest.WorkspaceID.String(),
+		"CODER":                         "true",
+		"CODER_WORKSPACE_NAME":          manifest.WorkspaceName,
+		"CODER_WORKSPACE_AGENT_NAME":    manifest.AgentName,
+		"CODER_WORKSPACE_OWNER_NAME":    manifest.OwnerName,
+		"CODER_WORKSPACE_ID":            manifest.WorkspaceID.String(),
+		"CODER_WORKSPACE_BUILD_ID":      manifest.WorkspaceBuildID.String(),
+		"CODER_WORKSPACE_TEMPLATE_ID":   manifest.TemplateID.String(),
+		"CODER_WORKSPACE_TEMPLATE_NAME": manifest.TemplateName,
 
 		// Specific Coder subcommands require the agent token exposed!
 		"CODER_AGENT_TOKEN": a.client.GetSessionToken(),
@@ -1562,17 +1565,6 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// using its basepath to construct a path based port proxy.
 	if manifest.VSCodePortProxyURI != "" {
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
-	}
-
-	// Older servers do not send the build ID or the template.
-	if manifest.WorkspaceBuildID != uuid.Nil {
-		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
-	}
-	if manifest.TemplateID != uuid.Nil {
-		envs["CODER_WORKSPACE_TEMPLATE_ID"] = manifest.TemplateID.String()
-	}
-	if manifest.TemplateName != "" {
-		envs["CODER_WORKSPACE_TEMPLATE_NAME"] = manifest.TemplateName
 	}
 
 	// Allow any of the current env to override what we defined above.
