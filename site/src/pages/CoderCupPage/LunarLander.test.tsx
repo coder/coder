@@ -139,3 +139,42 @@ it.each([
 		unmount();
 	},
 );
+
+it("rewinds recent play behind a REWINDING... label when R is pressed", () => {
+	const { fillText, runFrame, unmount } = renderGame();
+	const drew = (text: string) =>
+		fillText.mock.calls.some(([drawn]) => drawn === text);
+	let now = 1;
+	const advance = (ms: number) => {
+		now += ms;
+		runFrame(now);
+	};
+
+	// R does nothing before a difficulty is chosen.
+	runFrame(now);
+	fireEvent.keyDown(window, { key: "r" });
+	advance(16);
+	expect(drew("REWINDING...")).toBe(false);
+
+	// Two seconds of free fall on Hard trips the velocity warning.
+	fireEvent.keyDown(window, { key: "h" });
+	advance(1);
+	for (let i = 0; i < 20; i++) advance(100);
+	fillText.mockClear();
+	advance(16);
+	expect(drew("⚠ WARNING")).toBe(true);
+
+	fireEvent.keyDown(window, { key: "R" });
+	fillText.mockClear();
+	advance(100);
+	expect(drew("REWINDING...")).toBe(true);
+
+	// The replay runs faster than real time and covers all of the
+	// play so far, so one second is enough to finish it.
+	for (let i = 0; i < 10; i++) advance(100);
+	fillText.mockClear();
+	advance(16);
+	expect(drew("REWINDING...")).toBe(false);
+	expect(drew("⚠ WARNING")).toBe(false);
+	unmount();
+});
