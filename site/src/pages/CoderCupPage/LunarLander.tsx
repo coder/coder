@@ -88,11 +88,41 @@ const EXPLOSION_PARTICLES = 28;
 // The lander spans from y=-7 (dome) to y=8 (feet) = 15 px tall.
 const LANDER_HEIGHT = 15;
 
-// Maximum touchdown speed: one lander height per second.
-const LANDING_MAX_SPEED = LANDER_HEIGHT;
+// Touchdown limits for a safe landing, chosen on the start screen.
+// Exceeding either destroys the lander and turns the matching HUD
+// readout into a warning.
+type LandingLimits = {
+	label: string;
+	// Lowercase keyboard shortcut on the start screen.
+	key: string;
+	// Maximum touchdown speed (px/s).
+	maxSpeed: number;
+	// Maximum tilt from vertical (radians).
+	maxAngle: number;
+};
 
-// Maximum tilt from vertical for a successful landing (10°).
-const LANDING_ANGLE_TOL = (10 * Math.PI) / 180;
+// Difficulty levels in the order their start-screen buttons appear.
+const DIFFICULTIES: readonly LandingLimits[] = [
+	{
+		label: "EASY",
+		key: "e",
+		maxSpeed: 50,
+		maxAngle: (30 * Math.PI) / 180,
+	},
+	{
+		label: "MODERATE",
+		key: "m",
+		maxSpeed: 30,
+		maxAngle: (20 * Math.PI) / 180,
+	},
+	// The original physics: one lander height per second and 10°.
+	{
+		label: "HARD",
+		key: "h",
+		maxSpeed: LANDER_HEIGHT,
+		maxAngle: (10 * Math.PI) / 180,
+	},
+];
 
 // How many Codernauts appear per round.
 const CODERNAUTS_PER_ROUND = 10;
@@ -102,9 +132,6 @@ const ROUND_TRANSITION_DELAY = 3;
 
 // How long the victory celebration plays (seconds).
 const VICTORY_DURATION = 6;
-
-// How long the intro title is shown (seconds).
-const INTRO_DURATION = 7;
 
 // Fuel consumption rates.
 const FUEL_BURN_MAIN = 2; // % per second of main thruster
@@ -891,6 +918,8 @@ function drawDashboard(
 	state: DashboardState,
 	cargo: Codernaut[],
 	savedPct: number,
+	// Null on the start screen, where no warnings apply.
+	limits: LandingLimits | null,
 ) {
 	const top = h - DASHBOARD_H;
 
@@ -977,8 +1006,8 @@ function drawDashboard(
 
 	// --- small panels (velocity, yaw, altitude, fuel) ---
 	const yawDeg = (state.yaw * 180) / Math.PI;
-	const velWarn = state.velocity > LANDING_MAX_SPEED;
-	const yawWarn = Math.abs(yawDeg) > (LANDING_ANGLE_TOL * 180) / Math.PI;
+	const velWarn = limits !== null && state.velocity > limits.maxSpeed;
+	const yawWarn = limits !== null && Math.abs(state.yaw) > limits.maxAngle;
 
 	const smallPanels = [
 		{ label: "VELOCITY", value: `${state.velocity.toFixed(1)}`, warn: velWarn },
@@ -1186,16 +1215,17 @@ function tryLanding(
 	vx: number,
 	vy: number,
 	pads: LandingPad[],
+	limits: LandingLimits,
 ): LandingPad | null {
 	const pad = findPadAt(x, pads);
 	if (!pad) return null;
 
 	// Orientation: must be roughly upright.
-	if (Math.abs(normalizeAngle(angle)) > LANDING_ANGLE_TOL) return null;
+	if (Math.abs(normalizeAngle(angle)) > limits.maxAngle) return null;
 
 	// Speed: magnitude must be within tolerance.
 	const speed = Math.sqrt(vx * vx + vy * vy);
-	if (speed > LANDING_MAX_SPEED) return null;
+	if (speed > limits.maxSpeed) return null;
 
 	return pad;
 }
@@ -1812,6 +1842,85 @@ function sidebarHitTest(
 	return null;
 }
 
+/**
+ * Layout of the difficulty buttons on the start screen, shared by
+ * drawing and click hit-testing so they always agree.
+ */
+function difficultyButtons(dashW: number, playH: number) {
+	const btnW = 130;
+	const btnH = 32;
+	const gap = 20;
+	const totalW = DIFFICULTIES.length * btnW + (DIFFICULTIES.length - 1) * gap;
+	const left = dashW / 2 - totalW / 2;
+	return DIFFICULTIES.map((limits, i) => ({
+		limits,
+		x: left + i * (btnW + gap),
+		y: playH * 0.74,
+		w: btnW,
+		h: btnH,
+	}));
+}
+
+/** Returns the difficulty whose start-screen button is under the point. */
+function difficultyHitTest(
+	mx: number,
+	my: number,
+	dashW: number,
+	playH: number,
+): LandingLimits | null {
+	for (const b of difficultyButtons(dashW, playH)) {
+		if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+			return b.limits;
+		}
+	}
+	return null;
+}
+
+/**
+ * Draw the title, controls help, and difficulty buttons. The game
+ * waits on this screen until the player picks a difficulty.
+ */
+function drawStartScreen(
+	ctx: CanvasRenderingContext2D,
+	dashW: number,
+	playH: number,
+	hovered: LandingLimits | null,
+) {
+	drawVectorText(ctx, "SAVE ALL", dashW / 2, playH * 0.25, 44);
+	drawVectorText(ctx, "CODERNAUTS", dashW / 2, playH * 0.43, 44);
+
+	ctx.fillStyle = "white";
+	ctx.font = "bold 14px monospace";
+	ctx.textAlign = "center";
+	ctx.fillText(
+		"press \u2190 or A to rotate left, \u2192 or D to rotate right",
+		dashW / 2,
+		playH * 0.59,
+	);
+	ctx.fillText("press \u2193 or S for main thruster", dashW / 2, playH * 0.65);
+
+	for (const b of difficultyButtons(dashW, playH)) {
+		const isHovered = hovered === b.limits;
+		ctx.fillStyle = isHovered ? "#222" : "black";
+		ctx.strokeStyle = isHovered ? "white" : "#888";
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.roundRect(b.x, b.y, b.w, b.h, 4);
+		ctx.fill();
+		ctx.stroke();
+		ctx.fillStyle = "white";
+		ctx.font = "bold 13px monospace";
+		ctx.fillText(b.limits.label, b.x + b.w / 2, b.y + 21);
+		ctx.fillStyle = "#888";
+		ctx.font = "11px monospace";
+		ctx.fillText(
+			`press ${b.limits.key.toUpperCase()}`,
+			b.x + b.w / 2,
+			b.y + b.h + 16,
+		);
+	}
+}
+
 export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -1859,7 +1968,8 @@ export const LunarLander: React.FC = () => {
 		let victory = false;
 		let victoryTimer = 0;
 		let victoryBursts: ExplosionParticle[][] = [];
-		let introTimer = INTRO_DURATION;
+		// Chosen on the start screen; null until the player picks one.
+		let limits: LandingLimits | null = null;
 		// Sidebar interaction state.
 		let savedBubbleTimer = 0;
 		let savedBubbleName = "";
@@ -1910,6 +2020,10 @@ export const LunarLander: React.FC = () => {
 		}
 
 		// ---- input ----
+		function selectDifficulty(picked: LandingLimits) {
+			limits = picked;
+			cvs.style.cursor = "";
+		}
 		// WASD aliases for players who prefer them over the arrow keys:
 		// A/D rotate like ArrowLeft/ArrowRight, S thrusts like ArrowDown.
 		// There is no alias for ArrowUp; it is unused by this game.
@@ -1922,6 +2036,14 @@ export const LunarLander: React.FC = () => {
 			S: "ArrowDown",
 		};
 		function onKeyDown(e: KeyboardEvent) {
+			if (!limits && !e.ctrlKey && !e.metaKey && !e.altKey) {
+				const picked = DIFFICULTIES.find((d) => d.key === e.key.toLowerCase());
+				if (picked) {
+					e.preventDefault();
+					selectDifficulty(picked);
+					return;
+				}
+			}
 			if (
 				e.key === "ArrowLeft" ||
 				e.key === "ArrowRight" ||
@@ -1968,6 +2090,17 @@ export const LunarLander: React.FC = () => {
 			const rect = cvs.getBoundingClientRect();
 			const mx = e.clientX - rect.left;
 			const my = e.clientY - rect.top;
+
+			if (!limits) {
+				const picked = difficultyHitTest(
+					mx,
+					my,
+					logicalW - SIDEBAR_W,
+					logicalH - DASHBOARD_H,
+				);
+				if (picked) selectDifficulty(picked);
+				return;
+			}
 
 			// Handle dialog button clicks first.
 			if (dialogVisible) {
@@ -2056,38 +2189,15 @@ export const LunarLander: React.FC = () => {
 
 			const dashW = logicalW - SIDEBAR_W;
 
-			// --- intro screen ---
-			if (introTimer > 0) {
-				introTimer -= dt;
+			// --- start screen: wait for a difficulty choice ---
+			if (!limits) {
 				cx.fillStyle = "black";
 				cx.fillRect(0, 0, logicalW, logicalH);
 
 				const playH = logicalH - DASHBOARD_H;
-				drawVectorText(cx, "SAVE ALL", dashW / 2, playH * 0.25, 44);
-				drawVectorText(cx, "CODERNAUTS", dashW / 2, playH * 0.43, 44);
-
-				cx.fillStyle = "white";
-				cx.font = "bold 14px monospace";
-				cx.textAlign = "center";
-				cx.fillText(
-					"press \u2190 or A to rotate left, \u2192 or D to rotate right",
-					dashW / 2,
-					playH * 0.59,
-				);
-				cx.fillText(
-					"press \u2193 or S for main thruster",
-					dashW / 2,
-					playH * 0.65,
-				);
-				if (Math.floor(introTimer * 2.5) % 2 === 0) {
-					cx.fillStyle = "#888";
-					cx.font = "12px monospace";
-					cx.fillText(
-						`get ready... ${Math.ceil(introTimer)}`,
-						dashW / 2,
-						playH * 0.76,
-					);
-				}
+				const hovered = difficultyHitTest(mouseX, mouseY, dashW, playH);
+				drawStartScreen(cx, dashW, playH, hovered);
+				cvs.style.cursor = hovered ? "pointer" : "";
 
 				drawDashboard(
 					cx,
@@ -2096,6 +2206,7 @@ export const LunarLander: React.FC = () => {
 					{ velocity: 0, yaw: 0, altitude: 0, fuel: 100 },
 					[],
 					0,
+					null,
 				);
 				frameId = requestAnimationFrame(loop);
 				return;
@@ -2128,6 +2239,7 @@ export const LunarLander: React.FC = () => {
 					{ velocity: 0, yaw: 0, altitude: 0, fuel: 100 },
 					[],
 					savedPct,
+					limits,
 				);
 				frameId = requestAnimationFrame(loop);
 				return;
@@ -2201,6 +2313,7 @@ export const LunarLander: React.FC = () => {
 							landerVx,
 							landerVy,
 							terrain.pads,
+							limits,
 						);
 						if (pad) {
 							landed = true;
@@ -2478,6 +2591,7 @@ export const LunarLander: React.FC = () => {
 				},
 				cargo,
 				savedPct,
+				limits,
 			);
 
 			frameId = requestAnimationFrame(loop);
@@ -2510,7 +2624,12 @@ export const LunarLander: React.FC = () => {
 
 	return (
 		<div ref={containerRef} className="w-full h-full bg-black">
-			<canvas ref={canvasRef} className="block" />
+			<canvas
+				ref={canvasRef}
+				className="block"
+				role="img"
+				aria-label="Save all Codernauts lunar lander game"
+			/>
 		</div>
 	);
 };
