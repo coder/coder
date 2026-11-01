@@ -133,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
-	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC216WithRole(context.Context, string) (
+	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
