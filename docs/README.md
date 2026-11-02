@@ -1,9 +1,7 @@
 ---
-title: About
+title: Home
 markdown_url: /docs.md
 ---
-
-<!-- Warning for docs contributors: The first section in docs/manifest/index.yml must be titled "About" for the static landing page to work correctly. -->
 
 ![Coder platform showing templates and a running workspace](./images/hero-image.png)
 
