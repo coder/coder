@@ -84,7 +84,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 				align={dropdownAlign}
 				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-72 max-w-[calc(100vw-2rem)] overflow-hidden p-0"
 			>
-				<Command size="sm" loop label="Search organizations">
+				<Command loop label="Search organizations">
 					<CommandInput placeholder="Search organizations..." />
 					<CommandList>
 						<CommandEmpty>No organizations found</CommandEmpty>
@@ -104,7 +104,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 										// the option's accessible name once they render, making
 										// name queries and screen-reader output timing-dependent.
 										aria-hidden
-										size="xs"
+										size="sm"
 										src={org.icon}
 										fallback={org.display_name || org.name}
 									/>

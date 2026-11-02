@@ -113,12 +113,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 					}
 				}}
 			>
-				<Command
-					size="sm"
-					loop
-					filter={filterByKeywords}
-					label="Search projects"
-				>
+				<Command loop filter={filterByKeywords} label="Search projects">
 					<CommandInput placeholder="Search projects..." />
 					<CommandList className="max-h-72">
 						<CommandEmpty>No projects found</CommandEmpty>
@@ -137,12 +132,12 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 							</CommandItem>
 						</CommandGroup>
 						{isLoading ? (
-							<div className="flex items-center gap-2 px-4 py-3 text-xs text-content-secondary">
+							<div className="flex items-center gap-2 px-4 py-3 text-sm text-content-secondary">
 								<Spinner loading size="sm" />
 								Loading projects…
 							</div>
 						) : error ? (
-							<div className="flex items-center gap-2 px-4 py-2 text-xs text-content-secondary">
+							<div className="flex items-center gap-2 px-4 py-2 text-sm text-content-secondary">
 								<span className="min-w-0 flex-1">
 									{getErrorMessage(error, "Failed to load projects.")}
 								</span>
@@ -190,8 +185,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 				<div className="border-0 border-t border-solid border-border px-2 py-1">
 					<Button
 						variant="subtle"
-						size="sm"
-						className="w-full justify-start gap-2 px-2 [&>svg]:p-0"
+						className="w-full justify-start gap-2 px-2"
 						onClick={() => {
 							setOpen(false);
 							onCreateProject();

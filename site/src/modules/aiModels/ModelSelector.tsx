@@ -212,7 +212,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					}
 				}}
 			>
-				<Command size="sm" label="Search models" shouldFilter={false}>
+				<Command label="Search models" shouldFilter={false}>
 					<CommandInput
 						value={search}
 						onValueChange={setSearch}
@@ -228,12 +228,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 								"mobile-full-width-dropdown-scroll-area",
 						)}
 					>
-						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
+						<CommandEmpty className="text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
 						{unsetLabel &&
 							(!query || unsetLabel.toLowerCase().includes(query)) && (
-								<CommandGroup className="p-1">
+								<CommandGroup>
 									<CommandItem
 										value="__unset__"
 										onSelect={() => {
@@ -337,7 +337,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	return (
 		<div className="flex items-center gap-3 border-0 border-t border-solid border-border bg-surface-secondary/40 px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
-				<span className="text-xs font-medium leading-[18px] text-content-secondary">
+				<span className="text-sm font-medium text-content-secondary">
 					Effort
 				</span>
 				<Tooltip>
@@ -377,7 +377,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 					<span
 						key={effort}
 						className={cn(
-							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-sm font-medium text-content-secondary",
 							index !== effortIndex && "invisible",
 						)}
 					>

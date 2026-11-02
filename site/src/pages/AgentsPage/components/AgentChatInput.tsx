@@ -515,7 +515,7 @@ const PlusMenuSubmenuPanel: React.FC<PlusMenuSubmenuPanelProps> = ({
 			ref={focusOnMount}
 			type="button"
 			onClick={onBack}
-			className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm border-none bg-transparent px-2 text-xs text-content-secondary outline-hidden transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+			className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-none bg-transparent px-2 text-sm text-content-secondary outline-hidden transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 		>
 			<ArrowLeftIcon className="size-3.5 shrink-0" />
 			<span>Back</span>
@@ -1604,7 +1604,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								side="bottom"
 								align="start"
 								aria-label="More options"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-56 p-1"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-56"
 							>
 								{plusMenuView !== "main" ? (
 									plusMenuSubmenuPanel
@@ -1617,9 +1617,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 													setPlusMenuOpen(false);
 													fileInputRef.current?.click();
 												}}
-												className="gap-2 text-xs leading-[18px]"
 											>
-												<PaperclipIcon className="size-3.5 shrink-0" />
+												<PaperclipIcon />
 												Attach file
 											</DropdownMenuItem>
 										)}
@@ -1627,9 +1626,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											checked={planModeEnabled}
 											onSelect={handlePlanModeToggle}
 											disabled={isDisabled}
-											className="gap-2 text-xs leading-[18px]"
 										>
-											<PencilIcon className="size-3.5 shrink-0" />
+											<PencilIcon />
 											<span>Plan first</span>
 										</DropdownMenuCheckboxItem>
 										{workspaceOptions &&
@@ -1642,9 +1640,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														event.preventDefault();
 														setPlusMenuView("workspace");
 													}}
-													className="gap-2 text-xs leading-[18px]"
 												>
-													<MonitorIcon className="size-3.5 shrink-0" />
+													<MonitorIcon />
 													<span>Attach workspace</span>
 													<ChevronRightIcon className="ml-auto size-icon-sm" />
 												</DropdownMenuItem>
@@ -1655,9 +1652,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												>
 													<DropdownMenuSubTrigger
 														disabled={!canUseWorkspacePicker}
-														className="gap-2 text-xs leading-[18px]"
 													>
-														<MonitorIcon className="size-3.5 shrink-0" />
+														<MonitorIcon />
 														<span>Attach workspace</span>
 													</DropdownMenuSubTrigger>
 
@@ -1689,8 +1685,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 													open={mcpMenuOpen}
 													onOpenChange={setMcpMenuOpen}
 												>
-													<DropdownMenuSubTrigger className="gap-2 text-xs leading-[18px]">
-														<PlugIcon className="size-3.5 shrink-0" />
+													<DropdownMenuSubTrigger>
+														<PlugIcon />
 														<span>MCP servers</span>
 													</DropdownMenuSubTrigger>
 
@@ -2050,7 +2046,6 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 }) => {
 	return (
 		<Command
-			size="sm"
 			label="Search workspaces"
 			loop
 			onKeyDown={(event) => {
@@ -2086,7 +2081,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 									}
 								}}
 							>
-								<Avatar aria-hidden size="xs" fallback={workspace.name} />
+								<Avatar aria-hidden size="sm" fallback={workspace.name} />
 								<span className="min-w-0 truncate">{workspace.name}</span>
 								{isSelected && (
 									<CheckIcon className="ml-auto size-icon-sm shrink-0" />

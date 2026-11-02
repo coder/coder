@@ -40,12 +40,9 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 			disabled={isDisabled || isForceOn || isDisconnected || !onToggle}
 			onCheckedChange={(checked) => onToggle?.(server.id, checked === true)}
 			onSelect={(event) => event.preventDefault()}
-			className={cn(
-				menuItemClass,
-				"gap-2 py-1.5 text-xs leading-[18px] data-disabled:opacity-100",
-			)}
+			className={cn(menuItemClass, "data-disabled:opacity-100")}
 		>
-			<span className="flex size-5 shrink-0 items-center justify-center rounded-md border border-solid border-border/60 bg-surface-secondary [&>svg]:size-4 [&>img]:size-4">
+			<span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-border/60 bg-surface-secondary [&>svg]:size-4 [&>img]:size-4">
 				{server.icon_url ? (
 					<ExternalImage src={server.icon_url} alt="" className="rounded-sm" />
 				) : (
@@ -73,7 +70,7 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 					<span className="sr-only">Always on</span>
 				)}
 			</span>
-			<span className="flex w-7 shrink-0 items-center justify-center">
+			<span className="flex w-9 shrink-0 items-center justify-center">
 				{isDisconnected ? (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -90,7 +87,7 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 					<span
 						aria-hidden="true"
 						className={cn(
-							"inline-flex h-4 w-7 shrink-0 items-center overflow-hidden rounded-full border border-solid transition-colors",
+							"inline-flex h-5 w-9 shrink-0 items-center overflow-hidden rounded-full border border-solid transition-colors",
 							(isDisabled || isForceOn || !onToggle) && "opacity-50",
 							isSelected
 								? "border-transparent bg-surface-invert-primary"
@@ -102,9 +99,9 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 					>
 						<span
 							className={cn(
-								"block size-3 shrink-0 rounded-full transition-transform",
+								"block size-4 shrink-0 rounded-full transition-transform",
 								isSelected
-									? "translate-x-3.25 bg-surface-primary"
+									? "translate-x-4.25 bg-surface-primary"
 									: "translate-x-px bg-border-control",
 								(isDisabled || isForceOn || !onToggle) &&
 									!isSelected &&
@@ -146,7 +143,7 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 				MCP servers
 			</DropdownMenuLabel>
 			{rows.length === 0 ? (
-				<p className="m-0 px-2 py-1.5 text-xs text-content-secondary">
+				<p className="m-0 px-2 py-1.5 text-sm text-content-secondary">
 					No servers connected yet
 				</p>
 			) : (
@@ -159,7 +156,7 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 					/>
 				))
 			)}
-			<div className="-mx-2 -mb-2 mt-2 flex items-center justify-between gap-4 border-0 border-t border-solid border-border px-4 py-2 text-xs">
+			<div className="-mx-2 -mb-2 mt-2 flex items-center justify-between gap-4 border-0 border-t border-solid border-border px-4 py-2 text-sm">
 				<span className="flex items-center gap-1.5 whitespace-nowrap text-content-secondary">
 					{disconnectedCount === 0 ? (
 						<CheckIcon
@@ -180,7 +177,6 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 					<DropdownMenuPrimitive.Item asChild onSelect={onManageConnections}>
 						<Button
 							variant="outline"
-							size="sm"
 							className="ml-auto"
 							aria-label="Manage MCP connections"
 						>
