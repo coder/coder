@@ -135,6 +135,7 @@ When two rule sources disagree, the one higher in this list wins:
 The [repository facts](#repository-facts) override any rule source about how the repository works, because they are checked against the repository.
 A rule that a higher source contradicts is not a finding.
 Record it in `adjacent_gaps` as `guide conflict: <lower page#anchor> says <X>, but <higher page#anchor> says <Y>`, so the guides get fixed.
+When two sections of the same source disagree about the text in front of you, the finding is a `suggestion` at most, and the conflict goes to `adjacent_gaps` the same way.
 
 ## Repository facts
 

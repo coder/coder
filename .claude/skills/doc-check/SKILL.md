@@ -303,7 +303,7 @@ This applies to class 4 only. A wrong claim, a missing fact the reader needs, an
 - A gap that existed before this change, in an area the change touches. Record it in the trace as an adjacent gap.
   A gap the change causes on a path it didn't edit, such as a download that loses data an upload now strips, is not a gap that existed before. It is `missing`.
 - A need for a tutorial, lab, or training track. Record it in the trace as an adjacent gap.
-- A conflict between two rule sources. Record it in the trace as an adjacent gap, so the guides get fixed.
+- A conflict between two rules, from two sources or two sections of one source. Record it in the trace as an adjacent gap, so the guides get fixed.
 - A design-friction note. Write one when the design makes a docs sentence hard to make accurate, such as one setting with several names, or a value inverted from the convention other tools use. Tie each note to the sentence. Write as many as the change earns, and re-evaluate them every round.
 
 ## What not to review
