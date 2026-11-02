@@ -6416,6 +6416,7 @@ export type HealthSection =
 	| "DERP"
 	| "Database"
 	| "ProvisionerDaemons"
+	| "Pubsub"
 	| "Websocket"
 	| "WorkspaceProxy";
 
@@ -6424,6 +6425,7 @@ export const HealthSections: HealthSection[] = [
 	"DERP",
 	"Database",
 	"ProvisionerDaemons",
+	"Pubsub",
 	"Websocket",
 	"WorkspaceProxy",
 ];

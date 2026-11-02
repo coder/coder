@@ -33837,7 +33837,8 @@
 				"Websocket",
 				"Database",
 				"WorkspaceProxy",
-				"ProvisionerDaemons"
+				"ProvisionerDaemons",
+				"Pubsub"
 			],
 			"x-enum-varnames": [
 				"HealthSectionDERP",
@@ -33845,7 +33846,8 @@
 				"HealthSectionWebsocket",
 				"HealthSectionDatabase",
 				"HealthSectionWorkspaceProxy",
-				"HealthSectionProvisionerDaemons"
+				"HealthSectionProvisionerDaemons",
+				"HealthSectionPubsub"
 			]
 		},
 		"healthsdk.HealthSettings": {
