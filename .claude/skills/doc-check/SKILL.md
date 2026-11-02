@@ -63,6 +63,8 @@ In a dry run with a skill ref, read it from that ref instead.
 
 Set the variables, then run the commands from the repository root.
 The packet path is unique per run, so overlapping runs never share files.
+To check GitHub access first, run `gh api repos/coder/coder --jq .full_name`.
+Never run `gh auth status`, because it prints most of the installation token into the transcript.
 
 ```sh
 PR=<PR number>
