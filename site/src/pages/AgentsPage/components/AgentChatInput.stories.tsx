@@ -724,6 +724,18 @@ export const WithTwoMCPServers: Story = {
 	},
 };
 
+const mockImageMCP = { ...sentryMCP, icon_url: "/icon/image.svg" };
+const mockLinearMCPWithIcon = { ...linearMCP, icon_url: "/icon/linear.svg" };
+
+/** Thin glyphs at the overlap boundary must be fully covered. */
+export const MCPOverlappingTransparentIcons: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [mockImageMCP, mockLinearMCPWithIcon],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id],
+	},
+};
+
 export const ReadOnlyNotice: Story = {
 	args: {
 		...mcpDefaults,
