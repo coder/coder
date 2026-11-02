@@ -765,11 +765,6 @@ func (tx *Tx) keepStatusAfterQueue(chat database.Chat) error {
 	return nil
 }
 
-// sendMessageInterrupt stores the message at the end of the steer lane and
-// lands the chat in I1, or I1P when it lands behind a steer message under
-// edit. An unowned chat has no runner to finish the interruption, so this
-// transaction finishes it and delivers the steer lane up to the first
-// message under edit.
 func (tx *Tx) sendMessageInterrupt(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehaviorSteer)
 	if err != nil {
