@@ -127,8 +127,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    result metadata unless they go back as an item reference, which
 //    needs a stored request, a stored source response and the reasoning
 //    item right before the search. Each search replays at most once.
-// See: https://github.com/coder/fantasy/commits/e1c559d180b6
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261029190405-e1c559d180b6
+// 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
+//    the toolset tool definition, ComputerUseToolVersionForModel, and
+//    mapping of toolset member calls to and from the computer tool.
+//    Since coder/fantasy#82, unknown model IDs take computer_20251124.
+// See: https://github.com/coder/fantasy/commits/7882f906a89a
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261102054736-7882f906a89a
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -209,7 +213,7 @@ require (
 	github.com/gohugoio/hugo v0.163.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
-	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
+	github.com/gomarkdown/markdown v0.0.0-20260724235538-61af6e1e6971
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/go-github/v61 v61.0.0

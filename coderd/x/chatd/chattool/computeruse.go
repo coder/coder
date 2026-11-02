@@ -47,24 +47,41 @@ func DefaultComputerUseDesktopGeometry(provider codersdk.ChatComputerUseProvider
 	}
 }
 
+// anthropicHaltedActionText answers the Anthropic computer calls of a step
+// that follow a failed one.
+const anthropicHaltedActionText = "Not executed: an earlier computer action in this turn failed."
+
+// anthropicMaxDurationSeconds caps Anthropic wait and hold_key durations, which
+// the Anthropic schema expresses in seconds.
+const anthropicMaxDurationSeconds = 300
+
+// anthropicMaxKeyRepeat is the largest key repeat count the Anthropic
+// computer use toolset accepts.
+const anthropicMaxKeyRepeat = 100
+
 // computerUseTool implements fantasy.AgentTool and chatloop.ToolDefiner.
 type computerUseTool struct {
-	provider         codersdk.ChatComputerUseProvider
-	declaredWidth    int
-	declaredHeight   int
-	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error)
-	storeFile        StoreFileFunc
-	providerOptions  fantasy.ProviderOptions
-	clock            quartz.Clock
-	logger           slog.Logger
+	provider codersdk.ChatComputerUseProvider
+	// anthropicToolVersion is the Anthropic tool version declared to the
+	// model. It decides the shape of Anthropic action results.
+	anthropicToolVersion fantasyanthropic.ComputerUseToolVersion
+	declaredWidth        int
+	declaredHeight       int
+	getWorkspaceConn     func(ctx context.Context) (workspacesdk.AgentConn, error)
+	storeFile            StoreFileFunc
+	providerOptions      fantasy.ProviderOptions
+	clock                quartz.Clock
+	logger               slog.Logger
 }
 
 // NewComputerUseTool creates a provider-aware computer use AgentTool that
-// delegates to the agent's desktop endpoints. declaredWidth and declaredHeight
+// delegates to the agent's desktop endpoints. anthropicToolVersion is the
+// Anthropic tool version declared to the model. declaredWidth and declaredHeight
 // are the model-facing desktop dimensions advertised to providers and requested
 // for screenshots.
 func NewComputerUseTool(
 	provider codersdk.ChatComputerUseProvider,
+	anthropicToolVersion fantasyanthropic.ComputerUseToolVersion,
 	declaredWidth, declaredHeight int,
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error),
 	storeFile StoreFileFunc,
@@ -72,13 +89,14 @@ func NewComputerUseTool(
 	logger slog.Logger,
 ) fantasy.AgentTool {
 	return &computerUseTool{
-		provider:         DefaultComputerUseProvider(provider),
-		declaredWidth:    declaredWidth,
-		declaredHeight:   declaredHeight,
-		getWorkspaceConn: getWorkspaceConn,
-		storeFile:        storeFile,
-		clock:            clock,
-		logger:           logger,
+		provider:             DefaultComputerUseProvider(provider),
+		anthropicToolVersion: anthropicToolVersion,
+		declaredWidth:        declaredWidth,
+		declaredHeight:       declaredHeight,
+		getWorkspaceConn:     getWorkspaceConn,
+		storeFile:            storeFile,
+		clock:                clock,
+		logger:               logger,
 	}
 }
 
@@ -94,21 +112,30 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 }
 
 // ComputerUseProviderTool creates the provider-defined computer-use tool
-// definition using the declared model-facing desktop geometry.
-func ComputerUseProviderTool(provider codersdk.ChatComputerUseProvider, declaredWidth, declaredHeight int) (fantasy.Tool, error) {
+// definition using the declared model-facing desktop geometry. For Anthropic,
+// anthropicToolVersion is the tool version declared to the model.
+func ComputerUseProviderTool(
+	provider codersdk.ChatComputerUseProvider,
+	anthropicToolVersion fantasyanthropic.ComputerUseToolVersion,
+	declaredWidth, declaredHeight int,
+) (fantasy.Tool, error) {
 	switch DefaultComputerUseProvider(provider) {
 	case codersdk.ChatComputerUseProviderAnthropic:
+		opts := fantasyanthropic.ComputerUseToolOptions{ToolVersion: anthropicToolVersion}
+		if opts.ToolVersion == fantasyanthropic.ComputerUseToolset20260801 {
+			// The toolset offers zoom unless it is disabled, and the
+			// agent desktop has no zoom action. Toolset coordinates are
+			// in screenshot pixels, so it takes no display size.
+			enableZoom := false
+			opts.EnableZoom = &enableZoom
+		} else {
+			opts.DisplayWidthPx = int64(declaredWidth)
+			opts.DisplayHeightPx = int64(declaredHeight)
+		}
 		// The run callback is nil because execution is handled separately
 		// by the AgentTool runner in the chatloop. We extract just the
 		// provider-defined tool definition.
-		return fantasyanthropic.NewComputerUseTool(
-			fantasyanthropic.ComputerUseToolOptions{
-				DisplayWidthPx:  int64(declaredWidth),
-				DisplayHeightPx: int64(declaredHeight),
-				ToolVersion:     fantasyanthropic.ComputerUse20251124,
-			},
-			nil,
-		).Definition(), nil
+		return fantasyanthropic.NewComputerUseTool(opts, nil).Definition(), nil
 	case codersdk.ChatComputerUseProviderOpenAI:
 		// OpenAI's GA computer tool schema does not accept display
 		// dimensions. The declared geometry is applied through screenshot
@@ -128,6 +155,20 @@ func (t *computerUseTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 	t.providerOptions = opts
 }
 
+// SerialToolCalls runs a step's computer calls one at a time in call order,
+// because they act on one shared desktop.
+func (*computerUseTool) SerialToolCalls() bool { return true }
+
+// HaltedToolCallError halts the later Anthropic computer calls of a step after
+// one fails. The model batches actions that assume the earlier ones succeeded,
+// so running them could act on the wrong screen.
+func (t *computerUseTool) HaltedToolCallError() (string, bool) {
+	if DefaultComputerUseProvider(t.provider) != codersdk.ChatComputerUseProviderAnthropic {
+		return "", false
+	}
+	return anthropicHaltedActionText, true
+}
+
 func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	switch DefaultComputerUseProvider(t.provider) {
 	case codersdk.ChatComputerUseProviderAnthropic:
@@ -143,6 +184,9 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	}
 }
 
+// runAnthropicComputerUse runs one Anthropic computer action. The toolset
+// answers actions other than screenshot with text, and the model asks for a
+// screenshot when it needs one. Older versions screenshot after every action.
 func (t *computerUseTool) runAnthropicComputerUse(
 	ctx context.Context,
 	call fantasy.ToolCall,
@@ -163,15 +207,16 @@ func (t *computerUseTool) runAnthropicComputerUse(
 
 	declaredWidth, declaredHeight := t.declaredActionDimensions()
 
-	// For wait actions, sleep then return a screenshot.
-	if input.Action == fantasyanthropic.ActionWait {
-		t.wait(ctx, input.Duration)
-		return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
-	}
-
-	// For screenshot action, use ExecuteDesktopAction.
-	if input.Action == fantasyanthropic.ActionScreenshot {
+	textResult := t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801
+	switch input.Action {
+	case fantasyanthropic.ActionScreenshot:
 		return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)
+	case fantasyanthropic.ActionWait:
+		t.wait(ctx, anthropicDurationMillis(input.Duration))
+		if textResult {
+			return fantasy.NewTextResponse("wait action performed"), nil
+		}
+		return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
 	}
 
 	// Build the action request.
@@ -188,7 +233,7 @@ func (t *computerUseTool) runAnthropicComputerUse(
 		action.Text = &input.Text
 	}
 	if input.Duration > 0 {
-		d := int(input.Duration)
+		d := int(anthropicDurationMillis(input.Duration))
 		action.Duration = &d
 	}
 	if input.ScrollAmount > 0 {
@@ -199,12 +244,46 @@ func (t *computerUseTool) runAnthropicComputerUse(
 		action.ScrollDirection = &input.ScrollDirection
 	}
 
-	if resp, done := t.executeDesktopAction(ctx, conn, action); done {
-		return resp, nil
+	presses := int64(1)
+	if input.Action == fantasyanthropic.ActionKey && input.Repeat != 0 {
+		if input.Repeat < 1 || input.Repeat > anthropicMaxKeyRepeat {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf(
+				"invalid computer use input: repeat must be between 1 and %d, got %d",
+				anthropicMaxKeyRepeat, input.Repeat,
+			)), nil
+		}
+		presses = input.Repeat
+	}
+	var actionResp workspacesdk.DesktopActionResponse
+	for range presses {
+		var errResp fantasy.ToolResponse
+		var done bool
+		actionResp, errResp, done = t.executeDesktopAction(ctx, conn, action)
+		if done {
+			return errResp, nil
+		}
 	}
 
-	// Take a screenshot after every action (Anthropic pattern).
+	if textResult {
+		// The agent reports cursor_position in declared coordinates, which
+		// are the toolset's screenshot coordinates.
+		output := actionResp.Output
+		if output == "" {
+			output = fmt.Sprintf("%s action performed", input.Action)
+		}
+		return fantasy.NewTextResponse(output), nil
+	}
 	return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
+}
+
+// anthropicDurationMillis converts an Anthropic duration in seconds to
+// milliseconds, capped at anthropicMaxDurationSeconds. Zero and negative
+// durations stay zero so callers apply their defaults.
+func anthropicDurationMillis(seconds int64) int64 {
+	if seconds <= 0 {
+		return 0
+	}
+	return min(seconds, anthropicMaxDurationSeconds) * 1000
 }
 
 func (t *computerUseTool) runOpenAIComputerUse(
@@ -238,7 +317,7 @@ func (t *computerUseTool) runOpenAIComputerUse(
 			t.wait(ctx, action.WaitDurationMillis)
 			continue
 		}
-		if resp, done := t.executeDesktopAction(ctx, conn, action.Action); done {
+		if _, resp, done := t.executeDesktopAction(ctx, conn, action.Action); done {
 			if action.ReleaseMouseOnFailure {
 				_, err := conn.ExecuteDesktopAction(
 					ctx,
@@ -275,18 +354,20 @@ func (t *computerUseTool) releaseOpenAIModifierKeys(
 	}
 }
 
+// executeDesktopAction runs action on the desktop. On failure it returns the
+// error response to send to the model and done set to true.
 func (*computerUseTool) executeDesktopAction(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	action workspacesdk.DesktopAction,
-) (fantasy.ToolResponse, bool) {
-	_, err := conn.ExecuteDesktopAction(ctx, action)
+) (actionResp workspacesdk.DesktopActionResponse, errResp fantasy.ToolResponse, done bool) {
+	actionResp, err := conn.ExecuteDesktopAction(ctx, action)
 	if err != nil {
-		return fantasy.NewTextErrorResponse(
+		return workspacesdk.DesktopActionResponse{}, fantasy.NewTextErrorResponse(
 			fmt.Sprintf("action %q failed: %v", action.Action, err),
 		), true
 	}
-	return fantasy.ToolResponse{}, false
+	return actionResp, fantasy.ToolResponse{}, false
 }
 
 func (*computerUseTool) desktopAction(

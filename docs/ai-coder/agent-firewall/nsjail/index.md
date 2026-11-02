@@ -8,7 +8,7 @@ title: nsjail jail type
 nsjail is Agent Firewall's default jail type that uses Linux namespaces to provide process isolation.
 It creates unprivileged network namespaces to control and monitor network access for processes running under Boundary.
 
-**Running on Docker, Kubernetes, or ECS?**
+**Running on Docker, Kubernetes, or Amazon Elastic Container Service (ECS)?**
 See the relevant page for runtime and permission requirements:
 
 - [nsjail on Docker](./docker.md)

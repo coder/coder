@@ -58,12 +58,6 @@
 			"icon_path": "./images/icons/download.svg",
 			"children": [
 				{
-					"title": "Coder CLI",
-					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.",
-					"path": "./install/cli.md",
-					"icon_path": "./images/icons/terminal.svg"
-				},
-				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
 					"path": "./install/plan/index.md",
