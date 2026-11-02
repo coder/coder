@@ -59,7 +59,7 @@ export const UnsetWithoutUpdatePermission: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByText("No instructions");
 		expect(
-			canvas.queryByRole("button", { name: "Create instructions" }),
+			canvas.queryByRole("button", { name: "Add instructions" }),
 		).not.toBeInTheDocument();
 	},
 };

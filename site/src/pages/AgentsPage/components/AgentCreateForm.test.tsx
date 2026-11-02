@@ -29,7 +29,10 @@ import {
 	userChatPersonalModelOverrides,
 	userChatPersonalModelOverridesKey,
 } from "#/api/queries/chats";
-import { organizationSkillsKey } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkillsKey,
+} from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { userSkillsKey } from "#/api/queries/userSkills";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -53,7 +56,10 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import { MockSkill } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import { mcpSelectionStorageKey } from "../utils/mcpSelection";
@@ -701,6 +707,9 @@ describe("AgentCreateForm organization lock", () => {
 		);
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user().click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 
@@ -834,24 +843,26 @@ describe("AgentCreateForm prefill", () => {
 		render(
 			<StrictMode>
 				<AppProviders queryClient={createTestQueryClient()}>
-					<AgentCreateForm
-						onCreateChat={onCreateChat}
-						isCreating={false}
-						createError={undefined}
-						canCreateChat
-						canConfigureAgentSetup={false}
-						workspaceCount={0}
-						workspaceOptions={[]}
-						workspacesError={undefined}
-						isWorkspacesLoading={false}
-						prefill={{
-							message: "Why did this build fail?",
-							attachment: {
-								name: "workspace-build-logs.txt",
-								text: "Error: exit status 1\n",
-							},
-						}}
-					/>
+					<MemoryRouter>
+						<AgentCreateForm
+							onCreateChat={onCreateChat}
+							isCreating={false}
+							createError={undefined}
+							canCreateChat
+							canConfigureAgentSetup={false}
+							workspaceCount={0}
+							workspaceOptions={[]}
+							workspacesError={undefined}
+							isWorkspacesLoading={false}
+							prefill={{
+								message: "Why did this build fail?",
+								attachment: {
+									name: "workspace-build-logs.txt",
+									text: "Error: exit status 1\n",
+								},
+							}}
+						/>
+					</MemoryRouter>
 				</AppProviders>
 			</StrictMode>,
 		);
@@ -958,6 +969,10 @@ describe("AgentCreateForm project picker", () => {
 		queryClient.setQueryData(organizationSkillsKey(MockOrganization2.id), [
 			{ ...MockSkill, name: "review" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey(MockOrganization2.id),
+			MockOrganizationSkillPreferences,
+		);
 		const { onCreateChat } = renderForm({}, { queryClient });
 
 		await user().click(screen.getByRole("textbox", { name: "Chat message" }));

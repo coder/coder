@@ -114,7 +114,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user, queryClient } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
@@ -235,7 +235,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, "Too long");
@@ -292,7 +292,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
@@ -320,7 +320,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create instructions" }),
+			await screen.findByRole("button", { name: "Add instructions" }),
 		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),

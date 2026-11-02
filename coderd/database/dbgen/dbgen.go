@@ -2146,6 +2146,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
 		WorkspaceID:                 seed.WorkspaceID,
+		OrganizationID:              seed.OrganizationID,
+		OrganizationSource:          seed.OrganizationSource,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

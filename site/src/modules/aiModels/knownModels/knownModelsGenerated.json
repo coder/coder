@@ -954,9 +954,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.239,
-			"outputCost": 11.936,
-			"cacheReadCost": 0.21
+			"inputCost": 0.192,
+			"outputCost": 15,
+			"cacheReadCost": 0.182
 		},
 		{
 			"provider": "openrouter",
@@ -965,9 +965,9 @@
 			"aliases": [],
 			"contextLimit": 262144,
 			"maxOutputTokens": 235929,
-			"inputCost": 0.6712,
-			"outputCost": 3.35,
-			"cacheReadCost": 0.18
+			"inputCost": 0.56,
+			"outputCost": 3.1,
+			"cacheReadCost": 0.15
 		},
 		{
 			"provider": "openrouter",
@@ -976,9 +976,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.079,
+			"inputCost": 0.0699,
 			"outputCost": 1.4,
-			"cacheReadCost": 0.078
+			"cacheReadCost": 0.0689
 		},
 		{
 			"provider": "openrouter",
@@ -987,9 +987,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 131072,
-			"inputCost": 0.0067,
-			"outputCost": 0.188,
-			"cacheReadCost": 0.0067
+			"inputCost": 0.0457,
+			"outputCost": 0.0742,
+			"cacheReadCost": 0.03
 		},
 		{
 			"provider": "openrouter",
@@ -998,9 +998,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.0341,
+			"inputCost": 0.006,
 			"outputCost": 7,
-			"cacheReadCost": 0.033
+			"cacheReadCost": 0.005
 		},
 		{
 			"provider": "openrouter",
@@ -1141,9 +1141,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 65536,
-			"inputCost": 0.825,
-			"outputCost": 4.125,
-			"cacheReadCost": 0.0825,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075,
 			"cacheWriteCost": 0.041667
 		},
 		{
@@ -1177,8 +1177,8 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.3,
-			"outputCost": 1.2,
+			"inputCost": 0.045,
+			"outputCost": 0.5,
 			"cacheReadCost": 0.006
 		},
 		{

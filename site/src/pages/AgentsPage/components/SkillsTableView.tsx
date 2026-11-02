@@ -90,6 +90,8 @@ export type SkillsTableViewProps = {
 	access: SkillAccess;
 	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
+	/** Replaces the admin enabled switch in the Enabled column. */
+	renderEnabledCell?: (skill: SkillMetadata) => React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
@@ -253,6 +255,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	access,
 	headerLevel,
 	toolbar,
+	renderEnabledCell,
 	error,
 	isLoading,
 	isRetrying,
@@ -274,8 +277,10 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 		rememberTrigger,
 		restoreFocus,
 	} = useDialogFocusReturn();
+
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
+
 	const addSkillAction = (ref?: React.Ref<HTMLButtonElement>) =>
 		access.create && (
 			<Button
@@ -291,6 +296,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				Add skill
 			</Button>
 		);
+
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
@@ -305,6 +311,130 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 			{addSkillAction(setPrimaryFallback)}
 		</div>
 	);
+
+	let tableBody: React.ReactNode;
+	if (isLoading) {
+		tableBody = (
+			<TableLoaderSkeleton>
+				<TableRowSkeleton aria-label={`Loading ${pluralNoun}`}>
+					<TableCell>
+						<Skeleton variant="text" className="w-32" />
+					</TableCell>
+					<TableCell className="w-full max-w-0">
+						<Skeleton variant="text" />
+					</TableCell>
+					<TableCell>
+						<Skeleton className="h-5 w-9" />
+					</TableCell>
+					<TableCell className="hidden sm:table-cell">
+						<Skeleton variant="text" className="w-44" />
+					</TableCell>
+					<TableCell>
+						<Skeleton className="size-8" />
+					</TableCell>
+				</TableRowSkeleton>
+			</TableLoaderSkeleton>
+		);
+	} else if (skills.length === 0 && error) {
+		tableBody = (
+			<TableEmpty
+				message={`Failed to load ${pluralNoun}`}
+				cta={
+					<RetryButton
+						variant="outline"
+						isRetrying={isRetrying}
+						onRetry={onRetry}
+					/>
+				}
+			/>
+		);
+	} else if (skills.length === 0) {
+		tableBody = (
+			<TableEmpty
+				message={`No ${pluralNoun} yet`}
+				description={access.create ? copy.emptyDescription : undefined}
+				cta={addSkillAction()}
+			/>
+		);
+	} else {
+		tableBody = skills.map((skill) => (
+			<TableRow key={skill.id}>
+				<TableCell className="max-w-48 truncate" title={skill.name}>
+					{skill.name}
+				</TableCell>
+				<TableCell
+					className="w-full max-w-0 truncate"
+					title={skill.description || undefined}
+				>
+					{skill.description || (
+						<span className="text-content-disabled">No description</span>
+					)}
+				</TableCell>
+				<TableCell>
+					{renderEnabledCell ? (
+						renderEnabledCell(skill)
+					) : (
+						<SkillEnabledSwitch
+							scope={scope}
+							skill={skill}
+							readOnly={!access.update}
+						/>
+					)}
+				</TableCell>
+				<TableCell className="hidden whitespace-nowrap sm:table-cell">
+					{formatUpdatedAt(skill.updated_at)}
+				</TableCell>
+				<TableCell className="text-right">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								aria-label="Open menu"
+								onPointerDown={rememberTrigger}
+								onKeyDown={rememberTrigger}
+							>
+								{downloadingSkillName === skill.name ? (
+									<Spinner className="size-4" loading />
+								) : (
+									<EllipsisVerticalIcon aria-hidden="true" />
+								)}
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								onClick={() => onDownload(skill)}
+								disabled={downloadingSkillName === skill.name}
+							>
+								Download
+							</DropdownMenuItem>
+							{onManagePermissions && (
+								<DropdownMenuItem
+									onClick={() => onManagePermissions(skill, restoreFocus)}
+								>
+									Manage permissions
+								</DropdownMenuItem>
+							)}
+							<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+								{access.update ? "Edit" : "View"}
+							</DropdownMenuItem>
+							{access.delete && (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={() => onDelete(skill)}
+									>
+										Delete&hellip;
+									</DropdownMenuItem>
+								</>
+							)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</TableCell>
+			</TableRow>
+		));
+	}
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -341,124 +471,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						</TableHead>
 					</TableRow>
 				</TableHeader>
-				<TableBody size="lg">
-					{isLoading ? (
-						<TableLoaderSkeleton>
-							<TableRowSkeleton aria-label={`Loading ${pluralNoun}`}>
-								<TableCell>
-									<Skeleton variant="text" className="w-32" />
-								</TableCell>
-								<TableCell className="w-full max-w-0">
-									<Skeleton variant="text" />
-								</TableCell>
-								<TableCell>
-									<Skeleton className="h-5 w-9" />
-								</TableCell>
-								<TableCell className="hidden sm:table-cell">
-									<Skeleton variant="text" className="w-44" />
-								</TableCell>
-								<TableCell>
-									<Skeleton className="size-8" />
-								</TableCell>
-							</TableRowSkeleton>
-						</TableLoaderSkeleton>
-					) : skills.length === 0 && error ? (
-						<TableEmpty
-							message={`Failed to load ${pluralNoun}`}
-							cta={
-								<RetryButton
-									variant="outline"
-									isRetrying={isRetrying}
-									onRetry={onRetry}
-								/>
-							}
-						/>
-					) : skills.length === 0 ? (
-						<TableEmpty
-							message={`No ${pluralNoun} yet`}
-							description={access.create ? copy.emptyDescription : undefined}
-							cta={addSkillAction()}
-						/>
-					) : (
-						skills.map((skill) => (
-							<TableRow key={skill.id}>
-								<TableCell className="max-w-48 truncate" title={skill.name}>
-									{skill.name}
-								</TableCell>
-								<TableCell
-									className="w-full max-w-0 truncate"
-									title={skill.description || undefined}
-								>
-									{skill.description || (
-										<span className="text-content-disabled">
-											No description
-										</span>
-									)}
-								</TableCell>
-								<TableCell>
-									<SkillEnabledSwitch
-										scope={scope}
-										skill={skill}
-										readOnly={!access.update}
-									/>
-								</TableCell>
-								<TableCell className="hidden whitespace-nowrap sm:table-cell">
-									{formatUpdatedAt(skill.updated_at)}
-								</TableCell>
-								<TableCell className="text-right">
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												aria-label="Open menu"
-												onPointerDown={rememberTrigger}
-												onKeyDown={rememberTrigger}
-											>
-												{downloadingSkillName === skill.name ? (
-													<Spinner className="size-4" loading />
-												) : (
-													<EllipsisVerticalIcon aria-hidden="true" />
-												)}
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end">
-											<DropdownMenuItem
-												onClick={() => onDownload(skill)}
-												disabled={downloadingSkillName === skill.name}
-											>
-												Download
-											</DropdownMenuItem>
-											{onManagePermissions && (
-												<DropdownMenuItem
-													onClick={() =>
-														onManagePermissions(skill, restoreFocus)
-													}
-												>
-													Manage permissions
-												</DropdownMenuItem>
-											)}
-											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
-												{access.update ? "Edit" : "View"}
-											</DropdownMenuItem>
-											{access.delete && (
-												<>
-													<DropdownMenuSeparator />
-													<DropdownMenuItem
-														className="text-content-destructive focus:text-content-destructive"
-														onClick={() => onDelete(skill)}
-													>
-														Delete&hellip;
-													</DropdownMenuItem>
-												</>
-											)}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</TableCell>
-							</TableRow>
-						))
-					)}
-				</TableBody>
+				<TableBody size="lg">{tableBody}</TableBody>
 			</Table>
 
 			{editorState?.mode === "create" && (

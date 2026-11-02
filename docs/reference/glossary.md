@@ -16,6 +16,12 @@ Each entry gives a short definition and, where it helps, links to the page that 
 
 ## A
 
+### ACP subagent
+
+An external coding agent that receives delegated tasks from a Coder Agents chat.
+An Agent Client Protocol (ACP) adapter launches its harness inside the workspace and handles communication with Coder.
+Refer to [ACP subagents](../ai-coder/agents/acp-subagents.md).
+
 ### Agent API
 
 The API a workspace agent uses to report logs, metrics, and activity.
