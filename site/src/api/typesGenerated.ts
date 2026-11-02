@@ -6487,6 +6487,7 @@ export interface HealthcheckReport {
 	readonly database: DatabaseReport;
 	readonly workspace_proxy: WorkspaceProxyReport;
 	readonly provisioner_daemons: ProvisionerDaemonsReport;
+	readonly pubsub: PubsubReport;
 	/**
 	 * The Coder version of the server that the report was generated on.
 	 */
@@ -8998,6 +8999,17 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unreachable",
 	"unregistered",
 ];
+
+// From healthsdk/healthsdk.go
+/**
+ * PubsubReport shows the health of the pubsub backend.
+ */
+export interface PubsubReport extends BaseReport {
+	/**
+	 * Backend is the pubsub implementation in use.
+	 */
+	readonly backend: string;
+}
 
 // From codersdk/experimentrules.go
 /**
