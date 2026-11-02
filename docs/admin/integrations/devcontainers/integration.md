@@ -168,7 +168,7 @@ This changes how Coder handles the sub-agent:
 ### Interaction with devcontainer.json customizations
 
 Terraform-defined resources and [`devcontainer.json` customizations](../../../user-guides/devcontainers/customizing-dev-containers.md) work together with some limitations.
-The `displayApps` settings from `devcontainer.json` are applied to terraform-managed dev containers, so you can control built-in app visibility (e.g., hide VS Code Insiders) via `devcontainer.json` even when using Terraform resources.
+The `displayApps` settings from `devcontainer.json` are applied to terraform-managed dev containers, so you can control built-in app visibility (for example, hide VS Code Insiders) via `devcontainer.json` even when using Terraform resources.
 
 However, custom `apps` defined in `devcontainer.json` are **not applied** to terraform-managed dev containers.
 If you need custom apps, define them as `coder_app` resources in Terraform instead.

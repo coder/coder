@@ -508,8 +508,8 @@ Steps to troubleshoot.
 
 1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims) on your Federation Server to send the following claims:
 
-   - `preferred_username`: You can use e.g. "Display Name" as required.
-   - `email`: You can use e.g. the LDAP attribute "E-Mail-Addresses" as required.
+   - `preferred_username`: You can use, for example, "Display Name" as required.
+   - `email`: You can use, for example, the LDAP attribute "E-Mail-Addresses" as required.
    - `email_verified`: Create a custom claim rule:
 
      ```json

@@ -149,8 +149,8 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 
 4. [Configure Coder](../admin/setup/index.md) and change the following values:
 
-   - `CODER_ACCESS_URL`: root domain (e.g. `https://coder.example.com`)
-   - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (e.g. `*.example.com`).
+   - `CODER_ACCESS_URL`: root domain (for example, `https://coder.example.com`)
+   - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (for example, `*.example.com`).
 
 5. Start the Caddy server:
 
@@ -193,12 +193,12 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
 
 ## Generate wildcard certificates
 
-By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`).
+By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (for example, `app1.coder.example.com`, `app2.coder.example.com`).
 When users visit new subdomains, such as accessing [ports on a workspace](../admin/networking/port-forwarding.md), the request will take an additional 5-30&nbsp;seconds since a new certificate is being generated.
 
 For production deployments, we recommend configuring Caddy to generate a wildcard certificate, which requires an explicit DNS challenge and additional Caddy modules.
 
-1. Install a custom Caddy build that includes the [caddy-dns](https://github.com/caddy-dns) module for your DNS provider (e.g. CloudFlare, Route53).
+1. Install a custom Caddy build that includes the [caddy-dns](https://github.com/caddy-dns) module for your DNS provider (for example, CloudFlare, Route53).
 
    - Docker: [Build an custom Caddy image](https://github.com/docker-library/docs/tree/master/caddy#adding-custom-caddy-modules) with the module for your DNS provider.
      Be sure to reference the new image in the `compose.yaml`.

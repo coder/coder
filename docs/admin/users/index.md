@@ -10,7 +10,7 @@ It is your responsibility to ensure the auth provider enforces MFA correctly.
 
 ## Configure SSO
 
-- [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (for example, Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups
@@ -150,7 +150,7 @@ coder reset-password <username>
 ```
 
 > [!NOTE]
-> Resetting a user's password, e.g., the initial `owner` role-based user, only works when run on the host running the Coder control plane.
+> Resetting a user's password, for example, the initial `owner` role-based user, only works when run on the host running the Coder control plane.
 
 <a id="resetting-a-password-on-kubernetes"></a>
 
@@ -189,7 +189,7 @@ The following filters are supported:
   It can be either `active`, `dormant` or `suspended`.
 - `role` - Represents the role of the user.
   You can refer to the [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole) for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a user has used the platform (e.g. logging in, any API requests, connecting to workspaces).
+- `last_seen_before` and `last_seen_after` - The last time a user has used the platform (for example, logging in, any API requests, connecting to workspaces).
   Uses the RFC3339Nano format.
 - `created_before` and `created_after` - The time a user was created.
   Uses the RFC3339Nano format.

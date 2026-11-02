@@ -168,7 +168,7 @@ Common compliance frameworks have varying retention requirements:
 
 ### External Log Aggregation
 
-If you use an external log aggregation system (Splunk, Datadog, etc.), you can configure shorter retention periods in Coder since logs are preserved externally.
+If you use an external log aggregation system (Splunk, Datadog, and so on), you can configure shorter retention periods in Coder since logs are preserved externally.
 See [Capture and export audit logs](../security/audit-logs.md#capture-and-export-audit-logs) for details on exporting logs.
 
 ### Database Maintenance
@@ -196,7 +196,7 @@ ai_gateway:
 ## Monitoring
 
 The purge process logs deletion counts at the `DEBUG` level.
-To monitor retention activity, enable debug logging or search your logs for entries containing the table name (e.g., `audit_logs`, `connection_logs`, `api_keys`).
+To monitor retention activity, enable debug logging or search your logs for entries containing the table name (for example, `audit_logs`, `connection_logs`, `api_keys`).
 
 ## Related Documentation
 

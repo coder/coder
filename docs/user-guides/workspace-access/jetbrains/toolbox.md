@@ -42,7 +42,7 @@ Optional parameters:
 
 - `agent_id`: ID of the agent (only required if workspace has multiple agents)
 - `folder`: Specific project folder path to open
-- `ide_product_code`: Specific IDE product code (e.g., "IU" for IntelliJ IDEA Ultimate)
+- `ide_product_code`: Specific IDE product code (for example, "IU" for IntelliJ IDEA Ultimate)
 - `ide_build_number`: Specific build number of the JetBrains IDE
 
 For more details, see the [coder-jetbrains-toolbox repository](https://github.com/coder/coder-jetbrains-toolbox#connect-to-a-coder-workspace-via-jetbrains-toolbox-uri).

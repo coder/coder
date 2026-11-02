@@ -130,11 +130,11 @@ resource "coder_app" "code-server" {
 
 An important concept to understand is that Coder creates workspaces which have an agent that must be able to reach the control plane.
 
-If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not accessible from a workspace, the workspace may build, but the agent cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
+If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not accessible from a workspace, the workspace may build, but the agent cannot reach Coder, and thus the missing icons. For example, Terminal, IDEs, Apps.
 
 By default, `coder server` automatically creates an Internet-accessible reverse proxy so that workspaces you create can reach the control plane.
 
-If you are doing a standalone install, e.g., on a MacBook and want to build workspaces in Docker Desktop, everything is self-contained and workspaces (containers in Docker Desktop) can reach the control plane.
+If you are doing a standalone install, for example, on a MacBook and want to build workspaces in Docker Desktop, everything is self-contained and workspaces (containers in Docker Desktop) can reach the control plane.
 
 ```sh
 coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
@@ -212,7 +212,7 @@ coder.example.com {
 ## I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?
 
 Caddy requires your DNS provider's credentials to create wildcard certificates.
-This involves building the Caddy binary [from source](https://github.com/caddyserver/caddy) with the DNS provider plugin added. e.g., [Google Cloud DNS provider here](https://github.com/caddy-dns/googleclouddns)
+This involves building the Caddy binary [from source](https://github.com/caddyserver/caddy) with the DNS provider plugin added. For example, [Google Cloud DNS provider here](https://github.com/caddy-dns/googleclouddns)
 
 To compile Caddy, the host running Coder requires Go.
 Once installed, replace the existing Caddy binary in `usr/bin` and restart the Caddy service.
@@ -415,7 +415,7 @@ An example use case is the user should decide if they want a browser-based IDE l
 It is because, more than likely, the supported OS of either the container image or VM/VPS doesn't have the proper C libraries to run the VS Code Server.
 For instance, Alpine is not supported at all.
 If so, you need to find a container image or supported OS for the VS Code Server.
-For more information on OS prerequisites for Linux, please look at the VSCode docs. <https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
+For more information on OS prerequisites for Linux, look at the VSCode docs. <https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
 
 ## How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
@@ -477,7 +477,7 @@ For more advanced security needs, consider adopting an endpoint security solutio
 
 ## How do I change the access URL for my control plane?
 
-You may want to change the default domain that's used to access coder, i.e. `yourcompany.coder.com` and find yourself unfamiliar with the process.
+You may want to change the default domain that's used to access coder, that is, `yourcompany.coder.com` and find yourself unfamiliar with the process.
 
 To change the access URL associated with your control plane, you can edit any of the following variables:
 

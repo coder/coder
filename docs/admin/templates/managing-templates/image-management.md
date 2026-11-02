@@ -13,7 +13,7 @@ After following this tutorial, you'll accomplish the following:
 4. Let developers customize their own environment.
 
 An image is just one of the many properties defined within the template.
-Templates can pull images from a public image registry (e.g. Docker Hub) or an internal one, thanks to Terraform.
+Templates can pull images from a public image registry (for example, Docker Hub) or an internal one, thanks to Terraform.
 Each image reference below can be dropped directly into a template's image variable or parameter.
 
 ## Create a minimal base image
@@ -35,7 +35,7 @@ Examples:
 ## Create golden images with standard tooling
 
 Building on the base image, it's often practical to have a few golden images that contain standard tooling for developers.
-These images should contain a number of languages (e.g. Python, Java, TypeScript), IDEs (VS Code, JetBrains, PyCharm), and other tools (e.g. `docker`).
+These images should contain a number of languages (for example, Python, Java, TypeScript), IDEs (VS Code, JetBrains, PyCharm), and other tools (for example, `docker`).
 Unlike project-specific images (which are also important), general purpose images are great for:
 
 - **Scripting:**
@@ -59,7 +59,7 @@ Examples:
 
 ## Create project-specific images for common use cases
 
-Beyond golden images, create images scoped to a specific project, language, or use case (e.g., a Go backend, a Node.js frontend, or a data science stack).
+Beyond golden images, create images scoped to a specific project, language, or use case (for example, a Go backend, a Node.js frontend, or a data science stack).
 These images stay smaller and faster to pull than one larger image that tries to install all dependencies.
 
 Examples:

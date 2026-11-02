@@ -1,360 +1,186 @@
 ---
 name: doc-check
-description: Checks if code changes require documentation updates. Use when reviewing a PR or diff for missing, stale, or incorrect docs under docs/; to write or restructure docs, use write-docs.
+description: Reviews a PR, branch, or local diff for documentation correctness and completeness. Checks that every docs claim is true in the code, that user-facing behavior has docs, and that new or edited docs follow the content guidelines and style guide. Use before opening or updating a PR that touches docs/ or user-facing behavior, and in CI; to write or restructure docs, use write-docs.
 ---
 
 # Documentation Check Skill
 
-Review code changes and determine if documentation updates or new
-documentation is needed. This skill decides *whether* a change needs docs;
-its counterpart, the [`write-docs` skill](../write-docs/SKILL.md), covers
-writing them.
+Review a change and answer one question:
+
+> If this change merged right now, would the docs on `main` correctly and clearly explain it?
+
+The question runs both ways.
+Every claim the docs make must be true in the code, and every behavior that changes how a customer uses the product must have docs.
+A PR that edits `docs/` still gets the full review: the docs it adds are part of what you check, not proof that the check passed.
+
+The counterpart skill, [`write-docs`](../write-docs/SKILL.md), covers writing the docs.
+Authors run this skill on their own branch before they open or update a PR, so CI mostly confirms what the author already fixed.
 
 > [!IMPORTANT]
-> The **canonical** rules for what belongs in the Coder docs (and what
-> doesn't) live in
-> [`docs/.style/content-guidelines.md`](../../../docs/.style/content-guidelines.md).
-> Read that first. When this skill conflicts with the content
-> guidelines, the content guidelines govern.
+> The rules live in `docs/.style/`, not in this skill.
+> [`docs/.style/content-guidelines.md`](../../../docs/.style/content-guidelines.md) governs what belongs in the docs and wins any conflict.
+> The prose style guide is every page under `docs/.style/style-guide/`.
+> This skill and its persona files tell you how to apply those rules, and never restate them.
+> When this skill conflicts with `docs/.style/`, `docs/.style/` wins.
+
+## Files
+
+| File                                 | Read it                                                      |
+|--------------------------------------|--------------------------------------------------------------|
+| [`path-priors.md`](./path-priors.md) | During triage                                                |
+| [`personas/`](./personas/)           | One file per review lens, read when you run that lens        |
+| [`output.md`](./output.md)           | Before you post anything, and before you write the run trace |
+
+## Modes
+
+- **CI review.** The workflow prompt names the PR and the trigger. Post the review per [`output.md`](./output.md).
+- **Author self-check.** You are the agent that wrote the change. Run the same review against your branch diff, fix every blocking finding, and report the rest to the user. Post nothing to GitHub.
+- **Focused review.** The prompt asks for one lens, such as `focus:accuracy`. Run triage, the change model, that persona, and the verifier. Say in the trace that the other lenses did not run.
 
 ## Workflow
 
-1. **Get the code changes.** Use the method provided in the prompt, or if
-   none specified:
-   - For a PR: `gh pr diff <PR_NUMBER> --repo coder/coder`
-   - For local changes: `git diff main` or `git diff --staged`
-   - For a branch: `git diff main...<branch>`
-
-2. **Triage the diff.** Check the changed paths against
-   [`path-priors.md`](./path-priors.md) for what they predict, then walk the
-   [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist)
-   in the content guidelines. Most non-user-facing diffs route out of
-   the docs entirely; see [What not to comment on](#what-not-to-comment-on).
-   A prior sets the starting assumption, not the verdict: verify it against
-   the diff either way.
-
-3. **Understand the scope.** Consider what changed:
-   - Is this user-facing or internal?
-   - Does it change behavior, APIs, CLI flags, or configuration?
-   - Even for "internal" or "chore" changes, always verify the actual
-     diff.
-
-4. **Search the docs.** Find related content in `docs/`.
-
-5. **Decide what's needed.** Consider:
-   - Do existing docs need updates to match the code?
-   - Is new documentation needed for undocumented features?
-   - Or is everything already covered?
-
-6. **Report findings.** Use the method provided in the prompt, or if none
-   specified, summarize findings directly. When the prompt asks for a
-   comment on a pull request, follow [Writing the comment](#writing-the-comment).
-
-## Evidence discipline
-
-Follow this order on every review.
-
-1. **List what the user experiences, not what files changed.**
-   "User-facing" means what a user sees, types, clicks, or receives.
-   Dashboard code and wiring code count when they change what the user
-   experiences. A new label, a new tab, a new required field, a new
-   setting, and a removed control all count.
-2. **Check two kinds of page per item.** For each item on that list, check
-   the conceptual guide for that area, and any page that enumerates the
-   things this change adds to or removes from (a table of settings, a list
-   of tabs, a list of fields). An auto-generated CLI or API reference
-   never closes a gap in a conceptual guide. Treat the reference and the
-   guide as two separate checks.
-3. **Search for the old fact, do not read only the diff.** List every
-   literal the diff changes: default values, flag names, env var names,
-   thresholds, UI labels. Search the whole docs tree for each **old**
-   literal before you decide:
-
-   ```sh
-   grep -rn '<the old literal>' docs/ | grep -v '^docs/reference/'
-   ```
-
-   Search the value as a number and as prose, because a guide can spell it
-   out ("thirty days" as well as `30d`). A hit outside `docs/reference/` is
-   a gap: this PR regenerating a reference page never fixes a conceptual
-   guide. Report each search you ran and what it returned. A review that
-   inspects only the files in the diff cannot find this class of gap, which
-   is the most common real one, so it is not a review.
-
-   If no page states the fact and the content guidelines require it, that
-   is also a gap. If no page states it and the guidelines do not require
-   it, that is not a gap: absence alone is not drift.
-4. **A PR that documents itself needs nothing more.** Judge the state
-   after the whole diff lands. If the diff already adds or fixes the
-   documentation that its own code change requires, the requirement is
-   satisfied inside the PR. Post no comment.
-5. **Write the evidence before the verdict.** For each user-facing change,
-   state the change, the searches you ran, the page you checked, and what
-   you found on it. Then state whether that evidence shows a real
-   unresolved gap, and comment only when it does. A verdict that
-   contradicts your own evidence is the most common failure mode on this
-   job, so read both once more before you post.
-
-   Staying silent is a finding too, and it earns the same evidence. Post
-   nothing only after every search in step 3 came back empty outside
-   `docs/reference/`. "The diff already updates its own reference page" is
-   not a reason to skip the search.
-
-## Writing the comment
-
-### A finding needs a page and a sentence
-
-Name the page, and name the sentence that is now wrong or the list that is
-now missing an entry. If you cannot name both, you have a hunch, not a
-finding, and a hunch costs the author more than it saves.
-
-Two habits produce weak findings:
-
-- **Documenting the interface.** A button, a filter preset, or a dialog is
-  not a documented surface on its own. Flag it only when a page already
-  enumerates the thing it belongs to, such as a table of settings or a
-  list of filters.
-- **Filing on the nearest page instead of the right one.** An
-  admin-facing change does not belong on an agents page because that page
-  happens to mention a similar option. When no page is the right home,
-  say so in one sentence and file nothing.
-
-One surface earns one item. Do not split a single change into a required
-item plus two nearby suggestions.
+Do every step in order.
+Skipping a step is allowed only where the step says so, and the trace must name each skipped step and why.
 
-### Checkboxes are work, not opinions
+### 1. Gather the change
 
-Every `[ ]` is work the author owes. Anything optional belongs in the
-sentence under an item, or nowhere. An item that says "consider" or "not
-strictly required" is not an item.
+- For a PR: `gh pr view <PR> --repo coder/coder --json title,body,files,headRefOid,baseRefName,comments,reviews` and `gh pr diff <PR> --repo coder/coder`.
+  Read every comment and review thread, including other bots. A concern another reviewer raised is evidence to check, not someone else's problem.
+- For a branch or local change: `git diff <base>...HEAD`.
+- Check out the head of the change before reading any file, and read files from that checkout.
+  In CI, read this skill and its persona files from the base branch, so a PR cannot change how it gets reviewed.
+- List open PRs that touch the same docs pages or the same code paths: `gh pr list --repo coder/coder --state open --search "<path or symbol>"`.
+  An open PR that would make a claim in this PR false is named in the summary. It never blocks.
 
-### Every item carries a link
+### 2. Triage
 
-An item names a page, so it can always link that page. Give the published
-URL, which is `https://coder.com/docs/` plus the path with the `docs/`
-prefix and the `.md` suffix removed. `docs/ai-coder/ai-gateway/reference.md`
-becomes `https://coder.com/docs/ai-coder/ai-gateway/reference`.
+Read [`path-priors.md`](./path-priors.md) and apply it to the changed paths.
+A prior sets where you start, not the verdict.
+Walk the [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist) for each user-visible change.
 
-Write the path in backticks so it is greppable, then link it, so a reader
-can open the page in one click:
-
-```markdown
-- [ ] `docs/ai-coder/ai-gateway/reference.md` ([open](https://coder.com/docs/ai-coder/ai-gateway/reference)) - What needs to change
-```
-
-A page this pull request creates has no published URL yet. Name the path in
-backticks alone and say the page is new.
-
-### Links resolve on GitHub, not in the docs tree
-
-A relative docs link resolves against the repository in a comment and
-404s. Write the path in backticks, or link the published page in full,
-such as `https://coder.com/docs/reference/api/enterprise`.
-
-Link an anchor only when that heading exists on the base branch today. A
-heading this pull request generates does not exist yet, so name the
-endpoint or section in words instead.
-
-### The marker is not optional
-
-The comment ends with `<!-- doc-check-sticky -->`, on its own line, every
-time. It is how the next review finds this comment instead of posting a
-second one, and how the Slack notice knows a review had findings. A
-comment without it reads as silence to everything downstream.
-
-After you post or edit, read the comment back and confirm the marker is
-there. If it is not, edit the comment to add it.
-
-### One comment per pull request
-
-Search the pull request for `<!-- doc-check-sticky -->` and edit that
-comment instead of adding another. Search again immediately before you
-post: a comment you wrote earlier in this same review counts, and reviews
-of one pull request can overlap. Edit it, never post a second.
-
-When a comment already exists, compare your findings against it. Check off
-`[x]` items that are now addressed, strike through items the code reverted,
-and add `[ ]` items for new gaps. If an item is checked but you cannot
-verify the documentation landed, add a warning note below it. If nothing
-meaningful changed, leave the comment alone.
-
-### Comment format
-
-Include only the sections that apply.
-
-```markdown
-## Documentation Check
-
-### Updates Needed
-- [ ] `docs/path/file.md` ([open](https://coder.com/docs/path/file)) - What needs to change
-- [x] `docs/other/file.md` ([open](https://coder.com/docs/other/file)) - This was addressed
-- ~~`docs/removed.md` - No longer needed~~ *(reverted in abc123)*
-
-### New Documentation Needed
-- [ ] `docs/suggested/path.md` - What should be documented, on a page that does not exist yet
-  > ⚠️ *Checked but no corresponding documentation changes found in this PR*
-
----
-*Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
-<!-- doc-check-sticky -->
-```
-
-Keep to this structure. Do not add sections it does not have, such as an
-evidence block. The evidence belongs in your answer, not in the author's
-comment.
-
-The `<!-- doc-check-sticky -->` marker goes last, so the next review can
-find this comment.
-
-## What to Check
-
-- **Accuracy**: Does documentation match current code behavior?
-- **Completeness**: Are new features or options documented?
-- **Examples**: Do code examples still work?
-- **CLI/API changes**: Are new flags, endpoints, or options documented?
-- **Configuration**: Are new environment variables or settings documented?
-- **Breaking changes**: Are migration steps documented if needed?
-- **Evidence versus claim**: See
-  [Evidence versus claim](#evidence-versus-claim) below.
-- **Premium features**: See [Premium feature signaling](#premium-feature-signaling)
-  below.
-- **Renames or moves**: See [Renames and moves require redirects](#renames-and-moves-require-redirects)
-  below.
-- **Terminology and the glossary**: Does the change introduce, rename, or
-  deprecate a Coder product or feature name? If so,
-  `docs/reference/glossary.md` needs a matching entry. See
-  [Glossary and terminology](#glossary-and-terminology) below.
-
-## What not to comment on
-
-Do not produce sticky-comment suggestions for these classes of change.
-They have no user-visible documentation surface. When every changed file
-falls in one of these classes, CI skips the review before this skill
-runs, so a diff in front of you has already passed that gate or a
-maintainer forced the review with the `doc-check` label. See
-[`path-priors.md`](./path-priors.md).
-
-- **Auto-generated CLI docs** under `docs/reference/cli/`. These are
-  generated from Go code under `cli/`; suggest edits to the CLI
-  definitions instead.
-- **Internal-only refactors** with no user-visible behavior change.
-- **Test-only changes** (new tests, refactored tests, fixtures).
-- **CI, release, or tooling commits** that don't change user-facing
-  surfaces. This includes workflow YAML, Makefile internals, formatter
-  configs, and lint configs.
-- **Dependency bumps** without behavior changes.
-- **Pure code reorganizations** (moves, renames, package restructuring
-  with no API or behavior change).
-- **Features guarded by an unsafe experiment flag.** Features behind an
-  unsafe experiment are not designed for users yet and may be reverted.
-  See
-  [Experiments versus feature stages](../../../docs/.style/content-guidelines.md#experiments-versus-feature-stages)
-  in the content guidelines for the experiment-vs-stage distinction. A
-  safe experiment or an Early Access feature does need at least a
-  single-page doc, so don't apply this rule to those.
-
-If a diff is a mix of one of the above with a user-facing change, comment
-only on the user-facing portion.
-
-## Key Documentation Info
-
-- **`docs/manifest/**/*.yml`** is the navigation structure; new pages MUST be
-  added to the right source file there. Each file holds one route and its
-  direct children, and `include` pulls in a child's own file. `docs/manifest.json` is compiled
-  from it by `make gen/docs-manifest`; don't edit the JSON directly.
-- **`docs/reference/cli/*.md`** is auto-generated from Go code. Don't
-  edit directly.
-- **`docs/.style/content-guidelines.md`** is the canonical source for
-  what belongs in the docs.
-
-### Premium feature signaling
-
-Pages documenting staged features must include the applicable `state` in their route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
-Do not add feature-state suffixes such as `(Premium)` or `(Beta)` to page titles or H1s.
-The state is displayed in navigation metadata.
-
-### Evidence versus claim
-
-This is the canonical rule
-[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-in the content guidelines; the content guidelines govern, so read the rule
-there. On a page **this change adds or edits**, flag an implementation
-identifier the reader neither types nor receives in that page's task, whether
-the diff adds the identifier or leaves it on a line this change touches; the
-canonical rule's ladder decides the replacement. Work from the page content
-in the diff. doc-check does not see commit messages or PR comments, so it
-does not police whether a stripped identifier was disclosed; that pointer is
-the author's to provide for the human reviewer. A pre-existing violation on a
-page the diff does not touch is not this change's finding; mention it as
-informational context at most, without demanding a fix from this author.
-
-### No emdash, endash, or ` -- ` as punctuation
-
-This applies in docs prose, code blocks, comments, and string literals.
-Use commas, semicolons, or periods, or restructure the sentence. For
-numeric ranges, use a plain hyphen (e.g., `0-100`). The rule is enforced
-by `make lint/emdash`, but the doc-check skill should also flag
-violations it generates or suggests.
-
-### Renames and moves require redirects
-
-Redirects for [coder.com/docs](https://coder.com/docs) are configured in
-`docs/redirects.json` in this repo, and the website rebuilds when the file
-changes. When a doc page is renamed or moved:
-
-1. Update every link that relies on the old location.
-2. Add a rule to `docs/redirects.json` that maps the old path to the new
-   one, in the same PR as the rename. For example:
-   `{"source": "/docs/old/path", "destination": "/docs/new/path"}`.
-
-Do not create a `docs/_redirects` file in this repo; that format isn't
-processed by coder.com.
-
-### Glossary and terminology
-
-The [glossary](../../../docs/reference/glossary.md) defines Coder-specific
-product and feature names, including collisions like the several senses of
-"agent". It drifts when the product's vocabulary changes and the page
-doesn't. Flag a glossary update when a change:
-
-- Adds a Coder product or feature name that isn't in the glossary yet.
-- Renames one. The entry should keep the former name (for example,
-  "previously named ...").
-- Deprecates one. The entry should say so and name the replacement.
-
-This is the canonical rule in
-[Structural rules](../../../docs/.style/content-guidelines.md#structural-rules);
-the content guidelines govern. Don't flag generic lowercase concepts or
-internal-only identifiers with no user-facing surface; they don't earn a
-glossary entry.
-
-## Coder-specific patterns
-
-### Callouts
-
-Use GitHub-Flavored Markdown alerts:
-
-```markdown
-> [!NOTE]
-> Additional helpful information.
-
-> [!WARNING]
-> Important warning about potential issues.
-
-> [!TIP]
-> Helpful tip for users.
-```
-
-### CLI Documentation
-
-CLI docs in `docs/reference/cli/` are auto-generated. Don't suggest
-editing them directly. Changes should be made in the Go code that
-defines the CLI commands (typically the `cli/` directory).
-
-### Code Examples
-
-Use `sh` for shell commands:
-
-```sh
-coder server --flag-name value
-```
+### 3. Run the deterministic checks
+
+Run the checks that exist for the files the change touches, and record each result.
+Use the result instead of re-deriving it, and never contradict a check's output.
+
+- `make lint/emdash`
+- `make lint/docs-html` and `make lint/docs-manifest` when `docs/` or `docs/manifest/` changed
+- markdownlint and Vale on the changed Markdown files (`make lint/markdown`, `make lint/prose`, or the tools directly)
+
+A check that fails on a line the change added or edited is a blocking finding.
+A check you could not run is listed in the trace.
+
+### 4. Build the change model
+
+Before you review a single docs sentence, write down what changed for the user, from the code alone:
+
+- Each thing a user now sees, types, clicks, configures, calls, or receives differently.
+- For each one: the code location that proves it, who can do it (role, license, experiment), and every surface it shows up on (UI, CLI, API, configuration, files the user downloads or uploads).
+- The old value of every literal the change replaces: labels, defaults, flag names, environment variables, limits, error strings.
+
+Follow each change through the whole path a user takes, not only the function the diff edits.
+For example, a setting that changes on upload also affects download, export, import into another tool, and every role that can reach it.
+
+The change model is the ground truth every persona checks the docs against.
+Do not read the PR description as truth: check each behavior claim in it against the code, and record any claim the code does not support.
+
+### 5. Run the personas
+
+Run every persona in [`personas/`](./personas/) except the verifier, in the order of the table.
+Each persona file says which rules to load and how to find them.
+
+| Persona           | File                                          | Skip when                                          |
+|-------------------|-----------------------------------------------|----------------------------------------------------|
+| Fact Checker      | [`accuracy.md`](./personas/accuracy.md)       | Never                                              |
+| Cartographer      | [`coverage.md`](./personas/coverage.md)       | Never                                              |
+| Newcomer          | [`learner.md`](./personas/learner.md)         | The change model is empty and no docs changed      |
+| Continuity Editor | [`consistency.md`](./personas/consistency.md) | No docs changed and no user-facing literal changed |
+| Reader Advocate   | [`audience.md`](./personas/audience.md)       | No docs changed                                    |
+| Architect         | [`structure.md`](./personas/structure.md)     | No docs changed                                    |
+| Copy Editor       | [`language.md`](./personas/language.md)       | No docs prose changed                              |
+| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, over every finding               |
+
+When you can spawn sub-agents and the prompt gives you a model configuration ID for them, run each persona as its own sub-agent with that ID, in parallel.
+Give each one the change model, the PR reference, its persona file, and the finding schema from [`output.md`](./output.md).
+Without a model configuration ID, run the personas yourself, one at a time.
+Never let a sub-agent run on a different model than the prompt names, because that hides how the configured model performs.
+
+Each persona returns findings in the schema in [`output.md`](./output.md), or the literal result `No findings.` with the checks it ran.
+
+### 6. Verify
+
+Run [`verifier.md`](./personas/verifier.md) over every finding.
+Drop what it rejects, and keep the count of rejected findings for the trace.
+A finding the verifier rejects never reaches the author.
+
+### 7. Decide and report
+
+Apply [Blocking](#blocking) to each surviving finding, then follow [`output.md`](./output.md).
+Every run ends with the run trace, even when there are no findings.
+
+## Evidence
+
+A finding without evidence is a hunch, and a hunch costs the author more than it saves.
+Every finding names:
+
+- the page and the sentence, table row, or list it is about, or the missing page;
+- the evidence: a code location for an accuracy or coverage finding, the other page and line for a consistency finding, or the rule for a style finding, cited as the style-guide page and heading anchor, such as `docs/.style/style-guide/word-choice.md#refer-to-or-visit-not-see-or-check-out`;
+- the fix, as replacement text when the fix is local.
+
+Never report a check you did not run.
+If you meant to compare a sentence to the code and did not open the code, say so in the trace instead of in a finding.
+A claim in your own summary that the docs "correctly state" something must quote the docs sentence that states it.
+
+## Blocking
+
+A finding blocks the merge only when it is in one of these classes.
+Everything else is a suggestion.
+
+1. **Wrong.** A docs claim the code contradicts, including a configurable default presented as fixed, and an unsupported compliance or security claim.
+2. **Missing.** Behavior the change adds or changes, that is user-facing per [Documentation lands with the change](../../../docs/.style/content-guidelines.md#documentation-lands-with-the-change), with no docs that explain it. This includes a broken user path, such as a step that needs a role the page never mentions.
+3. **Broken.** A typo, markup that renders wrong or breaks a component (such as `<div class="tab">` where the component needs `tabs`), a failing deterministic check, a new page missing from `docs/manifest/`, a missing Premium state, a rename without a redirect.
+4. **Rule-anchored.** A consistency, audience, structure, or language finding where all three hold:
+   - the finding cites a style-guide or content-guideline rule by page and anchor, or a contradicting line on another page;
+   - the verifier confirmed it;
+   - the change added or edited the text.
+
+A judgment call with no rule to cite never blocks.
+If it should block, the fix is a new rule in `docs/.style/`, not a stronger opinion in the review.
+This applies to class 4 only. A wrong claim, a missing fact the reader needs, and a broken page block without a style-guide rule.
+
+### What never blocks
+
+- A style issue on a line the change did not add or edit. Leave it alone.
+  When the change edits that line for another reason, suggest the fix.
+- A Latin abbreviation alone. Suggest the English form only when the line changes for another reason.
+- A claim about another product that the code cannot confirm. Suggest narrowing it to what was checked, linking the vendor's docs, or adding a product test.
+- An open PR that would change a claim in this one. Name it in the summary.
+- A gap that existed before this change, in an area the change touches. Record it in the trace as an adjacent gap.
+  A gap the change causes on a path it didn't edit, such as a download that loses data an upload now strips, is not a gap that existed before. It is `missing`.
+- A need for a tutorial, lab, or training track. Record it in the trace as an adjacent gap.
+- A design-friction note. Write one when the design makes a docs sentence hard to make accurate, such as one setting with several names, or a value inverted from the convention other tools use. Tie each note to the sentence. Write as many as the change earns, and re-evaluate them every round.
+
+### Recommend a test for a fragile claim
+
+When a docs claim depends on product behavior that no test pins, such as a default, a limit, a file format, or an ordering, add a suggestion naming the test that would fail if the claim stopped being true.
+This is how a docs claim stays true after the review.
+
+## What not to review
+
+These changes have no documentation surface.
+When every changed file falls in one of these classes, CI skips the review before this skill runs, so a diff in front of you has already passed that gate or a maintainer forced the review with the `doc-check` label.
+Review only the user-facing part of a mixed diff.
+
+- Auto-generated reference under `docs/reference/cli/` and `docs/reference/api/`. Review the source comment or CLI definition that generates it instead.
+- Internal-only refactors, test-only changes, CI and tooling changes that change no user-facing surface, dependency bumps without behavior changes, and pure code moves.
+- Features guarded by an unsafe experiment flag. Refer to [Experiments versus feature stages](../../../docs/.style/content-guidelines.md#experiments-versus-feature-stages). A safe experiment or an Early Access feature needs at least a single page.
+
+## Repository facts
+
+- **Sidebar:** `docs/manifest/**/*.yml` is the navigation source. Each file holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
+- **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`, and `docs/reference/api/*.md` comes from Swagger comments in Go. Suggest edits to the source.
+- **Feature states:** a staged feature carries `state:` on its route in `docs/manifest/**/*.yml`, such as `state: [premium]`. Titles and H1s carry no state suffix.
+- **Redirects:** `docs/redirects.json`. A rename or move updates every inbound link and adds a redirect in the same PR. There is no `docs/_redirects` file.
+- **Glossary:** `docs/reference/glossary.md`. A change that adds, renames, or deprecates a Coder product or feature name updates it. Refer to [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
+- **Callouts:** GitHub-Flavored Markdown alerts, such as `> [!NOTE]`.
+- **Punctuation:** no em dashes, en dashes, or spaced double hyphens, in prose, code, comments, or strings. `make lint/emdash` enforces it. Suggestions you write follow the same rule.

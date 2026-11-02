@@ -5,7 +5,7 @@ title: Feature stages
 
 Some Coder features are released in feature stages before they are generally available.
 
-If you encounter an issue with any Coder feature, please submit a [GitHub issue](https://github.com/coder/coder/issues) or join the [Coder Discord](https://discord.gg/coder).
+If you encounter an issue with any Coder feature, submit a [GitHub issue](https://github.com/coder/coder/issues) or join the [Coder Discord](https://discord.gg/coder).
 
 ## Feature stages
 
@@ -129,7 +129,7 @@ Log lines about a failed condition record only the experiment, the rule revision
 #### When a change takes effect
 
 On supporting replicas, a fresh authoritative database read after the update commits observes the new rule.
-In-flight evaluations and work already using an earlier decision are not cancelled.
+In-flight evaluations and work already using an earlier decision are not canceled.
 All serving replicas must run a supporting version before you rely on this control.
 
 Replicas that run an earlier version ignore rules and use their startup `--experiments` list.
@@ -145,7 +145,7 @@ If Coder can't read the rules, a stored rule is malformed, or a condition fails 
 You can't change this behavior.
 
 Rules gate features; they are not an authorization boundary.
-Don't use a rule to restrict access to data or actions.
+Do not use a rule to restrict access to data or actions.
 
 ## Beta
 
@@ -166,7 +166,7 @@ You should test beta features in staging environments.
 You can use beta features in production, but should set expectations and inform users that some features may be incomplete.
 
 We keep documentation about beta features up-to-date with the latest information, including planned features, limitations, and workarounds.
-If you encounter an issue, please contact your [Coder account team](https://coder.com/contact), reach out on [Discord](https://discord.gg/coder), or create a [GitHub issues](https://github.com/coder/coder/issues) if there isn't one already.
+If you encounter an issue, contact your [Coder account team](https://coder.com/contact), reach out on [Discord](https://discord.gg/coder), or create a [GitHub issues](https://github.com/coder/coder/issues) if there isn't one already.
 While we will do our best to provide support with beta features, most issues will be escalated to the product team.
 Beta features are not covered within service-level agreements (SLA).
 
@@ -185,13 +185,13 @@ Beta features are announced through the [Coder Changelog](https://coder.com/chan
 All features that are not explicitly tagged as `Early access` or `Beta` are considered generally available (GA).
 They have been tested, are stable, and are enabled by default.
 
-If your Coder license includes an SLA, please consult it for an outline of specific expectations.
+If your Coder license includes an SLA, consult it for an outline of specific expectations.
 
 For support, consult our knowledgeable and growing community on [Discord](https://discord.gg/coder), or create a [GitHub issue](https://github.com/coder/coder/issues) if one doesn't exist already.
 Customers with a valid Coder license, can submit a support request or contact your [account team](https://coder.com/contact).
 
 We intend [Coder documentation](https://github.com/coder/coder/blob/main/contributing/documentation.md) to be the [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth) and all features should have some form of complete documentation that outlines how to use or implement a feature.
-If you discover an error or if you have a suggestion that could improve the documentation, please [submit a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
+If you discover an error or if you have a suggestion that could improve the documentation, [submit a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
 
 Some GA features can be disabled for air-gapped deployments.
 Consult the feature's documentation or submit a support ticket for assistance.

@@ -21,6 +21,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import {
 	isAppBlockedByMissingWildcard,
 	isAppUrlValid,
+	SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { docs } from "#/utils/docs";
@@ -113,7 +114,8 @@ export const AppLink: React.FC<AppLinkProps> = ({
 		);
 	}
 
-	if (!isAppUrlValid(app)) {
+	const hasValidUrl = isAppUrlValid(app);
+	if (link.isBlocked || !hasValidUrl) {
 		canClick = false;
 		icon = (
 			<CircleAlertIcon
@@ -123,9 +125,20 @@ export const AppLink: React.FC<AppLinkProps> = ({
 		);
 		primaryTooltip = (
 			<>
-				This app has an invalid URL and can't be opened. Ask your template
-				administrator to fix the app's <code>url</code> in the template's{" "}
-				<code>coder_app</code> configuration.
+				{hasValidUrl
+					? SESSION_TOKEN_LINK_BLOCKED_MESSAGE
+					: "This app has an invalid URL and can't be opened."}{" "}
+				{agent.parent_id ? (
+					<>
+						Fix the app's <code>url</code> in the dev container's{" "}
+						<code>devcontainer.json</code>.
+					</>
+				) : (
+					<>
+						Ask your template administrator to fix the app's <code>url</code> in
+						the template's <code>coder_app</code> configuration.
+					</>
+				)}
 			</>
 		);
 	}

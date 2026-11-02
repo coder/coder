@@ -17,7 +17,7 @@ While troubleshooting steps vary by resource, here are some general best practic
 
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder [access URL](../../admin/setup/index.md#access-url)
-- Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
+- Manually connect to the resource and check the agent logs (for example, `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
   - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
@@ -31,7 +31,7 @@ In this section we will cover common scenarios and how to resolve them.
 
 ### Unable to access workspace, startup script is still running
 
-If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior-1) option is set to blocking or you have enabled the `--wait=yes` option (for e.g. `coder ssh` or `coder config-ssh`).
+If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior-1) option is set to blocking or you have enabled the `--wait=yes` option (for example, `coder ssh` or `coder config-ssh`).
 In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--wait=no` option.
 If the startup script is running longer than it should, or never completing, you can try to [debug the startup script](#debug-the-startup-script) to resolve the issue.
 Alternatively, you can try to force the startup script to exit by terminating processes started by it or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
@@ -71,7 +71,7 @@ Common causes for startup script errors:
 
 - A missing command or file
 - A command that fails due to missing permissions
-- Network issues (e.g., unable to reach a server)
+- Network issues (for example, unable to reach a server)
 
 <a id="debugging-the-startup-script"></a>
 

@@ -14,7 +14,7 @@ This guide documents structure, research, and content patterns for documentation
 > Refer to [What the tooling checks, and what it doesn't](../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > This file remains authoritative for structure, research, and content patterns.
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines.
+Refer to [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing
 
@@ -95,7 +95,7 @@ Use bold labels for capabilities, provides high-level understanding before detai
 
 ### Screenshot policy
 
-Screenshots are governed by the canonical content guidelines. See
+Screenshots are governed by the canonical content guidelines. Refer to
 [Screenshots, used wisely](../../docs/.style/content-guidelines.md#what-belongs-in-the-docs)
 in `docs/.style/content-guidelines.md`. The short version:
 
@@ -149,7 +149,7 @@ superseded by the canonical content guidelines.
 
 ### Terminology
 
-- **Consistent terms**: Use same term throughout (e.g., "workspace" not "workspace environment")
+- **Consistent terms**: Use the same term throughout (for example, "workspace", not "workspace environment")
 - **Bold for UI elements**: "Navigate to the **Templates** page"
 - **Code formatting**: Use backticks for commands, file paths, code
   - Inline: `` `coder server` ``
@@ -158,9 +158,10 @@ superseded by the canonical content guidelines.
 ### Punctuation
 
 - Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
-  in code, comments, string literals, or documentation. Use commas,
-  semicolons, or periods instead. Restructure the sentence if needed.
-  For numeric ranges, use a plain hyphen (e.g., `0-100`).
+  in code, comments, string literals, or documentation. Use commas or
+  periods instead, or restructure the sentence. The prose style guide
+  also bans semicolons in prose.
+  For numeric ranges, use a plain hyphen (for example, `0-100`).
 
 ### Instructions
 
@@ -259,7 +260,7 @@ in the content guidelines.
 
 Document exact values from code:
 
-- **Thresholds**: "green < 150ms, yellow 150-300ms, red ≥300ms"
+- **Thresholds**: `green < 150ms, yellow 150-300ms, red ≥300ms`, written as the product shows them
 - **Time intervals**: "daily for templates < 5 weeks old, weekly for 5+ weeks"
 - **Counts and limits**: Use precise numbers, not approximations
 
@@ -280,7 +281,7 @@ Add every documentation page to the sidebar sources in `docs/manifest/`; pages m
 
 ## Documentation lands with the change
 
-This rule lives in the canonical content guidelines. See
+This rule lives in the canonical content guidelines. Refer to
 [Documentation lands with the change](../../docs/.style/content-guidelines.md#documentation-lands-with-the-change)
 in `docs/.style/content-guidelines.md` for the rule, the definition of
 "user-facing," the three corollaries, and the experiments-versus-feature-stages
@@ -299,7 +300,7 @@ distinction.
 
 Troubleshooting and failure-mode content routes to the Support
 knowledge base (Pylon), not the docs. Support is the primary owner;
-Docs is secondary owner where needed. See the
+Docs is secondary owner where needed. Refer to the
 [routing table](../../docs/.style/content-guidelines.md#routing-table)
 in the canonical content guidelines.
 

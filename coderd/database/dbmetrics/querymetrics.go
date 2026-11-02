@@ -49,7 +49,7 @@ func NewQueryMetrics(s database.Store, logger slog.Logger, reg prometheus.Regist
 		Namespace: "coderd",
 		Subsystem: "db",
 		Name:      "query_counts_total",
-		Help:      "Total number of queries labelled by HTTP route, method, and query name.",
+		Help:      "Total number of queries labeled by HTTP route, method, and query name.",
 	}, []string{"route", "method", "query"})
 	reg.MustRegister(queryCounts)
 	return &queryMetricsStore{

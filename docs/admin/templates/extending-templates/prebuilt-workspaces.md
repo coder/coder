@@ -105,7 +105,7 @@ This gives template admins the ability to park problematic prebuilt workspaces i
 ### Expiration Policy
 
 Prebuilt workspaces support expiration policies through the `ttl` setting inside the `expiration_policy` block.
-This value defines the Time To Live (TTL) of a prebuilt workspace, i.e., the duration in seconds that an unclaimed prebuilt workspace can remain before it is considered expired and eligible for cleanup.
+This value defines the Time To Live (TTL) of a prebuilt workspace, that is, the duration in seconds that an unclaimed prebuilt workspace can remain before it is considered expired and eligible for cleanup.
 
 Expired prebuilt workspaces are removed during the reconciliation loop to avoid stale environments and resource waste.
 New prebuilt workspaces are only created to maintain the desired count if needed.
@@ -169,10 +169,10 @@ data "coder_workspace_preset" "goland" {
 Cron expressions follow the format: `* HOUR DOM MONTH DAY-OF-WEEK`
 
 - `*` (minute): Must always be `*` to ensure the schedule covers entire hours rather than specific minute intervals
-- `HOUR`: 0-23, range (e.g., 8-18 for 8AM-6:59PM), or `*`
+- `HOUR`: 0-23, range (for example, 8-18 for 8AM-6:59PM), or `*`
 - `DOM` (day-of-month): 1-31, range, or `*`
 - `MONTH`: 1-12, range, or `*`
-- `DAY-OF-WEEK`: 0-6 (Sunday=0, Saturday=6), range (e.g., 1-5 for Monday to Friday), or `*`
+- `DAY-OF-WEEK`: 0-6 (Sunday=0, Saturday=6), range (for example, 1-5 for Monday to Friday), or `*`
 
 **Important notes about cron expressions:**
 
@@ -223,7 +223,7 @@ When a template's active version is updated:
 
 1. Prebuilt workspaces for old versions are automatically deleted.
 1. New prebuilt workspaces are created for the active template version.
-1. If dependencies change (e.g., an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change:
+1. If dependencies change (for example, an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change:
    - You can delete the existing prebuilt workspaces manually.
    - Coder will automatically create new prebuilt workspaces with the updated dependencies.
 
@@ -353,7 +353,7 @@ It does not cancel running provisioner jobs, so there may still be some delay in
 At this stage, most prebuild related impact will have been mitigated.
 There may still be a bugged template version, but it will no longer pollute provisioner queues with prebuilt workspace jobs.
 If the latest version of a template is also broken for reasons unrelated to prebuilds, then users are able to create workspaces using a previous template version.
-Some running jobs may have been initiated by the prebuild system, but these cannot be cancelled without potentially orphaning resources that have already been deployed by Terraform.
+Some running jobs may have been initiated by the prebuild system, but these cannot be canceled without potentially orphaning resources that have already been deployed by Terraform.
 Depending on your deployment and template provisioning times, it might be best to upload a new template version and wait for it to be processed organically.
 
 #### Cancel running prebuild provisioning jobs (Optional)
@@ -431,12 +431,12 @@ This section outlines a **best-practice configuration** to prevent that situatio
 This setup is optional and requires minor template changes.
 
 Coder supports [external provisioners and provisioner tags](../../../install/operate/provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
-By creating external provisioners with a special tag (e.g., `is_prebuild=true`) and updating the template to conditionally add that tag for prebuild jobs, all prebuild work is handled by the prebuild pool.
+By creating external provisioners with a special tag (for example, `is_prebuild=true`) and updating the template to conditionally add that tag for prebuild jobs, all prebuild work is handled by the prebuild pool.
 This keeps other provisioners available to handle user-initiated jobs.
 
 #### Setup
 
-1. Create a provisioner key with a prebuild tag (e.g., `is_prebuild=true`).
+1. Create a provisioner key with a prebuild tag (for example, `is_prebuild=true`).
    Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
    **Note:** `coder_workspace_tags` are cumulative, so if your template already defines provisioner tags, you will need to create the provisioner key with the same tags plus the `is_prebuild=true` tag so that prebuild jobs correctly match the dedicated prebuild pool.
    See [Scoped Key](../../../install/operate/provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.

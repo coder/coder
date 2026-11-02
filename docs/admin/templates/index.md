@@ -25,11 +25,11 @@ Starter templates for popular platforms (AWS, Kubernetes, Docker, and others) ar
 It's often necessary to extend the template to make it generally useful to end users.
 Common modifications are:
 
-- Your image(s) (e.g. a Docker image with languages and tools installed).
+- Your image(s) (for example, a Docker image with languages and tools installed).
   Docs: [Image management](./managing-templates/image-management.md).
-- Additional parameters (e.g. disk size, instance type, or region).
+- Additional parameters (for example, disk size, instance type, or region).
   Docs: [Template parameters](./extending-templates/parameters/index.md).
-- Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP).
+- Additional IDEs (for example, JetBrains) or features (for example, dotfiles, RDP).
   Docs: [Adding IDEs and features](./extending-templates/index.md).
 
 Learn more about the various ways you can [extend your templates](./extending-templates/index.md).
@@ -42,7 +42,7 @@ As your Coder deployment grows, you can create more templates to meet the needs 
 - [Image management](./managing-templates/image-management.md): Learn how to create and publish images for use within Coder workspaces & templates.
 - [Dev Containers integration](../integrations/devcontainers/integration.md): Enable native dev containers support using `@devcontainers/cli` and Docker.
 - [Envbuilder](../integrations/devcontainers/envbuilder/index.md): Alternative approach for environments without Docker access.
-- [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing): Configure your template to prevent certain resources from being destroyed (e.g. user disks).
+- [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing): Configure your template to prevent certain resources from being destroyed (for example, user disks).
 - [Manage templates with Ci/Cd pipelines](./managing-templates/change-management.md): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
 - [Permissions and Policies](./template-permissions.md): Control who may access and modify your template.
 - [External Workspaces](./managing-templates/external-workspaces.md): Learn how to connect your existing infrastructure to Coder workspaces.

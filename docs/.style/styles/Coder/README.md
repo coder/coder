@@ -16,7 +16,6 @@ Planned coverage:
 - Weasel words
 - Compliance-claim wording
 - Em-dash and en-dash mirror in Vale
-- Inclusive-language substitutions
 - Product-voice rules
 
 ## Authoring a new rule

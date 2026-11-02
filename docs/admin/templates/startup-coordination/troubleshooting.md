@@ -81,7 +81,7 @@ If the workspace startup scripts appear to 'hang', one or more of your startup s
 * Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
     > **Tip:**
     > add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
-* Review your template and verify that `coder exp sync complete <unit>` is called after the script completes e.g. with an exit trap.
+* Review your template and verify that `coder exp sync complete <unit>` is called after the script completes, for example, with an exit trap.
 * List all units to identify which ones are blocked: `coder exp sync list`.
 * View the unit status using `coder exp sync status <unit>`.
 

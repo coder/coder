@@ -92,7 +92,7 @@ The [Coder Registry](https://registry.coder.com) is a platform where you can fin
 
 Templates help create self-service development environments using Terraform-defined infrastructure, while _Modules_ simplify template creation by providing common features like workspace applications, third-party integrations, or helper scripts.
 
-Please note that the Registry is a hosted service and isn't available for offline use.
+Note that the Registry is a hosted service and isn't available for offline use.
 
 ### AI Gateway
 
@@ -254,7 +254,7 @@ When determining scaling requirements, take into account the following considera
 
 - `2 vCPU x 8 GB RAM x 512 GB storage`: A baseline for database requirements for Coder deployment with less than 1000 users, and low activity level (30% active users).
   This capacity should be sufficient to support 100 external provisioners.
-- Storage size depends on user activity, workspace builds, log verbosity, overhead on database encryption, etc.
+- Storage size depends on user activity, workspace builds, log verbosity, overhead on database encryption, and so on.
 - Allocate two additional CPU core to the database instance for every 1000 active users.
 - Enable High Availability mode for database engine for large scale deployments.
 

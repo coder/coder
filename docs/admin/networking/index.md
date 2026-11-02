@@ -33,7 +33,7 @@ In order for clients to be able to establish direct connections:
 > Direct connections via the web browser are not supported.
 > To improve latency for browser-based applications running inside Coder workspaces in regions far from the Coder control plane, consider deploying one or more [workspace proxies](./workspace-proxies.md).
 
-- The client is connecting using the CLI (e.g. `coder ssh` or `coder port-forward`).
+- The client is connecting using the CLI (for example, `coder ssh` or `coder port-forward`).
   Note that the [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and [`ssh coder.<workspace>`](../../reference/cli/config-ssh.md) all utilize the CLI to establish a workspace connection.
 - Either the client or workspace agent are able to discover a reachable `ip:port` of their counterpart.
   If the agent and client are able to communicate with each other using their locally assigned IP addresses, then a direct connection can be established immediately.
@@ -81,7 +81,7 @@ To speed up direct connections, move the user and workspace closer together.
 Establishing a direct connection can be an involved process because both the client and workspace agent will likely be behind at least one level of NAT, meaning that we need to use STUN to learn the IP address and port under which the client and agent can both contact each other.
 See [STUN and NAT](./stun.md) for more information on how this process works.
 
-If a direct connection is not available (e.g. client or server is behind NAT), Coder will use a relayed connection.
+If a direct connection is not available (for example, client or server is behind NAT), Coder will use a relayed connection.
 By default, [Coder uses Google's public STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses), but this can be disabled or changed for [Air-gapped deployments](../../install/prepare/airgap.md).
 
 ### Relayed connections
