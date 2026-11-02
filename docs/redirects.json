@@ -10,5 +10,21 @@
   {
     "source": "/docs/install/cli",
     "destination": "https://coder.com/downloads"
+  },
+  {
+    "source": "/docs/get-started/customize-your-template",
+    "destination": "https://coder.com/learn/coder-quickstart"
+  },
+  {
+    "source": "/docs/get-started/customize-your-template/add-a-language",
+    "destination": "https://coder.com/learn/coder-quickstart"
+  },
+  {
+    "source": "/docs/get-started/customize-your-template/install-command-line-tools",
+    "destination": "https://coder.com/learn/coder-quickstart"
+  },
+  {
+    "source": "/docs/get-started/customize-your-template/authenticate-to-github",
+    "destination": "https://coder.com/learn/coder-quickstart"
   }
 ]
