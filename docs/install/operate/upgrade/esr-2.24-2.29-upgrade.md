@@ -22,7 +22,7 @@ This transition established Tasks as a stable automation and job-execution primi
 
 > [!NOTE]
 > Coder Tasks has since been deprecated and is no longer available in current releases.
-> [Coder Agents](../../../ai-coder/agents/index.md) is the long-term replacement.
+> [Coder Agents](../../../coder-agents/index.md) is the long-term replacement.
 
 ### AI Gateway
 
@@ -34,7 +34,7 @@ It solves three key problems:
 - Secure communication between the Coder control plane and upstream AI APIs
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts, token usage, and tool invocations.
-For more information, read our documentation [here](../../../ai-coder/ai-gateway/index.md).
+For more information, read our documentation [here](../../../ai-governance/ai-gateway/index.md).
 
 ### Agent Firewall
 
@@ -42,7 +42,7 @@ Agent Firewall was introduced in 2.27 and is currently in Early Access.
 Agent Firewall is a process-level firewall in Coder that restricts and audits what autonomous programs (like AI agents) can access and do within a workspace.
 They provide network policy enforcement, blocking specific domains and HTTP verbs to prevent data exfiltration, and write logs to the workspace for auditability.
 Agent Firewall supports any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module.
-For more information, read our documentation [here](../../../ai-coder/agent-firewall/index.md).
+For more information, read our documentation [here](../../../ai-governance/agent-firewall/index.md).
 
 ### Performance Enhancements
 
