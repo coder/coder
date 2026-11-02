@@ -94,9 +94,9 @@ Redirect output into the packet as shown, and look at a file only through a coun
 When the prompt pins a head SHA that the fetch did not bring in, fetch it with `git fetch origin <SHA>`.
 In a dry run with a skill ref, which is a branch, run `git fetch origin <skill ref>` and set `SKILL_SHA=$(git rev-parse "origin/<skill ref>")` before the first `git archive`.
 
-For a branch or local change without a PR, set `PR=local` and `HEAD_SHA=$(git rev-parse HEAD)`, fetch only the base branch, skip the `gh` commands, write `none` into `pr.json`, and leave `review-comments.jsonl` and `related-prs.txt` empty.
+For a branch or local change without a PR, set `PR=local` and `HEAD_SHA=$(git rev-parse HEAD)`, fetch only the base branch, skip the `git checkout` and the `gh` commands, write `none` into `pr.json`, and leave `review-comments.jsonl` and `related-prs.txt` empty.
 A commit that was never pushed has no CI results, so step 3 records the CI checks as not run.
-In author self-check, set `POLICY` to the repository root instead of copying, and run the three `git diff` commands with `"$BASE_SHA"` alone in place of `"$BASE_SHA" "$HEAD_SHA"`, so uncommitted edits count.
+In author self-check, also set `POLICY` to the repository root and skip the two `git archive` commands, and run the three `git diff` commands with `"$BASE_SHA"` alone in place of `"$BASE_SHA" "$HEAD_SHA"`, so uncommitted edits count.
 Run `git add --intent-to-add` on new files first, because `git diff` skips untracked files.
 
 With a PR, list open PRs that touch the same docs pages, for the Cartographer:
@@ -256,10 +256,11 @@ Do not judge a finding's substance yourself, such as by reading the pages or cod
 - **Not already reported by a check.** No annotation in `checks.md` is on the same line and refers to the same rule page and anchor.
 
 Then merge findings with the same `file`, `line`, and `rule`, keeping the one with more evidence.
-Group what is left: findings about the same sentence form one group, and findings about the same missing page form one group.
+Group what is left: findings about the same sentence form one group, findings about the same missing page form one group, and findings on the same page that cite the same rule section form one group.
 A group holds every finding that could duplicate or contradict another, so groups never need to see each other.
 
 Put the groups into verifier batches of at most 6 findings, never splitting a group, and write each batch to `batches/<n>.yaml`.
+A group of more than 6 findings is a batch of its own.
 Run each batch as agent `verify-<n>` with persona [`verifier`](./personas/verifier.md), through the same queue and limit as step 4.
 A batch that ends without finishing is retried once, split in two.
 A finding that is still not verified after the retry is `unverified`: it is never posted as an inline comment, and the summary counts it.
@@ -271,6 +272,7 @@ A finding the verifier rejects never reaches the author.
 
 Apply [Blocking](#blocking) to each surviving finding, then follow [`output.md`](./output.md).
 The outcome is `incomplete` when any agent ended `blocked`, `budget_exhausted`, or `incomplete`, when a sweep missed a section, or when any finding is `unverified`.
+A verifier batch whose retry finished does not count, and the trace lists both.
 An incomplete review never says or implies the docs are fine.
 Every run ends with the run trace, even when there are no findings.
 
