@@ -2142,14 +2142,15 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
--- Returns the queue in promotion order (position ASC, id ASC), the same
--- order chatstate uses to pick the head. Clients read the queue through
+-- Returns the queue in promotion order (steer lane first, then the queue
+-- lane, each by position ASC, id ASC), the same order chatstate uses to
+-- pick the head. Clients read the queue through
 -- this query, so it must not order by created_at: promoting a message
 -- changes only its position, and concurrent senders can commit with
 -- created_at and position in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY position ASC, id ASC;
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -3005,10 +3006,10 @@ FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id).
+-- Returns the queue head: the first row in GetChatQueuedMessages order.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one

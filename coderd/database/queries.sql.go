@@ -10817,11 +10817,11 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1::uuid
-ORDER BY position ASC, id ASC
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1
 `
 
-// Returns the queue head (lowest position, then lowest id).
+// Returns the queue head: the first row in GetChatQueuedMessages order.
 func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedMessageHead, chatID)
 	var i ChatQueuedMessage
@@ -10843,11 +10843,12 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY position ASC, id ASC
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 `
 
-// Returns the queue in promotion order (position ASC, id ASC), the same
-// order chatstate uses to pick the head. Clients read the queue through
+// Returns the queue in promotion order (steer lane first, then the queue
+// lane, each by position ASC, id ASC), the same order chatstate uses to
+// pick the head. Clients read the queue through
 // this query, so it must not order by created_at: promoting a message
 // changes only its position, and concurrent senders can commit with
 // created_at and position in opposite orders.
