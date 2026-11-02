@@ -1350,8 +1350,7 @@ jobs:
     # to main branch.
     needs:
       - changes
-    # TEMP(do not merge): also run on this branch to validate the main build. Publishing steps stay main-only.
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/release-environments-and-cache-isolation') && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     environment: ci-signing
     permissions:
