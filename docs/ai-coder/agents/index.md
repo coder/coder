@@ -19,15 +19,20 @@ This screencast shows the Coder Agents chat interface, where a developer describ
 
 ## What Coder Agents is and isn't
 
-It is a standalone agent written in Go.
-It implements standard agentic patterns, such as sub-agent delegation, context compaction, file editing, and shell execution.
-It works with any LLM provider you configure.
+Coder Agents is self-hosted infrastructure for AI coding workflows.
+The entire workflow runs inside your Coder deployment, whether that's a cloud VPC, an on-premises data center, or an air-gapped network.
+Orchestration, chat history, and tool execution stay on infrastructure you control, and prompts go only to the LLM providers you approve, including self-hosted models.
 
-It is not a wrapper around third-party agent tools like Claude Code or Codex.
+Developers delegate work through chat or the API, and Coder takes it from there.
+It selects a template, provisions a workspace, runs the agent, and delivers branches and pull requests, all under the developer's own identity and permissions.
+The agent runs in the control plane as part of Coder, so there's nothing to install, license, or update in your workspaces.
 
-Coder Agents is not a replacement for your text editor or IDE.
-It is the primary interface where developers work with and orchestrate coding agents.
-Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any other editor to review, refine, and complete work that the agent produces.
+Coder Agents isn't a cloud-hosted agent service.
+There is no SaaS or managed component, and your code never passes through Coder's infrastructure.
+
+Coder Agents isn't a replacement for your IDE.
+It's where developers start, steer, and review agent work.
+Developers still open the workspace in VS Code, Cursor, JetBrains, or another editor to refine and finish what the agent produces.
 
 ## Who Coder Agents is for
 
@@ -37,10 +42,6 @@ It is a strong fit for:
 - **Regulated industries** such as financial services, healthcare, and government, where AI tools must run on controlled infrastructure with auditable access and strict network boundaries.
 - **Platform engineering teams** that want to provide developers with a high-quality AI coding experience without managing per-workspace agent installations, API key distribution, or third-party agent licensing.
 - **Organizations with existing Coder deployments** that want to add agentic capabilities using their current templates, workspaces, and identity providers rather than adopting a separate SaaS product.
-
-Coder Agents runs entirely self-hosted.
-There is no SaaS or managed component.
-The agent loop, chat history, and all tool execution happen within your Coder deployment.
 
 ## How it works
 
