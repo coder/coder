@@ -5,6 +5,8 @@ import {
 	formatContextBadge,
 	formatPricePerMillionTokens,
 	getKnownModelsForProvider,
+	isKnownComputerUseModel,
+	knownComputerUseModels,
 	searchKnownModels,
 } from "./catalog";
 
@@ -180,5 +182,26 @@ describe("findKnownModelByCanonicalId", () => {
 		expect(
 			findKnownModelByCanonicalId("anthropic", "claude-haiku-4-5-20251001"),
 		).toBeUndefined();
+	});
+});
+
+describe("isKnownComputerUseModel", () => {
+	it("lists only models present in the generated catalog", () => {
+		for (const entry of knownComputerUseModels) {
+			expect(
+				findKnownModelByCanonicalId(entry.provider, entry.modelIdentifier),
+				`${entry.provider}/${entry.modelIdentifier}`,
+			).toBeDefined();
+		}
+	});
+
+	it("matches a curated model with a non-normalized provider", () => {
+		expect(isKnownComputerUseModel(" Anthropic ", "claude-opus-5")).toBe(true);
+	});
+
+	it("does not match uncurated models, prefixes, or other providers", () => {
+		expect(isKnownComputerUseModel("anthropic", "claude-opus-5-5")).toBe(false);
+		expect(isKnownComputerUseModel("anthropic", "claude-opus")).toBe(false);
+		expect(isKnownComputerUseModel("openai", "claude-opus-5")).toBe(false);
 	});
 });

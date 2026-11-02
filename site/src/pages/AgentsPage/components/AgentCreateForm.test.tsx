@@ -29,7 +29,10 @@ import {
 	userChatPersonalModelOverrides,
 	userChatPersonalModelOverridesKey,
 } from "#/api/queries/chats";
-import { organizationSkillsKey } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkillsKey,
+} from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { userSkillsKey } from "#/api/queries/userSkills";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -53,7 +56,10 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import { MockSkill } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import { mcpSelectionStorageKey } from "../utils/mcpSelection";
@@ -963,6 +969,10 @@ describe("AgentCreateForm project picker", () => {
 		queryClient.setQueryData(organizationSkillsKey(MockOrganization2.id), [
 			{ ...MockSkill, name: "review" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey(MockOrganization2.id),
+			MockOrganizationSkillPreferences,
+		);
 		const { onCreateChat } = renderForm({}, { queryClient });
 
 		await user().click(screen.getByRole("textbox", { name: "Chat message" }));

@@ -183,6 +183,14 @@ export const CloseableTabs: Story = {
 	},
 };
 
+export const CloseableTabFocusedWithKeyboard: Story = {
+	render: CloseableTabs.render,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: "Close Terminal 9 tab" }).focus();
+	},
+};
+
 export const AddTabControlDisabled: Story = {
 	args: {
 		tabs: [gitTab],

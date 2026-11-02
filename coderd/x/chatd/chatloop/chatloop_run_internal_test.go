@@ -987,14 +987,13 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 	newToolBatch(ExecuteLocalToolsOptions{
 		Tools: []fantasy.AgentTool{observer, uncalledObserver, other},
 		ObservedToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "1", ToolName: "observer_tool", Input: "{}"},
 			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
 			{ToolCallID: "3", ToolName: "denied_tool", Input: "{}"},
 		},
-		ToolNameAliases: map[string]string{"observer_alias": "observer_tool"},
-		Clock:           quartz.NewReal(),
+		Clock: quartz.NewReal(),
 	}, "fake", "fake-model").run(context.Background(), []fantasy.ToolCallContent{
-		{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+		{ToolCallID: "1", ToolName: "observer_tool", Input: "{}"},
 		{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
 	}, time.Time{})
 
@@ -1045,7 +1044,7 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 	)
 
 	executed := []fantasy.ToolCallContent{
-		{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+		{ToolCallID: "1", ToolName: "observer_tool", Input: "{}"},
 		{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
 		{ToolCallID: "3", ToolName: "missing_tool", Input: "{}"},
 	}
@@ -1054,13 +1053,12 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		ObservedToolCalls: append(slices.Clone(executed), fantasy.ToolCallContent{
 			ToolCallID: "4", ToolName: "rejected_tool", Input: "{not json",
 		}),
-		ToolNameAliases: map[string]string{"observer_alias": "observer_tool"},
-		Clock:           quartz.NewReal(),
+		Clock: quartz.NewReal(),
 	}, "fake", "fake-model").run(context.Background(), executed, time.Time{})
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
 	require.Equal(t, []string{"observer_tool", "failing_tool", "missing_tool", "rejected_tool"}, gotNames,
-		"outcomes are reported per call in observed order with aliases resolved")
+		"outcomes are reported per call in observed order")
 	require.Equal(t, []bool{false, true, true, true}, gotErrored,
 		"error results, unresolvable tools, and observed calls rejected before execution all settle as errored outcomes")
 }
@@ -1168,13 +1166,12 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	calls := []fantasy.ToolCallContent{
 		{ToolCallID: "a", ToolName: "serial_tool", Input: "{}"},
 		{ToolCallID: "p", ToolName: "parallel_tool", Input: "{}"},
-		{ToolCallID: "b", ToolName: "serial_alias", Input: "{}"},
+		{ToolCallID: "b", ToolName: "serial_tool", Input: "{}"},
 		{ToolCallID: "c", ToolName: "serial_tool", Input: "{}"},
 	}
 	results := newToolBatch(ExecuteLocalToolsOptions{
-		Tools:           []fantasy.AgentTool{serial, parallel},
-		ToolNameAliases: map[string]string{"serial_alias": "serial_tool"},
-		Clock:           quartz.NewReal(),
+		Tools: []fantasy.AgentTool{serial, parallel},
+		Clock: quartz.NewReal(),
 	}, "fake", "fake-model").run(context.Background(), calls, time.Time{})
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
@@ -1446,44 +1443,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 	}
 }
 
-func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
-	t.Parallel()
-
-	var gotName string
-	tool := fantasy.NewAgentTool(
-		"interrupt_agent",
-		"interrupts an agent",
-		func(_ context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			gotName = call.Name
-			return fantasy.ToolResponse{Content: `{"interrupted":true}`}, nil
-		},
-	)
-
-	// The model emits the deprecated name from old history; only the
-	// canonical name is advertised/active.
-	tc := fantasy.ToolCallContent{
-		ToolCallID: "call-alias",
-		ToolName:   "close_agent",
-		Input:      "{}",
-	}
-
-	result, _ := newToolBatch(ExecuteLocalToolsOptions{
-		Tools:           []fantasy.AgentTool{tool},
-		ActiveTools:     []string{"interrupt_agent"},
-		ToolNameAliases: map[string]string{"close_agent": "interrupt_agent"},
-	}, "fake", "fake-model").runOne(context.Background(), tc, nil)
-
-	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
-	require.True(t, ok, "expected text output, got %T", result.Result)
-	require.Contains(t, textOutput.Text, "interrupted")
-	// The handler receives the resolved canonical name.
-	require.Equal(t, "interrupt_agent", gotName)
-	// The persisted result keeps the original alias so existing history
-	// renders consistently.
-	require.Equal(t, "close_agent", result.ToolName)
-}
-
-func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
+func TestExecuteSingleTool_RejectsUnknownTool(t *testing.T) {
 	t.Parallel()
 
 	tc := fantasy.ToolCallContent{
@@ -1492,16 +1452,13 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		Input:      "{}",
 	}
 
-	// No alias provided: the deprecated name is neither active nor in the
-	// tool map, so it surfaces a clear not-active error and the model can
-	// self-correct to the advertised name.
 	result, _ := newToolBatch(ExecuteLocalToolsOptions{
 		ActiveTools: []string{"interrupt_agent"},
 	}, "fake", "fake-model").runOne(context.Background(), tc, nil)
 
 	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
 	require.True(t, ok, "expected error output, got %T", result.Result)
-	require.Contains(t, errOutput.Error.Error(), "close_agent")
+	require.EqualError(t, errOutput.Error, "Tool not active in this turn: close_agent")
 }
 
 func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
@@ -1555,18 +1512,14 @@ func TestExecuteLocalTools_ProviderToolRunner(t *testing.T) {
 		ToolCalls: []fantasy.ToolCallContent{
 			{ToolCallID: "call-search", ToolName: "web_search", Input: "{}", ProviderExecuted: true},
 			{ToolCallID: "call-computer", ToolName: "computer", Input: "{}"},
-			{ToolCallID: "call-alias", ToolName: "computer_alias", Input: "{}"},
 		},
-		ToolNameAliases: map[string]string{"computer_alias": "computer"},
-		Clock:           quartz.NewReal(),
+		Clock: quartz.NewReal(),
 	})
 	require.NoError(t, err)
-	require.Len(t, step.Content, 2, "provider-executed calls are skipped")
-	for i, id := range []string{"call-computer", "call-alias"} {
-		result, ok := step.Content[i].(fantasy.ToolResultContent)
-		require.True(t, ok)
-		require.Equal(t, id, result.ToolCallID)
-		require.Equal(t, fantasy.ToolResultOutputContentText{Text: "screenshot taken"}, result.Result)
-		require.Equal(t, metadata, result.ProviderMetadata)
-	}
+	require.Len(t, step.Content, 1, "provider-executed calls are skipped")
+	result, ok := step.Content[0].(fantasy.ToolResultContent)
+	require.True(t, ok)
+	require.Equal(t, "call-computer", result.ToolCallID)
+	require.Equal(t, fantasy.ToolResultOutputContentText{Text: "screenshot taken"}, result.Result)
+	require.Equal(t, metadata, result.ProviderMetadata)
 }
