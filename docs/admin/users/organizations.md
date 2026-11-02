@@ -119,7 +119,7 @@ The default value is `["organization-workspace-access", "agents-access"]`.
 With that default, every organization member can read, build, ssh into, and execute commands in workspaces they own, and can use Coder Agents.
 Removing `organization-workspace-access` from the list creates organization members that cannot create or use workspaces unless the role is assigned to them directly, which is useful for restricted accounts that should only hold the minimal member permissions.
 Removing `agents-access` limits Coder Agents to members who hold the role directly.
-Refer to [Control who can use Coder Agents](../../ai-coder/agents/getting-started.md#control-who-can-use-coder-agents).
+Refer to [Control who can use Coder Agents](../../coder-agents/getting-started.md#control-who-can-use-coder-agents).
 
 Service accounts don't inherit `agents-access` from this list.
 Assign the role to a service account directly to let it use Coder Agents.
