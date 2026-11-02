@@ -19,6 +19,21 @@ It uses [xterm.js](https://xtermjs.org/) and WebSocket technology for a responsi
 
 Read the complete [Web Terminal documentation](./web-terminal.md) for customization options, keyboard shortcuts, and troubleshooting guides.
 
+## Install the CLI
+
+Download the `coder` CLI for your platform from the [Coder downloads page](https://coder.com/downloads).
+
+On macOS and Linux, you can also install the CLI from your Coder deployment.
+The install script downloads the CLI from your deployment, so it works in air-gapped deployments and installs the same version as your control plane.
+
+1. In the dashboard, open your user menu.
+1. Select **Install CLI**.
+1. Copy the command on the page.
+
+   ![Install Coder binary from your deployment](../../images/install/install_from_deployment.png)
+
+1. Run the command in your terminal.
+
 ## SSH
 
 ### Through the CLI

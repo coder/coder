@@ -6,5 +6,9 @@
   {
     "source": "/docs/about/screenshots",
     "destination": "/docs"
+  },
+  {
+    "source": "/docs/install/cli",
+    "destination": "https://coder.com/downloads"
   }
 ]

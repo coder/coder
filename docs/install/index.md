@@ -10,12 +10,12 @@ Pick the path that matches what you're doing today, and use the rest of the sect
 
 | If you want to                               | Start here                                                 | What you skip                                    |
 |----------------------------------------------|------------------------------------------------------------|--------------------------------------------------|
-| See what Coder does on a single machine      | [Quickstart](../get-started/index.md)                      | Planning, prerequisites, and validation          |
+| Try Coder on a single machine                | [Quickstart](../get-started/index.md)                      | Planning, prerequisites, and validation          |
 | Install on a platform you've already chosen  | [Install the control plane](./server/index.md)             | Planning, unless you need to size the deployment |
 | Deploy for a team, one step at a time        | [The five phases](#the-five-phases), starting with phase 1 | Nothing                                          |
 | Choose a platform or size a deployment       | [Plan your deployment](./plan/index.md)                    | Installation steps                               |
 | Upgrade a deployment that's already running  | [Upgrading](./operate/upgrade.md)                          | Everything except the upgrade guidance           |
-| Install only the `coder` command-line client | [Coder CLI](./cli.md)                                      | The rest of this section                         |
+| Install only the `coder` command-line client | [Coder downloads page](https://coder.com/downloads)        | The rest of this section                         |
 
 Each phase page ends with a link to the next one, so you can also enter anywhere and keep reading in order.
 
@@ -33,8 +33,8 @@ You sign in with a password or with GitHub, so you don't set up an identity prov
 Coder also uses its built-in PostgreSQL database unless you set `CODER_PG_CONNECTION_URL`.
 The built-in database lives on the same machine as Coder, so a deployment that people depend on needs a backup plan for that machine.
 
-When you outgrow a single server, you don't start over.
-Move the data to an external PostgreSQL database by following [Migrate from the built-in database to an external database](../admin/setup/index.md#migrate-from-the-built-in-database-to-an-external-database), then read [Plan your deployment](./plan/index.md) to decide how to grow.
+When you outgrow a single server, you don't need to start over.
+You can move the data to an external PostgreSQL database by following [Migrate from the built-in database to an external database](../admin/setup/index.md#migrate-from-the-built-in-database-to-an-external-database), then read [Plan your deployment](./plan/index.md) to decide how to grow.
 
 ## The five phases
 

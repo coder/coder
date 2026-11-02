@@ -33,7 +33,7 @@ Visit <https://coder.com/trial> or contact [sales@coder.com](mailto:sales@coder.
 
 ### Coder CLI
 
-1. Ensure you have the [Coder CLI](../install/cli.md) installed.
+1. Make sure you have the [Coder CLI](https://coder.com/downloads) installed.
 1. Save your license key to disk and make note of the path.
 1. Open a terminal.
 1. Log in to your Coder deployment:

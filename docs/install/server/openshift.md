@@ -7,7 +7,7 @@ title: OpenShift
 - OpenShift cluster running K8s 1.19+ (OpenShift 4.7+)
 - Helm 3.5+ installed
 - OpenShift CLI (`oc`) installed
-- [Coder CLI](../cli.md) installed
+- [Coder CLI](https://coder.com/downloads) installed
 
 ## Install Coder with OpenShift
 
