@@ -2431,9 +2431,13 @@ func tGo(t *testing.T, fn func()) (done <-chan struct{}) {
 // During tests on darwin we hit the max path length limit for unix sockets
 // pretty easily in the default location, so this function uses /tmp instead to
 // get shorter paths.
+//
+// On Linux, we also hit this limit on GitHub Actions runners: since Go 1.26,
+// t.TempDir() honors GOTMPDIR, which CI sets to a long path like
+// /home/runner/work/_temp/go-tmp/.
 func tempDirUnixSocket(t *testing.T) string {
 	t.Helper()
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS != "windows" {
 		testName := strings.ReplaceAll(t.Name(), "/", "_")
 		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
 		require.NoError(t, err, "create temp dir for gpg test")

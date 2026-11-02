@@ -11,8 +11,8 @@ RUN cargo install --locked jj-cli@0.45.1 typos-cli@1.49.0 watchexec-cli@2.3.2
 FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.25.10
-ARG GO_CHECKSUM="42d4f7a32316aa66591eca7e89867256057a4264451aca10570a715b3637ba70"
+ARG GO_VERSION=1.26.10
+ARG GO_CHECKSUM="ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -212,9 +212,9 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.16.6.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.17.1.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.16.6/terraform_1.16.6_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
