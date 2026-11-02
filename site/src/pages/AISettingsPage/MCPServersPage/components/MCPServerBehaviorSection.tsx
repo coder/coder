@@ -17,6 +17,7 @@ import {
 import { SecretInput } from "./MCPServerAuthSection";
 import { Field } from "./MCPServerFormFieldPrimitives";
 import {
+	AVAILABILITY_FOOTNOTE,
 	AVAILABILITY_OPTIONS,
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
@@ -33,14 +34,9 @@ export const MCPServerBehaviorSection: React.FC<
 	return (
 		<>
 			<Field
-				label="Availability"
+				label="Availability in chats"
 				htmlFor={`${formId}-availability`}
 				className="max-w-md"
-				description={
-					AVAILABILITY_OPTIONS.find(
-						(option) => option.value === form.values.availability,
-					)?.description
-				}
 			>
 				<Select
 					value={form.values.availability}
@@ -49,7 +45,11 @@ export const MCPServerBehaviorSection: React.FC<
 					}
 					disabled={disabled}
 				>
-					<SelectTrigger id={`${formId}-availability`} className="shadow-none">
+					<SelectTrigger
+						id={`${formId}-availability`}
+						className="shadow-none"
+						aria-describedby={`${formId}-availability-help`}
+					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -60,6 +60,12 @@ export const MCPServerBehaviorSection: React.FC<
 						))}
 					</SelectContent>
 				</Select>
+				<span
+					id={`${formId}-availability-help`}
+					className="text-xs text-content-secondary"
+				>
+					{AVAILABILITY_FOOTNOTE}
+				</span>
 			</Field>
 			<div className="flex flex-col gap-4">
 				<SwitchField

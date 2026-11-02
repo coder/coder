@@ -59,8 +59,23 @@ export const Default: Story = {
 		await expect(canvas.getByText("Image")).toBeInTheDocument();
 		await expect(canvas.getByText("API key")).toBeInTheDocument();
 		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("columnheader", { name: /availability in chats/i }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("button", { name: /about availability in chats/i }),
+		).toBeInTheDocument();
+		const memoryRow = canvas.getByRole("button", { name: /Memory/i });
+		await expect(within(memoryRow).getByText("Required")).toBeInTheDocument();
+		const githubRow = canvas.getByRole("button", { name: /GitHub/i });
+		await expect(
+			within(githubRow).getByText("Off by default"),
+		).toBeInTheDocument();
 		const disabledRow = canvas.getByRole("button", { name: /Image/i });
-		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
+		await expect(within(disabledRow).getAllByText("Disabled")).toHaveLength(2);
+		await expect(
+			within(disabledRow).queryByText("Off by default"),
+		).not.toBeInTheDocument();
 	},
 };
 

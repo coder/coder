@@ -18,6 +18,7 @@ type InfoTooltipProps = {
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
 	side?: TooltipSide;
+	align?: "start" | "center" | "end";
 	children: React.ReactNode;
 };
 
@@ -42,6 +43,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	size = "medium",
 	ariaLabel = "More info",
 	side = "right",
+	align = "center",
 }) => {
 	const Icon = typeIcon[type];
 
@@ -61,7 +63,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 				>
 					<Icon />
 				</TooltipTrigger>
-				<TooltipContent side={side} align="center" className="max-w-xs">
+				<TooltipContent side={side} align={align} className="max-w-xs">
 					{children}
 				</TooltipContent>
 			</Tooltip>
