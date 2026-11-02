@@ -13481,9 +13481,14 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
 		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   localDefault.AIProviderID,
+			OrganizationID: org.ID,
+		})
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, chatModel.ID, "first")
 		testutil.TryReceive(ctx, t, firstRunStarted)
+		disableChatModelConfig(t, db, chatModel)
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		close(allowFirstRunFinish)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
@@ -13534,9 +13539,14 @@ func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
 		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   localDefault.AIProviderID,
+			OrganizationID: org.ID,
+		})
 		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, chatModel.ID, "first")
 		testutil.TryReceive(ctx, t, streamStarted)
+		disableChatModelConfig(t, db, chatModel)
 		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
 		current, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -13575,7 +13585,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: localDefault.ID,
+			LastModelConfigID: foreignModel.ID,
 			Title:             "resolve explicit queued promotion",
 			Status:            database.ChatStatusError,
 		})
@@ -13600,7 +13610,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: localDefault.ID,
+			LastModelConfigID: foreignModel.ID,
 			Title:             "resolve error send promotion",
 			Status:            database.ChatStatusError,
 		})
@@ -13649,6 +13659,22 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, messages)
 	})
+}
+
+func disableChatModelConfig(t *testing.T, db database.Store, model database.ChatModelConfig) {
+	t.Helper()
+	_, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
+		ID:                   model.ID,
+		DisplayName:          model.DisplayName,
+		Model:                model.Model,
+		Enabled:              false,
+		IsDefault:            model.IsDefault,
+		ContextLimit:         model.ContextLimit,
+		CompressionThreshold: model.CompressionThreshold,
+		Options:              model.Options,
+		AIProviderID:         model.AIProviderID,
+	})
+	require.NoError(t, err)
 }
 
 func insertQueuedMessage(
