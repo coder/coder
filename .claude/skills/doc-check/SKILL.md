@@ -224,13 +224,15 @@ The model server serves about 8 requests at once before it queues, and several r
 Verifier batches count against the same limit.
 
 1. Start the first queued agents whose inputs are ready, up to the limit.
-2. Wait on the running agent that started first, with `wait_agent` and a timeout of 600 seconds.
-3. When it finishes, confirm its output file exists, start the next ready agent, and go back to step 2.
+2. Wait on the running agent that started first, with `wait_agent` and a timeout of 300 seconds.
+   `wait_agent` watches one agent, so it can return after another agent has already finished.
+3. Call `list_agents`, which shows every agent's status and start time.
+   For each agent that finished, confirm its output file exists, then start the next ready agent.
    A finished agent with no output file is `blocked`.
-4. When a wait times out, wait on the next running agent instead, so one slow agent does not hold the queue.
-5. After four timed-out waits on the same agent, send it `message_agent`, interrupting: `Stop now. Write your output file with what you finished, status budget_exhausted.`
-   If it has not finished after one more wait, interrupt it, confirm it stopped, and record it as `incomplete`.
+4. Send each agent that is still running 90 minutes after it started `message_agent`, interrupting: `Stop now. Write your output file with what you finished, status budget_exhausted.`
+   If it has not finished by your next `list_agents`, interrupt it, confirm it stopped, and record it as `incomplete`.
    Count it against the limit until it stops.
+5. Go back to step 2 until the queue is empty and no agent is running.
 
 The platform does not enforce these limits, so follow them exactly.
 
