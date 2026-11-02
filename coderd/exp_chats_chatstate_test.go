@@ -277,18 +277,28 @@ func TestChatQueueEndpointErrors(t *testing.T) {
 				Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
 			})
 			require.NoError(t, err)
+			var queued *codersdk.ChatQueuedMessage
 			if tc.queueFirst {
-				_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				sent, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 					Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
 					BusyBehavior: codersdk.ChatBusyBehaviorQueue,
 				})
 				require.NoError(t, err)
+				require.NotNil(t, sent.QueuedMessage)
+				queued = sent.QueuedMessage
 			}
 
 			res, err := client.Request(ctx, tc.method, fmt.Sprintf("/api/v2/chats/%s/queue/99999999%s", chat.ID, tc.pathSuffix), nil)
 			require.NoError(t, err)
 			defer res.Body.Close()
 			require.Equal(t, tc.wantStatus, res.StatusCode)
+
+			if queued != nil {
+				got, err := client.GetChatMessages(ctx, chat.ID, nil)
+				require.NoError(t, err)
+				require.Len(t, got.QueuedMessages, 1)
+				require.Equal(t, queued.ID, got.QueuedMessages[0].ID)
+			}
 		})
 	}
 }
