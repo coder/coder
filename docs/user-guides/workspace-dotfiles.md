@@ -33,7 +33,7 @@ sudo apt update
 sudo apt install -y neovim fish cargo
 ```
 
-The script can read the [environment variables the agent sets](../admin/templates/extending-templates/environment-variables.md#variables-the-agent-sets) to adapt to the workspace it runs in.
+The script can read the [environment variables the agent sets](../templates/extending-templates/environment-variables.md#variables-the-agent-sets) to adapt to the workspace it runs in.
 For example, this script installs the Go language server only in workspaces created from the `go` template, which provides the Go toolchain:
 
 ```sh

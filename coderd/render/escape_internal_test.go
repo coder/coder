@@ -287,7 +287,7 @@ func TestEscapeMarkdownNoAutolink(t *testing.T) {
 		// Shapes taken from shipped notification body templates.
 		for _, markdown := range []string{
 			"marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of x",
-			"See [the docs](https://coder.com/docs/admin/templates/troubleshooting).",
+			"See [the docs](https://coder.com/docs/templates/troubleshooting).",
 		} {
 			html := HTMLFromNotificationMarkdown(markdown)
 			assert.Contains(t, html, `<a href="https://coder.com/docs/`, "trusted link did not render: %s", html)

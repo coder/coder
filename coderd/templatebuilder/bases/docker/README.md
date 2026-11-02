@@ -28,7 +28,7 @@ Some options to consider:
 
 More language-specific images (Go, Java, Node.js, and more) are available in [coder/images](https://github.com/coder/images), and the [devcontainers/images](https://github.com/devcontainers/images) collection is another good source of ready-made development images.
 You can also build your own image to pre-bake the exact tools your team needs.
-Visit [Coder's image management docs](https://coder.com/docs/admin/templates/managing-templates/image-management) for additional guidance.
+Visit [Coder's image management docs](https://coder.com/docs/templates/managing-templates/image-management) for additional guidance.
 
 ### Infrastructure
 

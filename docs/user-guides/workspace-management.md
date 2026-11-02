@@ -5,7 +5,7 @@ title: Manage workspaces
 A workspace is the environment where a developer or a coding agent works.
 Developers and agents in a team each work from their own workspace and can use [multiple IDEs](./workspace-access/index.md).
 
-A developer creates a workspace from a [shared template](../admin/templates/index.md).
+A developer creates a workspace from a [shared template](../templates/index.md).
 This lets an entire team work in environments that are identically configured and provisioned with the same resources.
 
 <a id="creating-workspaces"></a>
@@ -24,7 +24,7 @@ You can manage your existing templates in the **Workspaces** tab.
 
 You can also create a workspace from the command line:
 
-Each Coder user has their own workspaces created from [templates](../admin/templates/index.md):
+Each Coder user has their own workspaces created from [templates](../templates/index.md):
 
 ```sh
 # create a workspace from the template; specify any variables
@@ -47,7 +47,7 @@ coder show <workspace-name>
 
 Renaming a workspace after you create it is off by default.
 A template admin can allow it per template.
-Refer to [Workspace renaming](../admin/templates/managing-templates/index.md#workspace-renaming).
+Refer to [Workspace renaming](../templates/managing-templates/index.md#workspace-renaming).
 
 ## Workspace filtering
 
@@ -148,16 +148,16 @@ To set a workspace's schedule, go to the workspace, then **Settings** > **Schedu
 
 ![Scheduling UI](../images/schedule.png)
 
-Coder might also stop a workspace automatically if there is a [template update](../admin/templates/managing-templates/index.md#update-templates) available.
+Coder might also stop a workspace automatically if there is a [template update](../templates/managing-templates/index.md#update-templates) available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our [scheduling features](./workspace-scheduling.md).
 
 ## Workspace resources
 
-Workspaces in Coder are started and stopped, often based on whether there was any activity or if there was a [template update](../admin/templates/index.md) available.
+Workspaces in Coder are started and stopped, often based on whether there was any activity or if there was a [template update](../templates/index.md) available.
 
 Resources are often destroyed and re-created when a workspace is restarted, though the exact behavior depends on the template.
-For more information, see [Resource Persistence](../admin/templates/extending-templates/resource-persistence.md).
+For more information, see [Resource Persistence](../templates/extending-templates/resource-persistence.md).
 
 <a id="repairing-workspaces"></a>
 
