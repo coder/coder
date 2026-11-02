@@ -492,23 +492,10 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 		}
 
 	case chatstate.StateI1:
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		tailBody := "queued-i1-b"
-		tail := sendQueuedMessage(t, f, m, tailBody)
-		require.NotNil(t, tail.QueuedMessage)
-		// R1 -> I1 via interrupt-mode SendMessage queues a second
-		// message and flips status to interrupting.
-		headBody := "queued-i1-a"
-		head := sendInterruptMessage(t, f, m, created.Chat.ID, headBody)
-		require.NotNil(t, head.QueuedMessage)
-		return seededChat{
-			chatID:               created.Chat.ID,
-			exists:               true,
-			initialUserMessageID: firstUserMessageID(ctx, t, f, created.Chat.ID),
-			queuedMessageIDs:     []int64{head.QueuedMessage.ID, tail.QueuedMessage.ID},
-			queuedMessageBodies:  []string{headBody, tailBody},
-		}
+		// An interrupt send stores a steer row, which delivers ahead of
+		// older queue rows. Interrupt without a message instead, so both
+		// rows share the queue lane like the other multi seeds.
+		return seedQueue(t, f, chatstate.StateI1, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorQueue)
 
 	case chatstate.StateA1:
 		return seedAOrA1(t, f, 2, "seed_tool_a1_multi")
