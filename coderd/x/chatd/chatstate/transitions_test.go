@@ -187,14 +187,19 @@ func TestSteerQueuedMessageResolvesOrganizationModel(t *testing.T) {
 			OrganizationID: foreignOrg.ID,
 			IsDefault:      true,
 		})
-		promoted := steerQueuedMessageWithModel(t, f, f.Model.ID, foreignModel.ID)
+		promoted := steerQueuedMessageWithModel(t, f, foreignModel.ID, foreignModel.ID)
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
 	t.Run("missing model falls back to local default", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
-		promoted := steerQueuedMessageWithModel(t, f, f.Model.ID, uuid.New())
+		deleted := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: f.Org.ID,
+		})
+		_, err := f.DB.DeleteChatModelConfigByID(context.Background(), deleted.ID)
+		require.NoError(t, err)
+		promoted := steerQueuedMessageWithModel(t, f, deleted.ID, uuid.New())
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -205,7 +210,7 @@ func TestSteerQueuedMessageResolvesOrganizationModel(t *testing.T) {
 			OrganizationID: f.Org.ID,
 		})
 		setChatModelConfigEnabled(t, f.DB, disabled, false)
-		promoted := steerQueuedMessageWithModel(t, f, f.Model.ID, disabled.ID)
+		promoted := steerQueuedMessageWithModel(t, f, disabled.ID, disabled.ID)
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -405,7 +410,7 @@ func steerQueuedMessageWithModel(
 	t *testing.T,
 	f *testFixture,
 	chatModelConfigID uuid.UUID,
-	modelConfigID uuid.UUID,
+	queuedModelConfigID uuid.UUID,
 ) database.ChatMessage {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -415,7 +420,7 @@ func steerQueuedMessageWithModel(
 		LastModelConfigID: chatModelConfigID,
 	})
 	require.NoError(t, err)
-	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
+	message := userTextMessage("queued model resolution", f.User.ID, queuedModelConfigID)
 	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
