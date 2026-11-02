@@ -1245,7 +1245,7 @@ const ChatMessageInput = ({
 				<RichTextPlugin
 					contentEditable={
 						<ContentEditable
-							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
+							className="outline-hidden w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] scrollbar-thin [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 p-px"
 							data-testid="chat-message-input"
 							style={{ minHeight: "inherit" }}
 							aria-label={ariaLabel}
@@ -1254,7 +1254,7 @@ const ChatMessageInput = ({
 						/>
 					}
 					placeholder={
-						<div className="pointer-events-none text-content-secondary [&_p]:leading-normal">
+						<div className="pointer-events-none px-px text-content-secondary [&_p]:leading-normal">
 							{placeholder}
 						</div>
 					}

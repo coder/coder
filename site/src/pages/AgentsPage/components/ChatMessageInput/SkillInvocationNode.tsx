@@ -1,3 +1,4 @@
+import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { cn } from "cn";
 import {
 	$createLineBreakNode,
@@ -105,6 +106,7 @@ const SkillChipWrapper: React.FC<{
 	source: SkillSource;
 	name: string;
 }> = ({ editor, nodeKey, source, name }) => {
+	const [isSelected] = useLexicalNodeSelection(nodeKey);
 	const spacing = useFileReferenceSpacing(editor, nodeKey);
 	const handleRemove = () => {
 		editor.update(() => {
@@ -116,6 +118,7 @@ const SkillChipWrapper: React.FC<{
 		<EditableSkillChip
 			source={source}
 			name={name}
+			data-selected={isSelected}
 			onRemove={handleRemove}
 			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
