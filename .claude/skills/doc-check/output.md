@@ -119,9 +119,11 @@ Its final message holds, in order:
 2. The summary comment body you would have posted, or `No summary comment.`
 3. The run trace.
 
+When items 1 and 2 are too long for one message, write them to `review.md` in the packet, name that path in the message, and still end the message with the run trace.
+
 ## Run trace
 
-End every run, in every mode, with this block as the last thing in your final message.
+End every run, in every mode, with this block as the last thing in your final message, even when the review itself went to a file.
 A later step reads it to set the commit status, so keep the field names exact.
 
 ```yaml
