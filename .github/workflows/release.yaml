@@ -583,8 +583,12 @@ jobs:
             ./build/*.apk
             ./build/*.deb
             ./build/*.rpm
-            "./coder_${VERSION}_sbom.spdx.json"
           )
+
+          # The SBOM is only generated for real releases.
+          if [[ $CODER_DRY_RUN != *t* ]]; then
+            files+=("./coder_${VERSION}_sbom.spdx.json")
+          fi
 
           # Only include the latest SBOM file if it was created
           if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
