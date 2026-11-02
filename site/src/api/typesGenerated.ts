@@ -6365,6 +6365,8 @@ export type HealthCode =
 	| "EWP02"
 	| "EWP04"
 	| "EWP01"
+	| "EPS01"
+	| "EPS02"
 	| "EUNKNOWN"
 	| "EWS01"
 	| "EWS02"
@@ -6395,6 +6397,8 @@ export const HealthCodes: HealthCode[] = [
 	"EWP02",
 	"EWP04",
 	"EWP01",
+	"EPS01",
+	"EPS02",
 	"EUNKNOWN",
 	"EWS01",
 	"EWS02",
