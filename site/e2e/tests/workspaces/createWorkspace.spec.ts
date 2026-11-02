@@ -192,8 +192,8 @@ test.skip("create docker workspace", async ({ context, page }) => {
 		workspaceName,
 		"main",
 	);
-	await terminal.waitForSelector(
-		`//textarea[contains(@class,"xterm-helper-textarea")]`,
-		{ state: "visible" },
-	);
+	await terminal
+		.getByTestId("terminal")
+		.locator("canvas")
+		.waitFor({ state: "visible" });
 });

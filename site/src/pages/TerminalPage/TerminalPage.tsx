@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
 import {
 	workspaceByOwnerAndName,
@@ -87,8 +86,6 @@ const TerminalPage: React.FC = () => {
 	const selectedProxy = proxy.proxy;
 	const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
-	const config = useQuery(deploymentConfig());
-
 	// Periodically report workspace usage.
 	useQuery(
 		workspaceUsage({
@@ -126,7 +123,6 @@ const TerminalPage: React.FC = () => {
 		appearanceSettings(metadata.userAppearance),
 	);
 	const terminalConfig = getTerminalConfig(
-		config.data,
 		appearanceSettingsQuery.data,
 		proxy.preferredPathAppURL,
 	);
@@ -200,7 +196,6 @@ const TerminalPage: React.FC = () => {
 				<WorkspaceTerminal
 					ref={terminalRef}
 					agentId={workspaceAgent?.id}
-					operatingSystem={workspaceAgent?.operating_system}
 					initialCommand={initialCommand}
 					containerName={containerName}
 					containerUser={containerUser}
@@ -210,11 +205,9 @@ const TerminalPage: React.FC = () => {
 					sessionId={sessionId}
 					baseUrl={terminalConfig.baseUrl}
 					terminalFontFamily={terminalConfig.fontFamily}
-					renderer={terminalConfig.renderer}
 					onOpenLink={handleWebLink}
 					loading={
 						workspace.isLoading ||
-						config.isLoading ||
 						appearanceSettingsQuery.isLoading ||
 						commandPendingConfirmation
 					}

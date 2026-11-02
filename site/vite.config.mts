@@ -75,7 +75,7 @@ export default defineConfig({
 				codeSplitting: {
 					groups: [
 						{ name: "monaco", test: /monaco-editor/ },
-						{ name: "xterm", test: /@xterm/ },
+						{ name: "ghostty-web", test: /ghostty-web/ },
 						{ name: "emoji-mart", test: /emoji-mart/ },
 						{ name: "radix-ui", test: /radix-ui/ },
 					],

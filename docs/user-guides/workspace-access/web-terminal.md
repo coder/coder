@@ -9,7 +9,7 @@ It's automatically enabled for all workspaces and requires no additional configu
 
 ## Overview
 
-The Web Terminal leverages [xterm.js](https://xtermjs.org/), an industry-standard terminal emulator, combined with WebSocket technology to provide a responsive and feature-rich terminal experience in your browser.
+The Web Terminal uses [ghostty-web](https://github.com/coder/ghostty-web), which reads terminal output with the same parser as the [Ghostty](https://ghostty.org/) terminal.
 
 ### Key Features
 
@@ -23,8 +23,6 @@ The Web Terminal leverages [xterm.js](https://xtermjs.org/), an industry-standar
   Automatically detects and makes URLs clickable
 - **Copy/Paste Support**:
   Select text to automatically copy it to your clipboard
-- **Multiple Rendering Options**:
-  Choose between different rendering engines for optimal performance
 
 <a id="accessing-the-terminal"></a>
 
@@ -59,7 +57,7 @@ https://coder.example.com/@username/workspace-name.agent-name/terminal
 The Web Terminal creates a persistent connection between your browser and the workspace:
 
 1. **Browser**:
-   Renders the terminal using xterm.js
+   Renders the terminal using ghostty-web
 2. **WebSocket**:
    Maintains a persistent, low-latency connection
 3. **Control plane**:
@@ -96,32 +94,6 @@ You can customize the terminal font through your user settings:
    - **Source Code Pro**
 
 The font change applies immediately to all open terminal sessions.
-
-### Rendering Engine
-
-Administrators can configure the terminal renderer for performance optimization:
-
-```yaml
-# In your Coder deployment configuration
-webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
-```
-
-Or via environment variable:
-
-```sh
-CODER_WEB_TERMINAL_RENDERER=canvas
-```
-
-**Renderer Options:**
-
-- **`canvas`** (default): Best compatibility, good performance on most systems
-- **`webgl`**:
-  Hardware-accelerated, ideal for high-refresh terminals and complex rendering
-- **`dom`**:
-  Fallback option, useful for accessibility tools or older browsers
-
-> **Note:**
-> The renderer setting is deployment-wide and requires a control plane restart to take effect.
 
 ## Keyboard Shortcuts
 
@@ -202,7 +174,7 @@ This displays the current latency to your selected workspace proxy in the bottom
 
 ## Configuration File Support
 
-The Web Terminal uses xterm.js under the hood, which is configured programmatically rather than through a configuration file.
+The Web Terminal doesn't read any configuration files, including the Ghostty configuration file on your computer.
 However, you can customize various aspects:
 
 ### User-Side Customization

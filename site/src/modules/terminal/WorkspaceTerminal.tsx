@@ -1,16 +1,9 @@
-import "@xterm/xterm/css/xterm.css";
-import { CanvasAddon } from "@xterm/addon-canvas";
-import { FitAddon } from "@xterm/addon-fit";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { Terminal } from "@xterm/xterm";
 import { cn } from "cn";
+import { FitAddon, init as initGhostty, Terminal } from "ghostty-web";
 import {
 	useCallback,
 	useEffect,
 	useEffectEvent,
-	useId,
 	useImperativeHandle,
 	useRef,
 	useState,
@@ -31,6 +24,8 @@ import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
+import { createLinkProvider } from "./linkProvider";
+import { Osc52Parser } from "./osc52";
 import type { ConnectionStatus } from "./types";
 
 export type WorkspaceTerminalHandle = {
@@ -40,7 +35,6 @@ export type WorkspaceTerminalHandle = {
 type WorkspaceTerminalProps = {
 	ref?: React.Ref<WorkspaceTerminalHandle>;
 	agentId: string | undefined;
-	operatingSystem?: string;
 	className?: string;
 	autoFocus?: boolean;
 	isVisible?: boolean;
@@ -59,7 +53,6 @@ type WorkspaceTerminalProps = {
 	sessionId: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
-	renderer?: string;
 	backgroundColor?: string;
 	onOpenLink?: (uri: string) => void;
 	loading?: boolean;
@@ -74,10 +67,20 @@ const encodeTerminalPayload = (payload: Record<string, number | string>) => {
 	return new TextEncoder().encode(JSON.stringify(payload));
 };
 
+// The terminal emulator runs in WebAssembly, which must be loaded once
+// before any terminal is created.
+let ghosttyInitPromise: Promise<void> | undefined;
+const loadGhostty = () => {
+	ghosttyInitPromise ??= initGhostty().catch((error: unknown) => {
+		ghosttyInitPromise = undefined;
+		throw error;
+	});
+	return ghosttyInitPromise;
+};
+
 export const WorkspaceTerminal = ({
 	ref,
 	agentId,
-	operatingSystem,
 	className,
 	autoFocus = true,
 	isVisible = true,
@@ -91,17 +94,17 @@ export const WorkspaceTerminal = ({
 	sessionId,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
-	renderer,
 	backgroundColor,
 	onOpenLink,
 	loading = false,
 	errorMessage,
 	testId,
 }: WorkspaceTerminalProps) => {
-	const scopeId = useId();
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
+	const terminalRef = useRef<Terminal | undefined>(undefined);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	const websocketRef = useRef<Websocket | undefined>(undefined);
+	const firstWriteTerminalRef = useRef<Terminal | undefined>(undefined);
 	const handleOpenLink = useEffectEvent((uri: string) => {
 		if (onOpenLink) {
 			onOpenLink(uri);
@@ -111,9 +114,6 @@ export const WorkspaceTerminal = ({
 	});
 	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
 		onStatusChange?.(status);
-	});
-	const handleContentReady = useEffectEvent(() => {
-		onContentReady?.();
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard, readFromClipboard } = useClipboard();
@@ -152,6 +152,26 @@ export const WorkspaceTerminal = ({
 		onError?.(error);
 	});
 
+	// Notify after the first output paints so consumers can hide connection
+	// latency. The write callback runs on the animation frame after the
+	// terminal has rendered the written data.
+	const writeToTerminal = useEffectEvent(
+		(target: Terminal, data: string | Uint8Array) => {
+			if (firstWriteTerminalRef.current === target) {
+				target.write(data);
+				return;
+			}
+			firstWriteTerminalRef.current = target;
+			target.write(data, () => {
+				onContentReady?.();
+			});
+		},
+	);
+
+	const copyOsc52Text = useEffectEvent((text: string) => {
+		void copyToClipboard(text);
+	});
+
 	const getTerminalDimensions = useEffectEvent(
 		(terminal: Terminal): { height: number; width: number } | null => {
 			if (terminal.rows <= 0 || terminal.cols <= 0) {
@@ -172,7 +192,8 @@ export const WorkspaceTerminal = ({
 
 	const refit = useCallback(() => {
 		const fitAddon = fitAddonRef.current;
-		if (!fitAddon) {
+		const currentTerminal = terminalRef.current;
+		if (!fitAddon || !currentTerminal) {
 			return;
 		}
 
@@ -186,15 +207,18 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 
-		// We have to fit twice here. It's unknown why, but the
-		// first fit will overflow slightly in some scenarios.
-		// Applying a second fit resolves this.
-		try {
-			fitAddon.fit();
-			fitAddon.fit();
-		} catch {
-			// Expected transient fit failure while xterm initializes.
+		// FitAddon.fit() ignores calls made within 50ms of a previous resize,
+		// which drops resizes that happen in quick succession. Resizing from
+		// the proposed dimensions directly keeps every refit.
+		const dimensions = fitAddon.proposeDimensions();
+		if (
+			!dimensions ||
+			(dimensions.cols === currentTerminal.cols &&
+				dimensions.rows === currentTerminal.rows)
+		) {
+			return;
 		}
+		currentTerminal.resize(dimensions.cols, dimensions.rows);
 	}, []);
 
 	useImperativeHandle(
@@ -216,141 +240,142 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 
-		const nextTerminal = new Terminal({
-			allowProposedApi: true,
-			allowTransparency: true,
-			// Use the selected terminal font for block element, box drawing,
-			// quadrant, and powerline glyphs. xterm's custom glyph renderer helps
-			// when fonts lack powerline glyphs, but it changes block and quadrant
-			// shapes and breaks TUIs that use them for pixel art, like Claude
-			// Code's logo.
-			customGlyphs: false,
-			disableStdin: false,
-			fontFamily: terminalFontFamily,
-			fontSize: 16,
-			...(backgroundColor ? { theme: { background: backgroundColor } } : {}),
-		});
+		let disposed = false;
+		let teardown: (() => void) | undefined;
 
-		if (renderer === "webgl") {
-			nextTerminal.loadAddon(new WebglAddon());
-		} else if (renderer === "canvas") {
-			nextTerminal.loadAddon(new CanvasAddon());
-		}
+		const setupTerminal = () => {
+			const nextTerminal = new Terminal({
+				allowTransparency: true,
+				disableStdin: false,
+				fontFamily: terminalFontFamily,
+				fontSize: 16,
+				...(backgroundColor ? { theme: { background: backgroundColor } } : {}),
+			});
 
-		const fitAddon = new FitAddon();
-		fitAddonRef.current = fitAddon;
-		nextTerminal.loadAddon(fitAddon);
-		nextTerminal.loadAddon(new Unicode11Addon());
-		nextTerminal.unicode.activeVersion = "11";
-		nextTerminal.loadAddon(
-			new WebLinksAddon((_, uri) => {
-				handleOpenLink(uri);
-			}),
-		);
+			const fitAddon = new FitAddon();
+			nextTerminal.loadAddon(fitAddon);
 
-		// OSC 52 clipboard support. Programs like tmux send this escape
-		// sequence to copy text to the host's system clipboard.
-		nextTerminal.parser.registerOscHandler(52, (data) => {
-			const separatorIndex = data.indexOf(";");
-			if (separatorIndex === -1) {
-				return false;
-			}
-			const payload = data.slice(separatorIndex + 1);
-			// A "?" payload is a clipboard read query. Responding would
-			// require writing back to the PTY, which is not supported.
-			if (!payload || payload === "?") {
-				return false;
-			}
-			try {
-				const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
-				const decoded = new TextDecoder().decode(bytes);
-				void copyToClipboard(decoded);
-			} catch {
-				// Invalid base64; ignore.
-				return false;
-			}
-			return true;
-		});
+			const copySelection = () => {
+				const selection = nextTerminal.getSelection();
+				if (selection) {
+					copyToClipboard(selection);
+				}
+			};
 
-		const copySelection = () => {
-			const selection = nextTerminal.getSelection();
-			if (selection) {
-				copyToClipboard(selection);
-			}
-		};
-
-		// There is no way to remove this handler, so we must attach it once and
-		// rely on a ref to send it to the current socket.
-		nextTerminal.attachCustomKeyEventHandler((event) => {
-			// Make shift+enter send ^[^M (escaped carriage return). Applications
-			// typically take this to mean to insert a literal newline.
-			if (event.shiftKey && event.key === "Enter") {
-				if (event.type === "keydown") {
+			// There is no way to remove this handler, so we must attach it once
+			// and rely on a ref to send it to the current socket. The handler only
+			// receives keydown events; returning true marks the event as handled.
+			nextTerminal.attachCustomKeyEventHandler((event) => {
+				// Make shift+enter send ^[^M (escaped carriage return). Applications
+				// typically take this to mean to insert a literal newline.
+				if (event.shiftKey && event.key === "Enter") {
 					websocketRef.current?.send(
 						encodeTerminalPayload({ data: ESCAPED_CARRIAGE_RETURN }),
 					);
+					return true;
 				}
-				return false;
-			}
 
-			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
-			// By default this usually launches the browser dev tools, but users
-			// expect this keybinding to copy when in the context of the web terminal.
-			if (
-				(isMac() ? event.metaKey : event.ctrlKey) &&
-				event.shiftKey &&
-				event.key === "C"
-			) {
-				event.preventDefault();
-				if (event.type === "keydown") {
+				// ghostty-web leaves ctrl+v to the browser, which pastes. Send ^V like
+				// other terminals do, so programs such as vim receive it. Pasting
+				// uses ctrl+shift+v or the context menu instead.
+				if (
+					event.ctrlKey &&
+					!event.shiftKey &&
+					!event.altKey &&
+					!event.metaKey &&
+					event.code === "KeyV"
+				) {
+					websocketRef.current?.send(encodeTerminalPayload({ data: "\x16" }));
+					return true;
+				}
+
+				// Make ctrl+shift+c (command+shift+c on macOS) copy the selected
+				// text. By default this usually launches the browser dev tools, but
+				// users expect this keybinding to copy when in the context of the
+				// web terminal.
+				if (
+					(isMac() ? event.metaKey : event.ctrlKey) &&
+					event.shiftKey &&
+					event.key === "C"
+				) {
 					copySelection();
+					return true;
 				}
+
 				return false;
+			});
+
+			// Browsers don't support automatic copy to the X11 primary
+			// selection (highlighted text that can be pasted with
+			// middle-click). Instead, copy-on-select writes to the
+			// system clipboard. This means users can't middle-click
+			// paste in the terminal after selecting, but this tradeoff
+			// is necessary because web browsers don't expose primary
+			// selection APIs. Most web terminal users paste with
+			// Ctrl+Shift+V, Cmd+V on macOS, or the context menu anyway.
+			const selectionListener = nextTerminal.onSelectionChange(() => {
+				copySelection();
+			});
+
+			// open() focuses the terminal. Skip that so autoFocus stays in control
+			// and background terminals do not take focus when they mount.
+			const focus = nextTerminal.focus;
+			nextTerminal.focus = () => {};
+			try {
+				nextTerminal.open(mountNode);
+			} finally {
+				nextTerminal.focus = focus;
 			}
+			nextTerminal.registerLinkProvider(
+				createLinkProvider(nextTerminal, handleOpenLink),
+			);
 
-			return true;
-		});
-
-		// Browsers don't support automatic copy to the X11 primary
-		// selection (highlighted text that can be pasted with
-		// middle-click). Instead, copy-on-select writes to the
-		// system clipboard. This means users can't middle-click
-		// paste in the terminal after selecting, but this tradeoff
-		// is necessary because web browsers don't expose primary
-		// selection APIs. Most web terminal users expect Ctrl+V or
-		// right-click paste anyway.
-		nextTerminal.onSelectionChange(() => {
-			copySelection();
-		});
-
-		nextTerminal.open(mountNode);
-		refit();
-
-		window.addEventListener("resize", refit);
-
-		const resizeObserver = new ResizeObserver(() => {
+			terminalRef.current = nextTerminal;
+			fitAddonRef.current = fitAddon;
 			refit();
-		});
-		resizeObserver.observe(mountNode);
 
-		setTerminal(nextTerminal);
+			window.addEventListener("resize", refit);
+
+			const resizeObserver = new ResizeObserver(() => {
+				refit();
+			});
+			resizeObserver.observe(mountNode);
+
+			setTerminal(nextTerminal);
+
+			teardown = () => {
+				window.removeEventListener("resize", refit);
+				resizeObserver.disconnect();
+				selectionListener.dispose();
+				terminalRef.current = undefined;
+				fitAddonRef.current = undefined;
+				setTerminal(undefined);
+				nextTerminal.dispose();
+			};
+		};
+
+		loadGhostty()
+			.then(() => {
+				if (disposed) {
+					return;
+				}
+				setupTerminal();
+			})
+			.catch((error: unknown) => {
+				if (disposed) {
+					return;
+				}
+				reportTerminalError(
+					error instanceof Error ? error : new Error(String(error)),
+				);
+				handleStatusChange("disconnected");
+			});
 
 		return () => {
-			window.removeEventListener("resize", refit);
-			resizeObserver.disconnect();
-			fitAddonRef.current = undefined;
-			setTerminal(undefined);
-			// xterm queues its initial viewport synchronization in a timer.
-			window.setTimeout(() => nextTerminal.dispose(), 0);
+			disposed = true;
+			teardown?.();
 		};
-	}, [
-		isVisible,
-		copyToClipboard,
-		refit,
-		renderer,
-		terminalFontFamily,
-		backgroundColor,
-	]);
+	}, [isVisible, copyToClipboard, refit, terminalFontFamily, backgroundColor]);
 
 	useEffect(() => {
 		if (!isVisible) {
@@ -374,32 +399,6 @@ export const WorkspaceTerminal = ({
 		};
 	}, [terminal, isVisible, autoFocus, loading]);
 
-	// Notify after first output paints so consumers can hide connection latency.
-	useEffect(() => {
-		if (!terminal) {
-			return;
-		}
-		let hasParsedOutput = false;
-		const writeParsed = terminal.onWriteParsed(() => {
-			hasParsedOutput = true;
-		});
-		// onWriteParsed fires before xterm paints; gate on the next onRender so
-		// pixels are present before the terminal is revealed. clear()/refresh
-		// fire onRender without a parse and are intentionally ignored.
-		const rendered = terminal.onRender(() => {
-			if (!hasParsedOutput) {
-				return;
-			}
-			writeParsed.dispose();
-			rendered.dispose();
-			handleContentReady();
-		});
-		return () => {
-			writeParsed.dispose();
-			rendered.dispose();
-		};
-	}, [terminal]);
-
 	useEffect(() => {
 		if (!terminal || !isVisible) {
 			return;
@@ -413,7 +412,7 @@ export const WorkspaceTerminal = ({
 		}
 
 		if (errorMessage) {
-			terminal.writeln(errorMessage);
+			writeToTerminal(terminal, `${errorMessage}\r\n`);
 			handleStatusChange("disconnected");
 			return;
 		}
@@ -421,19 +420,20 @@ export const WorkspaceTerminal = ({
 		if (!agentId) {
 			const error = new Error("Terminal requires agentId to connect");
 			reportTerminalError(error);
-			terminal.writeln(error.message);
+			writeToTerminal(terminal, `${error.message}\r\n`);
 			handleStatusChange("disconnected");
 			return;
 		}
 
 		refit();
-		// Fall back to standard dimensions if the terminal hasn't rendered
-		// yet (e.g. fit() failed during renderer startup). The correct
-		// size will be sent once the ResizeObserver fires.
+		// Fall back to standard dimensions if the terminal has no size yet.
+		// The correct size will be sent once the ResizeObserver fires.
 		const initialDimensions = getTerminalDimensions(terminal) ?? {
 			height: 24,
 			width: 80,
 		};
+
+		const osc52Parser = new Osc52Parser();
 
 		let websocket: Websocket | null;
 		const disposers = [
@@ -501,10 +501,7 @@ export const WorkspaceTerminal = ({
 					if (disposed) {
 						return;
 					}
-					terminal.options = {
-						disableStdin: false,
-						windowsMode: operatingSystem === "windows",
-					};
+					terminal.options.disableStdin = false;
 					refit();
 					scheduleTerminalResize();
 					handleStatusChange("connected");
@@ -531,13 +528,16 @@ export const WorkspaceTerminal = ({
 					if (disposed) {
 						return;
 					}
-					if (typeof event.data === "string") {
-						// This exclusively occurs when testing.
-						// "jest-websocket-mock" doesn't support ArrayBuffer.
-						terminal.write(event.data);
-					} else {
-						terminal.write(new Uint8Array(event.data));
+					// String data exclusively occurs when testing.
+					// "jest-websocket-mock" doesn't support ArrayBuffer.
+					const data =
+						typeof event.data === "string"
+							? event.data
+							: new Uint8Array(event.data);
+					for (const text of osc52Parser.feed(data)) {
+						copyOsc52Text(text);
 					}
+					writeToTerminal(terminal, data);
 				});
 				websocket.addEventListener(WebsocketEvent.reconnect, () => {
 					if (disposed || !websocket) {
@@ -589,72 +589,43 @@ export const WorkspaceTerminal = ({
 		errorMessage,
 		initialCommand,
 		loading,
-		operatingSystem,
 		reconnectionToken,
 		sessionId,
 		refit,
 		terminal,
 	]);
 
-	const terminalScopeSelector = `[data-terminal-scope="${scopeId}"]`;
-
 	return (
-		<>
-			<style>{`
-				${terminalScopeSelector} .xterm {
-					padding: 4px;
-					width: 100%;
-					height: 100%;
-				}
-
-				${terminalScopeSelector} .xterm-viewport {
-					/* This is required to force full-width on the terminal. */
-					/* Otherwise there's a small white bar to the right of the scrollbar. */
-					width: auto !important;
-				}
-
-				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar {
-					width: 8px;
-				}
-
-				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-track {
-					background-color: transparent;
-				}
-
-				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
-					min-height: 20px;
-					background-color: hsl(var(--surface-scrollbar));
-				}
-			`}</style>
-			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
-				<ContextMenuTrigger asChild disabled={isMac()}>
-					<div
-						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
-							className,
-						)}
-						ref={terminalWrapperRef}
-						data-terminal-scope={scopeId}
-						data-testid={testId}
-					/>
-				</ContextMenuTrigger>
-				<ContextMenuContent
-					onCloseAutoFocus={(event) => {
-						event.preventDefault();
-						terminal?.focus();
-					}}
+		<ContextMenu onOpenChange={handleContextMenuOpenChange}>
+			<ContextMenuTrigger asChild disabled={isMac()}>
+				<div
+					className={cn(
+						"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary p-1 caret-transparent",
+						className,
+					)}
+					ref={terminalWrapperRef}
+					// The terminal's hidden textarea is the tab stop. Without this,
+					// the terminal makes the wrapper a second one.
+					tabIndex={-1}
+					data-testid={testId}
+				/>
+			</ContextMenuTrigger>
+			<ContextMenuContent
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					terminal?.focus();
+				}}
+			>
+				<ContextMenuItem
+					disabled={!hasSelection}
+					onSelect={copyTerminalSelection}
 				>
-					<ContextMenuItem
-						disabled={!hasSelection}
-						onSelect={copyTerminalSelection}
-					>
-						Copy
-					</ContextMenuItem>
-					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
-						Paste
-					</ContextMenuItem>
-				</ContextMenuContent>
-			</ContextMenu>
-		</>
+					Copy
+				</ContextMenuItem>
+				<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+					Paste
+				</ContextMenuItem>
+			</ContextMenuContent>
+		</ContextMenu>
 	);
 };
