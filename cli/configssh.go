@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/serpent"
 )
 
@@ -486,8 +486,8 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					}
 					offset += pageSize
 				}
-				versionResources := templateVersionResources(ctx, inv.Stderr, client, workspaces)
-				configOptions.hostNames = noWildcardHostNames(workspaces, versionResources)
+				workspaceResources := workspaceAgentResources(ctx, inv.Stderr, client, workspaces)
+				configOptions.hostNames = noWildcardHostNames(workspaces, workspaceResources)
 			}
 
 			err = configOptions.writeToBuffer(buf)
@@ -657,7 +657,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		{
 			Flag: "no-wildcard",
 			Env:  "CODER_CONFIGSSH_NO_WILDCARD",
-			Description: "Generate an individual host entry for each workspace and each of its agents instead of a wildcard host block. " +
+			Description: "Generate an individual host entry for each workspace and its known agents instead of a wildcard host block. " +
 				"This allows third-party tools and SSH clients to discover workspaces by reading the config file.",
 			Value:   serpent.BoolOf(&sshConfigOpts.noWildcard),
 			Default: "false",
@@ -1021,10 +1021,10 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 // dashboard and served by Coder Connect. While a workspace runs, its latest
 // build also lists devcontainer sub-agents, so they get entries too. A
 // workspace whose latest build has no agents, such as a stopped one, uses the
-// agents of its template version from versionResources instead. Agent entries
+// resources of its most recent successful start build instead. Agent entries
 // are only written when every name in them is valid, so a server-supplied value
 // can never be written into ssh_config as syntax.
-func noWildcardHostNames(workspaces []codersdk.Workspace, versionResources map[uuid.UUID][]codersdk.WorkspaceResource) []string {
+func noWildcardHostNames(workspaces []codersdk.Workspace, workspaceResources map[uuid.UUID][]codersdk.WorkspaceResource) []string {
 	var names []string
 	for _, ws := range workspaces {
 		names = append(names, ws.Name)
@@ -1033,7 +1033,7 @@ func noWildcardHostNames(workspaces []codersdk.Workspace, versionResources map[u
 		}
 		agents := startAgentNames(ws.LatestBuild.Resources)
 		if len(agents) == 0 {
-			agents = startAgentNames(versionResources[ws.LatestBuild.TemplateVersionID])
+			agents = startAgentNames(workspaceResources[ws.ID])
 		}
 		for _, agent := range agents {
 			names = append(names, agent+"."+ws.Name+"."+ws.OwnerName)
@@ -1042,9 +1042,11 @@ func noWildcardHostNames(workspaces []codersdk.Workspace, versionResources map[u
 	return names
 }
 
-// startAgentNames returns the sorted names of the agents in start-transition
-// resources, skipping names that are not valid agent names. Template version
-// resources also include stop-transition ones.
+// Precreated devcontainer agents retain Terraform labels, including underscores.
+// Hostname components must exclude SSH syntax and doubled-hyphen delimiters.
+var sshAgentNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_-]*$`)
+
+// startAgentNames returns sorted, SSH-config-safe agent names from start resources.
 func startAgentNames(resources []codersdk.WorkspaceResource) []string {
 	var names []string
 	for _, resource := range resources {
@@ -1052,7 +1054,7 @@ func startAgentNames(resources []codersdk.WorkspaceResource) []string {
 			continue
 		}
 		for _, agent := range resource.Agents {
-			if provisioner.AgentNameRegex.MatchString(agent.Name) {
+			if sshAgentNameRegex.MatchString(agent.Name) && !strings.Contains(agent.Name, "--") {
 				names = append(names, agent.Name)
 			}
 		}
@@ -1062,39 +1064,62 @@ func startAgentNames(resources []codersdk.WorkspaceResource) []string {
 	return names
 }
 
-// templateVersionResources fetches the resources of the template version of
-// each workspace whose latest build has no agents, such as a stopped one.
-// Each version is fetched once. If a fetch fails, it warns and leaves the
-// version out, so those workspaces still get their own host entry.
-func templateVersionResources(ctx context.Context, stderr io.Writer, client *codersdk.Client, workspaces []codersdk.Workspace) map[uuid.UUID][]codersdk.WorkspaceResource {
-	workspacesByVersion := make(map[uuid.UUID][]string)
-	for _, ws := range workspaces {
-		if len(startAgentNames(ws.LatestBuild.Resources)) == 0 {
-			id := ws.LatestBuild.TemplateVersionID
-			workspacesByVersion[id] = append(workspacesByVersion[id], ws.Name)
-		}
-	}
-
+// workspaceAgentResources fetches each agentless workspace's last start resources.
+// Import resources cannot account for the workspace's chosen parameters.
+// Failed lookups leave the workspace's bare host entry available.
+func workspaceAgentResources(ctx context.Context, stderr io.Writer, client *codersdk.Client, workspaces []codersdk.Workspace) map[uuid.UUID][]codersdk.WorkspaceResource {
 	var (
 		mu        sync.Mutex
-		resources = make(map[uuid.UUID][]codersdk.WorkspaceResource, len(workspacesByVersion))
+		resources = make(map[uuid.UUID][]codersdk.WorkspaceResource)
 		wg        sync.WaitGroup
 		limit     = make(chan struct{}, 8)
 	)
-	for id, wsNames := range workspacesByVersion {
+	for _, ws := range workspaces {
+		if len(startAgentNames(ws.LatestBuild.Resources)) != 0 {
+			continue
+		}
 		limit <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-limit }()
-			res, err := client.TemplateVersionResources(ctx, id)
+			res, err := previousStartResources(ctx, client, ws)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				cliui.Warnf(stderr, "Skipping agent host entries for %s: fetch template version resources: %v", strings.Join(wsNames, ", "), err)
+				cliui.Warnf(stderr, "Skipping agent host entries for %s: fetch previous start resources: %v", ws.Name, err)
 				return
 			}
-			resources[id] = res
+			resources[ws.ID] = res
 		})
 	}
 	wg.Wait()
 	return resources
+}
+
+// previousStartResources returns the latest successful start's resources, provided
+// it used the workspace's current template version. Older versions and template
+// imports cannot reliably describe the agents that will exist when it restarts.
+func previousStartResources(ctx context.Context, client *codersdk.Client, ws codersdk.Workspace) ([]codersdk.WorkspaceResource, error) {
+	const pageSize = 20
+	for offset := 0; ; offset += pageSize {
+		builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
+			WorkspaceID: ws.ID,
+			Pagination:  codersdk.Pagination{Offset: offset, Limit: pageSize},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("fetch workspace build history: %w", err)
+		}
+		for _, build := range builds {
+			// Ignore builds created after the workspace snapshot used for the config.
+			if build.BuildNumber > ws.LatestBuild.BuildNumber || build.Transition != codersdk.WorkspaceTransitionStart || build.Job.Status != codersdk.ProvisionerJobSucceeded {
+				continue
+			}
+			if build.TemplateVersionID != ws.LatestBuild.TemplateVersionID {
+				return nil, nil
+			}
+			return build.Resources, nil
+		}
+		if len(builds) < pageSize {
+			return nil, nil
+		}
+	}
 }

@@ -2,11 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -766,47 +771,136 @@ func Test_noWildcardHostNames(t *testing.T) {
 		}
 		return r
 	}
-	workspace := func(name string, versionID uuid.UUID, resources ...codersdk.WorkspaceResource) codersdk.Workspace {
+	workspace := func(name string, workspaceID uuid.UUID, resources ...codersdk.WorkspaceResource) codersdk.Workspace {
 		return codersdk.Workspace{
+			ID:        workspaceID,
 			Name:      name,
 			OwnerName: "alice",
 			LatestBuild: codersdk.WorkspaceBuild{
-				TemplateVersionID: versionID,
+				TemplateVersionID: uuid.New(),
 				Resources:         resources,
 			},
 		}
 	}
 
 	fetched, missing := uuid.New(), uuid.New()
-	versionResources := map[uuid.UUID][]codersdk.WorkspaceResource{
+	workspaceResources := map[uuid.UUID][]codersdk.WorkspaceResource{
 		fetched: {
 			resource(codersdk.WorkspaceTransitionStart, "main"),
-			// Template versions also list stop-transition resources.
+			// Stop-transition resources must not contribute agent entries.
 			resource(codersdk.WorkspaceTransitionStop, "ignored"),
 		},
 	}
 
 	got := noWildcardHostNames([]codersdk.Workspace{
 		// Agents of a running workspace come from its latest build, sorted,
-		// skipping names that are not valid agent names.
-		workspace("running", fetched, resource(codersdk.WorkspaceTransitionStart, "web", "dev", "bad name")),
-		// A stopped workspace uses the agents of its template version.
+		// skipping names that are unsafe to interpolate into SSH config.
+		workspace("running", fetched, resource(codersdk.WorkspaceTransitionStart, "web", "dev", "dev_box", "bad name", "bad\nname", "bad*", "bad.name", "bad;name", "-bad", "bad--name")),
+		// A stopped workspace uses its last successful start resources.
 		workspace("stopped", fetched, resource(codersdk.WorkspaceTransitionStop)),
-		// If the template version could not be fetched, only the workspace
+		// If previous start resources could not be fetched, only the workspace
 		// itself gets an entry.
 		workspace("unknown", missing),
 		// So does a workspace whose name is not a valid name, such as one
 		// created before underscores were rejected.
 		workspace("legacy_name", fetched, resource(codersdk.WorkspaceTransitionStart, "dev")),
-	}, versionResources)
+	}, workspaceResources)
 
 	require.Equal(t, []string{
 		"running",
 		"dev.running.alice",
+		"dev_box.running.alice",
 		"web.running.alice",
 		"stopped",
 		"main.stopped.alice",
 		"unknown",
 		"legacy_name",
 	}, got)
+}
+
+func Test_previousStartResources(t *testing.T) {
+	t.Parallel()
+
+	versionID := uuid.New()
+	resources := []codersdk.WorkspaceResource{{
+		Transition: codersdk.WorkspaceTransitionStart,
+		Agents:     []codersdk.WorkspaceAgent{{Name: "main"}},
+	}}
+	start := codersdk.WorkspaceBuild{
+		BuildNumber:       1,
+		Transition:        codersdk.WorkspaceTransitionStart,
+		TemplateVersionID: versionID,
+		Job:               codersdk.ProvisionerJob{Status: codersdk.ProvisionerJobSucceeded},
+		Resources:         resources,
+	}
+	future := start
+	future.BuildNumber = 32
+	future.Resources = []codersdk.WorkspaceResource{{Agents: []codersdk.WorkspaceAgent{{Name: "future"}}}}
+	failed := start
+	failed.BuildNumber = 30
+	failed.Resources = []codersdk.WorkspaceResource{{Agents: []codersdk.WorkspaceAgent{{Name: "failed"}}}}
+	failed.Job.Status = codersdk.ProvisionerJobFailed
+	paged := []codersdk.WorkspaceBuild{future, failed}
+	for number := int32(29); number >= 2; number-- {
+		paged = append(paged, codersdk.WorkspaceBuild{
+			BuildNumber: number,
+			Transition:  codersdk.WorkspaceTransitionStop,
+			Job:         codersdk.ProvisionerJob{Status: codersdk.ProvisionerJobSucceeded},
+		})
+	}
+	paged = append(paged, start)
+	changedVersion := start
+	changedVersion.BuildNumber = 2
+	changedVersion.TemplateVersionID = uuid.New()
+
+	for _, tc := range []struct {
+		name   string
+		builds []codersdk.WorkspaceBuild
+		fail   bool
+		want   []codersdk.WorkspaceResource
+	}{
+		{name: "PaginatedHistory", builds: paged, want: resources},
+		{name: "ChangedTemplateVersion", builds: []codersdk.WorkspaceBuild{changedVersion, start}},
+		{name: "NoSuccessfulStart", builds: []codersdk.WorkspaceBuild{failed}},
+		{name: "FetchError", fail: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ws := codersdk.Workspace{
+				ID: uuid.New(),
+				LatestBuild: codersdk.WorkspaceBuild{
+					BuildNumber:       31,
+					TemplateVersionID: versionID,
+				},
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/api/v2/workspaces/"+ws.ID.String()+"/builds", r.URL.Path)
+				if tc.fail {
+					w.WriteHeader(http.StatusInternalServerError)
+					assert.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "history unavailable"}))
+					return
+				}
+				offset := 0
+				if value := r.URL.Query().Get("offset"); value != "" {
+					var err error
+					offset, err = strconv.Atoi(value)
+					assert.NoError(t, err)
+				}
+				limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+				assert.NoError(t, err)
+				assert.Positive(t, limit)
+				assert.NoError(t, json.NewEncoder(w).Encode(tc.builds[offset:min(offset+limit, len(tc.builds))]))
+			}))
+			t.Cleanup(srv.Close)
+			u, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+			got, err := previousStartResources(t.Context(), codersdk.New(u), ws)
+			if tc.fail {
+				require.ErrorContains(t, err, "history unavailable")
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.want, got)
+		})
+	}
 }

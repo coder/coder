@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -983,7 +984,26 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		t.Skip("See coder/internal#117")
 	}
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	var requestMu sync.Mutex
+	historyRequests := make(map[string]int)
+	var templateResourceRequests int
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet {
+					requestMu.Lock()
+					if strings.HasPrefix(r.URL.Path, "/api/v2/workspaces/") && strings.HasSuffix(r.URL.Path, "/builds") {
+						historyRequests[r.URL.Path]++
+					}
+					if strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources") {
+						templateResourceRequests++
+					}
+					requestMu.Unlock()
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Create two workspaces with names in reverse lexical order so that we can
@@ -1003,31 +1023,72 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 			Env:  map[string]string{},
 		})
 	}).Do()
+	const injectedAgentName = "unsafe\nProxyCommand injected-command"
 	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-alpha",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-alpha"
+		// Attached environments precreate Terraform devcontainer subagents.
+		// Their names permit underscores, unlike regular provisioned agents.
+		for _, name := range []string{"dev_box", injectedAgentName} {
+			a[0].Devcontainers = append(a[0].Devcontainers, &sdkproto.Devcontainer{
+				Name:            name,
+				WorkspaceFolder: "/workspace",
+				Envs:            []*sdkproto.Env{{Name: "EDITOR", Value: "vim"}},
+			})
+		}
 		return a
 	}).Do()
-	// A stopped workspace has no start-transition agents on its latest build,
-	// so its agent entries come from the template version.
-	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+
+	// Import defaults need not match either workspace's actual agent set,
+	// even when the workspaces use the same template version.
+	version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-		Name:           "ws-gamma",
-	}).Seed(database.WorkspaceBuild{
-		Transition: database.WorkspaceTransitionStop,
-	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
-		a[0].Name = "agent-delta"
-		return a
+		CreatedBy:      user.UserID,
+	}).Resources(&sdkproto.Resource{
+		Name: "example",
+		Type: "aws_instance",
+		Agents: []*sdkproto.Agent{{
+			Id:   uuid.NewString(),
+			Name: "default-agent",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Env:  map[string]string{},
+		}},
 	}).Do()
+	wantHistoryRequests := make(map[string]int)
+	for _, ws := range []struct{ name, agent string }{
+		{name: "ws-gamma", agent: "agent-delta"},
+		{name: "ws-delta", agent: "agent-epsilon"},
+	} {
+		started := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			TemplateID:     version.Template.ID,
+			Name:           ws.name,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: version.TemplateVersion.ID,
+		}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+			a[0].Name = ws.agent
+			return a
+		}).Do()
+		dbfake.WorkspaceBuild(t, db, started.Workspace).Seed(database.WorkspaceBuild{
+			TemplateVersionID: version.TemplateVersion.ID,
+			Transition:        database.WorkspaceTransitionStop,
+			BuildNumber:       2,
+		}).Do()
+		wantHistoryRequests[fmt.Sprintf("/api/v2/workspaces/%s/builds", started.Workspace.ID)] = 1
+	}
 
 	sshConfigPath := sshConfigFileName(t)
 
 	runConfigSSH := func() {
 		t.Helper()
+		requestMu.Lock()
+		clear(historyRequests)
+		templateResourceRequests = 0
+		requestMu.Unlock()
 		inv, root := clitest.New(t,
 			"config-ssh",
 			"--ssh-config-file", sshConfigPath,
@@ -1041,6 +1102,10 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
+		requestMu.Lock()
+		defer requestMu.Unlock()
+		assert.Equal(t, wantHistoryRequests, historyRequests, "fetch history once per stopped workspace, not once per host alias")
+		assert.Zero(t, templateResourceRequests, "import resources cannot describe workspace-specific agents")
 	}
 
 	// hostLines extracts lines beginning with "Host " from the SSH config.
@@ -1063,27 +1128,36 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	// user-supplied "--hostname-suffix coder" entries. With stable workspace
 	// names we can assert the complete, ordered host-entry list exactly.
 	// ws-alpha sorts before ws-beta even though ws-alpha was created second,
-	// and the stopped ws-gamma comes after the running workspaces.
+	// and the stopped workspaces come after the running workspaces.
 	// Each workspace entry is followed by an <agent>.<workspace>.<owner> entry
 	// per agent, matching the hostnames the dashboard and Coder Connect use.
 	owner := coderdtest.FirstUserParams.Username
 	wantHosts := []string{
 		"Host coder.ws-alpha",
 		"Host coder.agent-alpha.ws-alpha." + owner,
+		"Host coder.dev_box.ws-alpha." + owner,
 		"Host coder.ws-beta",
 		"Host coder.agent-beta.ws-beta." + owner,
 		"Host coder.agent-gamma.ws-beta." + owner,
+		"Host coder.ws-delta",
+		"Host coder.agent-epsilon.ws-delta." + owner,
 		"Host coder.ws-gamma",
 		"Host coder.agent-delta.ws-gamma." + owner,
 		"Host ws-alpha.coder",
 		"Host agent-alpha.ws-alpha." + owner + ".coder",
+		"Host dev_box.ws-alpha." + owner + ".coder",
 		"Host ws-beta.coder",
 		"Host agent-beta.ws-beta." + owner + ".coder",
 		"Host agent-gamma.ws-beta." + owner + ".coder",
+		"Host ws-delta.coder",
+		"Host agent-epsilon.ws-delta." + owner + ".coder",
 		"Host ws-gamma.coder",
 		"Host agent-delta.ws-gamma." + owner + ".coder",
 	}
-	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
+	assert.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
+	assert.NotContains(t, config, "default-agent")
+	assert.NotContains(t, config, "unsafe")
+	assert.NotContains(t, config, "injected-command")
 
 	// No wildcard entries must appear in the Coder section.
 	require.NotContains(t, config, "Host *.coder")

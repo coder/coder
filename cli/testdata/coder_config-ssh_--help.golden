@@ -37,7 +37,7 @@ OPTIONS:
           Override the default hostname suffix.
 
       --no-wildcard bool, $CODER_CONFIGSSH_NO_WILDCARD (default: false)
-          Generate an individual host entry for each workspace and each of its
+          Generate an individual host entry for each workspace and its known
           agents instead of a wildcard host block. This allows third-party tools
           and SSH clients to discover workspaces by reading the config file.
 
