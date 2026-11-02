@@ -57,7 +57,7 @@ They interact with Coder using the web interface, the CLI tool, or directly call
 
 ### Workspace
 
-A [workspace](../../../user-guides/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
+A [workspace](../../../workspaces/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
 Workspaces are fully configurable and can be tailored to specific project requirements, providing developers with a consistent and efficient development environment.
 Workspaces can be autostarted and autostopped, enabling efficient resource management.
 

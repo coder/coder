@@ -141,7 +141,7 @@ Additionally, create a string for each setting with its appropriate value in `SO
 ## 5. Setup SSH connection with JetBrains Gateway
 
 With the server now configured, you can now configure your local machine to use Gateway.
-Here is the documentation to [setup SSH config via the Coder CLI](../../user-guides/workspace-access/index.md#configure-ssh).
+Here is the documentation to [setup SSH config via the Coder CLI](../../workspaces/workspace-access/index.md#configure-ssh).
 On the Gateway side, follow our guide here until step 16.
 
 Instead of downloading from jetbrains.com, we will point Gateway to our server endpoint.

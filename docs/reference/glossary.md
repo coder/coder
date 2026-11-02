@@ -99,7 +99,7 @@ Refer to [Change management](../templates/managing-templates/change-management.m
 ### code-server
 
 The Coder-maintained build of VS Code that runs in the browser.
-Refer to [code-server](../user-guides/workspace-access/code-server.md).
+Refer to [code-server](../workspaces/workspace-access/code-server.md).
 
 ### Coder
 
@@ -122,17 +122,17 @@ Refer to the [CLI reference](./cli/index.md).
 ### Coder Connect
 
 The Coder Desktop feature that runs a local tunnel so workspaces are reachable at `workspace-name.coder` hostnames.
-Refer to [Coder Desktop](../user-guides/desktop/index.md).
+Refer to [Coder Desktop](../workspaces/desktop/index.md).
 
 ### Coder Desktop
 
 A native desktop application that connects your machine to your workspaces so you can reach them by hostname and launch apps without configuring the CLI.
-Refer to [Coder Desktop](../user-guides/desktop/index.md).
+Refer to [Coder Desktop](../workspaces/desktop/index.md).
 
 ### Coder extension for VS Code
 
 The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to workspaces.
-Refer to [VS Code](../user-guides/workspace-access/vscode.md).
+Refer to [VS Code](../workspaces/workspace-access/vscode.md).
 
 ### Coder Validated Architecture
 
@@ -269,7 +269,7 @@ Refer to [Workspace scheduling](../templates/managing-templates/schedule.md).
 ### Dotfiles
 
 Personal shell and editor configuration loaded into a workspace with `coder dotfiles`.
-Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
+Refer to [Dotfiles](../workspaces/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
@@ -341,7 +341,7 @@ Refer to [High availability](../admin/networking/high-availability.md).
 ### IDE agent
 
 A coding agent embedded in an editor or IDE, such as Cursor, connected to a Coder workspace.
-Refer to [Access your workspace](../user-guides/workspace-access/index.md).
+Refer to [Access your workspace](../workspaces/workspace-access/index.md).
 
 ### IdP sync
 
@@ -432,7 +432,7 @@ Refer to [Sessions and tokens](../admin/users/sessions-tokens.md).
 ### Port forwarding
 
 Access to arbitrary workspace ports through the CLI, SSH, or subdomain apps.
-Refer to [Port forwarding](../user-guides/workspace-access/port-forwarding.md).
+Refer to [Port forwarding](../workspaces/workspace-access/port-forwarding.md).
 
 ### Prebuilt workspaces
 
@@ -471,7 +471,7 @@ Refer to [External provisioners](../install/operate/provisioners/index.md).
 ### Quiet hours
 
 A window during which forced autostops do not run, so they do not interrupt a developer who is working.
-Refer to [Workspace scheduling](../user-guides/workspace-scheduling.md).
+Refer to [Workspace scheduling](../workspaces/workspace-scheduling.md).
 
 ## R
 
@@ -527,7 +527,7 @@ Refer to [Sessions and tokens](../admin/users/sessions-tokens.md).
 ### SSH
 
 Optimized SSH access to a workspace over Coder's Tailnet routing, available through `coder ssh`.
-Refer to [Workspace access](../user-guides/workspace-access/index.md).
+Refer to [Workspace access](../workspaces/workspace-access/index.md).
 
 ### SSO
 
@@ -555,7 +555,7 @@ Refer to [Dev containers](../admin/integrations/devcontainers/integration.md).
 ### Subdomain apps
 
 Wildcard-hosted URLs that expose a workspace's HTTP services on their own subdomain.
-Refer to [Port forwarding](../user-guides/workspace-access/port-forwarding.md).
+Refer to [Port forwarding](../workspaces/workspace-access/port-forwarding.md).
 
 ### Support bundle
 
@@ -564,7 +564,7 @@ Refer to [Support bundle](../support/support-bundle.md).
 
 ### Supported editors and IDEs
 
-The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Claude Desktop](../user-guides/workspace-access/claude-desktop.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
+The editors and IDEs that connect to Coder workspaces, including [VS Code](../workspaces/workspace-access/vscode.md), [code-server](../workspaces/workspace-access/code-server.md), [Cursor](../workspaces/workspace-access/cursor.md), [Devin Desktop](../workspaces/workspace-access/devin-desktop.md), [Antigravity](../workspaces/workspace-access/antigravity.md), [Claude Desktop](../workspaces/workspace-access/claude-desktop.md), [Zed](../workspaces/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../workspaces/workspace-access/jetbrains/gateway.md) and [Toolbox](../workspaces/workspace-access/jetbrains/toolbox.md).
 
 ### Swagger
 
@@ -609,13 +609,13 @@ Visit the [Terraform documentation](https://developer.hashicorp.com/terraform).
 ### Web terminal
 
 A browser terminal served by the workspace agent.
-Refer to [Web terminal](../user-guides/workspace-access/web-terminal.md).
+Refer to [Web terminal](../workspaces/workspace-access/web-terminal.md).
 
 ### Workspace
 
 A developer's on-demand development environment, such as a virtual machine, container, or Kubernetes pod, provisioned from a template.
 Not to be confused with [Coder Workspaces](#coder-workspaces), the platform capability.
-Refer to [Workspace management](../user-guides/workspace-management.md).
+Refer to [Workspace management](../workspaces/workspace-management.md).
 
 ### Workspace agent
 
@@ -626,12 +626,12 @@ Not to be confused with [Coder Agents](#coder-agents), the AI product.
 ### Workspace app
 
 An application, IDE, or URL surfaced on the workspace page, declared with the [`coder_app`](#coder_app) resource or enabled through [`display_apps`](#display_apps).
-Refer to [Web IDEs](../user-guides/workspace-access/web-ides.md).
+Refer to [Web IDEs](../workspaces/workspace-access/web-ides.md).
 
 ### Workspace autostart and autostop
 
 Scheduled policies that start a workspace on a set schedule and stop it after a period of inactivity.
-Refer to [Workspace scheduling](../user-guides/workspace-scheduling.md).
+Refer to [Workspace scheduling](../workspaces/workspace-scheduling.md).
 
 ### Workspace process logging
 

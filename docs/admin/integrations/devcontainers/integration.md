@@ -116,7 +116,7 @@ When enabled, the agent scans the configured working directory (set via the `dir
 If the directory itself is a Git repository, it searches that project.
 Otherwise, it searches immediate subdirectories for Git repositories.
 
-For each repository found, the agent looks for `devcontainer.json` files in the [standard locations](../../../user-guides/devcontainers/index.md#add-a-devcontainerjson) and surfaces discovered Dev Containers in the Coder UI.
+For each repository found, the agent looks for `devcontainer.json` files in the [standard locations](../../../workspaces/devcontainers/index.md#add-a-devcontainerjson) and surfaces discovered Dev Containers in the Coder UI.
 Discovery respects `.gitignore` patterns.
 
 Set to `false` if you prefer explicit configuration via `coder_devcontainer`.
@@ -173,7 +173,7 @@ This changes how Coder handles the sub-agent:
 
 ### Interaction with devcontainer.json customizations
 
-Terraform-defined resources and [`devcontainer.json` customizations](../../../user-guides/devcontainers/customizing-dev-containers.md) work together with some limitations.
+Terraform-defined resources and [`devcontainer.json` customizations](../../../workspaces/devcontainers/customizing-dev-containers.md) work together with some limitations.
 The `displayApps` settings from `devcontainer.json` are applied to terraform-managed dev containers, so you can control built-in app visibility (for example, hide VS Code Insiders) via `devcontainer.json` even when using Terraform resources.
 
 However, custom `apps` defined in `devcontainer.json` are **not applied** to terraform-managed dev containers.
@@ -190,7 +190,7 @@ Available options include:
 - `displayApps` — Control which built-in apps appear
 - `apps` — Define custom applications
 
-For the full reference, see [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md).
+For the full reference, see [Customizing dev containers](../../../workspaces/devcontainers/customizing-dev-containers.md).
 
 ## Complete Template Example
 
@@ -277,7 +277,7 @@ It includes the `devcontainers-cli` module, `git-clone` module, and the `coder_d
 
 ## Next Steps
 
-- [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
-- [Customizing Dev Containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
-- [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
-- [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)
+- [Dev Containers Integration](../../../workspaces/devcontainers/index.md)
+- [Customizing Dev Containers](../../../workspaces/devcontainers/customizing-dev-containers.md)
+- [Working with Dev Containers](../../../workspaces/devcontainers/working-with-dev-containers.md)
+- [Troubleshooting Dev Containers](../../../workspaces/devcontainers/troubleshooting-dev-containers.md)

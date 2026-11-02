@@ -332,7 +332,7 @@ The Quickstart template is a starting point.
 [Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
 Each task takes about 10 minutes.
 
-To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
+To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 
 ### Bring in your team
 
@@ -344,7 +344,7 @@ When you're ready for other people to use it:
 1. Have each teammate launch their own workspace from your template.
 
    Everyone in the organization can use the template by default.
-   Refer to [Workspace management](../user-guides/workspace-management.md).
+   Refer to [Workspace management](../workspaces/workspace-management.md).
 
 ## Learn more
 

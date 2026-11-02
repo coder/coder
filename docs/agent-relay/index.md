@@ -2,7 +2,7 @@
 title: Agent Relay
 ---
 
-Agent Relay connects a cloud-hosted AI coding agent's hosted sessions to self-hosted [Coder workspaces](../user-guides/workspace-management.md).
+Agent Relay connects a cloud-hosted AI coding agent's hosted sessions to self-hosted [Coder workspaces](../workspaces/workspace-management.md).
 Developers keep the cloud agent's client and workflow.
 Coder provides the workspace where the agent's tool calls run.
 

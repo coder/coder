@@ -7,7 +7,7 @@ markdown_url: /docs.md
 
 ## Coder Workspaces
 
-[Coder Workspaces](./user-guides/index.md) are cloud development environments defined with Terraform, connected through a secure Wireguard tunnel, and automatically shut down when not in use.
+[Coder Workspaces](./workspaces/index.md) are cloud development environments defined with Terraform, connected through a secure Wireguard tunnel, and automatically shut down when not in use.
 Agents and developers share the same workspace infrastructure.
 
 - **Defined in Terraform**:
@@ -59,7 +59,7 @@ You can use:
 
   - [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/)
   - [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial)
-  - [Emacs](./user-guides/workspace-access/emacs-tramp.md)
+  - [Emacs](./workspaces/workspace-access/emacs-tramp.md)
 
 - A file sync such as [Mutagen](https://mutagen.io/)
 

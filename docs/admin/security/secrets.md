@@ -7,7 +7,7 @@ For more information about how to use secrets and other security tips, visit our
 
 Use this guide to configure how templates make secrets available to Coder workspaces.
 To authenticate workspace provisioners with Coder, see the <a href="../../install/operate/provisioners/index.md#authentication">provisioners documentation</a>.
-For secret values that developers manage themselves, see [User secrets](../../user-guides/user-secrets.md).
+For secret values that developers manage themselves, see [User secrets](../../workspaces/user-secrets.md).
 
 ## Before you begin
 
@@ -44,7 +44,7 @@ User secrets are developer-managed values that Coder injects at workspace start.
 If a user secret targets the same environment variable name or file path as a template-provided variable or file, Coder injects the user secret into that workspace.
 A secret can be disabled, in which case it is stored but not injected until it is re-enabled.
 User secret values are covered by [Database Encryption](./database-encryption.md) when it is enabled.
-See the [User secrets guide](../../user-guides/user-secrets.md).
+See the [User secrets guide](../../workspaces/user-secrets.md).
 
 ## Workspace secrets
 

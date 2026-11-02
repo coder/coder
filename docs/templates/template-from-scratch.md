@@ -193,11 +193,11 @@ A [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/
 
 ![Apps in a Coder workspace](../images/templates/workspace-apps.png)
 
-This is commonly used for [web IDEs](../user-guides/workspace-access/web-ides.md) such as [code-server](https://coder.com/docs/code-server), RStudio, and JupyterLab.
+This is commonly used for [web IDEs](../workspaces/workspace-access/web-ides.md) such as [code-server](https://coder.com/docs/code-server), RStudio, and JupyterLab.
 
 We installed code-server in the `startup_script` argument.
 To add code-server to the workspace, make it available in the workspace with a `coder_app` resource.
-See [web IDEs](../user-guides/workspace-access/web-ides.md) for more examples:
+See [web IDEs](../workspaces/workspace-access/web-ides.md) for more examples:
 
 ```tf
 resource "coder_app" "code-server" {
