@@ -197,7 +197,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 			{...clickableRow}
 			className={cn("group", clickableRow.className)}
 		>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					title={
 						<span className="flex flex-row items-center gap-2">
@@ -220,7 +220,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 						/>
 					}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
