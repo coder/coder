@@ -4829,6 +4829,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 			],
 		},
 	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
+	},
 	provisioner_daemons: {
 		severity: "ok",
 		warnings: [
@@ -5051,6 +5057,12 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				},
 			],
 		},
+	},
+	pubsub: {
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		backend: "postgres",
 	},
 	provisioner_daemons: {
 		severity: "error",

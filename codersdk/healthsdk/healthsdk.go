@@ -111,6 +111,7 @@ type HealthcheckReport struct {
 	Database           DatabaseReport           `json:"database"`
 	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
 	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
+	Pubsub             PubsubReport             `json:"pubsub"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
@@ -248,6 +249,13 @@ type ProvisionerDaemonsReport struct {
 type ProvisionerDaemonsReportItem struct {
 	codersdk.ProvisionerDaemon `json:"provisioner_daemon"`
 	Warnings                   []health.Message `json:"warnings"`
+}
+
+// PubsubReport shows the health of the pubsub backend.
+type PubsubReport struct {
+	BaseReport
+	// Backend is the pubsub implementation in use.
+	Backend string `json:"backend"`
 }
 
 // WebsocketReport shows if the configured access URL allows establishing WebSocket connections.
