@@ -42045,66 +42045,60 @@ func (q *sqlQuerier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error 
 }
 
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
-WITH workspaces_with_jobs AS (
-	SELECT
-	latest_build.transition, latest_build.provisioner_job_id, latest_build.started_at, latest_build.updated_at, latest_build.canceled_at, latest_build.completed_at, latest_build.error FROM workspaces
-	LEFT JOIN LATERAL (
-		SELECT
-			workspace_builds.transition,
-			provisioner_jobs.id AS provisioner_job_id,
-			provisioner_jobs.started_at,
-			provisioner_jobs.updated_at,
-			provisioner_jobs.canceled_at,
-			provisioner_jobs.completed_at,
-			provisioner_jobs.error
-		FROM
-			workspace_builds
-		LEFT JOIN
-			provisioner_jobs
-		ON
-			provisioner_jobs.id = workspace_builds.job_id
-		WHERE
-			workspace_builds.workspace_id = workspaces.id
-		ORDER BY
-			build_number DESC
-		LIMIT
-			1
-	) latest_build ON TRUE WHERE deleted = false
-), pending_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		started_at IS NULL
-), building_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		started_at IS NOT NULL AND
-		canceled_at IS NULL AND
-		completed_at IS NULL AND
-		updated_at - INTERVAL '30 seconds' < NOW()
-), running_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		completed_at IS NOT NULL AND
-		canceled_at IS NULL AND
-		error IS NULL AND
-		transition = 'start'::workspace_transition
-), failed_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		(canceled_at IS NOT NULL AND
-			error IS NOT NULL) OR
-		(completed_at IS NOT NULL AND
-			error IS NOT NULL)
-), stopped_workspaces AS (
-	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
-		completed_at IS NOT NULL AND
-		canceled_at IS NULL AND
-		error IS NULL AND
-		transition = 'stop'::workspace_transition
-)
 SELECT
-	pending_workspaces.count AS pending_workspaces,
-	building_workspaces.count AS building_workspaces,
-	running_workspaces.count AS running_workspaces,
-	failed_workspaces.count AS failed_workspaces,
-	stopped_workspaces.count AS stopped_workspaces
-FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces
+	-- One pass with FILTER instead of a CTE scanned once per counter.
+	COUNT(*) FILTER (WHERE
+		latest_build.started_at IS NULL
+	) AS pending_workspaces,
+	COUNT(*) FILTER (WHERE
+		latest_build.started_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.completed_at IS NULL AND
+		latest_build.updated_at - INTERVAL '30 seconds' < NOW()
+	) AS building_workspaces,
+	COUNT(*) FILTER (WHERE
+		latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'start'::workspace_transition
+	) AS running_workspaces,
+	COUNT(*) FILTER (WHERE
+		(latest_build.canceled_at IS NOT NULL AND
+			latest_build.error IS NOT NULL) OR
+		(latest_build.completed_at IS NOT NULL AND
+			latest_build.error IS NOT NULL)
+	) AS failed_workspaces,
+	COUNT(*) FILTER (WHERE
+		latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'stop'::workspace_transition
+	) AS stopped_workspaces
+FROM
+	workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_builds.transition,
+		provisioner_jobs.started_at,
+		provisioner_jobs.updated_at,
+		provisioner_jobs.canceled_at,
+		provisioner_jobs.completed_at,
+		provisioner_jobs.error
+	FROM
+		workspace_builds
+	LEFT JOIN
+		provisioner_jobs
+	ON
+		provisioner_jobs.id = workspace_builds.job_id
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		build_number DESC
+	LIMIT
+		1
+) latest_build ON TRUE
+WHERE
+	workspaces.deleted = false
 `
 
 type GetDeploymentWorkspaceStatsRow struct {
@@ -42690,10 +42684,17 @@ SELECT
 	LOWER(unnest($3 :: text[])) AS value
 ),
 filtered_workspaces AS (
+	-- Only the columns needed to filter, sort and count are selected here.
+	-- The wide workspaces_expanded row (owner, organization, template and ACL
+	-- display info) is built for the returned page only, in
+	-- filtered_workspaces_page, so the cost does not scale with the number of
+	-- matching workspaces.
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description, workspaces.group_acl_display_info, workspaces.user_acl_display_info,
+	workspaces.id,
+	workspaces.name,
+	workspaces.favorite,
+	users.username AS owner_username,
 	latest_build.template_version_id,
-	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
@@ -42702,7 +42703,10 @@ SELECT
 	latest_build.has_external_agent as latest_build_has_external_agent,
 	latest_build.provisioner_job_id as latest_build_provisioner_job_id
 FROM
-	workspaces_expanded as workspaces
+	workspaces
+	-- workspaces_expanded inner joins the owner, organization and template.
+	-- All three are non-null foreign keys, so the base table yields the same
+	-- rows.
 JOIN
     users
 ON
@@ -42713,7 +42717,6 @@ LEFT JOIN LATERAL (
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		workspace_builds.has_external_agent,
-		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -42727,10 +42730,6 @@ LEFT JOIN LATERAL (
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
-	LEFT JOIN
-		template_versions
-	ON
-		template_versions.id = workspace_builds.template_version_id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -42850,7 +42849,7 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN $10 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($10) AND deleted = false)
+			workspaces.template_id = ANY(ARRAY(SELECT id FROM templates WHERE lower(name) = lower($10) AND deleted = false))
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -42975,7 +42974,7 @@ WHERE
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.group_acl, fw.user_acl, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.group_acl_display_info, fw.user_acl_display_info, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_external_agent, fw.latest_build_provisioner_job_id
+		fw.id, fw.name, fw.favorite, fw.owner_username, fw.template_version_id, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_external_agent, fw.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces fw
 	ORDER BY
@@ -42999,11 +42998,43 @@ WHERE
 		END
 	OFFSET
 		$26
-), filtered_workspaces_order_with_summary AS (
+), filtered_workspaces_page AS (
+	-- Expand only the rows of the requested page, keeping the page order.
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent, fwo.latest_build_provisioner_job_id
+		workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description, workspaces.group_acl_display_info, workspaces.user_acl_display_info,
+		fwo.template_version_id,
+		template_versions.name AS template_version_name,
+		fwo.latest_build_completed_at,
+		fwo.latest_build_canceled_at,
+		fwo.latest_build_error,
+		fwo.latest_build_transition,
+		fwo.latest_build_status,
+		fwo.latest_build_has_external_agent,
+		fwo.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces_order fwo
+	JOIN
+		workspaces_expanded AS workspaces
+	ON
+		workspaces.id = fwo.id
+	LEFT JOIN
+		template_versions
+	ON
+		template_versions.id = fwo.template_version_id
+	ORDER BY
+		CASE WHEN fwo.favorite AND fwo.owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN fwo.owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		(fwo.latest_build_completed_at IS NOT NULL AND
+			fwo.latest_build_canceled_at IS NULL AND
+			fwo.latest_build_error IS NULL AND
+			fwo.latest_build_transition = 'start'::workspace_transition) DESC,
+		LOWER(fwo.owner_username) ASC,
+		LOWER(fwo.name) ASC
+), filtered_workspaces_order_with_summary AS (
+	SELECT
+		fwp.id, fwp.created_at, fwp.updated_at, fwp.owner_id, fwp.organization_id, fwp.template_id, fwp.deleted, fwp.name, fwp.autostart_schedule, fwp.ttl, fwp.last_used_at, fwp.dormant_at, fwp.deleting_at, fwp.automatic_updates, fwp.favorite, fwp.next_start_at, fwp.group_acl, fwp.user_acl, fwp.owner_avatar_url, fwp.owner_username, fwp.owner_name, fwp.organization_name, fwp.organization_display_name, fwp.organization_icon, fwp.organization_description, fwp.template_name, fwp.template_display_name, fwp.template_icon, fwp.template_description, fwp.group_acl_display_info, fwp.user_acl_display_info, fwp.template_version_id, fwp.template_version_name, fwp.latest_build_completed_at, fwp.latest_build_canceled_at, fwp.latest_build_error, fwp.latest_build_transition, fwp.latest_build_status, fwp.latest_build_has_external_agent, fwp.latest_build_provisioner_job_id
+	FROM
+		filtered_workspaces_page fwp
 	-- Return a technical summary row with total count of workspaces.
 	-- It is used to present the correct count if pagination goes beyond the offset.
 	UNION ALL
