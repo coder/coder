@@ -248,6 +248,29 @@ describe("runEditQueuedMessage", () => {
 		expect(store.getSnapshot().queuedMessages).toEqual([row5, row6]);
 		expect(onError).toHaveBeenCalledWith("The chat is paused.");
 	});
+
+	it("keeps a queue update received while the request was in flight", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([row5, row6]);
+		// Another client saved row 5 and ended its edit during the request.
+		const updated: ChatQueuedMessage[] = [
+			{ ...row5, content: [{ type: "text", text: "saved" }] },
+			row6,
+		];
+
+		await runEditQueuedMessage({
+			id: 5,
+			req: { editing: true },
+			store,
+			editQueuedMessage: vi.fn(async () => {
+				store.applyAuthoritativeQueuedMessages(updated);
+			}),
+			failureMessage: "Failed to edit.",
+			onError: vi.fn(),
+		});
+
+		expect(store.getSnapshot().queuedMessages).toEqual(updated);
+	});
 });
 
 describe("runPromoteQueuedMessage", () => {

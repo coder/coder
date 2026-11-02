@@ -171,12 +171,17 @@ export const runDeleteQueuedMessage = async (params: {
  * A 404 means the row was sent or removed; it is dropped locally because no
  * queue_update is guaranteed to follow. A successful request that sets
  * `editing` is written into the store so the composer does not wait for the
- * queue_update. Every failure is reported through onError and rethrown.
+ * queue_update, unless a queue update or a chat switch moved the queue
+ * convergence fence during the request. Every failure is reported through
+ * onError and rethrown.
  */
 export const runEditQueuedMessage = async (params: {
 	id: number;
 	req: TypesGen.EditChatQueuedMessageRequest;
-	store: Pick<ChatStore, "getSnapshot" | "setQueuedMessages">;
+	store: Pick<
+		ChatStore,
+		"getQueueConvergenceFence" | "getSnapshot" | "setQueuedMessages"
+	>;
 	editQueuedMessage: (
 		variables: EditChatQueuedMessageVariables,
 	) => Promise<unknown>;
@@ -184,6 +189,7 @@ export const runEditQueuedMessage = async (params: {
 	onError: (message: string) => void;
 }): Promise<void> => {
 	const { id, req, store, editQueuedMessage, failureMessage, onError } = params;
+	const baselineFence = store.getQueueConvergenceFence();
 	try {
 		await editQueuedMessage({ queuedMessageId: id, req });
 	} catch (error) {
@@ -197,7 +203,11 @@ export const runEditQueuedMessage = async (params: {
 		}
 		throw error;
 	}
-	if (req.editing !== undefined) {
+	// A queue update or a chat switch during the request supersedes this write.
+	if (
+		req.editing !== undefined &&
+		store.getQueueConvergenceFence() === baselineFence
+	) {
 		// The server allows one row under edit per chat, so a begin ends any
 		// other row's edit.
 		const editingSince = req.editing ? new Date().toISOString() : undefined;
