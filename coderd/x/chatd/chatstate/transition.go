@@ -75,7 +75,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
 		TransitionSetProject:           {StateE1},
-		TransitionSendMessage:          {StateR1, StateR1P},
+		TransitionSendMessage:          {StateR0, StateR1, StateR1P},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1, StateE1P},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1, StateR1P},
@@ -118,10 +118,10 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE1},
 	},
 	StateR1P: {
-		TransitionSendMessage:             {StateR1P, StateI1},
+		TransitionSendMessage:             {StateR1, StateR1P, StateI1, StateI1P},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1, StateR1P},
-		TransitionPromoteQueuedMessage:    {StateI1},
+		TransitionPromoteQueuedMessage:    {StateI1, StateI1P},
 		TransitionEditQueuedMessage:       {StateR1, StateR1P},
 		TransitionInterrupt:               {StateI1P},
 		TransitionRecordGenerationAttempt: {StateR1P},
@@ -145,10 +145,10 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishInterruption:   {StateR0, StateR1, StateR1P},
 	},
 	StateI1P: {
-		TransitionSendMessage:          {StateI1P},
+		TransitionSendMessage:          {StateI1, StateI1P},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateI0, StateI1, StateI1P},
-		TransitionPromoteQueuedMessage: {StateI1},
+		TransitionPromoteQueuedMessage: {StateI1, StateI1P},
 		TransitionEditQueuedMessage:    {StateI1, StateI1P},
 		TransitionFinishInterruption:   {StateP},
 	},
@@ -170,7 +170,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCancelRequiresAction:   {StateR1},
 	},
 	StateA1P: {
-		TransitionSendMessage:            {StateA1P, StateR1P},
+		TransitionSendMessage:            {StateA1, StateA1P, StateR1P},
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1, StateA1P},
 		TransitionPromoteQueuedMessage:   {StateR0, StateR1, StateR1P},
