@@ -632,6 +632,17 @@ WITH cursor_chat AS (
         id
     FROM chats
     WHERE id = @after_id
+),
+shared_root AS (
+    -- Root chats shared with the viewer. Served by idx_chats_shared_roots.
+    SELECT sr.id
+    FROM chats sr
+    WHERE sr.parent_chat_id IS NULL
+        AND (sr.user_acl <> '{}'::jsonb OR sr.group_acl <> '{}'::jsonb)
+        AND (
+            sr.user_acl ? (@shared_with_user_id::uuid)::text
+            OR sr.group_acl ?| @shared_with_group_ids::text[]
+        )
 )
 SELECT
     sqlc.embed(chats_expanded),
@@ -651,9 +662,14 @@ WHERE
         OR (
             @shared_only::boolean
             AND chats_expanded.owner_id != @viewer_id::uuid
+            -- Uncorrelated id lists let the planner fetch shared chats by
+            -- primary key instead of checking the ACL of every root chat. A
+            -- listed chat whose parent was purged keeps root_chat_id and
+            -- inherits that root's ACL through chats_expanded, so it is
+            -- matched through its root.
             AND (
-                chats_expanded.user_acl ? (@shared_with_user_id::uuid)::text
-                OR chats_expanded.group_acl ?| @shared_with_group_ids::text[]
+                chats_expanded.id = ANY(ARRAY(SELECT shared_root.id FROM shared_root))
+                OR chats_expanded.root_chat_id = ANY(ARRAY(SELECT shared_root.id FROM shared_root))
             )
         )
     )
@@ -692,15 +708,18 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN EXISTS (
-            SELECT 1
+        -- Uncorrelated, so idx_chat_diff_statuses_url_lower is read once
+        -- instead of once per candidate chat.
+        WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN chats_expanded.id = ANY(ARRAY(
+            SELECT matched.id
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
+            CROSS JOIN LATERAL (VALUES (c2.id), (c2.root_chat_id)) AS matched(id)
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
               AND LOWER(cds.url) = LOWER(sqlc.narg('diff_url')::text)
-              AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
-        )
+              AND matched.id IS NOT NULL
+        ))
         ELSE true
     END
     -- Filter by title substring (case-insensitive). Applied when the
@@ -746,17 +765,23 @@ WHERE
                         AND NULLIF(cds.pull_request_state, '') IS NOT NULL
                 )
             )
-            OR EXISTS (
-                SELECT 1
-                FROM chat_diff_statuses cds
-                WHERE cds.chat_id = chats_expanded.id
-                    AND (
-                        CASE
-                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                            WHEN cds.pull_request_state = 'open' THEN 'open'
-                            ELSE cds.pull_request_state
-                        END
-                    ) = ANY(@pull_request_statuses::text[])
+            OR (
+                -- Folds to false at plan time when only "none" is requested.
+                -- Otherwise the planner may hash every diff status for a
+                -- branch that cannot match.
+                COALESCE(array_length(array_remove(@pull_request_statuses::text[], 'none'), 1), 0) > 0
+                AND EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND (
+                            CASE
+                                WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                                WHEN cds.pull_request_state = 'open' THEN 'open'
+                                ELSE cds.pull_request_state
+                            END
+                        ) = ANY(@pull_request_statuses::text[])
+                )
             )
         )
         ELSE true

@@ -5228,11 +5228,19 @@ CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
+CREATE INDEX idx_chats_owner_root_list ON chats USING btree (owner_id, archived, (
+CASE
+    WHEN (pin_order > 0) THEN 1
+    ELSE 0
+END) DESC, ((- pin_order)) DESC, updated_at DESC, id DESC) WHERE (parent_chat_id IS NULL);
+
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_project_id ON chats USING btree (project_id) WHERE (project_id IS NOT NULL);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
+
+CREATE INDEX idx_chats_shared_roots ON chats USING btree (id) WHERE ((parent_chat_id IS NULL) AND ((user_acl <> '{}'::jsonb) OR (group_acl <> '{}'::jsonb)));
 
 CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regconfig, title));
 

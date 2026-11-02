@@ -851,8 +851,6 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.OwnedOnly,
 		arg.SharedOnly,
 		arg.ViewerID,
-		arg.SharedWithUserID,
-		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
 		arg.AfterID,
@@ -868,6 +866,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,
+		arg.SharedWithUserID,
+		pq.Array(arg.SharedWithGroupIds),
 	)
 	if err != nil {
 		return nil, err
