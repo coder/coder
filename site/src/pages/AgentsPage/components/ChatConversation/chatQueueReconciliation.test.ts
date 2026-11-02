@@ -153,9 +153,11 @@ describe("runEditQueuedMessage", () => {
 		const onError = vi.fn();
 		const promise = runEditQueuedMessage({
 			id: 5,
+			chatID: "chat-1",
 			req,
 			store,
 			editQueuedMessage,
+			fetchQueueConvergence: () => Promise.reject(new Error("unexpected")),
 			failureMessage: "Failed to edit.",
 			onError,
 		});
@@ -249,27 +251,70 @@ describe("runEditQueuedMessage", () => {
 		expect(onError).toHaveBeenCalledWith("The chat is paused.");
 	});
 
-	it("keeps a queue update received while the request was in flight", async () => {
-		const store = createChatStore();
-		store.setQueuedMessages([row5, row6]);
-		// Another client saved row 5 and ended its edit during the request.
-		const updated: ChatQueuedMessage[] = [
-			{ ...row5, content: [{ type: "text", text: "saved" }] },
-			row6,
-		];
-
-		await runEditQueuedMessage({
-			id: 5,
-			req: { editing: true },
-			store,
-			editQueuedMessage: vi.fn(async () => {
-				store.applyAuthoritativeQueuedMessages(updated);
-			}),
-			failureMessage: "Failed to edit.",
-			onError: vi.fn(),
+	describe("when a queue update arrives during the request", () => {
+		// Another client saved row 5 and ended its edit.
+		const saved: ChatQueuedMessage = {
+			...row5,
+			content: [{ type: "text", text: "saved" }],
+		};
+		const runWithUpdate = (
+			duringRequest: readonly ChatQueuedMessage[],
+			fetchQueueConvergence: () => Promise<ChatMessagesResponse>,
+		) => {
+			const store = createChatStore();
+			store.setActiveChatID("chat-1");
+			store.setQueuedMessages([row5, row6]);
+			const promise = runEditQueuedMessage({
+				id: 5,
+				chatID: "chat-1",
+				req: { editing: true },
+				store,
+				editQueuedMessage: async () => {
+					store.applyAuthoritativeQueuedMessages(duringRequest);
+				},
+				fetchQueueConvergence,
+				failureMessage: "Failed to edit.",
+				onError: vi.fn(),
+			});
+			return { store, promise };
+		};
+		const response = (
+			queued_messages: ChatQueuedMessage[],
+		): ChatMessagesResponse => ({
+			messages: [],
+			has_more: false,
+			queued_messages,
 		});
 
-		expect(store.getSnapshot().queuedMessages).toEqual(updated);
+		it.each([
+			{
+				name: "keeps the begin when the update predates it",
+				duringRequest: [row5],
+				refetched: [row5Marked],
+			},
+			{
+				name: "keeps a newer update from another client",
+				duringRequest: [saved, row6],
+				refetched: [saved, row6],
+			},
+		])("$name", async ({ duringRequest, refetched }) => {
+			const fetchQueueConvergence = vi.fn(async () => response(refetched));
+			const { store, promise } = runWithUpdate(
+				duringRequest,
+				fetchQueueConvergence,
+			);
+			await promise;
+			expect(fetchQueueConvergence).toHaveBeenCalledWith("chat-1");
+			expect(store.getSnapshot().queuedMessages).toEqual(refetched);
+		});
+
+		it("keeps the update when the refetch fails", async () => {
+			const { store, promise } = runWithUpdate([saved, row6], () =>
+				Promise.reject(new Error("boom")),
+			);
+			await promise;
+			expect(store.getSnapshot().queuedMessages).toEqual([saved, row6]);
+		});
 	});
 });
 

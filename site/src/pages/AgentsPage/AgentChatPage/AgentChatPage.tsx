@@ -627,18 +627,22 @@ const AgentChatPage: React.FC = () => {
 	) =>
 		runEditQueuedMessage({
 			id,
+			chatID: agentId,
 			req,
 			store,
 			editQueuedMessage: requestQueuedMessageSave,
+			fetchQueueConvergence,
 			failureMessage: "Failed to save the queued message.",
 			onError: toast.error,
 		});
 	const setQueuedMessageEditing = (id: number, editing: boolean) =>
 		runEditQueuedMessage({
 			id,
+			chatID: agentId,
 			req: { editing },
 			store,
 			editQueuedMessage: requestQueuedMessageEditing,
+			fetchQueueConvergence,
 			failureMessage: editing
 				? "Failed to start editing the queued message."
 				: "Failed to cancel the edit.",

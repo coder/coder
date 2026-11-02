@@ -171,24 +171,42 @@ export const runDeleteQueuedMessage = async (params: {
  * A 404 means the row was sent or removed; it is dropped locally because no
  * queue_update is guaranteed to follow. A successful request that sets
  * `editing` is written into the store so the composer does not wait for the
- * queue_update, unless a queue update or a chat switch moved the queue
- * convergence fence during the request. Every failure is reported through
- * onError and rethrown.
+ * queue_update. When the queue convergence fence moved during the request, a
+ * queue update can predate or follow the edit, so the queue is refetched
+ * into the store instead. Every failure is reported through onError and
+ * rethrown.
  */
 export const runEditQueuedMessage = async (params: {
 	id: number;
+	chatID: string;
 	req: TypesGen.EditChatQueuedMessageRequest;
 	store: Pick<
 		ChatStore,
-		"getQueueConvergenceFence" | "getSnapshot" | "setQueuedMessages"
+		| "applyAuthoritativeQueuedMessages"
+		| "getActiveChatID"
+		| "getQueueConvergenceFence"
+		| "getSnapshot"
+		| "setQueuedMessages"
 	>;
 	editQueuedMessage: (
 		variables: EditChatQueuedMessageVariables,
 	) => Promise<unknown>;
+	fetchQueueConvergence: (
+		chatID: string,
+	) => Promise<TypesGen.ChatMessagesResponse>;
 	failureMessage: string;
 	onError: (message: string) => void;
 }): Promise<void> => {
-	const { id, req, store, editQueuedMessage, failureMessage, onError } = params;
+	const {
+		id,
+		chatID,
+		req,
+		store,
+		editQueuedMessage,
+		fetchQueueConvergence,
+		failureMessage,
+		onError,
+	} = params;
 	const baselineFence = store.getQueueConvergenceFence();
 	try {
 		await editQueuedMessage({ queuedMessageId: id, req });
@@ -203,11 +221,29 @@ export const runEditQueuedMessage = async (params: {
 		}
 		throw error;
 	}
-	// A queue update or a chat switch during the request supersedes this write.
 	if (
 		req.editing !== undefined &&
-		store.getQueueConvergenceFence() === baselineFence
+		store.getQueueConvergenceFence() !== baselineFence
 	) {
+		const refetchFence = store.getQueueConvergenceFence();
+		let queuedMessages: readonly TypesGen.ChatQueuedMessage[];
+		try {
+			queuedMessages =
+				(await fetchQueueConvergence(chatID)).queued_messages ?? [];
+		} catch {
+			// The edit succeeded and its queue_update still follows.
+			return;
+		}
+		// A queue update or chat switch during the refetch is newer.
+		if (
+			store.getActiveChatID() === chatID &&
+			store.getQueueConvergenceFence() === refetchFence
+		) {
+			store.applyAuthoritativeQueuedMessages(queuedMessages);
+		}
+		return;
+	}
+	if (req.editing !== undefined) {
 		// The server allows one row under edit per chat, so a begin ends any
 		// other row's edit.
 		const editingSince = req.editing ? new Date().toISOString() : undefined;
