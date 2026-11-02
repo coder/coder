@@ -90,9 +90,10 @@ git diff --no-color --no-ext-diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- 'docs/*
 
 Redirect output into the packet as shown, and look at a file only through a count or a short `head`, so the data does not enter your context.
 When the prompt pins a head SHA that the fetch did not bring in, fetch it with `git fetch origin <SHA>`.
-In a dry run with a skill ref, run `git fetch origin <skill ref>` and set `SKILL_SHA=$(git rev-parse FETCH_HEAD)` before the first `git archive`.
+In a dry run with a skill ref, which is a branch, run `git fetch origin <skill ref>` and set `SKILL_SHA=$(git rev-parse "origin/<skill ref>")` before the first `git archive`.
 
-For a branch or local change without a PR, set `HEAD_SHA=$(git rev-parse HEAD)`, skip the `gh` commands, and write `none` into `pr.json`.
+For a branch or local change without a PR, set `PR=local` and `HEAD_SHA=$(git rev-parse HEAD)`, fetch only the base branch, skip the `gh` commands, write `none` into `pr.json`, and leave `review-comments.jsonl` and `related-prs.txt` empty.
+A commit that was never pushed has no CI results, so step 3 records the CI checks as not run.
 In author self-check, set `POLICY` to the repository root instead of copying, and diff the working tree against `BASE_SHA` so uncommitted edits count.
 
 List open PRs that touch the same docs pages, for the Cartographer:
