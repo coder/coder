@@ -25,9 +25,13 @@ The fastest way to run a Coder deployment is on one machine.
 The [Quickstart](../get-started/index.md) installs Coder, starts it, and launches a first workspace in about 10&nbsp;minutes.
 A single-server deployment fits an evaluation, a proof of concept, or a small team.
 
-On a single server, Coder uses its built-in PostgreSQL database unless you set `CODER_PG_CONNECTION_URL`.
-That removes the database from your prerequisites, which is the main reason the Quickstart is quick.
-It also means the database lives on the same machine as Coder, so a deployment that people depend on needs a backup plan for that machine.
+The Quickstart is quick because it skips most of the planning and prerequisites that a team deployment needs.
+Coder runs on one machine, so there's nothing to size.
+When `CODER_ACCESS_URL` isn't set, `coder server` opens a tunnel and gives you a `try.coder.app` URL, so you don't need DNS records or TLS certificates.
+You sign in with a password or with GitHub, so you don't set up an identity provider application, and you don't need a license.
+
+Coder also uses its built-in PostgreSQL database unless you set `CODER_PG_CONNECTION_URL`.
+The built-in database lives on the same machine as Coder, so a deployment that people depend on needs a backup plan for that machine.
 
 When you outgrow a single server, you don't start over.
 Move the data to an external PostgreSQL database by following [Migrate from the built-in database to an external database](../admin/setup/index.md#migrate-from-the-built-in-database-to-an-external-database), then read [Plan your deployment](./plan/index.md) to decide how to grow.
