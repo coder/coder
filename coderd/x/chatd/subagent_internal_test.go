@@ -4282,7 +4282,7 @@ func TestSubagentLastError(t *testing.T) {
 	}
 }
 
-func TestSubagentManagerAwait(t *testing.T) {
+func TestAwaitSubagent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -4417,7 +4417,7 @@ func TestSubagentManagerAwait(t *testing.T) {
 	}
 }
 
-func TestSubagentManagerSendAndInterrupt(t *testing.T) {
+func TestSendAndInterruptSubagent(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
@@ -4447,13 +4447,13 @@ func TestSubagentManagerSendAndInterrupt(t *testing.T) {
 	require.Empty(t, queued)
 }
 
-func TestSubagentManagerList(t *testing.T) {
+func TestListAgents(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
-	parent, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "manager-list", ModelConfigID: model.ID, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}})
+	parent, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "list-agents", ModelConfigID: model.ID, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}})
 	require.NoError(t, err)
 
 	list := func(chat database.Chat, args listAgentsArgs) subagentListResult {
