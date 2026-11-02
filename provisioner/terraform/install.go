@@ -21,11 +21,10 @@ var (
 	// TerraformVersion is the version of Terraform used internally
 	// when Terraform is not available on the system.
 	// NOTE: Keep this in sync with terraform_SHA256SUMS in this directory, a
-	// copy of HashiCorp's GPG-signed checksum file for this version.
-	// scripts/Dockerfile.base reads the version and checksums from it, and
-	// `make gen` regenerates install.sh from it and fails if this version
-	// doesn't match. scripts/update_terraform_version.sh bumps this version,
-	// the checksum file and the other pins together.
+	// copy of HashiCorp's GPG-signed checksum file for this version (a test
+	// checks this). scripts/Dockerfile.base and install.sh read the version and
+	// checksums from it. scripts/update_terraform_version.sh bumps this
+	// version, the checksum file and the other pins together.
 	TerraformVersion = version.Must(version.NewVersion("1.16.7"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))

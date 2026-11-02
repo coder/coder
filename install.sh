@@ -61,8 +61,9 @@ Usage:
       Specifies the remote shell for remote installation. Defaults to ssh.
 
   --with-terraform
-	  Installs Terraform binary from https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/ source
-	  alongside coder.
+	  Installs the Terraform binary bundled with the Coder release alongside coder.
+	  The version and its SHA256 checksum come from the Coder repository, and the
+	  binary is downloaded from https://releases.hashicorp.com/terraform/ and verified.
 	  This is great for if you are having issues with Coder installing terraform, or if you
 	  just want it on your base system aswell.
 	  This supports most systems, however if you are unsure yours is supported you can check
@@ -276,8 +277,6 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	# Generated from provisioner/terraform/terraform_SHA256SUMS by make gen.
-	TERRAFORM_VERSION="1.16.7"
 
 	if [ "${TRACE-}" ]; then
 		set -x
@@ -574,14 +573,28 @@ with_terraform() {
 		echoerr "Please install unzip to use this function"
 		exit 1
 	fi
-	TERRAFORM_ZIP="terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
-	TERRAFORM_SHA256=$(terraform_sha256sums | awk -v f="$TERRAFORM_ZIP" '$2 == f { print $1 }')
-	if [ ! "$TERRAFORM_SHA256" ]; then
+	# The Terraform version and its checksum come from the Coder repository, the
+	# same source as this script and the Coder release, so the Terraform download
+	# from HashiCorp is verified against a checksum we publish.
+	if ! TERRAFORM_SHA256SUMS=$(fetch_terraform_sha256sums); then
 		echoh
-		echoerr "No pinned SHA256 checksum for $TERRAFORM_ZIP."
+		echoerr "Could not download the Terraform checksums from the Coder repository."
+		exit 1
+	fi
+	# Each line looks like "<sha256>  terraform_<version>_<os>_<arch>.zip".
+	TERRAFORM_SUM=$(echo "$TERRAFORM_SHA256SUMS" | awk -v suffix="_${OS}_${TERRAFORM_ARCH}.zip" '
+		length($1) == 64 && $1 !~ /[^0-9a-f]/ && $2 ~ /^terraform_[0-9]+[.][0-9]+[.][0-9]+_/ &&
+			substr($2, length($2) - length(suffix) + 1) == suffix { print $1, $2; exit }
+	')
+	if [ ! "$TERRAFORM_SUM" ]; then
+		echoh
+		echoerr "The Coder repository has no Terraform checksum for ${OS}_${TERRAFORM_ARCH}."
 		echoerr "Refusing to install an unverified Terraform binary."
 		exit 1
 	fi
+	TERRAFORM_SHA256=${TERRAFORM_SUM%% *}
+	TERRAFORM_ZIP=${TERRAFORM_SUM#* }
+	TERRAFORM_VERSION=$(echo "$TERRAFORM_ZIP" | cut -d_ -f2)
 	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
 	echoh
 
@@ -613,27 +626,21 @@ with_terraform() {
 	"$sh_c" cp "$CACHE_DIR/terraform" "$COPY_LOCATION"
 }
 
-# terraform_sha256sums prints the SHA256 checksums of the Terraform release
-# zips that with_terraform can download, in SHA256SUMS format.
-#
-# Generated from provisioner/terraform/terraform_SHA256SUMS by
-# scripts/gen_install_sh_terraform.sh (make gen). Do not edit by hand.
-# BEGIN GENERATED: terraform_sha256sums
-terraform_sha256sums() {
-	cat <<-EOF
-		d17d1053bcbde650a8a919b7218ef2886eac76c474306e9ecd8bd64427408741  terraform_1.16.7_darwin_amd64.zip
-		81e98d9186e0cd1bc88caeb2403453fdd4bdeedd574ca4dbe8fb6a2880c9c51a  terraform_1.16.7_darwin_arm64.zip
-		23b7d12176ff147f29bff4d38a6894df95776b6b5697784f2580551207c0b36e  terraform_1.16.7_freebsd_386.zip
-		265e9573edf0898d45f7b31e2844b9e4db4db8d208b6954a6ad0d2311c70064a  terraform_1.16.7_freebsd_amd64.zip
-		29b29aa387f1bce50d004364176c48e94c96ef4d6b142f3714d71d088d19a172  terraform_1.16.7_freebsd_arm.zip
-		8b44e5e21ff8c4961190e6e08061f4ba232f51efaa1f13aac56680bdd78f7a3d  terraform_1.16.7_linux_386.zip
-		5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b  terraform_1.16.7_linux_amd64.zip
-		4a0a478c5d62aa775d6136942f84f87c3557df01283c869ef2ceba2baa389510  terraform_1.16.7_linux_arm.zip
-		2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4  terraform_1.16.7_linux_arm64.zip
-		eb520f390d06d75a24f6861db14ea03227e2dcde5c24215dedcff710eb705384  terraform_1.16.7_linux_s390x.zip
-	EOF
+# fetch_terraform_sha256sums prints provisioner/terraform/terraform_SHA256SUMS
+# from the Coder repository: HashiCorp's checksum file for the Terraform version
+# bundled with Coder. It reads the file at the tag of the Coder release being
+# installed, and falls back to main for releases from before the file existed.
+fetch_terraform_sha256sums() {
+	for ref in "v${VERSION}" main; do
+		if curl -fsSL "https://raw.githubusercontent.com/coder/coder/${ref}/provisioner/terraform/terraform_SHA256SUMS" 2>/dev/null; then
+			if [ "$ref" = main ]; then
+				echoh "Coder v${VERSION} doesn't pin Terraform checksums; using the ones from main." >&2
+			fi
+			return 0
+		fi
+	done
+	return 1
 }
-# END GENERATED: terraform_sha256sums
 
 # sha256_file prints the SHA256 checksum of a file.
 sha256_file() {

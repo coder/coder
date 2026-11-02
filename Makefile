@@ -1133,7 +1133,6 @@ GEN_FILES := \
 	docs/manifest/generated/cli.json \
 	docs/manifest/generated/rest-api.json \
 	provisioner/terraform/testdata/generation.sha1 \
-	install.sh \
 	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
@@ -1641,12 +1640,6 @@ provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/gener
 # ./provisioner/terraform/testdata/generate.sh
 provisioner/terraform/testdata/generation.sha1: FORCE
 	@./provisioner/terraform/testdata/generate.sh --if-needed
-
-# install.sh embeds the Terraform version and checksums from
-# provisioner/terraform/terraform_SHA256SUMS. The script is cheap and only
-# writes install.sh when it changes, so always run it.
-install.sh: FORCE
-	./scripts/gen_install_sh_terraform.sh
 
 FORCE:
 .PHONY: FORCE
