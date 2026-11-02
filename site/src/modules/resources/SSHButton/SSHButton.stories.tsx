@@ -6,45 +6,69 @@ import {
 	deploymentSSHConfig,
 	deploymentSSHConfigQueryKey,
 } from "#/api/queries/deployment";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	MockDeploymentSSH,
+	MockPermissions,
+	MockUserMember,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceResourceMultipleAgents,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withDesktopViewport } from "#/testHelpers/storybook";
+import { withAuthProvider, withDesktopViewport } from "#/testHelpers/storybook";
 import { AgentSSHButton } from "./SSHButton";
+
+const mockWorkspaceWithMultipleAgents: Workspace = {
+	...MockWorkspace,
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [MockWorkspaceResourceMultipleAgents],
+	},
+};
 
 const meta: Meta<typeof AgentSSHButton> = {
 	title: "modules/resources/AgentSSHButton",
 	component: AgentSSHButton,
+	args: {
+		workspace: mockWorkspaceWithMultipleAgents,
+		agentName: MockWorkspaceAgent.name,
+	},
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
+	decorators: [withAuthProvider],
 };
 
 export default meta;
 type Story = StoryObj<typeof AgentSSHButton>;
 
-export const Closed: Story = {
-	args: {
-		workspaceName: MockWorkspace.name,
-		agentName: MockWorkspaceAgent.name,
-	},
-};
+export const Closed: Story = {};
 
 export const Opened: Story = {
 	beforeEach: () => {
 		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(MockDeploymentSSH);
 	},
-	args: {
-		workspaceName: MockWorkspace.name,
-		agentName: MockWorkspaceAgent.name,
-		workspaceOwnerUsername: MockWorkspace.owner_name,
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button");
+		const button = canvas.getByRole("button", { name: "Connect via SSH" });
 		await userEvent.click(button);
 	},
 	decorators: [withDesktopViewport],
+};
+
+/** The owner's only agent can be reached through the workspace hostname. */
+export const OpenedSingleAgent: Story = {
+	...Opened,
+	args: { workspace: MockWorkspace },
+};
+
+/** Shared SSH hostnames must keep the agent and workspace owner explicit. */
+export const OpenedSharedSingleAgent: Story = {
+	...OpenedSingleAgent,
+	parameters: { user: MockUserMember },
 };
 
 /** No connection command is offered before the first request settles. */
@@ -95,5 +119,20 @@ export const OpenedWithoutHostnameSuffix: Story = {
 				data: mockDeploymentSSHWithoutHostnameSuffix,
 			},
 		],
+	},
+};
+
+/** The CLI selects the only agent without an explicit agent suffix. */
+export const OpenedSingleAgentWithoutHostnameSuffix: Story = {
+	...OpenedWithoutHostnameSuffix,
+	args: { workspace: MockWorkspace },
+};
+
+/** Unlike SSH hostnames, CLI targets can name an owner without naming an agent. */
+export const OpenedSharedSingleAgentWithoutHostnameSuffix: Story = {
+	...OpenedSingleAgentWithoutHostnameSuffix,
+	parameters: {
+		...OpenedSingleAgentWithoutHostnameSuffix.parameters,
+		user: MockUserMember,
 	},
 };

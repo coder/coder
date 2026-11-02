@@ -1,5 +1,6 @@
 import { useQuery } from "react-query";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import type { Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -15,29 +16,39 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
+import { getWorkspaceAgents } from "#/utils/workspace";
 
 type AgentSSHButtonProps = {
-	workspaceName: string;
+	workspace: Workspace;
 	agentName: string;
-	workspaceOwnerUsername: string;
 };
 
 export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
-	workspaceName,
+	workspace,
 	agentName,
-	workspaceOwnerUsername,
 }) => {
+	const { user } = useAuthenticated();
 	const { data, isLoading, error } = useQuery(deploymentSSHConfig());
 	const sshSuffix = data?.hostname_suffix;
 	const configCommand = sshSuffix ? "coder config-ssh" : undefined;
-	// The CLI needs no SSH config, so it remains usable when the suffix is
-	// empty or the deployment SSH config could not be loaded.
-	const connectCommand = isLoading
-		? undefined
-		: sshSuffix
-			? `ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`
-			: `coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`;
+	const isSingleAgent = getWorkspaceAgents(workspace).length === 1;
+	let connectCommand: string | undefined;
+	if (!isLoading) {
+		if (sshSuffix) {
+			// Shared workspaces need the full hostname; SSH has no workspace.owner form.
+			connectCommand =
+				isSingleAgent && user.id === workspace.owner_id
+					? `ssh ${workspace.name}.${sshSuffix}`
+					: `ssh ${agentName}.${workspace.name}.${workspace.owner_name}.${sshSuffix}`;
+		} else {
+			// The CLI needs no SSH config, so it remains usable without a suffix.
+			connectCommand = isSingleAgent
+				? `coder ssh ${workspace.owner_name}/${workspace.name}`
+				: `coder ssh ${workspace.owner_name}/${workspace.name}.${agentName}`;
+		}
+	}
 
 	return (
 		<Popover>
