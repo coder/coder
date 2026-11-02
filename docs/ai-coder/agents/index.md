@@ -23,7 +23,7 @@ Coder Agents is self-hosted infrastructure for AI coding workflows.
 The entire workflow runs inside your Coder deployment, whether that's a cloud VPC, an on-premises data center, or an air-gapped network.
 Orchestration, chat history, and tool execution stay on infrastructure you control, and prompts go only to the LLM providers you approve, including self-hosted models.
 
-Developers delegate work through chat or the API, and Coder takes it from there.
+Developers delegate work through chat or the API, and Coder handles the rest.
 It selects a template, provisions a workspace, runs the agent, and delivers branches and pull requests, all under the developer's own identity and permissions.
 The agent runs in the control plane as part of Coder, so there's nothing to install, license, or update in your workspaces.
 
