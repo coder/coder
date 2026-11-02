@@ -809,6 +809,7 @@ checksum = "blake3:76b9fb27e15b7dd78417a87a5a5f1d17431061da3268542aa0fefb8f649f7
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip"
 
 [tools.protoc."platforms.linux-arm64-musl"]
+checksum = "sha256:1c7750b6e038305b5a7fc3d0cda1ebefdf106a4f30a787bf826ed2fc47c3967d"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884195"
 
@@ -817,34 +818,42 @@ checksum = "blake3:b1d1a517cb9c8c3cbfc98c708f93e6d3bd8b3ce0e2db1ad8c1491ae8a4067
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
 
 [tools.protoc."platforms.linux-x64-baseline"]
+checksum = "sha256:0502f286ac9ed860b629a7965a14527b1f2dd131e4283fa23c2d7f184672aa9a"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884202"
 
 [tools.protoc."platforms.linux-x64-musl"]
+checksum = "sha256:0502f286ac9ed860b629a7965a14527b1f2dd131e4283fa23c2d7f184672aa9a"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884202"
 
 [tools.protoc."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:0502f286ac9ed860b629a7965a14527b1f2dd131e4283fa23c2d7f184672aa9a"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884202"
 
 [tools.protoc."platforms.macos-arm64"]
+checksum = "sha256:8c7afae8626b6811e7b5897d16d940c2dbf50b1e135ed958a01db6566bdda726"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-osx-aarch_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884203"
 
 [tools.protoc."platforms.macos-x64"]
+checksum = "sha256:07e5fdcf1b0708d3367dc5e6eb8d135de7e407d75316c93155cfd8ab362eec80"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-osx-x86_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884205"
 
 [tools.protoc."platforms.macos-x64-baseline"]
+checksum = "sha256:07e5fdcf1b0708d3367dc5e6eb8d135de7e407d75316c93155cfd8ab362eec80"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-osx-x86_64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884205"
 
 [tools.protoc."platforms.windows-x64"]
+checksum = "sha256:a309c39442fb75f0db343cb22c111a00f91cdf0767f332e170644b9378e2bcc6"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-win64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884208"
 
 [tools.protoc."platforms.windows-x64-baseline"]
+checksum = "sha256:a309c39442fb75f0db343cb22c111a00f91cdf0767f332e170644b9378e2bcc6"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-win64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884208"
 
@@ -857,6 +866,7 @@ checksum = "blake3:7d127072a746d977d87edcb4901f4feeab494f60a9722d12a4bdff70c080d
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.arm64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-arm64-musl"]
+checksum = "sha256:2e137c2c09ced42fee6bb427e002da91a57260f24ba0e7c3bd77cb75e0ae4b0a"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.arm64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619702"
 
@@ -865,34 +875,42 @@ checksum = "blake3:127ed3a8005b199a8451c258ea8fe8ae0f68dd01b4e52c21c881eb7f1d69a
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-x64-baseline"]
+checksum = "sha256:6a716905cdb0c10e9ed616ee57860e38b4738f25dc3264b61736735b69fd286c"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619705"
 
 [tools.protoc-gen-go."platforms.linux-x64-musl"]
+checksum = "sha256:6a716905cdb0c10e9ed616ee57860e38b4738f25dc3264b61736735b69fd286c"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619705"
 
 [tools.protoc-gen-go."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:6a716905cdb0c10e9ed616ee57860e38b4738f25dc3264b61736735b69fd286c"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619705"
 
 [tools.protoc-gen-go."platforms.macos-arm64"]
+checksum = "sha256:874557d34eb3f9362fbabf535bec817c84237b8376ccd6102602721c4fd2057f"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.darwin.arm64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619709"
 
 [tools.protoc-gen-go."platforms.macos-x64"]
+checksum = "sha256:e1b001d892d013a748570891713c0fa197331a09f6de0653a8b1b29455612667"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.darwin.amd64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619710"
 
 [tools.protoc-gen-go."platforms.macos-x64-baseline"]
+checksum = "sha256:e1b001d892d013a748570891713c0fa197331a09f6de0653a8b1b29455612667"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.darwin.amd64.tar.gz"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619710"
 
 [tools.protoc-gen-go."platforms.windows-x64"]
+checksum = "sha256:2f607a007f84302e6d6a200db82d70d4f4709ddbf4498b47964539d17dbb808c"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.windows.amd64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619697"
 
 [tools.protoc-gen-go."platforms.windows-x64-baseline"]
+checksum = "sha256:2f607a007f84302e6d6a200db82d70d4f4709ddbf4498b47964539d17dbb808c"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.windows.amd64.zip"
 url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619697"
 
@@ -996,6 +1014,10 @@ url = "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_windows_
 version = "54.14.0"
 backend = "npm:vercel"
 
+[tools.vercel.options]
+allow_builds = '["esbuild"]'
+trust_policy_excludes = '["undici"]'
+
 [[tools.zizmor]]
 version = "1.11.0"
 backend = "aqua:zizmorcore/zizmor"
@@ -1006,6 +1028,9 @@ url = "https://github.com/zizmorcore/zizmor/releases/download/v1.11.0/zizmor-aar
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-arm64-musl"]
+checksum = "sha256:ce6d71e796b7d3663449151b08cee7c659f89bf36095c432e25169c857f479f0"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.11.0/zizmor-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/268737394"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-x64"]
@@ -1019,9 +1044,15 @@ url = "https://github.com/zizmorcore/zizmor/releases/download/v1.11.0/zizmor-x86
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-x64-musl"]
+checksum = "sha256:da35e666827cbb1e6ca98b18b7969657b9f186467bfebfa25e730aac527c36f8"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.11.0/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/268737402"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:da35e666827cbb1e6ca98b18b7969657b9f186467bfebfa25e730aac527c36f8"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.11.0/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/268737402"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.macos-arm64"]

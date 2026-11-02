@@ -20,12 +20,12 @@ set -euo pipefail
 # Keep MISE_VERSION + MISE_SHA256 in lockstep with the same vars in
 # .github/workflows/dogfood.yaml and dogfood/coder/ubuntu-*/Dockerfile.base.
 # A `min_version` check in mise.toml catches downgrades.
-MISE_VERSION="v2026.5.12"
-MISE_SHA256="a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48"
+MISE_VERSION="v2026.10.25"
+MISE_SHA256="5d362ecc578dc7c146679b841dda949d6472cbf86ff5635db7afdca1b6b3fd87"
 # Bump the -rN suffix when the Dockerfile heredoc below changes
 # (mise version, apt packages, trust config, etc.) so cached wrapper
 # images get rebuilt automatically.
-WRAPPER_REVISION="r2"
+WRAPPER_REVISION="r3"
 RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WRAPPER_IMAGE="coderdev/mise-oci-wrapper:$MISE_VERSION-$WRAPPER_REVISION"
 
