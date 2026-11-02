@@ -41,7 +41,8 @@ Auto-archive and deletion are two independent controls:
 
 A conversation needs to be inactive for `auto_archive_days`, then archived for `retention_days`, before it is deleted.
 The two windows stack additively.
-With auto-archive disabled by default, inactive chats are never auto-archived; once an admin opts in by setting a non-zero `auto_archive_days`, a conversation lives for at least `auto_archive_days + retention_days` from its last message before it is permanently removed.
+With auto-archive disabled by default, inactive chats are never auto-archived.
+Once an admin opts in by setting a non-zero `auto_archive_days`, a conversation lives for at least `auto_archive_days + retention_days` from its last message before it is permanently removed.
 
 Auto-archive (like manual archive) resets the per-chat retention clock, so the full `retention_days` runs from the tick that archived the chat, not from its last message.
 
@@ -52,7 +53,8 @@ Setting `retention_days` to `0` means archived chats are kept indefinitely.
 ## Configuration
 
 The auto-archive window is stored as the `agents_chat_auto_archive_days` key in the `site_configs` table.
-The default is `0` (disabled); set to a positive number of days to enable auto-archiving.
+The default is `0` (disabled).
+Set to a positive number of days to enable auto-archiving.
 
 Admins can set the window in the dashboard under **AI Settings** > **Coder Agents** > **Lifecycle**.
 

@@ -45,7 +45,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	type ArchiveAndDeleteAction,
 	fetchArchiveAndDeleteAction,
@@ -59,26 +58,39 @@ import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatPRMenuItems } from "./ChatsSidebar/tree/ChatPRMenuItems";
 import { MoveToProjectMenuItems } from "./MoveToProjectMenuItems";
 
-// Backend chatstate permits archive only from W, E0, and E1. Unknown status
-// stays fail-open so the server conflict response remains the backstop.
-const chatStatusAllowsArchive = (
-	status: TypesGen.ChatStatus | null | undefined,
-): boolean =>
-	status === undefined ||
-	status === null ||
-	status === "waiting" ||
-	status === "error";
+type ArchiveBlockedReason = "active" | "paused";
 
-// Archive cascades atomically over the whole family, so the backend
-// rejects it when any child is still active, not just the root. Children
-// are embedded on chat records (depth capped at 1); a missing children
-// array stays fail-open like an unknown status.
-export const chatFamilyAllowsArchive = (
-	status: TypesGen.ChatStatus | null | undefined,
-	children: readonly TypesGen.Chat[] | null | undefined,
-): boolean =>
-	chatStatusAllowsArchive(status) &&
-	(children ?? []).every((child) => chatStatusAllowsArchive(child.status));
+// Archive is allowed only from W, E0, E1, and E1P (the SetArchived edges in
+// coderd/x/chatd/ARCHITECTURE.md). It cascades to the embedded children
+// (depth capped at 1), so each child's status counts too.
+const archiveBlockedReasonByStatus = {
+	waiting: undefined,
+	error: undefined,
+	running: "active",
+	requires_action: "active",
+	interrupting: "active",
+	paused: "paused",
+} as const satisfies Record<
+	TypesGen.ChatStatus,
+	ArchiveBlockedReason | undefined
+>;
+
+export const getArchiveBlockedReason = (
+	status: TypesGen.ChatStatus,
+	children: readonly TypesGen.Chat[] | undefined,
+): ArchiveBlockedReason | undefined => {
+	const reasons = [
+		status,
+		...(children ?? []).map((child) => child.status),
+	].map((s) => archiveBlockedReasonByStatus[s]);
+	if (reasons.includes("active")) {
+		return "active";
+	}
+	if (reasons.includes("paused")) {
+		return "paused";
+	}
+	return undefined;
+};
 
 type ItemComponent = typeof DropdownMenuItem | typeof ContextMenuItem;
 type SeparatorComponent =
@@ -118,7 +130,7 @@ type ChatActionsMenuItemsProps = {
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
 	readonly isUpdatingReadState?: boolean;
-	readonly isArchiveBlocked?: boolean;
+	readonly archiveBlockedReason?: ArchiveBlockedReason;
 	readonly subagentCount?: number;
 	readonly isSubagentsExpanded?: boolean;
 	readonly onToggleSubagents?: () => void;
@@ -309,7 +321,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	hasWorkspace,
 	isArchiving = false,
 	isUpdatingReadState = false,
-	isArchiveBlocked = false,
+	archiveBlockedReason,
 	subagentCount = 0,
 	isSubagentsExpanded = false,
 	onToggleSubagents,
@@ -329,7 +341,6 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	SubContent,
 }) => {
 	const { copyToClipboard } = useClipboard();
-	const { experiments } = useDashboard();
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
@@ -341,22 +352,23 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	// child chats expose neither archive nor unarchive.
 	const showArchiveActions = canManage && !isArchived && !isChildChat;
 	const showUnarchiveAction = canManage && isArchived && !isChildChat;
-	const showMoveToProject =
-		showArchiveActions && experiments.includes("chat-projects");
 	const hasActionsAboveCopy = canManage
 		? showUnarchiveAction ||
 			(!isArchived &&
 				(Boolean(onOpenRenameDialog) ||
-					showMoveToProject ||
+					showArchiveActions ||
 					showPinAction ||
 					showSubagentsToggle ||
 					showReadToggle))
 		: showSubagentsToggle;
 	const branch = chat.diff_status?.head_branch;
 	const archiveBlockedHintId = useId();
+	const isArchiveBlocked = archiveBlockedReason !== undefined;
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
 		: undefined;
+	// SetProject refuses only a busy family; a queued edit does not block it.
+	const isMoveBlocked = archiveBlockedReason === "active";
 
 	const subagentToggle = showSubagentsToggle ? (
 		<Item onSelect={onToggleSubagents}>
@@ -389,8 +401,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const copyItems = [
 		<Item
 			key="id"
-			onSelect={() => {
-				void copyToClipboard(chat.id);
+			onSelect={async () => {
+				if (await copyToClipboard(chat.id)) {
+					toast.success("Chat ID copied to clipboard.");
+				}
 			}}
 		>
 			<HashIcon className="size-3.5" />
@@ -401,8 +415,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		copyItems.push(
 			<Item
 				key="branch"
-				onSelect={() => {
-					void copyToClipboard(branch);
+				onSelect={async () => {
+					if (await copyToClipboard(branch)) {
+						toast.success("Branch name copied to clipboard.");
+					}
 				}}
 			>
 				<GitBranchIcon className="size-3.5" />
@@ -482,11 +498,11 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
-					{showMoveToProject && (
+					{showArchiveActions && (
 						<MoveToProjectMenuItems
 							chat={chat}
-							blocked={isArchiveBlocked}
-							describedBy={archiveBlockedDescribedBy}
+							blocked={isMoveBlocked}
+							describedBy={isMoveBlocked ? archiveBlockedHintId : undefined}
 							Item={Item}
 							Separator={Separator}
 							Sub={Sub}
@@ -529,7 +545,9 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							id={archiveBlockedHintId}
 							className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
 						>
-							Interrupt or wait for the agent to finish first.
+							{archiveBlockedReason === "paused"
+								? "Finish editing the queued message first."
+								: "Interrupt or wait for the agent to finish first."}
 						</div>
 					)}
 				</>

@@ -47,29 +47,31 @@ func TestExperimentRuleConditions(t *testing.T) {
 
 	//nolint:gocritic // Tests seed rules directly; there is no rules API yet.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	for ex, condition := range map[codersdk.Experiment]string{
-		codersdk.ExperimentExample:       fmt.Sprintf("%q in user.groups", defaultOrg.Name+"/"+group.Name),
-		codersdk.ExperimentMCPToolSearch: fmt.Sprintf("%q in user.organizations", otherOrg.Name),
-	} {
-		_, _, changed, err := experiments.WriteRule(systemCtx, db, owner.UserID, ex, experiments.Rule{
-			Mode:      experiments.ModeCondition,
-			Condition: condition,
-		}, 0)
-		require.NoError(t, err)
-		require.True(t, changed)
-	}
-
+	var revision int64
 	for _, tc := range []struct {
-		name   string
-		client *codersdk.Client
-		want   codersdk.Experiments
+		name      string
+		condition string
+		matching  *codersdk.Client
 	}{
-		{name: "GroupMember", client: groupedClient, want: codersdk.Experiments{codersdk.ExperimentExample}},
-		{name: "OrganizationMember", client: otherOrgClient, want: codersdk.Experiments{codersdk.ExperimentMCPToolSearch}},
-		{name: "Neither", client: plainClient, want: codersdk.Experiments{}},
+		{name: "GroupMember", condition: fmt.Sprintf("%q in user.groups", defaultOrg.Name+"/"+group.Name), matching: groupedClient},
+		{name: "OrganizationMember", condition: fmt.Sprintf("%q in user.organizations", otherOrg.Name), matching: otherOrgClient},
 	} {
-		got, err := tc.client.Experiments(ctx)
+		_, stored, changed, err := experiments.WriteRule(systemCtx, db, owner.UserID, codersdk.ExperimentExample, experiments.Rule{
+			Mode:      experiments.ModeCondition,
+			Condition: tc.condition,
+		}, revision)
 		require.NoError(t, err, tc.name)
-		require.Equal(t, tc.want, got, tc.name)
+		require.True(t, changed, tc.name)
+		revision = stored.Revision
+
+		for _, client := range []*codersdk.Client{groupedClient, otherOrgClient, plainClient} {
+			want := codersdk.Experiments{}
+			if client == tc.matching {
+				want = codersdk.Experiments{codersdk.ExperimentExample}
+			}
+			got, err := client.Experiments(ctx)
+			require.NoError(t, err, tc.name)
+			require.Equal(t, want, got, tc.name)
+		}
 	}
 }

@@ -96,7 +96,8 @@ curl -X DELETE \
 ```
 
 This is also how you remove clients that registered themselves while dynamic client registration was enabled.
-Turning the setting off stops new registrations; it does not remove the ones already there.
+Turning the setting off stops new registrations.
+It does not remove the ones already there.
 
 ## Learn more
 

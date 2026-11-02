@@ -2057,7 +2057,6 @@ const pickerProjects: TypesGen.ChatProject[] = [
 
 export const WithProjectPicker: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			...defaultQueries,
 			{ key: chatProjectsKey, data: pickerProjects },
@@ -2067,7 +2066,6 @@ export const WithProjectPicker: Story = {
 
 export const WithOrganizationAndProjectPickers: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
@@ -2094,7 +2092,6 @@ const mockProjectActionSkills: TypesGen.SkillMetadata[] = MockSkills.map(
 
 export const ProjectComposerWithActions: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			...defaultQueries,
 			{

@@ -5,9 +5,6 @@ markdown_url: /docs.md
 
 <!-- Warning for docs contributors: The first section in docs/manifest/index.yml must be titled "About" for the static landing page to work correctly. -->
 
-Coder is a self-hosted platform for running AI coding agents and cloud development environments on infrastructure you control.
-It works with any cloud, IDE, OS, Git provider, and IDP.
-
 ![Coder platform showing templates and a running workspace](./images/hero-image.png)
 
 ## Coder Workspaces
@@ -76,7 +73,8 @@ A missed step during onboarding or an unsupported local configuration can cost h
 
 Remote development solves this by moving the environment off the developer's machine and into managed infrastructure.
 The developer's laptop becomes a portal into the actual compute where work happens.
-If a device is lost or replaced, access is simply revoked; no source code or credentials are stored locally.
+If a device is lost or replaced, access is simply revoked.
+No source code or credentials are stored locally.
 
 This approach provides:
 

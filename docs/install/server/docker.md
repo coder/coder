@@ -29,6 +29,7 @@ Coder publishes a [docker compose example](../../../compose.yaml) which includes
 1. Download the [`docker-compose.yaml`](../../../compose.yaml) file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker` group.
+
    You can get the `docker` group `gid` by running the below command:
 
    ```sh

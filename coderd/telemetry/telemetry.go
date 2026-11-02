@@ -2214,9 +2214,9 @@ const (
 	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
 	// dedicated model override and reuses the chat model at runtime.
 	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
-	// AgentsExperimentUnknown reports a value that could not be determined,
-	// e.g. after a transient DB error.
-	AgentsExperimentUnknown = "unknown"
+	// AgentsExperimentComputerUseOrgDefaultModel reports that computer use has
+	// no usable model override and runs on the organization's default model.
+	AgentsExperimentComputerUseOrgDefaultModel = "org_default_model"
 )
 
 // AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
@@ -2226,9 +2226,21 @@ type AgentsVirtualDesktopTelemetry struct {
 	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
 }
 
+// AgentsComputerUseTelemetry describes the per-organization computer use
+// model overrides. Organizations without an override use their default chat
+// model.
 type AgentsComputerUseTelemetry struct {
+	// Overrides is null when the overrides could not be read, so a failed
+	// query stays distinguishable from an empty list.
+	Overrides []AgentsComputerUseOverrideTelemetry `json:"overrides"`
+}
+
+// AgentsComputerUseOverrideTelemetry describes one organization's computer use
+// model override.
+type AgentsComputerUseOverrideTelemetry struct {
+	OrganizationID string `json:"organization_id"`
 	Provider       string `json:"provider"`
-	ProviderSource string `json:"provider_source"`
+	Model          string `json:"model"`
 }
 
 // AgentsAdvisorOverrideTelemetry describes one organization's advisor model override.
@@ -2251,24 +2263,36 @@ type AgentsAdvisorTelemetry struct {
 // Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
 // the desktop and computer use.
 func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
-	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
-	providerSource := "configured"
-	switch {
-	case err != nil:
-		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
-		provider = AgentsExperimentUnknown
-		providerSource = AgentsExperimentUnknown
-	case provider == "":
-		provider = string(codersdk.ChatComputerUseProviderAnthropic)
-		providerSource = "default"
-	}
-	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
+	payload := AgentsVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
-		ComputerUse: AgentsComputerUseTelemetry{
-			Provider:       provider,
-			ProviderSource: providerSource,
-		},
-	})
+	}
+
+	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextComputerUse))
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat computer use model overrides for telemetry", slog.Error(err))
+	} else {
+		payload.ComputerUse.Overrides = []AgentsComputerUseOverrideTelemetry{}
+
+		for _, override := range overrides {
+			// When the override's model is disabled or deleted, or its AI
+			// provider type does not support computer use, the runtime falls
+			// back to the organization's default chat model.
+			supported := override.ProviderType == string(database.AIProviderTypeAnthropic) ||
+				override.ProviderType == string(database.AIProviderTypeOpenai)
+			provider, model := AgentsExperimentComputerUseOrgDefaultModel, AgentsExperimentComputerUseOrgDefaultModel
+			if override.ModelAvailable && supported {
+				provider, model = override.ProviderType, override.Model
+			}
+
+			payload.ComputerUse.Overrides = append(payload.ComputerUse.Overrides, AgentsComputerUseOverrideTelemetry{
+				OrganizationID: override.OrganizationID.String(),
+				Provider:       provider,
+				Model:          model,
+			})
+		}
+	}
+
+	val, err := json.Marshal(payload)
 	if err != nil {
 		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
 		return nil
@@ -2280,7 +2304,7 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 // Deployment.AgentsExperiments.
 func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsAdvisorTelemetry{
-		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Enabled:   true,
 		Overrides: []AgentsAdvisorOverrideTelemetry{},
 	}
 	var cfg codersdk.AdvisorConfig

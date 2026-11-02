@@ -89,7 +89,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 										Advisor limit reached.
 									</p>
 									<p className="m-0 text-content-secondary">
-										You have reached the advisor limit for this conversation.
+										You have reached the advisor limit for this turn.
 									</p>
 								</div>
 							) : !showThinking && !showAdvice ? (

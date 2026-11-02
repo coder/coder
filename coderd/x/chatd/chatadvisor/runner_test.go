@@ -562,48 +562,6 @@ func TestNewRuntimeValidation(t *testing.T) {
 	}
 }
 
-func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
-	t.Parallel()
-
-	parentStore := true
-	parentOpts := &fantasyopenai.ResponsesProviderOptions{
-		Store: &parentStore,
-	}
-	parentProviderOpts := fantasy.ProviderOptions{
-		fantasyopenai.Name: parentOpts,
-	}
-
-	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model: &chattest.FakeModel{
-			ProviderName: "test-provider",
-			ModelName:    "test-model",
-			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				return streamFromParts([]fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
-					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
-					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
-					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-				}), nil
-			},
-		},
-		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
-		MaxUsesPerRun:   1,
-		MaxOutputTokens: 64,
-		MaxRetries:      1,
-	})
-	require.NoError(t, err)
-
-	result, err := runtime.RunAdvisor(t.Context(), "anything?", nil, nil)
-	require.NoError(t, err)
-	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
-
-	// Parent's OpenAI Responses entry must still carry its Store setting;
-	// the advisor must have mutated only its per-call clone, never the
-	// shared pointer.
-	require.NotNil(t, parentOpts.Store)
-	require.True(t, *parentOpts.Store)
-}
-
 func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 	t.Parallel()
 

@@ -58,6 +58,7 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 					autoFocus={autoFocus}
 					autoComplete="email"
 					type="email"
+					placeholder="you@example.com"
 					aria-invalid={Boolean(emailField.error)}
 					aria-describedby={emailField.error ? emailErrorId : undefined}
 				/>
@@ -84,6 +85,7 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 					onBlur={passwordField.onBlur}
 					autoComplete="current-password"
 					type="password"
+					placeholder="Enter your password"
 					aria-invalid={Boolean(passwordField.error)}
 					aria-describedby={passwordField.error ? passwordErrorId : undefined}
 				/>

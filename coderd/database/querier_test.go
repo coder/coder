@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -845,8 +847,7 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(40*time.Second, templateID, userID, otherWorkspaceID, 0, map[string]int64{"reconnecting_pty": 1, "vscode": 1})
 	insertStat(time.Minute+5*time.Second, templateID, userID, otherWorkspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
 
-	// An app outside every family is still activity, so its user counts as
-	// active even though the session lands in no usage bucket.
+	// A session without an app name is still activity.
 	unattributedUserID := uuid.New()
 	insertStat(10*time.Second, templateID, unattributedUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
@@ -857,7 +858,7 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	// Apps of one family open in the same minute count that minute once.
+	// Each app counts its own minutes, even when apps overlap.
 	overlapTemplateID := uuid.New()
 	overlapUserID := uuid.New()
 	insertStat(5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 1, map[string]int64{"vscode": 1, "cursor": 1, "zed": 1, "ssh": 1})
@@ -872,18 +873,16 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	}
 	require.Len(t, byTemplate, 3)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "ssh": 120, "unknown": 60, "reconnecting_pty": 60}, byTemplate[templateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[overlapTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "ssh": 60, "port_forwarding": 60, "unknown": 60}, byTemplate[overlapTemplateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "cursor": 120, "zed": 60, "ssh": 60, "some_new_ide": 60, "overflow": 60, "port_forwarding": 60}, byTemplate[overlapTemplateID].SessionAppUsageSeconds)
 }
 
 func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time) database.GetTemplateInsightsByTemplateParams {
 	t.Helper()
-	appFamilies, err := json.Marshal(codersdk.SessionCountAppFamilies())
-	require.NoError(t, err)
-	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime, AppFamilies: appFamilies}
+	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime}
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -4789,6 +4788,10 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	})
 
 	now := dbtime.Now()
+	const (
+		sessionA = "0123456789abcdef0123456789abcdef"
+		sessionB = "fedcba9876543210fedcba9876543210"
+	)
 	log1ConnID := uuid.New()
 	log1 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 		Time:             now.Add(-4 * time.Hour),
@@ -4815,6 +4818,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Mark log2 as disconnected
@@ -4840,6 +4844,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionB, Valid: true},
 	})
 
 	// Mark log3 as disconnected
@@ -4864,6 +4869,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Tunnel events are point-in-time (no disconnect event is ever
@@ -5059,6 +5065,13 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log1.ID},
 		},
 		{
+			name: "ClientSessionID",
+			params: database.GetConnectionLogsOffsetParams{
+				ClientSessionID: sessionA,
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+		},
+		{
 			name: "StatusOngoing",
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
@@ -5103,6 +5116,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 				ConnectedBefore:     tc.params.ConnectedBefore,
 				WorkspaceID:         tc.params.WorkspaceID,
 				ConnectionID:        tc.params.ConnectionID,
+				ClientSessionID:     tc.params.ClientSessionID,
 				Status:              tc.params.Status,
 				WorkspaceOwnerID:    tc.params.WorkspaceOwnerID,
 				WorkspaceOwnerEmail: tc.params.WorkspaceOwnerEmail,
@@ -7860,6 +7874,308 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 			require.Len(t, workspacePrebuilds, 1)
 			require.Equal(t, tc.expectReady, workspacePrebuilds[0].Ready)
 		})
+	}
+}
+
+// claimTestPreset is a template whose active version has a preset, for testing
+// ClaimPrebuiltWorkspace.
+type claimTestPreset struct {
+	sqlDB   *sql.DB
+	db      database.Store
+	orgID   uuid.UUID
+	tmpl    database.Template
+	version templateVersionWithPreset
+}
+
+func newClaimTestPreset(t *testing.T) claimTestPreset {
+	t.Helper()
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	orgID, adminID := uuid.New(), uuid.New()
+	dbgen.Organization(t, db, database.Organization{ID: orgID})
+	dbgen.User(t, db, database.User{ID: adminID})
+	tmpl := createTemplate(t, db, orgID, adminID)
+	version := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, dbtime.Now(), nil)
+	return claimTestPreset{sqlDB: sqlDB, db: db, orgID: orgID, tmpl: tmpl, version: version}
+}
+
+// claimTestBuild is a workspace build whose agents share one resource.
+type claimTestBuild struct {
+	transition database.WorkspaceTransition
+	succeeded  bool
+	versionID  uuid.UUID
+	presetID   uuid.UUID
+	agents     []database.WorkspaceAgentLifecycleState
+	// agentsDeleted marks all of the build's agents deleted.
+	agentsDeleted bool
+}
+
+// readyBuild returns a succeeded start of the active version with one ready agent.
+func (p claimTestPreset) readyBuild() claimTestBuild {
+	return claimTestBuild{
+		transition: database.WorkspaceTransitionStart,
+		succeeded:  true,
+		versionID:  p.version.ID,
+		presetID:   p.version.preset.ID,
+		agents:     []database.WorkspaceAgentLifecycleState{database.WorkspaceAgentLifecycleStateReady},
+	}
+}
+
+// addWorkspace creates a workspace with the given builds. The prebuilds user
+// owns it unless ws sets an owner.
+func (p claimTestPreset) addWorkspace(ctx context.Context, t *testing.T, ws database.WorkspaceTable, builds ...claimTestBuild) uuid.UUID {
+	t.Helper()
+	if ws.OwnerID == uuid.Nil {
+		ws.OwnerID = database.PrebuildsSystemUserID
+	}
+	if ws.TemplateID == uuid.Nil {
+		ws.TemplateID = p.tmpl.ID
+	}
+	ws.OrganizationID = p.orgID
+	workspace := dbgen.Workspace(t, p.db, ws)
+	for i, b := range builds {
+		job := dbgen.ProvisionerJob(t, p.db, nil, database.ProvisionerJob{OrganizationID: p.orgID, InitiatorID: database.PrebuildsSystemUserID})
+		if b.succeeded {
+			_, err := p.sqlDB.ExecContext(ctx, "UPDATE provisioner_jobs SET started_at = now(), completed_at = now() WHERE id = $1", job.ID)
+			require.NoError(t, err)
+		}
+		if len(b.agents) > 0 {
+			resource := dbgen.WorkspaceResource(t, p.db, database.WorkspaceResource{JobID: job.ID})
+			for _, state := range b.agents {
+				agent := dbgen.WorkspaceAgent(t, p.db, database.WorkspaceAgent{ResourceID: resource.ID})
+				require.NoError(t, p.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agent.ID,
+					LifecycleState: state,
+				}))
+				if b.agentsDeleted {
+					_, err := p.sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = true WHERE id = $1", agent.ID)
+					require.NoError(t, err)
+				}
+			}
+		}
+		dbgen.WorkspaceBuild(t, p.db, database.WorkspaceBuild{
+			WorkspaceID:             workspace.ID,
+			TemplateVersionID:       b.versionID,
+			BuildNumber:             int32(i + 1), //nolint:gosec // Tests use a handful of builds.
+			Transition:              b.transition,
+			InitiatorID:             database.PrebuildsSystemUserID,
+			JobID:                   job.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: b.presetID, Valid: b.presetID != uuid.Nil},
+		})
+	}
+	return workspace.ID
+}
+
+// addReadyPrebuilds creates n claimable prebuilds and returns their IDs, oldest first.
+func (p claimTestPreset) addReadyPrebuilds(ctx context.Context, t *testing.T, n int) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, n)
+	now := dbtime.Now()
+	for i := range n {
+		ids[i] = p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: now.Add(time.Duration(i) * time.Second)}, p.readyBuild())
+	}
+	return ids
+}
+
+func (claimTestPreset) claim(ctx context.Context, store database.Store, presetID, userID uuid.UUID) (uuid.UUID, error) {
+	row, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+		NewUserID: userID,
+		NewName:   "claimed-" + uuid.NewString()[:8],
+		Now:       dbtime.Now(),
+		PresetID:  presetID,
+	})
+	return row.ID, err
+}
+
+// holdClaim claims a prebuild in a transaction that stays open until release
+// is called or the test ends.
+func (p claimTestPreset) holdClaim(ctx context.Context, t *testing.T, userID uuid.UUID) (id uuid.UUID, release func()) {
+	t.Helper()
+	claimed := make(chan uuid.UUID, 1)
+	releaseCh := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- p.db.InTx(func(tx database.Store) error {
+			id, err := p.claim(ctx, tx, p.version.preset.ID, userID)
+			claimed <- id
+			<-releaseCh
+			return err
+		}, nil)
+	}()
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			close(releaseCh)
+			assert.NoError(t, testutil.TryReceive(ctx, t, done))
+		})
+	}
+	t.Cleanup(release)
+	id = testutil.TryReceive(ctx, t, claimed)
+	require.NotEqual(t, uuid.Nil, id, "held claim failed")
+	return id, release
+}
+
+// TestClaimPrebuiltWorkspaceConcurrent checks that claims racing an open claim
+// skip its locked prebuild without waiting, and that claims take the oldest
+// prebuild first.
+func TestClaimPrebuiltWorkspaceConcurrent(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	ids := p.addReadyPrebuilds(ctx, t, 2)
+	userA := dbgen.User(t, p.db, database.User{})
+	userB := dbgen.User(t, p.db, database.User{})
+
+	idA, release := p.holdClaim(ctx, t, userA.ID)
+	require.Equal(t, ids[0], idA, "a claim must take the oldest prebuild")
+
+	// Each claim must return while claim A still holds its lock.
+	claimWithoutWaiting := func(userID uuid.UUID) (uuid.UUID, error) {
+		type result struct {
+			id  uuid.UUID
+			err error
+		}
+		ch := make(chan result, 1)
+		go func() {
+			id, err := p.claim(ctx, p.db, p.version.preset.ID, userID)
+			ch <- result{id, err}
+		}()
+		res := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, ch)
+		return res.id, res.err
+	}
+	idB, err := claimWithoutWaiting(userB.ID)
+	require.NoError(t, err)
+	require.Equal(t, ids[1], idB)
+	_, err = claimWithoutWaiting(userB.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	release()
+	for id, owner := range map[uuid.UUID]uuid.UUID{idA: userA.ID, idB: userB.ID} {
+		ws, err := p.db.GetWorkspaceByID(ctx, id)
+		require.NoError(t, err)
+		require.Equal(t, owner, ws.OwnerID)
+	}
+}
+
+// TestClaimPrebuiltWorkspaceClaimsOne guards against one claim taking two
+// prebuilds. With w.id IN (...) and statistics from when only one prebuild
+// existed, Postgres reran the SKIP LOCKED subquery per workspace row, and the
+// rerun returned a second prebuild that the scan reached later.
+func TestClaimPrebuiltWorkspaceClaimsOne(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	p.addReadyPrebuilds(ctx, t, 1)
+	_, err := p.sqlDB.ExecContext(ctx, "ANALYZE")
+	require.NoError(t, err)
+	// Newer, so the claim takes the first prebuild and the scan reaches this one after it.
+	p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: dbtime.Now().Add(time.Hour)}, p.readyBuild())
+
+	user := dbgen.User(t, p.db, database.User{})
+	_, err = p.claim(ctx, p.db, p.version.preset.ID, user.ID)
+	require.NoError(t, err)
+	var owned int
+	require.NoError(t, p.sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspaces WHERE owner_id = $1", user.ID).Scan(&owned))
+	require.Equal(t, 1, owned)
+}
+
+// TestClaimPrebuiltWorkspaceEligibilityMatchesView checks that the claim query,
+// which repeats the workspace_prebuilds logic per workspace, claims exactly the
+// prebuilds that the view reports as ready.
+func TestClaimPrebuiltWorkspaceEligibilityMatchesView(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	preset := p.version.preset.ID
+	otherPreset := dbgen.Preset(t, p.db, database.InsertPresetParams{TemplateVersionID: p.version.ID, Name: "other"})
+	inactive := createTmplVersionAndPreset(t, p.db, p.tmpl, uuid.New(), dbtime.Now(), nil)
+	deletedTmpl := createTemplate(t, p.db, p.orgID, p.tmpl.CreatedBy)
+	deletedTmplVersion := createTmplVersionAndPreset(t, p.db, deletedTmpl, deletedTmpl.ActiveVersionID, dbtime.Now(), nil)
+	_, err := p.sqlDB.ExecContext(ctx, "UPDATE templates SET deleted = true WHERE id = $1", deletedTmpl.ID)
+	require.NoError(t, err)
+	user := dbgen.User(t, p.db, database.User{})
+
+	ready := p.readyBuild()
+	build := func(modify func(*claimTestBuild)) claimTestBuild {
+		b := p.readyBuild()
+		modify(&b)
+		return b
+	}
+	cases := []struct {
+		name         string
+		ws           database.WorkspaceTable
+		builds       []claimTestBuild
+		claimableFor uuid.UUID
+	}{
+		{name: "Ready", builds: []claimTestBuild{ready}, claimableFor: preset},
+		{name: "AgentStarting", builds: []claimTestBuild{build(func(b *claimTestBuild) {
+			b.agents = append(b.agents, database.WorkspaceAgentLifecycleStateStarting)
+		})}},
+		{name: "NoAgents", builds: []claimTestBuild{build(func(b *claimTestBuild) { b.agents = nil })}},
+		{name: "OnlyDeletedAgents", builds: []claimTestBuild{build(func(b *claimTestBuild) { b.agentsDeleted = true })}},
+		{name: "LatestBuildStop", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.transition = database.WorkspaceTransitionStop })}},
+		{name: "LatestBuildPending", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.succeeded = false })}},
+		{name: "InactiveTemplateVersion", builds: []claimTestBuild{build(func(b *claimTestBuild) {
+			b.versionID, b.presetID = inactive.ID, inactive.preset.ID
+		})}},
+		{name: "TemplateDeleted", ws: database.WorkspaceTable{TemplateID: deletedTmpl.ID}, builds: []claimTestBuild{build(func(b *claimTestBuild) {
+			b.versionID, b.presetID = deletedTmplVersion.ID, deletedTmplVersion.preset.ID
+		})}},
+		{name: "PresetChanged", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.presetID = otherPreset.ID })}, claimableFor: otherPreset.ID},
+		{name: "LatestBuildNoPreset", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.presetID = uuid.Nil })}, claimableFor: preset},
+		{name: "WorkspaceDeleted", ws: database.WorkspaceTable{Deleted: true}, builds: []claimTestBuild{ready}},
+		{name: "OwnedByUser", ws: database.WorkspaceTable{OwnerID: user.ID}, builds: []claimTestBuild{ready}},
+	}
+	names := make(map[uuid.UUID]string, len(cases))
+	want := make(map[uuid.UUID][]string)
+	for _, tc := range cases {
+		names[p.addWorkspace(ctx, t, tc.ws, tc.builds...)] = tc.name
+		if tc.claimableFor != uuid.Nil {
+			want[tc.claimableFor] = append(want[tc.claimableFor], tc.name)
+		}
+	}
+
+	for _, presetID := range []uuid.UUID{preset, otherPreset.ID, inactive.preset.ID, deletedTmplVersion.preset.ID} {
+		// The view's ready prebuilds, filtered as the claim filtered them when it read the view.
+		rows, err := p.sqlDB.QueryContext(ctx, `
+			SELECT p.id
+			FROM workspace_prebuilds p
+				INNER JOIN workspaces w ON w.id = p.id
+				INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+				INNER JOIN templates t ON t.id = p.template_id
+			WHERE p.ready
+				AND p.current_preset_id = $1
+				AND NOT w.deleted
+				AND NOT t.deleted
+				AND b.transition = 'start'::workspace_transition
+				AND b.job_status = 'succeeded'::provisioner_job_status
+				AND b.template_version_id = t.active_version_id`, presetID)
+		require.NoError(t, err)
+		var inView []string
+		for rows.Next() {
+			var id uuid.UUID
+			require.NoError(t, rows.Scan(&id))
+			inView = append(inView, names[id])
+		}
+		require.NoError(t, rows.Err())
+		require.NoError(t, rows.Close())
+
+		// Claim until no prebuild is left, then roll back.
+		var claimed []string
+		err = p.db.InTx(func(tx database.Store) error {
+			for range len(cases) + 1 {
+				id, err := p.claim(ctx, tx, presetID, user.ID)
+				if err != nil {
+					return err
+				}
+				claimed = append(claimed, names[id])
+			}
+			return xerrors.New("claims did not run out")
+		}, nil)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ElementsMatch(t, want[presetID], inView, "workspace_prebuilds for preset %s", presetID)
+		require.ElementsMatch(t, inView, claimed, "claims for preset %s", presetID)
 	}
 }
 
@@ -11760,6 +12076,95 @@ func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
 	})
 }
 
+func TestAIBridgeInterceptionOrganizationColumns(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	insert := func(ctx context.Context, t *testing.T, orgID uuid.NullUUID, source database.NullAIBridgeInterceptionOrganizationSource) (database.AIBridgeInterception, error) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		return db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                 uuid.New(),
+			InitiatorID:        user.ID,
+			Metadata:           json.RawMessage("{}"),
+			CredentialKind:     database.CredentialKindCentralized,
+			OrganizationID:     orgID,
+			OrganizationSource: source,
+		})
+	}
+
+	existingOrg := func(t *testing.T) uuid.NullUUID {
+		org := dbgen.Organization(t, db, database.Organization{})
+		return uuid.NullUUID{UUID: org.ID, Valid: true}
+	}
+	missingOrg := func(*testing.T) uuid.NullUUID { return uuid.NullUUID{UUID: uuid.New(), Valid: true} }
+	noOrg := func(*testing.T) uuid.NullUUID { return uuid.NullUUID{} }
+	sourceOf := func(source database.AIBridgeInterceptionOrganizationSource) database.NullAIBridgeInterceptionOrganizationSource {
+		return database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true}
+	}
+	failsCheck := func(err error) bool {
+		return database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck)
+	}
+	failsForeignKey := func(err error) bool {
+		return database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID)
+	}
+
+	type testCase struct {
+		name   string
+		orgID  func(t *testing.T) uuid.NullUUID
+		source database.NullAIBridgeInterceptionOrganizationSource
+		// wantErr is nil when the insert must succeed and round-trip.
+		wantErr func(error) bool
+	}
+	var tests []testCase
+	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
+		tests = append(tests, testCase{name: "RoundTrip/" + string(source), orgID: existingOrg, source: sourceOf(source)})
+	}
+	tests = append(tests,
+		testCase{name: "RoundTripNull", orgID: noOrg},
+		testCase{name: "OrganizationWithoutSourceFailsCheck", orgID: existingOrg, wantErr: failsCheck},
+		testCase{name: "SourceWithoutOrganizationFailsCheck", orgID: noOrg, source: sourceOf(database.AibridgeInterceptionOrganizationSourceWorkspace), wantErr: failsCheck},
+		testCase{name: "MissingOrganizationFailsForeignKey", orgID: missingOrg, source: sourceOf(database.AibridgeInterceptionOrganizationSourceWorkspace), wantErr: failsForeignKey},
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			orgID := tt.orgID(t)
+			inserted, err := insert(ctx, t, orgID, tt.source)
+			if tt.wantErr != nil {
+				require.True(t, tt.wantErr(err), "unexpected error: %v", err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, orgID, inserted.OrganizationID)
+			require.Equal(t, tt.source, inserted.OrganizationSource)
+
+			got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+			require.NoError(t, err)
+			require.Equal(t, orgID, got.OrganizationID)
+			require.Equal(t, tt.source, got.OrganizationSource)
+		})
+	}
+
+	t.Run("OrganizationHardDeleteBlocked", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		_, err := insert(ctx, t, uuid.NullUUID{UUID: org.ID, Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{
+			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceChatd,
+			Valid:                                  true,
+		})
+		require.NoError(t, err)
+
+		_, err = sqlDB.ExecContext(ctx, "DELETE FROM organizations WHERE id = $1", org.ID)
+		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID), "unexpected error: %v", err)
+	})
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
@@ -14931,8 +15336,13 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 	t.Parallel()
 
+	// Each subtest uses its own database, so the cases can share this ID.
+	orgA := uuid.New()
+	scopedToA := uuid.NullUUID{UUID: orgA, Valid: true}
+
 	tests := []struct {
 		name    string
+		org     uuid.NullUUID
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want database.GetHighestGroupAIBudgetByUserRow)
 		wantErr error
 	}{
@@ -14951,7 +15361,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000, OrganizationID: org.ID}
 			},
 		},
 		{
@@ -14971,7 +15381,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000, OrganizationID: orgB.ID}
 			},
 		},
 		{
@@ -14997,7 +15407,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 					UpdatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: liveGroup.ID, SpendLimitMicros: 1_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: liveGroup.ID, SpendLimitMicros: 1_000_000, OrganizationID: liveOrg.ID}
 			},
 		},
 		{
@@ -15018,7 +15428,7 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: lateGroup.ID, SpendLimitMicros: 1_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: earlyGroup.ID, SpendLimitMicros: 1_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: earlyGroup.ID, SpendLimitMicros: 1_000_000, OrganizationID: earlyOrg.ID}
 			},
 		},
 		{
@@ -15032,6 +15442,66 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
 			},
 		},
+		{
+			// With an organization, only groups in that org count, even when
+			// another org has a higher limit.
+			name: "ScopedToOrg",
+			org:  scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				groupA := dbgen.Group(t, db, database.Group{OrganizationID: orgA})
+				groupB := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupA.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupB.ID, SpendLimitMicros: 5_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: groupA.ID, SpendLimitMicros: 1_000_000, OrganizationID: orgA}
+			},
+		},
+		{
+			// With an organization the user is not a member of, there is no
+			// budget, even with budgets elsewhere.
+			name:    "ScopedNotMember",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				groupB := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupB.ID, SpendLimitMicros: 5_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
+			},
+		},
+		{
+			name:    "ScopedDeletedOrg",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				groupA := dbgen.Group(t, db, database.Group{OrganizationID: orgA})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupA.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				err = db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+					ID:        orgA,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -15041,7 +15511,10 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			userID, want := tt.setup(t, ctx, db)
-			got, err := db.GetHighestGroupAIBudgetByUser(ctx, userID)
+			got, err := db.GetHighestGroupAIBudgetByUser(ctx, database.GetHighestGroupAIBudgetByUserParams{
+				UserID:         userID,
+				OrganizationID: tt.org,
+			})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
@@ -15268,8 +15741,13 @@ func TestGetOverBudgetUsersPerGroup(t *testing.T) {
 func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 	t.Parallel()
 
+	// Each subtest uses its own database, so the cases can share this ID.
+	orgA := uuid.New()
+	scopedToA := uuid.NullUUID{UUID: orgA, Valid: true}
+
 	tests := []struct {
 		name    string
+		org     uuid.NullUUID
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, wantGroupID uuid.UUID)
 		wantErr error
 	}{
@@ -15335,6 +15813,51 @@ func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 				return user.ID, uuid.Nil
 			},
 		},
+		{
+			// With an organization, its Everyone group wins over the default
+			// org.
+			name: "ScopedNonDefaultOrg",
+			org:  scopedToA,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				defaultOrg, err := db.GetDefaultOrganization(ctx)
+				require.NoError(t, err)
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				return user.ID, orgA
+			},
+		},
+		{
+			// With an organization the user is not a member of, there is no
+			// fallback group.
+			name:    "ScopedNotMember",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				return user.ID, uuid.Nil
+			},
+		},
+		{
+			name:    "ScopedDeletedOrg",
+			org:     scopedToA,
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				dbgen.Organization(t, db, database.Organization{ID: orgA})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA, UserID: user.ID})
+				err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+					ID:        orgA,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				return user.ID, uuid.Nil
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -15344,13 +15867,112 @@ func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			userID, wantGroupID := tt.setup(t, ctx, db)
-			got, err := db.GetUserEveryoneFallbackGroup(ctx, userID)
+			got, err := db.GetUserEveryoneFallbackGroup(ctx, database.GetUserEveryoneFallbackGroupParams{
+				UserID:         userID,
+				OrganizationID: tt.org,
+			})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, wantGroupID, got)
+		})
+	}
+}
+
+func TestGetUserAIBudgetOverrideWithOrganization(t *testing.T) {
+	t.Parallel()
+
+	// setupOverride creates an org with a group, makes the user a member of
+	// both, sets the user's override on the group, and soft-deletes the org
+	// when deleted is true. Returns the override row the query should return.
+	setupOverride := func(t *testing.T, ctx context.Context, db database.Store, orgID uuid.UUID, deleted bool) database.GetUserAIBudgetOverrideWithOrganizationRow {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		dbgen.Organization(t, db, database.Organization{ID: orgID})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: orgID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: user.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+		_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+			UserID:           user.ID,
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000,
+		})
+		require.NoError(t, err)
+		if deleted {
+			err = db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+				ID:        orgID,
+				UpdatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+		}
+		return database.GetUserAIBudgetOverrideWithOrganizationRow{
+			UserID:           user.ID,
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000,
+			OrganizationID:   orgID,
+		}
+	}
+
+	// Each subtest uses its own database, so the cases can share these IDs.
+	// The override is always in overrideOrg.
+	overrideOrg := uuid.New()
+	otherOrg := uuid.New()
+
+	tests := []struct {
+		name    string
+		org     uuid.NullUUID
+		deleted bool
+		wantErr error
+	}{
+		{
+			// With no organization, the override is returned with its group's
+			// org.
+			name: "NullOrg",
+		},
+		{
+			// With no organization, an override in a soft-deleted org is not
+			// returned, matching the group budget and Everyone fallback queries.
+			name:    "NullOrgDeletedOrg",
+			deleted: true,
+			wantErr: sql.ErrNoRows,
+		},
+		{
+			name: "SameOrg",
+			org:  uuid.NullUUID{UUID: overrideOrg, Valid: true},
+		},
+		{
+			name:    "OtherOrg",
+			org:     uuid.NullUUID{UUID: otherOrg, Valid: true},
+			wantErr: sql.ErrNoRows,
+		},
+		{
+			name:    "DeletedOrg",
+			org:     uuid.NullUUID{UUID: overrideOrg, Valid: true},
+			deleted: true,
+			wantErr: sql.ErrNoRows,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			want := setupOverride(t, ctx, db, overrideOrg, tt.deleted)
+			dbgen.Organization(t, db, database.Organization{ID: otherOrg})
+			got, err := db.GetUserAIBudgetOverrideWithOrganization(ctx, database.GetUserAIBudgetOverrideWithOrganizationParams{
+				UserID:         want.UserID,
+				OrganizationID: tt.org,
+			})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, want, got)
 		})
 	}
 }
@@ -17582,6 +18204,8 @@ func TestGetChatsFilter(t *testing.T) {
 	setStatus(failedChat, database.ChatStatusError)
 	interruptingChat := createRoot("interrupting chat")
 	setStatus(interruptingChat, database.ChatStatusInterrupting)
+	pausedChat := createRoot("paused chat")
+	setStatus(pausedChat, database.ChatStatusPaused)
 
 	// Read chat (message exists but marked read).
 	readChat := createRoot("read chat")
@@ -17626,12 +18250,14 @@ func TestGetChatsFilter(t *testing.T) {
 		unreadNoPR.ID, readChat.ID, childParent.ID,
 		prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID,
 		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
+		pausedChat.ID,
 	}
 	noPRRootIDs := []uuid.UUID{
 		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
 		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID, clearedPR.ID,
 		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
+		pausedChat.ID,
 	}
 	noPROrOpenRootIDs := append(append([]uuid.UUID{}, noPRRootIDs...),
 		openPR.ID, prNumberChat.ID, prTitleChat.ID)
@@ -17667,7 +18293,7 @@ func TestGetChatsFilter(t *testing.T) {
 		// Unread filter.
 		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID, workingUnread.ID}},
 		// HasUnread=false returns chats without unread messages.
-		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID}},
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID, pausedChat.ID}},
 
 		// chat_status enum, the same value the sidebar row icon uses.
 		{"Status/Running", database.GetChatsParams{ChatStatuses: []string{"running"}}, []uuid.UUID{workingUnread.ID}},
@@ -17675,6 +18301,7 @@ func TestGetChatsFilter(t *testing.T) {
 		{"Status/RequiresAction", database.GetChatsParams{ChatStatuses: []string{"requires_action"}}, []uuid.UUID{needsAttention.ID}},
 		{"Status/Error", database.GetChatsParams{ChatStatuses: []string{"error"}}, []uuid.UUID{failedChat.ID}},
 		{"Status/Waiting", database.GetChatsParams{ChatStatuses: []string{"waiting"}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, draftPR.ID, unreadNoPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID}},
+		{"Status/Paused", database.GetChatsParams{ChatStatuses: []string{"paused"}}, []uuid.UUID{pausedChat.ID}},
 		{"Status/RunningAndError", database.GetChatsParams{ChatStatuses: []string{"running", "error"}}, []uuid.UUID{workingUnread.ID, failedChat.ID}},
 		{"Status/EmptyIsNoOp", database.GetChatsParams{ChatStatuses: nil}, allRootIDs},
 
@@ -19638,25 +20265,19 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	db := database.New(sqlDB)
 	ctx := context.Background()
 
-	cursorTemplate := uuid.New()
-	zedTemplate := uuid.New()
-	unknownTemplate := uuid.New()
-	for _, tc := range []struct {
-		templateID uuid.UUID
-		counts     map[string]int64
-	}{
-		{cursorTemplate, map[string]int64{"cursor": 2}},
-		{zedTemplate, map[string]int64{"zed": 1}},
-		{unknownTemplate, map[string]int64{"some_new_ide": 5}},
+	for _, counts := range []map[string]int64{
+		{"cursor": 2},
+		{"zed": 1},
+		{"some_new_ide": 5},
 	} {
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			TemplateID:                tc.templateID,
+			TemplateID:                uuid.New(),
 			UserID:                    uuid.New(),
 			AgentID:                   uuid.New(),
 			ConnectionCount:           1,
 			ConnectionMedianLatencyMS: 1,
 			Usage:                     true,
-			SessionCounts:             dbgen.SessionCounts(t, tc.counts),
+			SessionCounts:             dbgen.SessionCounts(t, counts),
 		})
 	}
 
@@ -19667,22 +20288,6 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
-
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, dbtime.Now().Add(-time.Hour), dbtime.Now().Add(time.Hour)))
-	require.NoError(t, err)
-
-	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow, len(insights))
-	for _, row := range insights {
-		byTemplate[row.TemplateID] = row
-	}
-	require.Equal(t, database.StringMapOfInt{"vscode": 60}, byTemplate[cursorTemplate].SessionFamilyUsageSeconds)
-	require.Equal(t, database.StringMapOfInt{"ssh": 60}, byTemplate[zedTemplate].SessionFamilyUsageSeconds)
-
-	// An app with no family is still activity, so the user is not counted idle.
-	unknown, ok := byTemplate[unknownTemplate]
-	require.True(t, ok, "a session with no family must still appear as usage")
-	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"unknown": 60}, unknown.SessionFamilyUsageSeconds)
 }
 
 // The rollup stores the app name the agent reported, whether or not the
@@ -19916,10 +20521,10 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		rows, err := db.ListOrganizationAISpendUsers(ctx, base)
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
-			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
-			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
-			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
+			row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+			row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
 		}, rows)
 	})
 
@@ -19932,16 +20537,16 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		// Count and totals cover every matching user, not only the page.
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
-			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+			row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
 		}, rows)
 
 		params.OffsetOpt = 2
 		rows, err = db.ListOrganizationAISpendUsers(ctx, params)
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
-			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
+			row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
 		}, rows)
 
 		params.OffsetOpt = 4
@@ -19960,24 +20565,24 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			{
 				name:   "ProviderName",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.ProviderName = "openai-prod" },
-				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 1, 500, 1)},
+				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 1, 500, 1)},
 			},
 			{
 				name:   "Model",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "claude" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 5600, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 5600, 0),
-					row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 4, 5600, 0),
-					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 5600, 0),
+					row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 5600, 0),
+					row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 5600, 0),
+					row(alice, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 4, 5600, 0),
+					row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 5600, 0),
 				},
 			},
 			{
 				name:   "Client",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "cursor" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 2, 4500, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 2, 4500, 0),
+					row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 2, 4500, 0),
+					row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 2, 4500, 0),
 				},
 			},
 			{
@@ -19985,8 +20590,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				name:   "UnknownClient",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "Unknown" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 2, 600, 1),
-					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 2, 600, 1),
+					row(alice, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 2, 600, 1),
+					row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 2, 600, 1),
 				},
 			},
 			{
@@ -19996,7 +20601,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 					p.Model = "claude"
 					p.Client = "vscode"
 				},
-				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
 			},
 			{
 				name:   "NoMatch",
@@ -20027,13 +20632,13 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			{
 				// Only alice's unpriced usage is recorded from two hours in.
 				name: "LaterStart", start: start.Add(2 * time.Hour), end: end,
-				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
 			},
 			{
 				// The usage one second before the base window is inside a
 				// window that ends where the base window starts.
 				name: "EarlierWindow", start: start.Add(-time.Hour), end: start,
-				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 1, 99_999, 0)},
+				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 1, 99_999, 0)},
 			},
 			{
 				// Usage is attributed by when it was recorded, not by when
@@ -20042,8 +20647,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				// usage at the base window's exclusive end.
 				name: "TokenUsageCreatedAt", start: end, end: end.Add(2 * time.Hour),
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 2, 100_699, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 700, 0, 2, 100_699, 0),
+					row(bob, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 2, 100_699, 0),
+					row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 700, 0, 2, 100_699, 0),
 				},
 			},
 		}
@@ -20069,7 +20674,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{{
 			UserID: bob.ID, Username: bob.Username, Name: bob.Name, AvatarURL: bob.AvatarURL, OrganizationID: otherOrg.ID,
-			CostMicros: 99_999, Providers: []string{"anthropic"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
+			CostMicros: 99_999, Providers: []string{"anthropic-prod"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
 		}}, rows)
 	})
 }

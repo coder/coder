@@ -7,7 +7,9 @@ Once enabled, `coderd` runs the AI Gateway Proxy in-process and intercepts traff
 
 **Required:**
 
-1. AI Gateway must be enabled and configured (requires a Premium license, which includes [AI Governance](../../ai-governance.md)).
+1. AI Gateway must be enabled and configured.
+
+   This requires a Premium license, which includes [AI Governance](../../ai-governance.md).
    See [AI Gateway Setup](../setup.md) for further information.
 1. AI Gateway Proxy must be [enabled](#proxy-configuration) using the `coder server` flag.
 1. A [CA certificate](#ca-certificate) must be configured for MITM interception.

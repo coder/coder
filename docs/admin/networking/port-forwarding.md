@@ -16,7 +16,7 @@ There are four ways to forward ports in Coder:
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
-1. The Dashboard which proxies traffic through the Coder control plane versus peer-to-peer which is possible with the Coder CLI and Coder Desktop
+1. The Dashboard, which proxies traffic through the Coder control plane instead of peer-to-peer like the Coder CLI and Coder Desktop
 1. `sshd` which does double encryption of traffic with both Wireguard and SSH
 
 ## Coder Desktop

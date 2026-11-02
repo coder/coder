@@ -133,10 +133,12 @@ When running the binary directly, Agent Firewall reads `config.yaml` from `~/.co
 Agent Firewall supports two different jail types for process isolation, each with different characteristics and requirements:
 
 1. **nsjail** - Uses Linux namespaces for isolation.
+
    This is the default jail type and provides network namespace isolation.
    See [nsjail documentation](./nsjail/index.md) for detailed information about runtime requirements and Docker configuration.
 
 2. **landjail** - Uses Landlock V4 for network isolation.
+
    This provides network isolation through the Landlock Linux Security Module (LSM) without requiring network namespace capabilities.
    See [landjail documentation](./landjail.md) for implementation details.
 

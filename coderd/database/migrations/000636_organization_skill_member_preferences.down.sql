@@ -1,0 +1,3 @@
+DROP TABLE organization_member_disabled_skills;
+DROP TABLE organization_member_skill_settings;
+ALTER TABLE organizations DROP COLUMN members_can_disable_skills;
