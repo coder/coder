@@ -54,6 +54,7 @@ These rules keep your context small, which is what keeps the shared model fast f
 
 Write one YAML file to your output path, then reply with one line: `<agent ID>: <status>, <count> findings`.
 Write the file even when you have nothing to report, and write it before you run out of budget.
+Put every string value in double quotes, and escape each double quote inside it as `\"`, so the file parses as YAML even when a value starts with a backtick.
 
 ```yaml
 agent: sweep-2                # from your spawn prompt

@@ -238,15 +238,17 @@ The platform does not enforce these limits, so follow them exactly.
 
 ### 5. Collect the results
 
-Read each output file in `out/`.
+Read each output file in `out/` from its header and its `findings` onward, such as with `sed -n '1,4p;/^findings:/,$p' <file>`.
+The `checks` and `rules` lists can be long, and you need only their counts.
 For each Copy Editor sweep, compare its `rules` entries with the rule sections of each of its pages, listed with `awk -f "$POLICY/.claude/skills/doc-check/rule-sections.awk" <rule page>`.
 A sweep with fewer entries than sections is `incomplete`, and the trace names the sections it missed.
 
 ### 6. Verify
 
-First run these checks yourself, because they need a lookup, not judgment, and drop each finding that fails:
+First run these checks yourself, because they need a lookup, not judgment, and drop each finding that fails.
+Do not judge a finding's substance yourself, such as by reading the pages or code it cites: that is the verifier's job, and doing it twice doubles the cost.
 
-- **The quote exists.** The `quote` appears on the head at `file:line`, such as with `sed -n '<line>,+2p' <file>`. A quote that spans lines starts at `line`.
+- **The quote exists.** The `quote` appears on the head at `file:line`, such as with `sed -n '120,122p' <file>` for a finding on line 120. A quote that spans lines starts at `line`.
 - **Not already reported in a thread.** No open doc-check review thread in `review-comments.jsonl` raises it.
 - **Not already reported by a check.** No annotation in `checks.md` is on the same line and refers to the same rule page and anchor.
 
