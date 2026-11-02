@@ -7728,11 +7728,7 @@ func writeWorkspaceAgentUploadError(ctx context.Context, rw http.ResponseWriter,
 		})
 		return
 	}
-	if writeAgentError(ctx, rw, err, "Failed to upload file to workspace agent.", map[int]string{
-		http.StatusBadRequest: "The workspace agent rejected the upload request.",
-		http.StatusForbidden:  "The workspace agent was denied permission to write the uploaded file.",
-		http.StatusConflict:   "The uploaded file conflicts with existing files in the workspace.",
-	}) {
+	if writeAgentError(ctx, rw, err, "Failed to upload file to workspace agent.") {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{

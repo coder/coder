@@ -1105,34 +1105,40 @@ func TestCreateExternalAuthResponse(t *testing.T) {
 func TestWriteAgentError(t *testing.T) {
 	t.Parallel()
 
-	relayed := map[int]string{http.StatusConflict: "Relayed conflict."}
-	for _, tc := range []struct {
-		name        string
-		agentStatus int
-		wantStatus  int
-		wantMessage string
-		wantDetail  string
-	}{
-		{name: "Relayed", agentStatus: http.StatusConflict, wantStatus: http.StatusConflict, wantMessage: "Relayed conflict.", wantDetail: "Agent message: agent detail"},
-		{name: "NotRelayed", agentStatus: http.StatusUnauthorized, wantStatus: http.StatusBadGateway, wantMessage: "Failed.", wantDetail: "The workspace agent responded with status 401: Agent message: agent detail"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	agentResponse := codersdk.Response{
+		Message:     "Agent message.",
+		Detail:      "agent detail" + strings.Repeat("x", 4096),
+		Validations: []codersdk.ValidationError{{Field: "name", Detail: "agent-validation"}},
+	}
+	write := func(t *testing.T, agentStatus int) (int, codersdk.Response) {
+		t.Helper()
+		rw := httptest.NewRecorder()
+		err := xerrors.Errorf("wrapped: %w", codersdk.NewError(agentStatus, agentResponse))
+		require.True(t, writeAgentError(context.Background(), rw, err, "Failed."))
+		var got codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&got))
+		return rw.Code, got
+	}
+
+	for _, agentStatus := range []int{http.StatusConflict, http.StatusInternalServerError, http.StatusServiceUnavailable} {
+		t.Run(fmt.Sprintf("Relayed%d", agentStatus), func(t *testing.T) {
 			t.Parallel()
 
-			err := codersdk.NewError(tc.agentStatus, codersdk.Response{
-				Message:     "Agent message.",
-				Detail:      "agent detail" + strings.Repeat("x", 4096),
-				Validations: []codersdk.ValidationError{{Field: "name", Detail: "agent-validation"}},
-			})
-			rw := httptest.NewRecorder()
+			code, got := write(t, agentStatus)
+			require.Equal(t, agentStatus, code)
+			require.Equal(t, agentResponse, got)
+		})
+	}
 
-			require.True(t, writeAgentError(context.Background(), rw, xerrors.Errorf("wrapped: %w", err), "Failed.", relayed))
+	for _, agentStatus := range []int{http.StatusUnauthorized, http.StatusProxyAuthRequired, http.StatusFound} {
+		t.Run(fmt.Sprintf("Blocked%d", agentStatus), func(t *testing.T) {
+			t.Parallel()
 
-			require.Equal(t, tc.wantStatus, rw.Code)
-			var got codersdk.Response
-			require.NoError(t, json.NewDecoder(rw.Body).Decode(&got))
-			require.Equal(t, tc.wantMessage, got.Message)
-			require.True(t, strings.HasPrefix(got.Detail, tc.wantDetail), got.Detail)
+			code, got := write(t, agentStatus)
+			require.Equal(t, http.StatusBadGateway, code)
+			require.Equal(t, "Failed.", got.Message)
+			wantDetail := fmt.Sprintf("The workspace agent responded with status %d: Agent message: agent detail", agentStatus)
+			require.True(t, strings.HasPrefix(got.Detail, wantDetail), got.Detail)
 			require.Less(t, len(got.Detail), 1024)
 			require.Empty(t, got.Validations)
 		})

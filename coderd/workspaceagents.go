@@ -984,9 +984,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		if writeAgentError(ctx, rw, err, "Failed to fetch containers from agent.", map[int]string{
-			http.StatusForbidden: "Dev Containers are not available for this workspace agent.",
-		}) {
+		if writeAgentError(ctx, rw, err, "Failed to fetch containers from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1078,10 +1076,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		if writeAgentError(ctx, rw, err, "Failed to delete devcontainer from agent.", map[int]string{
-			http.StatusNotFound: "Devcontainer not found.",
-			http.StatusConflict: "The devcontainer is changing state and cannot be deleted.",
-		}) {
+		if writeAgentError(ctx, rw, err, "Failed to delete devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1170,10 +1165,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-		if writeAgentError(ctx, rw, err, "Failed to recreate devcontainer from agent.", map[int]string{
-			http.StatusNotFound: "Devcontainer not found.",
-			http.StatusConflict: "The devcontainer is changing state and cannot be recreated.",
-		}) {
+		if writeAgentError(ctx, rw, err, "Failed to recreate devcontainer from agent.") {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1188,31 +1180,29 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 
 // writeAgentError writes err if it is a *codersdk.Error and reports
 // whether it did. Pass only errors from workspace agent requests.
-// Workspace code can impersonate the agent API, so an agent status
-// passes through only if relayed maps it to a message. For example, a
-// relayed 401 would make the frontend sign the user out. Other statuses
-// become 502 Bad Gateway with message. The agent's message and detail go
-// into a truncated Detail; its validations never pass through.
-func writeAgentError(ctx context.Context, rw http.ResponseWriter, err error, message string, relayed map[int]string) bool {
+// Workspace code can impersonate the agent API, so coderd does not relay
+// an authentication challenge (401 or 407) or a status outside 4xx and
+// 5xx; for example, a relayed 401 would make the frontend sign the user
+// out. Those statuses become 502 Bad Gateway with message and the agent's
+// text in a truncated Detail. Every other status and its response pass
+// through unchanged.
+func writeAgentError(ctx context.Context, rw http.ResponseWriter, err error, message string) bool {
 	var agentErr *codersdk.Error
 	if !errors.As(err, &agentErr) {
 		return false
+	}
+	status := agentErr.StatusCode()
+	if status >= 400 && status < 600 && status != http.StatusUnauthorized && status != http.StatusProxyAuthRequired {
+		httpapi.Write(ctx, rw, status, agentErr.Response)
+		return true
 	}
 	detail := agentErr.Message
 	if agentErr.Detail != "" {
 		detail = strings.TrimSuffix(detail, ".") + ": " + agentErr.Detail
 	}
-	detail = stringutil.Truncate(detail, 512, stringutil.TruncateWithEllipsis)
-	if relayedMessage, ok := relayed[agentErr.StatusCode()]; ok {
-		httpapi.Write(ctx, rw, agentErr.StatusCode(), codersdk.Response{
-			Message: relayedMessage,
-			Detail:  detail,
-		})
-		return true
-	}
 	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 		Message: message,
-		Detail:  fmt.Sprintf("The workspace agent responded with status %d: %s", agentErr.StatusCode(), detail),
+		Detail:  fmt.Sprintf("The workspace agent responded with status %d: %s", status, stringutil.Truncate(detail, 512, stringutil.TruncateWithEllipsis)),
 	})
 	return true
 }
