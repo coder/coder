@@ -347,21 +347,32 @@ func (tx *Tx) deletePromotedQueuedMessage(id int64) error {
 	return nil
 }
 
+// resolveQueuedMessageModelConfigID returns the queued row's model when
+// it is enabled in the chat's organization, then the chat's last model,
+// then the organization default: the same order as a message sent
+// without a model.
 func (tx *Tx) resolveQueuedMessageModelConfigID(
 	chat database.Chat,
 	queued database.ChatQueuedMessage,
 ) (uuid.NullUUID, error) {
 	//nolint:gocritic // Queue promotion needs daemon access to deployment model configuration.
 	ctx := dbauthz.AsChatd(tx.ctx)
-	if queued.ModelConfigID.Valid {
-		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, queued.ModelConfigID.UUID)
+	candidates := []uuid.NullUUID{
+		queued.ModelConfigID,
+		{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
+	}
+	for _, candidate := range candidates {
+		if !candidate.Valid {
+			continue
+		}
+		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, candidate.UUID)
 		if err == nil && config.OrganizationID == chat.OrganizationID {
-			return queued.ModelConfigID, nil
+			return candidate, nil
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return uuid.NullUUID{}, xerrors.Errorf(
 				"get chat model config %s: %w",
-				queued.ModelConfigID.UUID,
+				candidate.UUID,
 				err,
 			)
 		}
