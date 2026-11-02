@@ -24,8 +24,8 @@ import { SkillChip } from "./ChatMessageInput/SkillChip";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	onDelete: (id: number) => Promise<void> | void;
-	onPromote: (id: number) => Promise<void> | void;
+	onDelete?: (id: number) => Promise<void> | void;
+	onPromote?: (id: number) => Promise<void> | void;
 	className?: string;
 };
 
@@ -340,7 +340,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && !item.isUnderEdit && (
+							{isFirst && !item.isUnderEdit && onPromote && (
 								<span
 									className={cn(
 										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
@@ -352,29 +352,39 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									to send
 								</span>
 							)}
-							<div
-								className={cn(
-									"flex shrink-0 items-center gap-0.5 transition-opacity",
-									showActions ? "opacity-100" : "opacity-0",
-								)}
-							>
-								<QueuedMessageActionButton
-									label="Send now"
-									icon={<ArrowUpIcon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "promote"}
-									disabled={isBusy}
-									onClick={() => void runAction(item.id, "promote", onPromote)}
-								/>
-								<QueuedMessageActionButton
-									label="Remove from queue"
-									tooltip="Remove"
-									icon={<Trash2Icon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "delete"}
-									disabled={isBusy}
-									destructive
-									onClick={() => void runAction(item.id, "delete", onDelete)}
-								/>
-							</div>
+							{(onPromote || onDelete) && (
+								<div
+									className={cn(
+										"flex shrink-0 items-center gap-0.5 transition-opacity",
+										showActions ? "opacity-100" : "opacity-0",
+									)}
+								>
+									{onPromote && (
+										<QueuedMessageActionButton
+											label="Send now"
+											icon={<ArrowUpIcon className="size-3.5" />}
+											busy={isRowPending && pendingAction.action === "promote"}
+											disabled={isBusy}
+											onClick={() =>
+												void runAction(item.id, "promote", onPromote)
+											}
+										/>
+									)}
+									{onDelete && (
+										<QueuedMessageActionButton
+											label="Remove from queue"
+											tooltip="Remove"
+											icon={<Trash2Icon className="size-3.5" />}
+											busy={isRowPending && pendingAction.action === "delete"}
+											disabled={isBusy}
+											destructive
+											onClick={() =>
+												void runAction(item.id, "delete", onDelete)
+											}
+										/>
+									)}
+								</div>
+							)}
 						</div>
 					</div>
 				);
