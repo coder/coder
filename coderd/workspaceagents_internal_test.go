@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -1099,4 +1100,41 @@ func TestCreateExternalAuthResponse(t *testing.T) {
 		_, err := createExternalAuthResponse("github", "tok", extra, expiry)
 		require.Error(t, err, "malformed extra JSON should produce an error")
 	})
+}
+
+func TestWriteAgentError(t *testing.T) {
+	t.Parallel()
+
+	relayed := map[int]string{http.StatusConflict: "Relayed conflict."}
+	for _, tc := range []struct {
+		name        string
+		agentStatus int
+		wantStatus  int
+		wantMessage string
+		wantDetail  string
+	}{
+		{name: "Relayed", agentStatus: http.StatusConflict, wantStatus: http.StatusConflict, wantMessage: "Relayed conflict.", wantDetail: "Agent message: agent detail"},
+		{name: "NotRelayed", agentStatus: http.StatusUnauthorized, wantStatus: http.StatusBadGateway, wantMessage: "Failed.", wantDetail: "The workspace agent responded with status 401: Agent message: agent detail"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.NewError(tc.agentStatus, codersdk.Response{
+				Message:     "Agent message.",
+				Detail:      "agent detail" + strings.Repeat("x", 4096),
+				Validations: []codersdk.ValidationError{{Field: "name", Detail: "agent-validation"}},
+			})
+			rw := httptest.NewRecorder()
+
+			require.True(t, writeAgentError(context.Background(), rw, xerrors.Errorf("wrapped: %w", err), "Failed.", relayed))
+
+			require.Equal(t, tc.wantStatus, rw.Code)
+			var got codersdk.Response
+			require.NoError(t, json.NewDecoder(rw.Body).Decode(&got))
+			require.Equal(t, tc.wantMessage, got.Message)
+			require.True(t, strings.HasPrefix(got.Detail, tc.wantDetail), got.Detail)
+			require.Less(t, len(got.Detail), 1024)
+			require.Empty(t, got.Validations)
+		})
+	}
 }
