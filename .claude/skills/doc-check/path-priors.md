@@ -2,7 +2,7 @@
 
 What the changed paths predict about whether a change needs docs. A prior sets
 the starting assumption and the burden of proof; it never replaces the evidence
-rules in [`SKILL.md`](./SKILL.md). Verify against the diff either way.
+rules in [`contract.md`](./contract.md#evidence). Verify against the diff either way.
 A prior only decides whether docs are needed. Docs the change adds still get
 the full review.
 
@@ -61,5 +61,5 @@ and the mixed-diff rule above means you will see that change too.
 
 Here the path tells you nothing and the evidence discipline decides. This is
 also where the near-miss lives: a page enumerates a sibling surface rather than
-the one that changed. Resolve it under the evidence rules in `SKILL.md`, and prefer
+the one that changed. Resolve it under the evidence rules in `contract.md`, and prefer
 naming no page over naming the nearest one.

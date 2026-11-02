@@ -1,6 +1,6 @@
 ---
 name: doc-check
-description: Reviews a PR, branch, or local diff for documentation correctness and completeness. Checks that every docs claim is true in the code, that user-facing behavior has docs, and that new or edited docs follow the content guidelines and style guide. Use before opening or updating a PR that touches docs/ or user-facing behavior, and in CI; to write or restructure docs, use write-docs.
+description: Reviews a PR, branch, or local diff for documentation correctness and completeness. Checks that every docs claim is true in the code, that user-facing behavior has docs, and that new or edited docs follow the content guidelines, style guide, and contributing guides. Use before opening or updating a PR that touches docs/ or user-facing behavior, and in CI; to write or restructure docs, use write-docs.
 ---
 
 # Documentation Check Skill
@@ -17,135 +17,243 @@ The counterpart skill, [`write-docs`](../write-docs/SKILL.md), covers writing th
 Authors run this skill on their own branch before they open or update a PR, so CI mostly confirms what the author already fixed.
 
 > [!IMPORTANT]
-> The rules live in `docs/.style/`, not in this skill.
-> [`docs/.style/content-guidelines.md`](../../../docs/.style/content-guidelines.md) governs what belongs in the docs and wins any conflict.
-> The prose style guide is every page under `docs/.style/style-guide/`.
+> The rules live in `docs/.style/` and the contributing guides, not in this skill.
+> [`docs/.style/content-guidelines.md`](../../../docs/.style/content-guidelines.md) governs what belongs in the docs, and the prose style guide is every page under `docs/.style/style-guide/`.
+> [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../docs/DOCS_STYLE_GUIDE.md) and [`contributing/documentation.md`](../../../contributing/documentation.md) apply where those are silent.
+> [`contract.md`](./contract.md#which-rule-wins) sets the order when sources disagree.
 > This skill and its persona files tell you how to apply those rules, and never restate them.
-> When this skill conflicts with `docs/.style/`, `docs/.style/` wins.
 
-## Files
+## How a run works
 
-| File                                 | Read it                                                      |
-|--------------------------------------|--------------------------------------------------------------|
-| [`path-priors.md`](./path-priors.md) | During triage                                                |
-| [`personas/`](./personas/)           | One file per review lens, read when you run that lens        |
-| [`output.md`](./output.md)           | Before you post anything, and before you write the run trace |
+You are the orchestrator.
+You build a review packet once, then sub-agents do the reviewing, each with only the inputs its job needs.
+Small contexts are what make the shared model fast, so keep yours small too:
+
+- Never read the persona files, the rule pages, or [`contract.md`](./contract.md). The sub-agents read them.
+- Never read a docs page or a code file to review it. Read only what a step below tells you to.
+- Never restate a persona's method in a spawn prompt.
+
+| File                                 | Who reads it                                                     |
+|--------------------------------------|------------------------------------------------------------------|
+| This file                            | You                                                              |
+| [`output.md`](./output.md)           | You, before you post anything and before you write the run trace |
+| [`contract.md`](./contract.md)       | Every sub-agent, first                                           |
+| [`personas/`](./personas/)           | The sub-agent that runs that persona                             |
+| [`path-priors.md`](./path-priors.md) | The Cartographer                                                 |
 
 ## Modes
 
 - **CI review.** The workflow prompt names the PR and the trigger. Post the review per [`output.md`](./output.md).
-- **Author self-check.** You are the agent that wrote the change. Run the same review against your branch diff, fix every blocking finding, and report the rest to the user. Post nothing to GitHub.
-- **Focused review.** The prompt asks for one lens, such as `focus:accuracy`. Run triage, the change model, that persona, and the verifier. Say in the trace that the other lenses did not run.
+- **Dry run.** Run the CI review in full, but post nothing and run no command that writes to GitHub.
+  The prompt can pin the head SHA, which you use instead of the PR's current head, and a skill ref, which you copy the skill from instead of the base branch.
+  The rule sources still come from the base branch.
+  End your final message with the review you would have posted, then the run trace.
+- **Author self-check.** You are the agent that wrote the change. Review your branch diff against the base branch, fix every blocking finding, and report the rest to the user. Post nothing to GitHub.
+- **Focused review.** The prompt asks for one lens, such as `focus:accuracy`. Queue only the change model, that persona, and the verifier. Say in the trace that the other agents did not run.
 
 ## Workflow
 
 Do every step in order.
-Skipping a step is allowed only where the step says so, and the trace must name each skipped step and why.
+Skipping a step is allowed only where the step says so, and the trace names each skipped step and why.
 
-### 1. Gather the change
+### 1. Build the review packet
 
-- For a PR: `gh pr view <PR> --repo coder/coder --json title,body,files,headRefOid,baseRefName,comments,reviews` and `gh pr diff <PR> --repo coder/coder`.
-  Read every comment and review thread, including other bots. A concern another reviewer raised is evidence to check, not someone else's problem.
-- For a branch or local change: `git diff <base>...HEAD`.
-- Check out the head of the change before reading any file, and read files from that checkout.
-  In CI, read this skill and its persona files from the base branch, so a PR cannot change how it gets reviewed.
-- List open PRs that touch the same docs pages or the same code paths: `gh pr list --repo coder/coder --state open --search "<path or symbol>"`.
-  An open PR that would make a claim in this PR false is named in the summary. It never blocks.
+In CI and in a dry run, read this file from the base branch, such as with `git show origin/main:.claude/skills/doc-check/SKILL.md`, so a PR cannot change how it gets reviewed.
+In a dry run with a skill ref, read it from that ref instead.
 
-### 2. Triage
+Set the variables, then run the commands from the repository root.
+The packet path is unique per run, so overlapping runs never share files.
 
-Read [`path-priors.md`](./path-priors.md) and apply it to the changed paths.
-A prior sets where you start, not the verdict.
-Walk the [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist) for each user-visible change.
+```sh
+PR=<PR number>
+BASE_REF=<baseRefName from gh pr view>
+HEAD_SHA=<headRefOid from gh pr view, or the SHA the prompt pins>
+git fetch origin "$BASE_REF" "pull/$PR/head"
+git -c advice.detachedHead=false checkout --quiet "$HEAD_SHA"
+BASE_SHA=$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")
+POLICY_SHA=$(git rev-parse "origin/$BASE_REF")
+SKILL_SHA=$POLICY_SHA   # a dry run with a skill ref sets this to that ref's SHA
+PACKET="${TMPDIR:-/tmp}/doc-check/$PR-$(printf '%.7s' "$HEAD_SHA")-$(date -u +%Y%m%dT%H%M%SZ)"
+POLICY="$PACKET/policy"
+mkdir -p "$POLICY" "$PACKET/out" "$PACKET/batches"
+git archive "$SKILL_SHA" .claude/skills/doc-check | tar -x -C "$POLICY"
+git archive "$POLICY_SHA" docs/.style .claude/docs/DOCS_STYLE_GUIDE.md contributing/documentation.md | tar -x -C "$POLICY"
+gh pr view "$PR" --repo coder/coder --json number,title,body,author,baseRefName,headRefOid,files,comments,reviews > "$PACKET/pr.json"
+gh api --paginate "repos/coder/coder/pulls/$PR/comments" \
+  --jq '.[] | {id, path, line, user: .user.login, in_reply_to_id, body}' > "$PACKET/review-comments.jsonl"
+git diff --no-color --no-ext-diff "$BASE_SHA" "$HEAD_SHA" > "$PACKET/diff.patch"
+git diff --no-color --name-status "$BASE_SHA" "$HEAD_SHA" > "$PACKET/changed-files.txt"
+git diff --no-color --no-ext-diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- 'docs/*.md' \
+  ':(exclude)docs/reference/api' ':(exclude)docs/reference/cli' ':(exclude)docs/.style/style-guide' \
+  | awk -f "$POLICY/.claude/skills/doc-check/changed-lines.awk" > "$PACKET/changed-lines.txt"
+```
+
+Redirect output into the packet as shown, and look at a file only through a count or a short `head`, so the data does not enter your context.
+When the prompt pins a head SHA that the fetch did not bring in, fetch it with `git fetch origin <SHA>`.
+In a dry run with a skill ref, run `git fetch origin <skill ref>` and set `SKILL_SHA=$(git rev-parse FETCH_HEAD)` before the first `git archive`.
+
+For a branch or local change without a PR, set `HEAD_SHA=$(git rev-parse HEAD)`, skip the `gh` commands, and write `none` into `pr.json`.
+In author self-check, set `POLICY` to the repository root instead of copying, and diff the working tree against `BASE_SHA` so uncommitted edits count.
+
+List open PRs that touch the same docs pages, for the Cartographer:
+
+```sh
+gh pr list --repo coder/coder --state open --search "<changed docs page path>" --json number,title --limit 10
+```
+
+Write the results to `related-prs.txt`, one PR per line, with the pages it shares with this change.
+
+Then write `manifest.md` with these lines: `pr`, `mode`, `head_sha`, `base_ref`, `base_sha`, `policy_sha`, `skill_sha`, `repo` (the checkout path), `policy` (the `$POLICY` path), `packet` (the `$PACKET` path), and `max_parallel`.
+
+### 2. Plan the queue
+
+Classify the change from `changed-files.txt` and `changed-lines.txt` alone:
+
+- **Docs changed:** any `docs/**/*.md` outside `docs/reference/api/` and `docs/reference/cli/`.
+- **Prose in scope:** `changed-lines.txt` is not empty.
+- **Code changed:** any file outside `docs/`.
+
+Group the rule pages for the Copy Editor sweeps.
+Each group stays under about 8,000 words, which keeps each sweep's context small:
+
+```sh
+cd "$POLICY" && {
+  echo .claude/docs/DOCS_STYLE_GUIDE.md
+  echo contributing/documentation.md
+  for f in docs/.style/*.md docs/.style/style-guide/*.md; do
+    awk 'NR == 1 && !/^---/ { exit } NR > 1 && /^---/ { exit } /^review-personas:/ { found = 1; exit } END { exit !found }' "$f" && echo "$f"
+  done
+} | while IFS= read -r f; do printf '%s %s\n' "$(wc -w < "$f")" "$f"; done \
+  | awk -v max=8000 '{ if (sum + $1 > max && sum > 0) { n++; sum = 0 } sum += $1; print "sweep-" (n + 1), $2 }' \
+  > "$PACKET/sweeps.txt"
+```
+
+Every page with a `review-personas` front matter field lands in a sweep, whatever personas it lists, so a new rule page is covered as soon as it has the field.
+
+Build the queue in this order, and write each skipped agent and its reason to the trace:
+
+| Agent ID       | Persona                                                    | Skip when                                                        |
+|----------------|------------------------------------------------------------|------------------------------------------------------------------|
+| `change-model` | [Analyst](./personas/change-model.md)                      | No code changed. Write the change model yourself, per step 3     |
+| `accuracy`     | [Fact Checker](./personas/accuracy.md)                     | Never                                                            |
+| `coverage`     | [Cartographer](./personas/coverage.md)                     | Never                                                            |
+| `consistency`  | [Continuity Editor](./personas/consistency.md)             | No docs changed and the change model lists no changed literal    |
+| `structure`    | [Architect](./personas/structure.md)                       | No docs changed                                                  |
+| `sweep-<n>`    | [Copy Editor](./personas/language.md), one per sweep group | No prose in scope                                                |
+| `audience`     | [Reader Advocate](./personas/audience.md)                  | No docs changed                                                  |
+| `learner`      | [Newcomer](./personas/learner.md)                          | No docs changed and the change model lists no user-facing change |
+| `verify-<n>`   | [Skeptic](./personas/verifier.md), one per batch           | No finding reaches step 6                                        |
+
+The persona ID of a sweep is `language`, and of a verifier batch is `verifier`.
+Every other agent's persona ID is its agent ID.
+
+A Copy Editor sweep can start at once.
+Every other persona starts only after `change-model.md` exists.
+Decide the skips that depend on the change model then, from its first two lines.
 
 ### 3. Run the deterministic checks
 
-Run the checks that exist for the files the change touches, and record each result.
-Use the result instead of re-deriving it, and never contradict a check's output.
+Write each result to `checks.md`, one line per check.
+Install nothing: the review workspace blocks package registries and toolchain downloads, and CI already runs the linters.
 
-- `make lint/emdash`
-- `make lint/docs-html` and `make lint/docs-manifest` when `docs/` or `docs/manifest/` changed
-- markdownlint and Vale on the changed Markdown files (`make lint/markdown`, `make lint/prose`, or the tools directly)
+- `make lint/emdash`, run here.
+- The CI results for the head SHA, read with the API instead of run again:
+
+  ```sh
+  gh api --paginate "repos/coder/coder/commits/$HEAD_SHA/check-runs?per_page=100" \
+    --jq '.check_runs[] | select(.name == "lint" or .name == "lint-docs") | [.id, .name, .status, (.conclusion // "")] | @tsv'
+  gh api --paginate "repos/coder/coder/check-runs/<lint-docs ID>/annotations?per_page=100" \
+    --jq '.[] | "\(.path):\(.start_line) \(.title): \(.message)"'
+  ```
+
+  `lint-docs` runs markdownlint, the table formatter, and Vale on changed Markdown, and `lint` runs `lint/docs-html`, `lint/docs-manifest`, and `lint/docs-redirects`.
+  When a name has more than one run, use the newest one that is not `skipped`.
+  Keep only annotations on changed files.
+  A run that is missing or not finished is `pending`, never a pass. Read it again before step 6.
+- In author self-check, run `make lint/markdown`, `make lint/prose`, `make lint/docs-html`, and `make lint/docs-manifest` instead.
 
 A check that fails on a line the change added or edited is a blocking finding.
-A check you could not run is listed in the trace.
+Never contradict a check's output, and list every check that did not run in the trace.
 
-### 4. Build the change model
+When no code changed, write `change-model.md` yourself:
 
-Before you review a single docs sentence, write down what changed for the user, from the code alone:
+```text
+user_facing_changes: 0
+literals_changed: 0
 
-- Each thing a user now sees, types, clicks, configures, calls, or receives differently.
-- For each one: the code location that proves it, who can do it (role, license, experiment), and every surface it shows up on (UI, CLI, API, configuration, files the user downloads or uploads).
-- The old value of every literal the change replaces: labels, defaults, flag names, environment variables, limits, error strings.
+Docs-only change. No product behavior changed. Check each docs claim against the code at the head.
+```
 
-Follow each change through the whole path a user takes, not only the function the diff edits.
-For example, a setting that changes on upload also affects download, export, import into another tool, and every role that can reach it.
+### 4. Run the sub-agents
 
-The change model is the ground truth every persona checks the docs against.
-Do not read the PR description as truth: check each behavior claim in it against the code, and record any claim the code does not support.
-
-### 5. Run the personas
-
-Run every persona in [`personas/`](./personas/) except the verifier, in the order of the table.
-Each persona file says which rules to load and how to find them.
-
-| Persona           | File                                          | Skip when                                          |
-|-------------------|-----------------------------------------------|----------------------------------------------------|
-| Fact Checker      | [`accuracy.md`](./personas/accuracy.md)       | Never                                              |
-| Cartographer      | [`coverage.md`](./personas/coverage.md)       | Never                                              |
-| Newcomer          | [`learner.md`](./personas/learner.md)         | The change model is empty and no docs changed      |
-| Continuity Editor | [`consistency.md`](./personas/consistency.md) | No docs changed and no user-facing literal changed |
-| Reader Advocate   | [`audience.md`](./personas/audience.md)       | No docs changed                                    |
-| Architect         | [`structure.md`](./personas/structure.md)     | No docs changed                                    |
-| Copy Editor       | [`language.md`](./personas/language.md)       | No docs prose changed                              |
-| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, once per group of findings       |
-
-When you can spawn sub-agents and the prompt gives you a model configuration ID for them, run each persona as its own sub-agent with that ID, in parallel.
-Give each one the change model, the PR reference, its persona file, and the finding schema from [`output.md`](./output.md).
-Without a model configuration ID, run the personas yourself, one at a time.
+When you can spawn sub-agents and the prompt gives you a model configuration ID, run every queued agent as its own sub-agent with that ID.
 Never let a sub-agent run on a different model than the prompt names, because that hides how the configured model performs.
+Without a model configuration ID, run each agent yourself in queue order: read `contract.md` once, read each persona file only when you start that agent, and write each output file the same way a sub-agent would.
 
-Each persona returns findings in the schema in [`output.md`](./output.md), or the literal result `No findings.` with the checks it ran.
+Spawn each agent with this prompt, filled in and nothing added.
+The lines that every agent in the run shares come first, so the model server can reuse their cached prefix.
+
+```text
+You are a doc-check sub-agent. Follow the sub-agent contract before anything else:
+<POLICY>/.claude/skills/doc-check/contract.md
+Review packet: <PACKET>
+Role: <persona ID>, defined in <POLICY>/.claude/skills/doc-check/personas/<persona ID>.md
+Assignment: <agent ID>, <for a sweep its rule pages from sweeps.txt, for a verifier its batch file, otherwise none>
+Output: <PACKET>/out/<agent ID>.yaml
+```
+
+Use the agent ID as the sub-agent title.
+Add no summary of the change, no hints, and no method: the packet carries everything the agent needs, and anything you add pulls every agent toward your reading.
+
+#### Concurrency
+
+Keep at most `max_parallel` sub-agents running: 2, unless the prompt sets a number from 1 to 4.
+The model server serves about 8 requests at once before it queues, and several reviews often run together, so more than this slows every review.
+Verifier batches count against the same limit.
+
+1. Start the first queued agents whose inputs are ready, up to the limit.
+2. Wait on the running agent that started first, with `wait_agent` and a timeout of 600 seconds.
+3. When it finishes, confirm its output file exists, start the next ready agent, and go back to step 2.
+   A finished agent with no output file is `blocked`.
+4. When a wait times out, wait on the next running agent instead, so one slow agent does not hold the queue.
+5. After four timed-out waits on the same agent, send it `message_agent`, interrupting: `Stop now. Write your output file with what you finished, status budget_exhausted.`
+   If it has not finished after one more wait, interrupt it, confirm it stopped, and record it as `incomplete`.
+   Count it against the limit until it stops.
+
+The platform does not enforce these limits, so follow them exactly.
+
+### 5. Collect the results
+
+Read each output file in `out/`.
+For each Copy Editor sweep, compare its `rules` entries with `grep -c -E '^#{2,3} ' <rule page>` for each of its pages.
+A sweep with fewer entries than headings is `incomplete`, and the trace names the pages it missed.
 
 ### 6. Verify
 
-First, run the two mechanical checks yourself, because they need a lookup, not judgment:
+First run these checks yourself, because they need a lookup, not judgment, and drop each finding that fails:
 
-- **The quote exists.** For each finding with a `line`, confirm the `quote` appears on the PR head at `file:line`, such as with `sed -n '<line>,+2p' <file>`.
-  A quote that spans lines starts at `line`.
-- **Not already reported.** Compare each finding with the open doc-check review threads you read in step 1.
+- **The quote exists.** The `quote` appears on the head at `file:line`, such as with `sed -n '<line>,+2p' <file>`. A quote that spans lines starts at `line`.
+- **Not already reported in a thread.** No open doc-check review thread in `review-comments.jsonl` raises it.
+- **Not already reported by a check.** No annotation in `checks.md` is on the same line and refers to the same rule page and anchor.
 
-Drop each finding that fails, and record which check it failed.
-
-Then group the remaining findings: findings about the same sentence form one group, and findings about the same missing page form one group.
-Run [`verifier.md`](./personas/verifier.md) once per group.
+Then merge findings with the same `file`, `line`, and `rule`, keeping the one with more evidence.
+Group what is left: findings about the same sentence form one group, and findings about the same missing page form one group.
 A group holds every finding that could duplicate or contradict another, so groups never need to see each other.
 
-When you can spawn sub-agents and the prompt gives you a model configuration ID, run each group as its own sub-agent with that ID.
-Give each one its group's findings, the change model, the PR reference, and the verifier file.
-Spawn every group before you wait for any of them, then wait for all of them without doing other work.
-Without a model configuration ID, verify the groups yourself, one at a time.
+Put the groups into verifier batches of at most 6 findings, never splitting a group, and write each batch to `batches/<n>.yaml`.
+Run each batch as agent `verify-<n>` with persona [`verifier`](./personas/verifier.md), through the same queue and limit as step 4.
+A batch that ends without finishing is retried once, split in two.
+A finding that is still not verified after the retry is `unverified`: it is never posted as an inline comment, and the summary counts it.
 
-Drop what the verifiers reject, and keep the count of rejected findings for the trace.
+Drop what the verifiers reject, and keep the count for the trace.
 A finding the verifier rejects never reaches the author.
 
 ### 7. Decide and report
 
 Apply [Blocking](#blocking) to each surviving finding, then follow [`output.md`](./output.md).
+The outcome is `incomplete` when any agent ended `blocked`, `budget_exhausted`, or `incomplete`, when a sweep missed a section, or when any finding is `unverified`.
+An incomplete review never says or implies the docs are fine.
 Every run ends with the run trace, even when there are no findings.
-
-## Evidence
-
-A finding without evidence is a hunch, and a hunch costs the author more than it saves.
-Every finding names:
-
-- the page and the sentence, table row, or list it is about, or the missing page;
-- the evidence: a code location for an accuracy or coverage finding, the other page and line for a consistency finding, or the rule for a style finding, cited as the style-guide page and heading anchor, such as `docs/.style/style-guide/word-choice.md#refer-to-or-visit-not-see-or-check-out`;
-- the fix, as replacement text when the fix is local.
-
-Never report a check you did not run.
-If you meant to compare a sentence to the code and did not open the code, say so in the trace instead of in a finding.
-A claim in your own summary that the docs "correctly state" something must quote the docs sentence that states it.
 
 ## Blocking
 
@@ -156,7 +264,7 @@ Everything else is a suggestion.
 2. **Missing.** Behavior the change adds or changes, that is user-facing per [Documentation lands with the change](../../../docs/.style/content-guidelines.md#documentation-lands-with-the-change), with no docs that explain it. This includes a broken user path, such as a step that needs a role the page never mentions.
 3. **Broken.** A typo, markup that renders wrong or breaks a component (such as `<div class="tab">` where the component needs `tabs`), a failing deterministic check, a new page missing from `docs/manifest/`, a missing Premium state, a rename without a redirect.
 4. **Rule-anchored.** A consistency, audience, structure, or language finding where all three hold:
-   - the finding cites a style-guide or content-guideline rule by page and anchor, or a contradicting line on another page;
+   - the finding cites a rule by page and anchor from a source in [Which rule wins](./contract.md#which-rule-wins), or a contradicting line on another page;
    - the verifier confirmed it;
    - the change added or edited the text.
 
@@ -174,12 +282,8 @@ This applies to class 4 only. A wrong claim, a missing fact the reader needs, an
 - A gap that existed before this change, in an area the change touches. Record it in the trace as an adjacent gap.
   A gap the change causes on a path it didn't edit, such as a download that loses data an upload now strips, is not a gap that existed before. It is `missing`.
 - A need for a tutorial, lab, or training track. Record it in the trace as an adjacent gap.
+- A conflict between two rule sources. Record it in the trace as an adjacent gap, so the guides get fixed.
 - A design-friction note. Write one when the design makes a docs sentence hard to make accurate, such as one setting with several names, or a value inverted from the convention other tools use. Tie each note to the sentence. Write as many as the change earns, and re-evaluate them every round.
-
-### Recommend a test for a fragile claim
-
-When a docs claim depends on product behavior that no test pins, such as a default, a limit, a file format, or an ordering, add a suggestion naming the test that would fail if the claim stopped being true.
-This is how a docs claim stays true after the review.
 
 ## What not to review
 
@@ -190,13 +294,3 @@ Review only the user-facing part of a mixed diff.
 - Auto-generated reference under `docs/reference/cli/` and `docs/reference/api/`. Review the source comment or CLI definition that generates it instead.
 - Internal-only refactors, test-only changes, CI and tooling changes that change no user-facing surface, dependency bumps without behavior changes, and pure code moves.
 - Features guarded by an unsafe experiment flag. Refer to [Experiments versus feature stages](../../../docs/.style/content-guidelines.md#experiments-versus-feature-stages). A safe experiment or an Early Access feature needs at least a single page.
-
-## Repository facts
-
-- **Sidebar:** `docs/manifest/**/*.yml` is the navigation source. Each file holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
-- **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`, and `docs/reference/api/*.md` comes from Swagger comments in Go. Suggest edits to the source.
-- **Feature states:** a staged feature carries `state:` on its route in `docs/manifest/**/*.yml`, such as `state: [premium]`. Titles and H1s carry no state suffix.
-- **Redirects:** `docs/redirects.json`. A rename or move updates every inbound link and adds a redirect in the same PR. There is no `docs/_redirects` file.
-- **Glossary:** `docs/reference/glossary.md`. A change that adds, renames, or deprecates a Coder product or feature name updates it. Refer to [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
-- **Callouts:** GitHub-Flavored Markdown alerts, such as `> [!NOTE]`.
-- **Punctuation:** no em dashes, en dashes, or spaced double hyphens, in prose, code, comments, or strings. `make lint/emdash` enforces it. Suggestions you write follow the same rule.

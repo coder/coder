@@ -84,6 +84,7 @@ review-personas: [language, consistency, accuracy]
 ```
 
 The skill finds a persona's rules by reading this field, not by file path, so pages can move or split without breaking the review.
+The Copy Editor also applies every page that has the field, section by section, whatever personas it lists, so a new rule page is reviewed as soon as it has the field.
 When you add a rule page, add the field.
 When you move a rule to a different page, check that the new page lists every persona that applied it.
 The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.

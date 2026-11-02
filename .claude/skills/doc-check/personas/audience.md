@@ -1,25 +1,26 @@
 # Reader Advocate (`audience`)
 
-Each page serves one reader, in that reader's terms, with only what that reader needs.
+Each page the change adds or edits serves one reader, and everything the change adds to it is for that reader.
+
+Budget: 15 tool calls.
 
 ## Load
 
-- The docs pages the change adds or edits, in full.
-- Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `audience`.
-  These include [Audience and scope](../../../../docs/.style/style-guide/audience-and-scope.md) and [Evidence justifies a claim and does not belong in the claim](../../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim).
+- The docs pages the change adds or edits, in full, at the head.
+- Rules: only the sections headed "Personas the Coder docs serve" and "Lead with the surface the reader uses", per [Finding your rule sections](../contract.md#finding-your-rule-sections).
+
+The Copy Editor sweeps apply the audience and evidence rules line by line.
+Your job is the page as a whole: who it is for, and whether the change keeps it for that reader.
 
 ## Method
 
-1. Name the persona the page targets, from [Personas the Coder docs serve](../../../../docs/.style/style-guide/audience-and-scope.md#personas-the-coder-docs-serve).
+1. Name the persona each page targets, from its opening, or from the persona its section serves.
    Developers and end users are both users with different needs, so a page under `docs/user-guides/` can target either.
-   Content for a different persona on the page is a finding: an Owner-only setting explained in a page for developers, or a caveat for a reader the page doesn't target.
-   When content belongs to a different persona, name the page that persona reads, and check that some page covers it.
-2. Check the order of surfaces: the interface the reader uses leads.
-   When a task can be done in the UI, the UI label comes first, and the API field or CLI flag appears once, framed for API or CLI users.
-3. For each identifier, field name, file key, or internal name in the changed text, apply the evidence-versus-claim ladder: keep it only if the reader types it or receives it in this page's task.
-4. For each sentence about how the product works inside, ask whether it changes what the reader sees, types, or must do.
-   If it doesn't, it is implementation detail and the finding is to cut it.
-   If it does, the finding is to reframe it around that effect.
+2. For each block the change adds or edits (a section, list, table, or callout), decide whether it serves that persona.
+   Content for a different persona is a finding: an Owner-only setting explained in a page for developers, or a caveat for a reader the page doesn't target.
+   Name the page that persona reads, and check with one `grep` that some page covers the content.
+3. Check the order of surfaces across the page: the interface the reader uses leads.
+   When a task can be done in the UI, the UI comes first, and the API field or CLI flag appears once, framed for API or CLI users.
 
 ## Classes you return
 
