@@ -329,7 +329,7 @@ If you don't have a project in mind, ask the agent to generate something small y
 ### Make the workspace fit how you work
 
 The Quickstart template is a starting point.
-The [Template Fundamentals course](https://coder.com/learn/coder-quickstart) on coder.com walks you through adding a language, installing your own command-line tools, and cloning private repositories.
+The [Template Fundamentals course](https://coder.com/learn/coder-quickstart) on coder.com walks you through adding a language and installing your own command-line tools.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
 
