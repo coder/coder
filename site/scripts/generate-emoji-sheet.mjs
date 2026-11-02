@@ -80,6 +80,8 @@ export const EMOJI_SHEET = {
 	columns: ${columns},
 	rows: ${rows},
 	cells:
+		// Hex code points read as misspelled words.
+		// spellchecker:ignore-next-line
 		"${cells.join(",")}",
 };
 `,
