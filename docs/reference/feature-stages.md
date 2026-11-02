@@ -37,7 +37,7 @@ If you plan to activate an early access feature, we suggest that you use a stagi
 
 <details><summary>To enable early access features:</summary>
 
-Use the [Coder CLI](../install/cli.md) `--experiments` flag to enable early access features:
+Use the [Coder CLI](./cli/server/index.md#--experiments) `--experiments` flag to enable early access features:
 
 - Enable all early access features:
 
