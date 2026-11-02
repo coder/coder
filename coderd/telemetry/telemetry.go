@@ -1150,14 +1150,17 @@ const (
 	agentRelayParameterCursorPrefix     = "agent_relay_cursor_"
 )
 
+// AgentRelayProvider is the Agent Relay provider that dispatched a build.
+type AgentRelayProvider string
+
 // Agent Relay providers reported in WorkspaceBuildAgentRelay.Provider.
 const (
-	AgentRelayProviderClaudeCode = "claude_code"
-	AgentRelayProviderCursor     = "cursor"
-	AgentRelayProviderUnknown    = "unknown"
+	AgentRelayProviderClaudeCode AgentRelayProvider = "claude_code"
+	AgentRelayProviderCursor     AgentRelayProvider = "cursor"
+	AgentRelayProviderUnknown    AgentRelayProvider = "unknown"
 	// AgentRelayProviderAmbiguous is reported when a build carries
 	// parameters of more than one provider.
-	AgentRelayProviderAmbiguous = "ambiguous"
+	AgentRelayProviderAmbiguous AgentRelayProvider = "ambiguous"
 )
 
 // convertWorkspaceBuildAgentRelay returns nil unless the parameters mark the
@@ -1185,7 +1188,7 @@ func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBui
 // agentRelayProvider reports which provider's parameters the build carries.
 // Builds without provider parameters are unknown: the Claude Code provider's
 // required parameter is ephemeral, so its stop and restart builds lack it.
-func agentRelayProvider(parameters map[string]string) string {
+func agentRelayProvider(parameters map[string]string) AgentRelayProvider {
 	var claudeCode, cursor bool
 	for name := range parameters {
 		switch {
@@ -1836,7 +1839,7 @@ type WorkspaceBuild struct {
 // derived from the agent_relay_* rich parameters it stamps on the build.
 type WorkspaceBuildAgentRelay struct {
 	// Provider is claude_code, cursor, ambiguous, or unknown.
-	Provider string `json:"provider"`
+	Provider AgentRelayProvider `json:"provider"`
 	// ClientPlatform is the surface that started the session, such as
 	// claude_in_slack. Only the Claude Code provider reports it.
 	ClientPlatform string `json:"client_platform,omitempty"`
