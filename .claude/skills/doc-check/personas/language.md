@@ -3,7 +3,7 @@
 Every line the change adds or edits follows every rule on the rule pages of your sweep.
 
 The orchestrator runs one Copy Editor per sweep group in `sweeps.txt`, so each one holds a few rule pages instead of all of them.
-Together the sweeps apply the content guidelines, every style-guide page with a rule, `.claude/docs/DOCS_STYLE_GUIDE.md`, and `contributing/documentation.md`, section by section.
+Together the sweeps apply every rule page that has a `review-personas` field, `.claude/docs/DOCS_STYLE_GUIDE.md`, and `contributing/documentation.md`, section by section.
 
 Budget: 15 tool calls, plus 2 for each changed page.
 
@@ -19,7 +19,7 @@ Budget: 15 tool calls, plus 2 for each changed page.
 1. Read `changed-lines.txt` once for typos and grammar.
    A typo is `broken`.
 2. Take your rule pages one at a time. For each page:
-   1. List its sections with `grep -n -E '^#{2,3} ' <rule page>`.
+   1. List its rule sections with `awk -f <policy>/.claude/skills/doc-check/rule-sections.awk <rule page>`, which skips the example headings inside code fences.
    2. Read the page.
    3. For each section, apply every requirement in it, including its Do and Don't examples and its exceptions, to every changed line.
       Record one `rules` entry for the section.
@@ -28,22 +28,22 @@ Budget: 15 tool calls, plus 2 for each changed page.
 
 ## Rules entries
 
-One entry for each heading the `grep` lists, in order:
+One entry for each section the script lists, in order, with the line number it prints, because some headings repeat on a page:
 
 ```yaml
 rules:
-  - {page: docs/.style/style-guide/word-choice.md, section: "Avoid weasel words", result: finding, findings: [sweep-4-2]}
-  - {page: docs/.style/style-guide/word-choice.md, section: "One term per concept", result: pass}
-  - {page: docs/.style/style-guide/formatting.md, section: "Tables", result: n/a, reason: "No changed line is in a table."}
+  - {page: docs/.style/style-guide/word-choice.md, line: 573, section: "Avoid weasel words", result: finding, findings: [sweep-4-2]}
+  - {page: docs/.style/style-guide/word-choice.md, line: 197, section: "One term per concept", result: pass}
+  - {page: docs/.style/style-guide/formatting.md, line: 423, section: "Tables", result: n/a, reason: "No changed line is in a table."}
 ```
 
 - `pass`: you checked every changed line against the section and found nothing.
 - `finding`: list the finding IDs.
-- `n/a`: the section cannot apply to these lines, or it states no rule, such as an example or a navigation section. Give the reason.
+- `n/a`: the section cannot apply to these lines, or it states no rule, such as a navigation section. Give the reason.
   A section about the change as a whole rather than its text, such as when docs must land, is `n/a` with the persona that owns it, such as `reason: "Cartographer owns it."`.
 - `not_checked`: you did not get to it. Give the reason, and set your status to `budget_exhausted`.
 
-The orchestrator compares your entries with the same `grep`, so a missing section marks your sweep incomplete.
+The orchestrator compares your entries with the same script, so a missing section marks your sweep incomplete.
 
 ## What not to flag
 

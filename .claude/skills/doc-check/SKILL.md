@@ -94,9 +94,10 @@ In a dry run with a skill ref, which is a branch, run `git fetch origin <skill r
 
 For a branch or local change without a PR, set `PR=local` and `HEAD_SHA=$(git rev-parse HEAD)`, fetch only the base branch, skip the `gh` commands, write `none` into `pr.json`, and leave `review-comments.jsonl` and `related-prs.txt` empty.
 A commit that was never pushed has no CI results, so step 3 records the CI checks as not run.
-In author self-check, set `POLICY` to the repository root instead of copying, and diff the working tree against `BASE_SHA` so uncommitted edits count.
+In author self-check, set `POLICY` to the repository root instead of copying, and run the three `git diff` commands with `"$BASE_SHA"` alone in place of `"$BASE_SHA" "$HEAD_SHA"`, so uncommitted edits count.
+Run `git add --intent-to-add` on new files first, because `git diff` skips untracked files.
 
-List open PRs that touch the same docs pages, for the Cartographer:
+With a PR, list open PRs that touch the same docs pages, for the Cartographer:
 
 ```sh
 gh pr list --repo coder/coder --state open --search "<changed docs page path>" --json number,title --limit 10
@@ -104,7 +105,7 @@ gh pr list --repo coder/coder --state open --search "<changed docs page path>" -
 
 Write the results to `related-prs.txt`, one PR per line, with the pages it shares with this change.
 
-Then write `manifest.md` with these lines: `pr`, `mode`, `head_sha`, `base_ref`, `base_sha`, `policy_sha`, `skill_sha`, `repo` (the checkout path), `policy` (the `$POLICY` path), `packet` (the `$PACKET` path), and `max_parallel`.
+Then write `manifest.md` with these lines: `pr`, `mode`, `head_sha`, `base_ref`, `base_sha`, `policy_sha`, `skill_sha`, `repo` (the checkout path), `policy` (the `$POLICY` path), `packet` (the `$PACKET` path), and `max_parallel` (1 when you run the agents yourself).
 
 ### 2. Plan the queue
 
@@ -129,7 +130,8 @@ cd "$POLICY" && {
   > "$PACKET/sweeps.txt"
 ```
 
-Every page with a `review-personas` front matter field lands in a sweep, whatever personas it lists, so a new rule page is covered as soon as it has the field.
+Every page directly under `docs/.style/` or `docs/.style/style-guide/` that has a `review-personas` front matter field lands in a sweep, whatever personas it lists, so a new rule page there is covered when it has the field.
+The two contributing guides have no field and are always swept.
 
 Build the queue in this order, and write each skipped agent and its reason to the trace:
 
@@ -171,7 +173,16 @@ Install nothing: the review workspace blocks package registries and toolchain do
   When a name has more than one run, use the newest one that is not `skipped`.
   Keep only annotations on changed files.
   A run that is missing or not finished is `pending`, never a pass. Read it again before step 6.
-- In author self-check, run `make lint/markdown`, `make lint/prose`, `make lint/docs-html`, and `make lint/docs-manifest` instead.
+- In author self-check, run the linters on the changed Markdown files instead, with each output in the packet:
+
+  ```sh
+  pnpm exec markdownlint-cli2 <changed .md files> > "$PACKET/markdownlint.txt" 2>&1
+  mise exec aqua:errata-ai/vale -- vale --no-exit <changed .md files> > "$PACKET/vale.txt" 2>&1
+  make lint/docs-html lint/docs-manifest > "$PACKET/docs-lint.txt" 2>&1
+  ```
+
+  Vale exits 0 at every severity here, so read its output, not its exit code, and keep only the lines on changed lines.
+  When Vale reports missing styles, run `make docs/.style/.vale-synced` once and run it again.
 
 A check that fails on a line the change added or edited is a blocking finding.
 Never contradict a check's output, and list every check that did not run in the trace.
@@ -226,8 +237,8 @@ The platform does not enforce these limits, so follow them exactly.
 ### 5. Collect the results
 
 Read each output file in `out/`.
-For each Copy Editor sweep, compare its `rules` entries with `grep -c -E '^#{2,3} ' <rule page>` for each of its pages.
-A sweep with fewer entries than headings is `incomplete`, and the trace names the pages it missed.
+For each Copy Editor sweep, compare its `rules` entries with the rule sections of each of its pages, listed with `awk -f "$POLICY/.claude/skills/doc-check/rule-sections.awk" <rule page>`.
+A sweep with fewer entries than sections is `incomplete`, and the trace names the sections it missed.
 
 ### 6. Verify
 

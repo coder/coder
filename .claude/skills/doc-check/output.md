@@ -126,7 +126,7 @@ A later step reads it to set the commit status, so keep the field names exact.
 
 ```yaml
 doc-check-trace:
-  pr: 31159
+  pr: 31159                 # or local, for a change without a PR
   head_sha: 3580c80cc5fe8f4a665e8d606eea353296fdaa05
   policy_sha: 9666549f3c00460f8424e9fcb0d7772b9bbc254f   # the base commit the rules came from
   skill_sha: 9666549f3c00460f8424e9fcb0d7772b9bbc254f    # differs only in a dry run with a skill ref
@@ -139,10 +139,10 @@ doc-check-trace:
   agents:                   # every queued agent, with its status, or skipped with the reason
     - {id: change-model, status: complete}
     - {id: accuracy, status: complete, findings: 2}
-    - {id: sweep-1, status: complete, findings: 1, rule_sections: 41/41}
+    - {id: sweep-1, status: complete, findings: 1, rule_sections: 75/75}
     - {id: learner, status: skipped, reason: "No docs changed and no user-facing change."}
     - {id: verify-1, status: complete}
-  rule_sections: {checked: 152, total: 152}
+  rule_sections: {checked: 183, total: 183}
   deterministic_checks:
     - {name: make lint/emdash, result: pass}
     - {name: lint-docs (CI), result: success, annotations_on_changed_lines: 2}
@@ -157,7 +157,7 @@ doc-check-trace:
     - lint (CI) was still running when the review finished.
 ```
 
-`rule_sections` sums the sweeps: `checked` counts entries that are `pass`, `finding`, or `n/a`, and `total` counts the headings on the swept pages.
+`rule_sections` sums the sweeps: `checked` counts entries that are `pass`, `finding`, or `n/a`, and `total` counts the sections `rule-sections.awk` lists on the swept pages.
 
 `outcome: incomplete` means the review ran but part of it did not finish, per step 7 of the workflow.
 `outcome: error` means the review could not run.
