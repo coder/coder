@@ -2,14 +2,12 @@ package workspacesdk
 
 import (
 	"io"
-	"net/http"
+	"math"
 	neturl "net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestAgentAPIPath(t *testing.T) {
@@ -98,34 +96,32 @@ func (r *countingReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func TestDecodeAgentJSONRejectsOversizedBody(t *testing.T) {
+func TestLimitedResponseBody(t *testing.T) {
 	t.Parallel()
 
-	body := &countingReader{prefix: `{"output":"`, size: 2 * agentJSONResponseMaxBytes}
-	res := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(body),
+	for _, tc := range []struct {
+		name    string
+		limit   int64
+		size    int64
+		wantErr bool
+	}{
+		{name: "AtLimit", limit: 16, size: 16},
+		{name: "OverLimit", limit: 16, size: 1 << 20, wantErr: true},
+		{name: "MaxLimit", limit: math.MaxInt64, size: 16},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := &countingReader{size: tc.size}
+			body := newLimitedResponseBody(io.NopCloser(src), tc.limit)
+			got, err := io.ReadAll(body)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "workspace agent response exceeds 16 bytes")
+				require.LessOrEqual(t, src.read, tc.limit+1)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Len(t, got, 16)
+		})
 	}
-
-	var out DesktopActionResponse
-	err := decodeAgentJSON(res, &out)
-	require.ErrorContains(t, err, "agent response exceeds")
-	require.LessOrEqual(t, body.read, agentJSONResponseMaxBytes+1)
-}
-
-func TestReadAgentErrorBoundsBody(t *testing.T) {
-	t.Parallel()
-
-	body := &countingReader{prefix: `{"message":"`, size: 1 << 20}
-	res := &http.Response{
-		StatusCode: http.StatusConflict,
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
-		Body:       io.NopCloser(body),
-	}
-
-	err := readAgentError(res)
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
-	require.LessOrEqual(t, body.read, agentErrorResponseMaxBytes)
 }

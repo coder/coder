@@ -659,7 +659,9 @@ const bundleFilesResponseMaxBytes int64 = 110 * 1024 * 1024
 func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/bundle-files", req)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodPost, "/api/v0/bundle-files", req, agentRequestOptions{
+		maxResponseBytes: bundleFilesResponseMaxBytes,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
@@ -667,12 +669,9 @@ func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]
 	if res.StatusCode != http.StatusOK {
 		return nil, readAgentError(res)
 	}
-	bs, err := io.ReadAll(io.LimitReader(res.Body, bundleFilesResponseMaxBytes+1))
+	bs, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
-	}
-	if int64(len(bs)) > bundleFilesResponseMaxBytes {
-		return nil, xerrors.Errorf("response exceeds %d bytes", bundleFilesResponseMaxBytes)
 	}
 	return bs, nil
 }
@@ -690,6 +689,10 @@ func WithLogsAfter(t time.Time) DebugLogsOption {
 	return func(c *debugLogsConfig) { c.after = t }
 }
 
+// debugLogsResponseMaxBytes matches the agent's combined cap on the logs
+// it returns, section headers included.
+const debugLogsResponseMaxBytes int64 = 100 << 20
+
 // DebugLogs returns up to 10 MiB of the active agent log. Pass WithLogsAfter to
 // also include rotated logs.
 func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error) {
@@ -699,7 +702,9 @@ func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]b
 	}
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(cfg.after), nil)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodGet, debugLogsPath(cfg.after), nil, agentRequestOptions{
+		maxResponseBytes: debugLogsResponseMaxBytes,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
@@ -932,31 +937,9 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(
-		c.agentAddress().String(),
-		strconv.Itoa(AgentHTTPAPIServerPort),
-	)
-
-	body, err := json.Marshal(action)
-	if err != nil {
-		return DesktopActionResponse{}, xerrors.Errorf("marshal action: %w", err)
-	}
-
-	url := fmt.Sprintf("http://%s/api/v0/desktop/action", host)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return DesktopActionResponse{}, xerrors.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	c.headersMu.RLock()
-	if len(c.extraHeaders) > 0 {
-		for k, v := range c.extraHeaders {
-			req.Header[k] = v
-		}
-	}
-	c.headersMu.RUnlock()
-
-	resp, err := c.apiClient(ctx).Do(req)
+	resp, err := c.apiRequestWithOptions(ctx, http.MethodPost, "/api/v0/desktop/action", action, agentRequestOptions{
+		header: http.Header{"Content-Type": {"application/json"}},
+	})
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
 	}
@@ -1000,7 +983,10 @@ func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopR
 func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req, agentRequestOptions{
+		// The multipart framing adds a little to the video and thumbnail.
+		maxResponseBytes: MaxRecordingSize + MaxThumbnailSize + 1<<20,
+	})
 	if err != nil {
 		return StopDesktopRecordingResponse{}, xerrors.Errorf("stop recording request: %w", err)
 	}
@@ -1240,7 +1226,7 @@ func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limi
 }
 
 // ReadFile reads from a file from the workspace, returning a file reader and
-// the mime type.
+// the mime type. A limit of 0 reads at most 32 MiB.
 func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
@@ -1252,7 +1238,7 @@ func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int
 // directory root, returning a file reader and the mime type. The agent
 // refuses a root that is a symlink, and a path that leaves root,
 // through symlinks included. Agents that predate root support reject
-// the request.
+// the request. A limit of 0 reads at most 32 MiB.
 func (c *agentConn) ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
@@ -1270,8 +1256,13 @@ func (c *agentConn) readFileRequest(ctx context.Context, root, path string, offs
 		query.Set("root", root)
 	}
 
+	// The agent sends at most limit bytes.
+	opts := agentRequestOptions{}
+	if limit > 0 {
+		opts.maxResponseBytes = limit
+	}
 	//nolint:bodyclose // we want to return the body so the caller can stream.
-	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", query), nil)
+	res, err := c.apiRequestWithOptions(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", query), nil, opts)
 	if err != nil {
 		return nil, "", xerrors.Errorf("do request: %w", err)
 	}
@@ -1666,7 +1657,7 @@ func agentAPIPath(path string, query neturl.Values) string {
 
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *agentConn) apiRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
-	return c.apiRequestWithHeader(ctx, method, path, body, nil)
+	return c.apiRequestWithOptions(ctx, method, path, body, agentRequestOptions{})
 }
 
 // toolCallRequest is apiRequest with CoderToolCallIDHeader from ctx. Use
@@ -1677,10 +1668,23 @@ func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, bo
 	if id, ok := ToolCallIDFromContext(ctx); ok {
 		header.Set(CoderToolCallIDHeader, id.String())
 	}
-	return c.apiRequestWithHeader(ctx, method, path, body, header)
+	return c.apiRequestWithOptions(ctx, method, path, body, agentRequestOptions{header: header})
 }
 
-func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path string, body interface{}, header http.Header) (*http.Response, error) {
+// agentRequestOptions configures apiRequestWithOptions.
+type agentRequestOptions struct {
+	// header is set on the request after the connection's extra headers.
+	header http.Header
+	// maxResponseBytes bounds the response body. Zero means
+	// agentResponseMaxBytes.
+	maxResponseBytes int64
+}
+
+// apiRequestWithOptions makes a request to the workspace agent's HTTP API
+// server. Workspace code can impersonate the agent API, so reads of the
+// returned body fail past opts.maxResponseBytes. readAgentError reads
+// error bodies with the smaller agentErrorResponseMaxBytes limit.
+func (c *agentConn) apiRequestWithOptions(ctx context.Context, method, path string, body interface{}, opts agentRequestOptions) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -1720,11 +1724,83 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 			req.Header.Add(key, value)
 		}
 	}
-	for key, values := range header {
+	for key, values := range opts.header {
 		req.Header[key] = values
 	}
 
-	return c.apiClient(ctx).Do(req)
+	res, err := c.apiClient(ctx).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	limit := opts.maxResponseBytes
+	if limit <= 0 {
+		limit = agentResponseMaxBytes
+	}
+	res.Body = newLimitedResponseBody(res.Body, limit)
+	return res, nil
+}
+
+const (
+	// agentResponseMaxBytes bounds coderd memory against workspace code
+	// impersonating the agent API. Legitimate JSON responses are far
+	// smaller: MCP results and screenshots carry media sized for model
+	// providers, whose whole request limits are about this size.
+	agentResponseMaxBytes int64 = 32 << 20
+	// agentErrorResponseMaxBytes bounds agent error bodies, which only
+	// carry a short codersdk.Response.
+	agentErrorResponseMaxBytes int64 = 64 << 10
+)
+
+// readAgentError is codersdk.ReadBodyAsError with a bounded body read.
+// It reads at most agentErrorResponseMaxBytes of the body, whatever the
+// status, so an unexpected 2xx or a websocket handshake response cannot
+// use a larger limit. A body that cannot be read or decoded still yields
+// a *codersdk.Error carrying the agent's status code.
+func readAgentError(res *http.Response) error {
+	res.Body = newLimitedResponseBody(res.Body, agentErrorResponseMaxBytes)
+	err := codersdk.ReadBodyAsError(res)
+	var sdkErr *codersdk.Error
+	if errors.As(err, &sdkErr) {
+		return err
+	}
+	return codersdk.NewError(res.StatusCode, codersdk.Response{
+		Message: fmt.Sprintf("unexpected status code %d, response body could not be read", res.StatusCode),
+		Detail:  err.Error(),
+	})
+}
+
+// limitedResponseBody fails reads once more than limit bytes arrive. It
+// follows net/http's maxBytesReader, whose error text describes request
+// bodies.
+type limitedResponseBody struct {
+	io.ReadCloser
+	remaining int64
+	limit     int64
+}
+
+func newLimitedResponseBody(body io.ReadCloser, limit int64) *limitedResponseBody {
+	return &limitedResponseBody{ReadCloser: body, remaining: limit, limit: limit}
+}
+
+func (b *limitedResponseBody) Read(p []byte) (int, error) {
+	if b.remaining < 0 {
+		return 0, b.exceeded()
+	}
+	if int64(len(p)) > b.remaining {
+		p = p[:b.remaining+1]
+	}
+	n, err := b.ReadCloser.Read(p)
+	if int64(n) > b.remaining {
+		n = int(b.remaining)
+		b.remaining = -1
+		return n, b.exceeded()
+	}
+	b.remaining -= int64(n)
+	return n, err
+}
+
+func (b *limitedResponseBody) exceeded() error {
+	return xerrors.Errorf("workspace agent response exceeds %d bytes", b.limit)
 }
 
 // decodeAgentJSON decodes an agent-direct HTTP response body. Agent
@@ -1735,42 +1811,7 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 //
 //nolint:gocritic // See doc comment.
 func decodeAgentJSON(res *http.Response, v any) error {
-	body := &io.LimitedReader{R: res.Body, N: agentJSONResponseMaxBytes + 1}
-	err := json.NewDecoder(body).Decode(v)
-	if body.N <= 0 {
-		return xerrors.Errorf("agent response exceeds %d bytes", agentJSONResponseMaxBytes)
-	}
-	return err
-}
-
-const (
-	// agentJSONResponseMaxBytes bounds coderd memory against workspace
-	// code impersonating the agent API. Legitimate JSON responses are far
-	// smaller: MCP results and screenshots carry media sized for model
-	// providers, whose whole request limits are about this size.
-	agentJSONResponseMaxBytes int64 = 32 << 20
-	// agentErrorResponseMaxBytes bounds agent error bodies, which only
-	// carry a short codersdk.Response.
-	agentErrorResponseMaxBytes int64 = 64 << 10
-)
-
-// readAgentError is codersdk.ReadBodyAsError with a bounded body read.
-// Undecodable (for example truncated) JSON still yields a
-// *codersdk.Error carrying the agent's status code.
-func readAgentError(res *http.Response) error {
-	res.Body = struct {
-		io.Reader
-		io.Closer
-	}{io.LimitReader(res.Body, agentErrorResponseMaxBytes), res.Body}
-	err := codersdk.ReadBodyAsError(res)
-	var sdkErr *codersdk.Error
-	if errors.As(err, &sdkErr) {
-		return err
-	}
-	return codersdk.NewError(res.StatusCode, codersdk.Response{
-		Message: fmt.Sprintf("unexpected status code %d, response body could not be read", res.StatusCode),
-		Detail:  err.Error(),
-	})
+	return json.NewDecoder(res.Body).Decode(v)
 }
 
 // apiClient returns an HTTP client that can be used to make
