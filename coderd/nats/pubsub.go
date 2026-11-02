@@ -17,6 +17,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/quartz"
 )
 
@@ -248,8 +250,8 @@ type localSub struct {
 	queue *pubsub.MsgQueue
 }
 
-// Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
-var _ pubsub.Pubsub = (*Pubsub)(nil)
+// Compile-time assertion that *Pubsub satisfies the pubsub.ReportingPubsub interface.
+var _ pubsub.ReportingPubsub = (*Pubsub)(nil)
 
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx. If
 // opts.Metrics is non-nil it is shared; otherwise an unregistered set is used.
@@ -470,6 +472,17 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 	}
 	p.metrics.RecordPublishSuccess(event, len(message))
 	return nil
+}
+
+// HealthReport implements pubsub.ReportingPubsub.
+func (*Pubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	return healthsdk.PubsubReport{
+		BaseReport: healthsdk.BaseReport{
+			Severity: health.SeverityOK,
+			Warnings: []health.Message{},
+		},
+		Backend: pubsub.BackendNATS,
+	}
 }
 
 // Flush blocks until every publisher connection has flushed buffered

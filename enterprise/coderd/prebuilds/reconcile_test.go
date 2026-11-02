@@ -441,7 +441,7 @@ func (tc testCase) run(t *testing.T) {
 		}
 
 		if tc.useBrokenPubsub {
-			pubSub = &brokenPublisher{Pubsub: pubSub}
+			pubSub = &brokenPublisher{ReportingPubsub: pubSub}
 		}
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		controller := prebuilds.NewStoreReconciler(
@@ -495,7 +495,7 @@ func (tc testCase) run(t *testing.T) {
 // brokenPublisher is used to validate that Publish() calls which always fail do not affect the reconciler's behavior,
 // since the messages published are not essential but merely advisory.
 type brokenPublisher struct {
-	pubsub.Pubsub
+	pubsub.ReportingPubsub
 }
 
 // Publish deliberately fails.

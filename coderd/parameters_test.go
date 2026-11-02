@@ -469,7 +469,7 @@ func TestDynamicParametersModuleCachePurged(t *testing.T) {
 
 type setupDynamicParamsTestParams struct {
 	db                       database.Store
-	ps                       pubsub.Pubsub
+	ps                       pubsub.ReportingPubsub
 	provisionerDaemonVersion string
 	mainTF                   []byte
 	modulesArchive           []byte

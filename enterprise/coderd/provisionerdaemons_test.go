@@ -1401,7 +1401,7 @@ func (s *deleteKeyOnReadStore) GetProvisionerKeyByID(ctx context.Context, id uui
 // Pubsub unchanged. target is set before the subscription is expected so the
 // capturing subscribe observes it.
 type captureKeyDeletePubsub struct {
-	dbpubsub.Pubsub
+	dbpubsub.ReportingPubsub
 	target   atomic.Pointer[string]
 	mu       sync.Mutex
 	listener dbpubsub.ListenerWithErr
@@ -1409,12 +1409,12 @@ type captureKeyDeletePubsub struct {
 	got      chan struct{}
 }
 
-func newCaptureKeyDeletePubsub(ps dbpubsub.Pubsub) *captureKeyDeletePubsub {
-	return &captureKeyDeletePubsub{Pubsub: ps, got: make(chan struct{})}
+func newCaptureKeyDeletePubsub(ps dbpubsub.ReportingPubsub) *captureKeyDeletePubsub {
+	return &captureKeyDeletePubsub{ReportingPubsub: ps, got: make(chan struct{})}
 }
 
 func (p *captureKeyDeletePubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
-	cancel, err := p.Pubsub.SubscribeWithErr(event, listener)
+	cancel, err := p.ReportingPubsub.SubscribeWithErr(event, listener)
 	if err != nil {
 		return cancel, err
 	}
