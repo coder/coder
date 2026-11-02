@@ -429,10 +429,11 @@ func (tx *Tx) deletePromotedQueuedMessage(id int64) error {
 	return nil
 }
 
-// resolveQueuedMessageModelConfigID returns the queued row's model when
-// it is enabled in the chat's organization, then the chat's last model,
-// then the organization default: the same order as a message sent
-// without a model.
+// resolveQueuedMessageModelConfigID returns the first of the queued row's
+// model and the chat's last model that is enabled, has an enabled
+// provider, and belongs to the chat's organization, else the organization
+// default. A lookup error other than sql.ErrNoRows is returned without
+// trying the next candidate.
 func (tx *Tx) resolveQueuedMessageModelConfigID(
 	chat database.Chat,
 	queued database.ChatQueuedMessage,
@@ -441,7 +442,7 @@ func (tx *Tx) resolveQueuedMessageModelConfigID(
 	ctx := dbauthz.AsChatd(tx.ctx)
 	candidates := []uuid.NullUUID{
 		queued.ModelConfigID,
-		{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
+		{UUID: chat.LastModelConfigID, Valid: true},
 	}
 	for _, candidate := range candidates {
 		if !candidate.Valid {
