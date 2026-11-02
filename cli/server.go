@@ -2555,7 +2555,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 
 	return "", nil, xerrors.Errorf("failed to start built-in PostgreSQL after %d attempts. "+
-		"Optionally, specify an external deployment. See https://coder.com/docs/tutorials/external-database "+
+		"Optionally, specify an external deployment. See https://coder.com/docs/install/server/external-database "+
 		"for more details: %w", maxAttempts, startErr)
 }
 
