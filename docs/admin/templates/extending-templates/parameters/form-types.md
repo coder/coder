@@ -209,7 +209,7 @@ data "coder_parameter" "environment" {
 ### Checkboxes
 
 A single checkbox for boolean values.
-This can be used for a TOS confirmation or to expose advanced options.
+This can be used for a terms of service (TOS) confirmation or to expose advanced options.
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 

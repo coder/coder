@@ -21,7 +21,7 @@ When you select **New Template** on the **Templates** page, the builder opens au
 The builder guides you through up to five steps:
 
 1. **Select base infrastructure**:
-   Choose a starter template for your target platform (for example, Docker, AWS EC2, Kubernetes).
+   Choose a starter template for your target platform (for example, Docker, AWS Elastic Compute Cloud (EC2), Kubernetes).
 
    Each base template provides a working foundation with the Coder agent pre-configured.
 
@@ -52,7 +52,7 @@ The builder guides you through up to five steps:
    ![Set template display name, description, and other metadata](../../images/templatebuilder_04_customizations.png)
 
 After you select **Create Template**, Coder composes the Terraform configuration server-side, validates it with `terraform init` and `terraform validate`, and creates the template.
-The generated template is standard Terraform HCL that you can edit later through the dashboard or CLI.
+The generated template is standard Terraform HashiCorp Configuration Language (HCL) that you can edit later through the dashboard or CLI.
 
 > [!NOTE]
 > The template builder requires outbound access to `registry.coder.com` so that `terraform init` can resolve module sources.
