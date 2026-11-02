@@ -75,6 +75,7 @@ import {
 	buildStreamTools,
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
+import type { EditingTarget } from "./ChatConversation/types";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import {
 	ACPContext,
@@ -323,8 +324,8 @@ type ChatPageInputProps = {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
-	isEditing: boolean;
-	onCancelHistoryEdit: () => void;
+	editingTarget: EditingTarget | null;
+	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
@@ -336,7 +337,6 @@ type ChatPageInputProps = {
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 };
@@ -374,8 +374,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	initialEditorState,
 	remountKey,
 	onContentChange,
-	isEditing,
-	onCancelHistoryEdit,
+	editingTarget,
+	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -384,7 +384,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
@@ -405,13 +404,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		}),
 		enabled: queuedMessages.length > 0,
 	});
-	const canDeleteQueuedMessage = Boolean(
-		chatAuthorizationQuery.data?.canUpdateChat,
-	);
-	const canPromoteQueuedMessage =
-		canDeleteQueuedMessage &&
-		currentUser.id === chat.owner_id &&
-		!chat.archived;
+	const canDeleteQueuedMessage =
+		Boolean(chatAuthorizationQuery.data?.canUpdateChat) &&
+		currentUser.id === chat.owner_id;
+	const canPromoteQueuedMessage = canDeleteQueuedMessage && !chat.archived;
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -493,6 +489,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setUploadStates: setEditUploadStates,
 		resetAttachments: resetEditAttachments,
 	} = editAttachments;
+	const isEditing = editingTarget !== null;
 	const wasEditingRef = useRef(isEditing);
 	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
@@ -827,8 +824,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onPromoteQueuedMessage={
 				canPromoteQueuedMessage ? onPromoteQueuedMessage : undefined
 			}
-			isEditingHistoryMessage={isEditing}
-			onCancelHistoryEdit={onCancelHistoryEdit}
+			isChatPaused={chatStatus === "paused"}
+			editingKind={editingTarget?.kind}
+			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}
@@ -864,7 +862,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}
-			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
 			canConfigureAgentSetup={canConfigureAgentSetup}
@@ -879,9 +876,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 
 	const queueAuthorizationError =
-		queuedMessages.length > 0 && !chatAuthorizationQuery.data
-			? chatAuthorizationQuery.error
-			: null;
+		queuedMessages.length > 0 ? chatAuthorizationQuery.error : null;
 
 	return (
 		<div>

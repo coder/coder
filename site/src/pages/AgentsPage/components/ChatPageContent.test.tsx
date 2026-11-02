@@ -3,14 +3,105 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput } from "./ChatPageContent";
+import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
+
+const skillResource = (
+	name: string,
+	overrides: Partial<TypesGen.ChatContextResource> = {},
+): TypesGen.ChatContextResource => ({
+	source: `/workspace/.agents/skills/${name}`,
+	kind: "skill",
+	size_bytes: 128,
+	skill_name: name,
+	skill_description: `${name} description`,
+	status: "ok",
+	...overrides,
+});
+
+const instructionResource = (): TypesGen.ChatContextResource => ({
+	source: "/workspace/AGENTS.md",
+	kind: "instruction_file",
+	size_bytes: 64,
+	status: "ok",
+});
+
+const chatWithContext = (
+	context: TypesGen.ChatContext | undefined,
+): TypesGen.Chat => ({ ...MockChat, context });
+
+describe("workspaceSkillsFromChat", () => {
+	it("returns undefined while the chat detail is unresolved", () => {
+		expect(workspaceSkillsFromChat(undefined)).toBeUndefined();
+	});
+
+	it("returns an empty authoritative list for a resolved unpinned chat", () => {
+		expect(workspaceSkillsFromChat(chatWithContext(undefined))).toEqual([]);
+		expect(workspaceSkillsFromChat(chatWithContext({ dirty: false }))).toEqual(
+			[],
+		);
+	});
+
+	it("maps healthy skill resources to workspace skills", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				instructionResource(),
+				skillResource("reviewer"),
+				skillResource("docs"),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+			{ name: "docs", description: "docs description" },
+		]);
+	});
+
+	it("keeps the first resource for duplicate skill names, matching read_skill", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				skillResource("reviewer", {
+					source: "/workspace/.agents/skills/reviewer",
+				}),
+				skillResource("reviewer", {
+					source: "/workspace/other/skills/reviewer",
+					skill_description: "shadowed duplicate",
+				}),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+		]);
+	});
+
+	it("omits non-ok skill resources", () => {
+		const chat = chatWithContext({
+			dirty: true,
+			resources: [
+				skillResource("reviewer"),
+				skillResource("broken", { status: "unreadable", skill_name: "" }),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+		]);
+	});
+
+	it("returns an empty authoritative list when pinned context has no skills", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [instructionResource()],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([]);
+	});
+});
 
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
@@ -41,8 +132,8 @@ const renderChatPageInput = (
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={vi.fn()}
+			editingTarget={null}
+			onCancelEdit={vi.fn()}
 			isReadOnly={false}
 			onReasoningEffortChange={vi.fn()}
 			unsupportedProviderNames={[]}
@@ -125,7 +216,7 @@ describe("ChatPageInput", () => {
 			isOwner: false,
 			canUpdateChat: true,
 			archived: false,
-			canDelete: true,
+			canDelete: false,
 			canPromote: false,
 		},
 		{
@@ -153,7 +244,7 @@ describe("ChatPageInput", () => {
 					const user = userEvent.setup();
 					const onDeleteQueuedMessage = vi.fn();
 					const onPromoteQueuedMessage = vi.fn();
-					const chat = {
+					const mockChat = {
 						...MockChat,
 						id: "",
 						owner_id: isOwner ? MockChat.owner_id : "other-user",
@@ -171,7 +262,7 @@ describe("ChatPageInput", () => {
 							),
 					);
 					const { queryClient } = renderChatPageInput(store, {
-						chat,
+						chat: mockChat,
 						onDeleteQueuedMessage,
 						onPromoteQueuedMessage,
 					});
@@ -182,8 +273,8 @@ describe("ChatPageInput", () => {
 									canUpdateChat: {
 										object: {
 											resource_type: "chat",
-											owner_id: chat.owner_id,
-											organization_id: chat.organization_id,
+											owner_id: mockChat.owner_id,
+											organization_id: mockChat.organization_id,
 										},
 										action: "update",
 									},
@@ -219,35 +310,57 @@ describe("ChatPageInput", () => {
 			);
 		},
 	);
-	it("retries a failed queue permission check before allowing removal", async () => {
-		const user = userEvent.setup();
-		const onDeleteQueuedMessage = vi.fn();
-		const checkQueuePermissions = vi
-			.fn()
-			.mockRejectedValueOnce(new Error("Unable to check queue permissions."))
-			.mockResolvedValue({ canUpdateChat: true });
-		vi.spyOn(API, "checkAuthorization").mockImplementation(
-			async ({ checks }) =>
-				"canUpdateChat" in checks
-					? checkQueuePermissions()
-					: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
-		);
-		const store = createChatStore();
-		store.setQueuedMessages([MockChatQueuedMessage]);
-		renderChatPageInput(store, { onDeleteQueuedMessage });
+	it.each([
+		{ stage: "initial lookup", hasCachedPermissions: false },
+		{ stage: "background refresh", hasCachedPermissions: true },
+	])(
+		"retries a failed $stage of queue permissions",
+		async ({ hasCachedPermissions }) => {
+			const user = userEvent.setup();
+			const onDeleteQueuedMessage = vi.fn();
+			const checkQueuePermissions = vi
+				.fn()
+				.mockResolvedValue({ canUpdateChat: true });
+			if (hasCachedPermissions) {
+				checkQueuePermissions.mockResolvedValueOnce({ canUpdateChat: true });
+			}
+			checkQueuePermissions.mockRejectedValueOnce(
+				new Error("Unable to check queue permissions."),
+			);
+			vi.spyOn(API, "checkAuthorization").mockImplementation(
+				async ({ checks }) =>
+					"canUpdateChat" in checks
+						? checkQueuePermissions()
+						: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+			);
+			const store = createChatStore();
+			store.setQueuedMessages([MockChatQueuedMessage]);
+			const { queryClient } = renderChatPageInput(store, {
+				onDeleteQueuedMessage,
+			});
 
-		await user.click(
-			await screen.findByRole("button", { name: "Retry queue permissions" }),
-		);
-		await user.click(
-			await screen.findByRole("button", { name: "Remove from queue" }),
-		);
+			if (hasCachedPermissions) {
+				await screen.findByRole("button", { name: "Remove from queue" });
+				await act(async () => {
+					await queryClient.refetchQueries({ queryKey: authorizationKey });
+				});
+			}
 
-		expect(checkQueuePermissions).toHaveBeenCalledTimes(2);
-		expect(onDeleteQueuedMessage).toHaveBeenCalledWith(
-			MockChatQueuedMessage.id,
-		);
-	});
+			await user.click(
+				await screen.findByRole("button", { name: "Retry queue permissions" }),
+			);
+			await user.click(
+				await screen.findByRole("button", { name: "Remove from queue" }),
+			);
+
+			expect(checkQueuePermissions).toHaveBeenCalledTimes(
+				hasCachedPermissions ? 3 : 2,
+			);
+			expect(onDeleteQueuedMessage).toHaveBeenCalledWith(
+				MockChatQueuedMessage.id,
+			);
+		},
+	);
 
 	it("inserts a project action from More into the chat's composer", async () => {
 		const user = userEvent.setup();
@@ -303,7 +416,7 @@ describe("ChatPageInput", () => {
 				workspace_id: "ws-1",
 			},
 			onSend,
-			isEditing: true,
+			editingTarget: { kind: "history", id: 1 },
 			initialValue: "edited",
 			editingFileBlocks: [
 				workspaceFileReference("current.csv", "ws-1"),

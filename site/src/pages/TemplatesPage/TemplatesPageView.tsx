@@ -95,7 +95,6 @@ const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 					rel="noreferrer"
 				>
 					How to upgrade
-					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			</AlertDescription>
 		</Alert>

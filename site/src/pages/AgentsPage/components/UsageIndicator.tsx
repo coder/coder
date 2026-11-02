@@ -163,7 +163,7 @@ const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 				<button
 					type="button"
 					aria-label={triggerAriaLabel}
-					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-hidden"
+					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 				>
 					<UsageTriggerProgress sections={sections} />
 				</button>

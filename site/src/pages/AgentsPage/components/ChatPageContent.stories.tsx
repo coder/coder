@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type QueryClient, useQueryClient } from "react-query";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatPromptsKey,
 	organizationChatModelOverridesKey,
@@ -135,8 +136,8 @@ const StoryChatPageInput: React.FC<{
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
+			editingTarget={null}
+			onCancelEdit={fn()}
 			isReadOnly={false}
 			onReasoningEffortChange={fn()}
 			unsupportedProviderNames={[]}
@@ -530,6 +531,40 @@ export const QueuePermissionError: Story = {
 	},
 };
 
+let queuePermissionQueryClient: QueryClient | undefined;
+
+export const QueuePermissionRefetchError: Story = {
+	decorators: [
+		(Story) => {
+			queuePermissionQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	beforeEach: () => {
+		const checkQueuePermissions = fn()
+			.mockResolvedValueOnce({ canUpdateChat: true })
+			.mockRejectedValue(new Error("Unable to check queue permissions."));
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			"canUpdateChat" in checks
+				? checkQueuePermissions()
+				: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+	},
+	render: () => {
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Remove from queue" });
+		await queuePermissionQueryClient?.refetchQueries({
+			queryKey: authorizationKey,
+		});
+		await canvas.findByRole("button", { name: "Retry queue permissions" });
+	},
+};
+
 const CompactionChatPageInput: React.FC = () => {
 	const store = createChatStore();
 	store.replaceMessages([
@@ -565,8 +600,8 @@ const CompactionChatPageInput: React.FC = () => {
 				modelOptions={[]}
 				modelSelectorPlaceholder="Select model"
 				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
+				editingTarget={null}
+				onCancelEdit={fn()}
 				isReadOnly={false}
 				onReasoningEffortChange={fn()}
 				unsupportedProviderNames={[]}

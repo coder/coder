@@ -100,6 +100,44 @@ type UpdateOrganizationSkillACLRequest struct {
 	GroupRoles map[string]OrganizationSkillRole `json:"group_roles,omitempty"`
 }
 
+// OrganizationSkillSettings is an organization's member opt-out setting for
+// organization skills.
+type OrganizationSkillSettings struct {
+	// MembersCanDisableSkills lets each organization member turn off
+	// organization skills for their own chats.
+	MembersCanDisableSkills bool `json:"members_can_disable_skills"`
+}
+
+// UpdateOrganizationSkillSettingsRequest is the payload for updating an
+// organization's member opt-out setting for organization skills.
+type UpdateOrganizationSkillSettingsRequest struct {
+	MembersCanDisableSkills bool `json:"members_can_disable_skills"`
+}
+
+// OrganizationSkillPreferences is an organization member's choices about the
+// organization skills that load into their chats. The choices apply only
+// while MembersCanDisableSkills is true.
+type OrganizationSkillPreferences struct {
+	// MembersCanDisableSkills is the organization's setting.
+	MembersCanDisableSkills bool `json:"members_can_disable_skills"`
+	// AllSkillsDisabled turns off every organization skill, including
+	// skills added later. DisabledSkillIDs is kept and applies again when it
+	// is false.
+	AllSkillsDisabled bool `json:"all_skills_disabled"`
+	// DisabledSkillIDs lists the organization skills the member turned off.
+	DisabledSkillIDs []uuid.UUID `json:"disabled_skill_ids" format:"uuid"`
+}
+
+// UpdateOrganizationSkillPreferencesRequest is a sparse update of an
+// organization member's organization skill choices. At least one field must
+// be set, and only the listed skills change.
+type UpdateOrganizationSkillPreferencesRequest struct {
+	AllSkillsDisabled *bool `json:"all_skills_disabled,omitempty"`
+	// Skills maps an organization skill ID to whether the skill is enabled
+	// for the member's chats.
+	Skills map[string]bool `json:"skills,omitempty"`
+}
+
 func userSkillsPath(user string) string {
 	return fmt.Sprintf("/api/experimental/users/%s/skills", url.PathEscape(user))
 }
@@ -255,6 +293,74 @@ func (c *ExperimentalClient) DeleteOrganizationSkill(ctx context.Context, organi
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+func organizationSkillSettingsPath(organizationID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/organizations/%s/skill-settings", organizationID)
+}
+
+func organizationSkillPreferencesPath(organizationID uuid.UUID, user string) string {
+	return fmt.Sprintf("/api/experimental/organizations/%s/members/%s/skill-preferences", organizationID, url.PathEscape(user))
+}
+
+// OrganizationSkillSettings returns an organization's member opt-out setting
+// for organization skills.
+func (c *ExperimentalClient) OrganizationSkillSettings(ctx context.Context, organizationID uuid.UUID) (OrganizationSkillSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, organizationSkillSettingsPath(organizationID), nil)
+	if err != nil {
+		return OrganizationSkillSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSkillSettings{}, ReadBodyAsError(res)
+	}
+	var settings OrganizationSkillSettings
+	return settings, ReadBodyAsJSON(res, &settings)
+}
+
+// UpdateOrganizationSkillSettings updates an organization's member opt-out
+// setting for organization skills.
+func (c *ExperimentalClient) UpdateOrganizationSkillSettings(ctx context.Context, organizationID uuid.UUID, req UpdateOrganizationSkillSettingsRequest) (OrganizationSkillSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, organizationSkillSettingsPath(organizationID), req)
+	if err != nil {
+		return OrganizationSkillSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSkillSettings{}, ReadBodyAsError(res)
+	}
+	var settings OrganizationSkillSettings
+	return settings, ReadBodyAsJSON(res, &settings)
+}
+
+// OrganizationSkillPreferences returns an organization member's organization
+// skill choices.
+func (c *ExperimentalClient) OrganizationSkillPreferences(ctx context.Context, organizationID uuid.UUID, user string) (OrganizationSkillPreferences, error) {
+	res, err := c.Request(ctx, http.MethodGet, organizationSkillPreferencesPath(organizationID, user), nil)
+	if err != nil {
+		return OrganizationSkillPreferences{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSkillPreferences{}, ReadBodyAsError(res)
+	}
+	var prefs OrganizationSkillPreferences
+	return prefs, ReadBodyAsJSON(res, &prefs)
+}
+
+// UpdateOrganizationSkillPreferences applies a sparse update to an
+// organization member's organization skill choices.
+func (c *ExperimentalClient) UpdateOrganizationSkillPreferences(ctx context.Context, organizationID uuid.UUID, user string, req UpdateOrganizationSkillPreferencesRequest) (OrganizationSkillPreferences, error) {
+	res, err := c.Request(ctx, http.MethodPatch, organizationSkillPreferencesPath(organizationID, user), req)
+	if err != nil {
+		return OrganizationSkillPreferences{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSkillPreferences{}, ReadBodyAsError(res)
+	}
+	var prefs OrganizationSkillPreferences
+	return prefs, ReadBodyAsJSON(res, &prefs)
 }
 
 func chatProjectSkillPath(organizationID, projectID uuid.UUID, name string) string {
