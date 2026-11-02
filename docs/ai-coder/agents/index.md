@@ -32,7 +32,7 @@ There is no SaaS or managed component, and your code never passes through Coder'
 
 Coder Agents isn't a replacement for your IDE.
 It's where developers start, steer, and review agent work.
-Developers still open the workspace in VS Code, Cursor, JetBrains, or another editor to refine and finish what the agent produces.
+Developers can still open the workspace in VS Code, Cursor, JetBrains, or another editor to refine and finish what the agent produces.
 
 ## Who Coder Agents is for
 
