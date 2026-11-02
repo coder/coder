@@ -1332,10 +1332,10 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 
 	// failed holds the halting tools with a call that failed in this batch.
 	failed := make(map[string]bool)
-	afterRejection := b.callsAfterRejection(localToolCalls, observed)
+	afterRejection := callsAfterRejection(localToolCalls, observed)
 	for _, i := range serialIndexes {
 		tc := localToolCalls[i]
-		name := b.resolve(tc.ToolName)
+		name := tc.ToolName
 		haltedText, halts := b.haltedCallError(name)
 		if halts && (failed[name] || afterRejection[tc.ToolCallID]) {
 			// The call never runs, so it records no start and is not billed.
@@ -1634,7 +1634,7 @@ func (b *toolBatch) haltedCallError(name string) (string, bool) {
 // callsAfterRejection returns the IDs of the calls that follow, in observed
 // order, a rejected call of the same tool. Observed calls missing from calls
 // were rejected before execution.
-func (b *toolBatch) callsAfterRejection(calls, observed []fantasy.ToolCallContent) map[string]bool {
+func callsAfterRejection(calls, observed []fantasy.ToolCallContent) map[string]bool {
 	executed := make(map[string]bool, len(calls))
 	for _, tc := range calls {
 		executed[tc.ToolCallID] = true
@@ -1642,7 +1642,7 @@ func (b *toolBatch) callsAfterRejection(calls, observed []fantasy.ToolCallConten
 	rejectedTools := make(map[string]bool)
 	after := make(map[string]bool)
 	for _, tc := range observed {
-		name := b.resolve(tc.ToolName)
+		name := tc.ToolName
 		switch {
 		case !executed[tc.ToolCallID]:
 			rejectedTools[name] = true
