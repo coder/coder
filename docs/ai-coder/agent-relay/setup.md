@@ -210,6 +210,8 @@ data "coder_script_order" "relay_worker" {
 
 - Set `phase = "start"`, because the module also has a shutdown script.
 - Script ordering requires the Coder Terraform provider v2.20.0 or later.
+- Script ordering also requires Coder v2.39.0 or later for the control plane, provisioners, and workspace agents.
+  On earlier versions, Coder ignores the rule without an error, and the worker starts right away.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails, Coder skips the module's scripts and the worker never starts.
