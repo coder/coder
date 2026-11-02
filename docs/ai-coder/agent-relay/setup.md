@@ -17,6 +17,7 @@ Provider-specific steps live on the [Claude Code](./claude-code.md) and [Cursor]
 You need:
 
 - A Coder deployment with a Premium license, on version 2.39 or later.
+- Agent Relay v0.14.0 or later.
 - Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
 - The [Coder CLI](../../install/cli.md), signed in as an `owner`.
 - An account with the provider you want to serve.
@@ -49,12 +50,17 @@ In every organization that a pool names, the service account needs these permiss
 |-----------------------|-------------------------------------|
 | `organization_member` | `read`                              |
 | `workspace`           | `create`, `read`, `start`, `delete` |
+| `workspace_secret`    | `create`                            |
 
 On every template that a pool names, the service account needs `read` and `use`.
 These can come from the template's access control list instead of a role.
 
 The `organization-admin` role in each organization covers all of these permissions.
 To grant less, create an organization-scoped [custom role](../../admin/users/groups-roles.md#custom-roles) with only the permissions above.
+
+Agent Relay delivers each session's provider credential to the workspace as an ephemeral workspace build secret, which is why it needs `workspace_secret` permissions.
+It checks the Coder version once, at startup, to decide how to deliver credentials, and logs the result as `build_secrets` on its `authenticated against coderd` line.
+Restart Agent Relay after you upgrade Coder.
 
 1. Create the service account in the organization that Agent Relay serves:
 
@@ -317,7 +323,13 @@ An invalid token, an unlicensed deployment, an unsupported Coder version, or a m
    kubectl logs -n coder deploy/coder-agent-relay
    ```
 
+1. Confirm that the `authenticated against coderd` log line shows `build_secrets=true`.
+
 1. Confirm that each pool logs that its template is verified and the pool is serving.
+
+1. Confirm that Agent Relay is ready.
+   With Helm, the pod becomes `Ready` only after at least one pool passes verification.
+   With Docker, run `curl -sS http://localhost:2112/readyz`, which prints `ok` when a pool is serving and lists any pool that is still verifying or has failed.
 
 1. Start a session from the provider's client and select the pool.
 

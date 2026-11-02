@@ -83,6 +83,7 @@ One Agent Relay process can serve pools for both providers.
 ## Requirements
 
 - A Coder deployment with a Premium license, on version 2.39 or later.
+- Agent Relay v0.14.0 or later.
 - A Coder service account with a long-lived token.
 - A workspace template for each pool that includes the provider's [Agent Relay module](https://registry.coder.com/modules?search=tag%3Aagent-relay).
 - Provisioner capacity for Agent Relay builds.

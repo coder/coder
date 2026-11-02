@@ -90,7 +90,8 @@ For a failed session, also check:
 ## Prometheus metrics
 
 The Helm chart turns metrics on by default on port 2112 and adds the `prometheus.io/scrape`, `prometheus.io/port`, and `prometheus.io/path` pod annotations.
-The metrics endpoint is plain HTTP and doubles as the readiness probe.
+The metrics listener is plain HTTP and also serves `/readyz`, which the Helm chart uses as the readiness probe.
+`/readyz` returns `200` once at least one pool has passed verification, and lists any pool that is still verifying or has failed.
 For Docker, set `CODER_AGENT_RELAY_PROMETHEUS_ENABLE=true` and `CODER_AGENT_RELAY_PROMETHEUS_ADDRESS=0.0.0.0:2112`.
 
 Metrics are named `agent_relay_<subsystem>_<name>` and labeled by `pool`.
@@ -98,12 +99,13 @@ Shared dispatcher and reaper metrics also carry a `provider` label.
 
 ### Shared metrics
 
-| Metric                                                    | What it tells you                                                                              |
-|-----------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| `agent_relay_dispatcher_dispatches_total{result}`         | Dispatch outcomes: `created`, `rebuilt`, `skipped`, `expired`, or `failed`.                    |
-| `agent_relay_dispatcher_claim_to_workspace_built_seconds` | Time from claim to a successful build. Compare it with the pool's build budget or deadline.    |
-| `agent_relay_reaper_workspaces{status}`                   | Workspaces by worker status, updated each sweep. Active sessions are `working` plus `serving`. |
-| `agent_relay_reaper_verdicts_total{verdict}`              | Reaper decisions, such as `keep`, `delete`, and `failed`.                                      |
+| Metric                                                    | What it tells you                                                                                                                                            |
+|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_relay_dispatcher_dispatches_total{result}`         | Dispatch outcomes: `created`, `rebuilt`, `skipped`, `expired`, or `failed`.                                                                                  |
+| `agent_relay_dispatcher_claim_to_workspace_built_seconds` | Time from claim to a successful build. Compare it with the pool's build budget or deadline.                                                                  |
+| `agent_relay_reaper_workspaces{status}`                   | Workspaces by worker status, updated each sweep. Active sessions are `working` plus `serving`.                                                               |
+| `agent_relay_reaper_verdicts_total{verdict}`              | Reaper decisions, such as `keep`, `delete`, `failed`, and `stuck`. `stuck` means three delete builds failed in a row and the workspace needs manual cleanup. |
+| `agent_relay_pool_healthy`                                | `1` if the pool's last verification passed, `0` if it failed or hasn't run yet.                                                                              |
 
 ### Claude Code metrics
 
@@ -128,7 +130,10 @@ Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconne
 
 ### Suggested alerts
 
+- `pool_healthy` at `0` for more than a few minutes.
+  A Claude Code pool that stops because Anthropic rejected its environment key stays down until Agent Relay restarts.
 - Any increase in `dispatches_total{result="failed"}`.
+- Any increase in `reaper_verdicts_total{verdict="stuck"}`, which leaves a workspace for you to clean up.
 - Any increase in `cursor_claim_fails_total{applied="error"}`, which leaves chats waiting.
 - A sustained rise in rejected requests, which usually means developer emails don't match Coder accounts.
 - `cursor_pending_requests` above zero for longer than the pool's `dispatch_deadline`.
@@ -136,12 +141,12 @@ Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconne
 
 ## Troubleshoot by symptom
 
-| Symptom                                         | Where to look                                                                                                                                                                 |
-|-------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| A pool isn't serving                            | Startup logs for the pool. A pool logs that its template is verified when it's ready, and logs a contract check failure when the template is missing the module's parameters. |
-| A session never creates a workspace             | Logs for the `session_id`, or the `session_uuid` for Claude Code. Look for identity resolution failures, a degraded pool, a dispatch error, or `job_error` on a failed build. |
-| The workspace exists but the agent never starts | The workspace's build log, then the module logs in the workspace, then the `agent_relay_status` metadata on the workspace page in Coder.                                      |
-| A session ended but its workspace remains       | Reaper decisions in the logs for the `workspace_id`. Agent Relay deletes on a sweep interval, and doesn't delete stopped workspaces.                                          |
+| Symptom                                         | Where to look                                                                                                                                                                                                                   |
+|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| A pool isn't serving                            | `/readyz` or `agent_relay_pool_healthy`, then the startup logs for the pool. A pool logs that its template is verified when it's ready, and logs a contract check failure when the template is missing the module's parameters. |
+| A session never creates a workspace             | Logs for the `session_id`, or the `session_uuid` for Claude Code. Look for identity resolution failures, a degraded pool, a dispatch error, or `job_error` on a failed build.                                                   |
+| The workspace exists but the agent never starts | The workspace's build log, then the module logs in the workspace, then the `agent_relay_status` metadata on the workspace page in Coder.                                                                                        |
+| A session ended but its workspace remains       | Reaper decisions in the logs for the `workspace_id`. Agent Relay deletes on a sweep interval, and doesn't delete stopped workspaces.                                                                                            |
 
 For provider-specific symptoms, refer to the troubleshooting tables for [Claude Code](./claude-code.md#troubleshoot), [Cursor](./cursor.md#troubleshoot), and [Slack](./slack.md#troubleshoot).
 

@@ -68,7 +68,8 @@ Agent Relay reads pool secrets only at startup.
 When you rotate a key, update the secret, then restart Agent Relay.
 
 The API key never leaves Agent Relay.
-When Agent Relay claims a request, it exchanges the key for a session-scoped Cursor token and passes that token to the workspace as an ephemeral, masked parameter.
+When Agent Relay claims a request, it exchanges the key for a session-scoped Cursor token and delivers that token to the workspace as an ephemeral workspace build secret, which the workspace agent sets as `AGENT_RELAY_CURSOR_TOKEN`.
+Coder delivers the secret only to the workspace agent, never to the provisioner, so it doesn't appear in build parameters or Terraform state and can't be read back through the API.
 The token:
 
 - Authenticates only the claimed worker.
@@ -82,7 +83,7 @@ Add the [`coder/agent-relay-cursor`](https://registry.coder.com/modules/coder/ag
 ```tf
 module "cursor_worker" {
   source   = "registry.coder.com/coder/agent-relay-cursor/coder"
-  version  = "0.8.1"
+  version  = "1.0.0"
   agent_id = coder_agent.main.id
   # Set to false and bake the CLI into your image for faster starts.
   install_cli = true
@@ -101,6 +102,14 @@ resource "coder_agent" "main" {
 ```
 
 Use the latest module version from the registry.
+
+> [!NOTE]
+> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
+> Don't set `AGENT_RELAY_CURSOR_TOKEN` in the template yourself.
+> If you're upgrading from 0.7.0 or earlier, upgrade Coder, then Agent Relay, then move templates to 1.0.0 one at a time.
+> Templates on 0.7.0 keep working in the meantime.
+> To roll back Coder or Agent Relay, pin templates back to 0.7.0 first.
+
 The template must also meet the [template requirements](./setup.md#step-3-prepare-a-workspace-template) that apply to every provider.
 To keep the worker from starting before your startup scripts finish, order the module after them, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
@@ -127,8 +136,9 @@ pools:
       template: cursor-relay
       # Optional: caps claim-to-ready. Default 10m, maximum 15m.
       dispatch_deadline: 10m
-      # Optional: seconds the worker waits after a turn. Keep at or above 300.
-      idle_release_timeout: 600
+      # Optional: how long the worker waits for a follow-up after a turn,
+      # in whole seconds. Default 1h; 0 never releases.
+      idle_release_timeout: 1h
       # Optional: fixed values for template parameters. Use the
       # parameters your template defines.
       template_parameters:
@@ -154,8 +164,9 @@ cursorWorkerPools:
     template: cursor-relay
     # Optional: caps claim-to-ready. Default 10m, maximum 15m.
     dispatch_deadline: 10m
-    # Optional: seconds the worker waits after a turn. Keep at or above 300.
-    idle_release_timeout: 600
+    # Optional: how long the worker waits for a follow-up after a turn,
+    # in whole seconds. Default 1h; 0 never releases.
+    idle_release_timeout: 1h
 ```
 
 Pass `CURSOR_SERVICE_ACCOUNT_KEY` to the container alongside `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`, as shown in [Install with Docker](./setup.md#docker).
@@ -168,6 +179,8 @@ Agent Relay refuses to start if:
 - More than four pools share one API key.
 - Two pools that share an API key use the same `cursor_pool_name`.
 - A `dispatch_deadline` is longer than 15&nbsp;minutes.
+- An `idle_release_timeout` has no unit, such as `600`, or isn't whole seconds.
+  If you're upgrading from v0.13.0 or earlier, convert seconds to a duration, such as `10m` for `600`.
 
 Agent Relay rejects a `template_parameters` entry that uses a name it sets on every build: `agent_relay_session_id`, `agent_relay_delivery_id`, `agent_relay_pool`, `agent_relay_cursor_pool_name`, `agent_relay_cursor_repo_url`, `agent_relay_credential`, `agent_relay_cursor_idle_release_timeout`, or `agent_relay_cursor_credential_kind`.
 
@@ -327,10 +340,11 @@ The module reports the worker's state through `agent_relay_status`, and Agent Re
 Both delete and fail remove the workspace.
 A failure is also recorded in logs and metrics, and ends the developer's turn in Cursor with an error if the turn is still waiting.
 
-After each turn, the worker waits `idle_release_timeout` seconds for a follow-up, then exits, and Agent Relay deletes the workspace.
+After each turn, the worker waits for a follow-up for the pool's `idle_release_timeout`, then exits, and Agent Relay deletes the workspace.
 
-- The default is `600`.
-  Keep it at `300` or higher.
+- The default is `1h`.
+  `0` turns off idle release, so the worker and its workspace stay up until something else stops them.
+- Agent Relay logs a warning at startup for values below `5m`.
 - The timer starts when the agent finishes its turn, not when the chat closes.
 - A follow-up after release rebuilds the workspace with the same name and owner on a clean disk.
   The agent keeps the conversation, but unpushed work is lost.
@@ -348,6 +362,9 @@ Also check the pool rules in [Add the pool to the Agent Relay configuration](#st
 ### One pool is degraded and the others are fine
 
 The service account lacks `read` or `use` on the template, the template lacks `allow_user_cancel_workspace_jobs`, or the template doesn't include the module's parameters.
+A pool with a pinned `template_version` also degrades when that version is deleted, archived, or renamed.
+If the logs show `missing parameter "agent_relay_credential"`, Agent Relay is sending the credential as a build parameter, because Coder is older than 2.39 or Agent Relay hasn't restarted since you upgraded Coder.
+Upgrade Coder, then restart Agent Relay.
 
 ### Cursor shows an `agent-relay:` account error
 
@@ -385,9 +402,22 @@ Compare `coder provisioner list` with the template's tags.
 The Cursor CLI in the image is out of date.
 Rebuild the image, or set `install_cli = true`.
 
+### A worker idles with `No worker token in this build`
+
+The workspace didn't receive a worker token.
+That's expected for an unclaimed prebuild.
+Agent Relay delivers the token only on the build that it dispatches, so a relay workspace that someone started again after a stop has none.
+Delete it instead of starting it.
+If every new relay workspace shows this message, Coder is dropping the credential, which happens when Coder was downgraded below 2.39 after Agent Relay started.
+Restart Agent Relay so that it checks the Coder version again.
+
 ### A workspace is never deleted
 
 The template renamed or omitted `agent_relay_status`, or the worker reports `orphaned`.
+
+If the logs show `workspace delete keeps failing, leaving it for an operator`, three delete builds failed in a row, usually because of a Terraform destroy error.
+Agent Relay stops retrying and counts the workspace as `stuck` in `agent_relay_reaper_verdicts_total`.
+Fix the error in Coder, then delete the workspace.
 
 ### The agent works on the wrong branch
 

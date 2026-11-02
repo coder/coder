@@ -83,7 +83,9 @@ The work order:
 
 - Authenticates the runner to Anthropic for that one session.
 - Locks the runner to the Anthropic account the session was issued for.
-- Reaches the workspace as an ephemeral, masked parameter that later builds don't reuse.
+- Reaches the workspace as an ephemeral workspace build secret that later builds don't reuse.
+  The workspace agent sets it as `SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET`.
+  Coder delivers the secret only to the workspace agent, never to the provisioner, so it doesn't appear in build parameters or Terraform state and can't be read back through the API.
 
 ### Step 4: Add the module to your template
 
@@ -92,7 +94,7 @@ Add the [`coder/agent-relay-claude-code`](https://registry.coder.com/modules/cod
 ```tf
 module "claude_code_runner" {
   source   = "registry.coder.com/coder/agent-relay-claude-code/coder"
-  version  = "0.5.1"
+  version  = "1.0.0"
   agent_id = coder_agent.main.id
   # Set to false and bake the CLI into your image for faster starts.
   install_cli = true
@@ -111,13 +113,22 @@ resource "coder_agent" "main" {
 ```
 
 Use the latest module version from the registry.
+
+> [!NOTE]
+> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
+> Don't set `SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET` in the template yourself.
+> If you're upgrading from 0.4.0 or earlier, upgrade Coder, then Agent Relay, then move templates to 1.0.0 one at a time.
+> Templates on 0.4.0 keep working in the meantime.
+> To roll back Coder or Agent Relay, pin templates back to 0.4.0 first.
+
 The template must also meet the [template requirements](./setup.md#step-3-prepare-a-workspace-template) that apply to every provider.
 To keep the worker from starting before your startup scripts finish, order the module after them, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 The module starts `claude self-hosted-runner --capacity 1 --exit-if-unused-min 10 --release-idle-session-min 60` in the background, so the workspace agent reaches `ready` immediately.
 A runner that never receives its session exits after 10&nbsp;minutes, and Agent Relay deletes its workspace.
-A session with no user message for 60&nbsp;minutes is released: the runner exits, Agent Relay deletes the workspace, and the developer's next message resumes the session on a new runner.
-Set the module's `release_idle_session_min` input to change the window, or set it to `0` to turn idle release off.
+A session with no user message for the pool's `idle_release_timeout`, 60&nbsp;minutes by default, is released: the runner exits, Agent Relay deletes the workspace, and the developer's next message resumes the session on a new runner.
+Set `idle_release_timeout` on the pool to change the window, as a duration in whole minutes up to `168h`, such as `30m`, or set it to `0` to turn idle release off.
+Refer to [Fields for every pool](./configuration.md#fields-for-every-pool).
 
 > [!WARNING]
 > The module runs every session with `--permission-mode bypassPermissions`, because no terminal is attached to answer approval prompts.
@@ -146,6 +157,9 @@ pools:
         region: us-east-1
       # Optional: the Coder user who owns Claude Tag channel sessions.
       # claude_tag_channel_user: <user-uuid>
+      # Optional: release a session after this long without a user message.
+      # Default 1h; 0 never releases.
+      # idle_release_timeout: 1h
 
 secretEnv:
   - name: CLAUDE_ENVIRONMENT_SECRET
@@ -169,6 +183,9 @@ claudeCodeRunnerPools:
       region: us-east-1
     # Optional: the Coder user who owns Claude Tag channel sessions.
     # claude_tag_channel_user: <user-uuid>
+    # Optional: release a session after this long without a user message.
+    # Default 1h; 0 never releases.
+    # idle_release_timeout: 1h
 ```
 
 Pass `CLAUDE_ENVIRONMENT_SECRET` to the container alongside `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`, as shown in [Install with Docker](./setup.md#docker).
@@ -176,7 +193,7 @@ Agent Relay doesn't start without the session token.
 
 </div>
 
-Agent Relay rejects a `template_parameters` entry that uses a name it sets on every build: `agent_relay_session_id`, `agent_relay_delivery_id`, `agent_relay_pool`, `agent_relay_client_platform`, `work_order`, `lock_to_account`, or `agent_relay_attempt`.
+Agent Relay rejects a `template_parameters` entry that uses a name it sets on every build: `agent_relay_session_id`, `agent_relay_delivery_id`, `agent_relay_pool`, `agent_relay_client_platform`, `agent_relay_claude_code_release_idle_session_min`, `agent_relay_credential`, `agent_relay_claude_code_lock_to_account`, or `agent_relay_attempt`.
 
 To serve Claude Tag channel sessions, refer to [Configure Slack for Agent Relay](./slack.md#claude-tag-channel-sessions).
 
@@ -312,15 +329,15 @@ Each environment maps to one template, so the template's credentials must cover 
 
 The module reports the runner's state through `agent_relay_status`:
 
-| Value             | Meaning                                                                           |
-|-------------------|-----------------------------------------------------------------------------------|
-| `pending`         | No state recorded yet.                                                            |
-| `idle`            | No work order, because someone created the workspace manually.                    |
-| `working`         | The runner is alive and hasn't picked up a session.                               |
-| `serving`         | The runner is alive and picked up a session (best effort).                        |
-| `orphaned`        | The runner process is gone without recording an exit.                             |
-| `done <exitcode>` | The runner exited with that status. `137` means it was stopped by a signal.       |
-| `failed <reason>` | The runner couldn't start, such as `runner-agent-missing` when the CLI is absent. |
+| Value             | Meaning                                                                                  |
+|-------------------|------------------------------------------------------------------------------------------|
+| `pending`         | No state recorded yet.                                                                   |
+| `idle`            | No work order: someone created the workspace manually, or started it again after a stop. |
+| `working`         | The runner is alive and hasn't picked up a session.                                      |
+| `serving`         | The runner is alive and picked up a session (best effort).                               |
+| `orphaned`        | The runner process is gone without recording an exit.                                    |
+| `done <exitcode>` | The runner exited with that status. `137` means it was stopped by a signal.              |
+| `failed <reason>` | The runner couldn't start, such as `runner-agent-missing` when the CLI is absent.        |
 
 Module logs, including the runner's `runner.log`, are in `$HOME/.coder-modules/coder/agent-relay-claude-code/logs/` in the workspace.
 They're deleted with the workspace.
@@ -330,11 +347,15 @@ They're deleted with the workspace.
 ### Agent Relay exits at startup
 
 An unlicensed deployment, an unsupported Coder version, an invalid token, or missing organization permissions.
-Also check for two pools with the same `name`, a pool missing `organization` or `template`, an unset `secret_env` variable, or a reserved `template_parameters` name.
+Also check for two pools with the same `name`, a pool missing `organization` or `template`, an unset `secret_env` variable, a reserved `template_parameters` name, or an `idle_release_timeout` without a unit or that isn't whole minutes.
 
 ### One pool is degraded and the others are fine
 
 The service account lacks `read` or `use` on the template, the template lacks `allow_user_cancel_workspace_jobs`, or the template doesn't include the module's parameters.
+A pool with a pinned `template_version` also degrades when that version is deleted, archived, or renamed.
+If the logs show `missing parameter "agent_relay_credential"`, Agent Relay is sending the credential as a build parameter, because Coder is older than 2.39 or Agent Relay hasn't restarted since you upgraded Coder.
+Upgrade Coder, then restart Agent Relay.
+After you push a fixed template version, the pool checks again within 30&nbsp;seconds and starts serving without a restart.
 
 ### Sessions fail and no workspace is created
 
@@ -368,13 +389,26 @@ Compare `coder provisioner list` with the template's tags.
 The Claude Code CLI in the image is out of date.
 Rebuild the image, or set `install_cli = true`.
 
+### A runner idles with `No work order in this build`
+
+The workspace didn't receive the session's work order.
+Agent Relay delivers the work order only on the build that it dispatches, so a relay workspace that someone started again after a stop has none.
+Delete it instead of starting it.
+If every new relay workspace shows this message, Coder is dropping the credential, which happens when Coder was downgraded below 2.39 after Agent Relay started.
+Restart Agent Relay so that it checks the Coder version again.
+
 ### A workspace is never deleted
 
 The template renamed or omitted `agent_relay_status`, or the runner reports `orphaned`.
 
+If the logs show `workspace delete keeps failing, leaving it for an operator`, three delete builds failed in a row, usually because of a Terraform destroy error.
+Agent Relay stops retrying and counts the workspace as `stuck` in `agent_relay_reaper_verdicts_total`.
+Fix the error in Coder, then delete the workspace.
+
 ### A pool stops claiming sessions
 
 The environment key expired or was rotated.
+`/readyz` reports the pool as `pool stopped until agent-relay restarts`, and `agent_relay_pool_healthy` drops to `0`.
 Look for poll errors on that pool, update the secret, then restart Agent Relay with `kubectl rollout restart deploy/coder-agent-relay`, or restart the container.
 
 ### Anthropic authentication fails
