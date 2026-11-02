@@ -1,5 +1,17 @@
 package codersdk_test
 
+import (
+	"encoding/json"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
+)
+
 // This file holds the test vectors for the syntax validator of group sync
 // settings, which checks the well-formedness conditions W1 through W8 in
 // `coderd/idpsync/SYNC_SETTINGS.md`. The tests that use these vectors follow
@@ -57,9 +69,8 @@ type findings []syntaxFinding
 
 // syntaxFinding is one finding the validator reports.
 type syntaxFinding struct {
-	// code names the condition violated. The codes match the warning codes in
-	// the relaxed-mode section of `SYNC_SETTINGS.md`.
-	code string
+	// code names the condition violated.
+	code codersdk.GroupSyncFindingCode
 	// path is a JSON Pointer (RFC 6901) to the offending element of the input.
 	// Array indexes refer to positions in the input as written.
 	path string
@@ -67,27 +78,6 @@ type syntaxFinding struct {
 
 func (decodeFails) isSyntaxWant() {}
 func (findings) isSyntaxWant()    {}
-
-// Finding codes reported by the syntax validator.
-const (
-	// codeFieldEmpty: `field` is empty while another member is nonempty (W4).
-	codeFieldEmpty = "field_empty"
-	// codeEmptyMappingKey: a member name of `mapping` is the empty string (W5).
-	codeEmptyMappingKey = "empty_mapping_key"
-	// codeNullArray: a member of `mapping` has the value `null` (W5).
-	codeNullArray = "null_array"
-	// codeNilUUID: a `mapping` array contains the nil UUID (W5).
-	codeNilUUID = "nil_uuid"
-	// codeRepeatedUUID: a `mapping` array contains a UUID that already
-	// appears earlier in the same array (W5). The nil UUID is reported as
-	// codeNilUUID at every position, never as a repeat.
-	codeRepeatedUUID = "repeated_uuid"
-	// codeFilterExcludedKey: `regex_filter` is a nonempty string that does not
-	// match a member name of `mapping` (W6).
-	codeFilterExcludedKey = "filter_excluded_key"
-	// codeLegacyMapping: `legacy_group_name_mapping` is nonempty (W8).
-	codeLegacyMapping = "legacy_mapping"
-)
 
 // syntaxVectors is the table of test vectors for the syntax validator.
 //
@@ -392,25 +382,25 @@ var syntaxVectors = []syntaxVector{
 				"eng": ["11111111-1111-4111-8111-111111111111"]
 			}
 		}`,
-		want: findings{{code: codeFieldEmpty, path: "/field"}},
+		want: findings{{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"}},
 	},
 	{
 		name:  "w4/field_empty_mapping_key_with_empty_array",
 		why:   "A `mapping` with one key is nonempty even when the key's array is empty.",
 		input: `{"field":"","mapping":{"eng":[]}}`,
-		want:  findings{{code: codeFieldEmpty, path: "/field"}},
+		want:  findings{{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"}},
 	},
 	{
 		name:  "w4/field_absent_regex_filter_set",
 		why:   "An absent `field` is empty. A nonempty `regex_filter` with it violates W4.",
 		input: `{"regex_filter":"^eng"}`,
-		want:  findings{{code: codeFieldEmpty, path: "/field"}},
+		want:  findings{{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"}},
 	},
 	{
 		name:  "w4/field_absent_auto_create_true",
 		why:   "`true` is not an empty form of `auto_create_missing_groups`.",
 		input: `{"auto_create_missing_groups":true}`,
-		want:  findings{{code: codeFieldEmpty, path: "/field"}},
+		want:  findings{{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"}},
 	},
 
 	// Group 5: violations of W5.
@@ -423,13 +413,13 @@ var syntaxVectors = []syntaxVector{
 				"": ["11111111-1111-4111-8111-111111111111"]
 			}
 		}`,
-		want: findings{{code: codeEmptyMappingKey, path: "/mapping/"}},
+		want: findings{{code: codersdk.GroupSyncFindingEmptyMappingKey, path: "/mapping/"}},
 	},
 	{
 		name:  "w5/null_array",
 		why:   "A member of `mapping` must be an array; `null` decodes without error but is not one.",
 		input: `{"field":"groups","mapping":{"eng":null}}`,
-		want:  findings{{code: codeNullArray, path: "/mapping/eng"}},
+		want:  findings{{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/eng"}},
 	},
 	{
 		name: "w5/nil_uuid",
@@ -440,7 +430,7 @@ var syntaxVectors = []syntaxVector{
 				"eng": ["00000000-0000-0000-0000-000000000000"]
 			}
 		}`,
-		want: findings{{code: codeNilUUID, path: "/mapping/eng/0"}},
+		want: findings{{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0"}},
 	},
 	{
 		name: "w5/nil_uuid_after_valid",
@@ -454,7 +444,7 @@ var syntaxVectors = []syntaxVector{
 				]
 			}
 		}`,
-		want: findings{{code: codeNilUUID, path: "/mapping/eng/1"}},
+		want: findings{{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/1"}},
 	},
 	{
 		name: "w5/nil_uuid_repeated",
@@ -469,8 +459,8 @@ var syntaxVectors = []syntaxVector{
 			}
 		}`,
 		want: findings{
-			{code: codeNilUUID, path: "/mapping/eng/0"},
-			{code: codeNilUUID, path: "/mapping/eng/1"},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/1"},
 		},
 	},
 	{
@@ -486,7 +476,7 @@ var syntaxVectors = []syntaxVector{
 				]
 			}
 		}`,
-		want: findings{{code: codeRepeatedUUID, path: "/mapping/eng/2"}},
+		want: findings{{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/2"}},
 	},
 	{
 		name: "w5/repeated_uuid_three_times",
@@ -502,8 +492,8 @@ var syntaxVectors = []syntaxVector{
 			}
 		}`,
 		want: findings{
-			{code: codeRepeatedUUID, path: "/mapping/eng/1"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/2"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/1"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/2"},
 		},
 	},
 	{
@@ -518,13 +508,13 @@ var syntaxVectors = []syntaxVector{
 				]
 			}
 		}`,
-		want: findings{{code: codeRepeatedUUID, path: "/mapping/eng/1"}},
+		want: findings{{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/1"}},
 	},
 	{
 		name:  "w5/pointer_escaping",
 		why:   "RFC 6901 escapes `~` as `~0` and `/` as `~1` in a JSON Pointer.",
 		input: `{"field":"groups","mapping":{"a/b~c":null}}`,
-		want:  findings{{code: codeNullArray, path: "/mapping/a~1b~0c"}},
+		want:  findings{{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/a~1b~0c"}},
 	},
 
 	// Group 6: violations of W6. A nonempty `regex_filter` must match every
@@ -540,7 +530,7 @@ var syntaxVectors = []syntaxVector{
 			},
 			"regex_filter": "^eng-"
 		}`,
-		want: findings{{code: codeFilterExcludedKey, path: "/mapping/ops"}},
+		want: findings{{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops"}},
 	},
 	{
 		name: "w6/filter_excludes_empty_key",
@@ -553,8 +543,8 @@ var syntaxVectors = []syntaxVector{
 			"regex_filter": "."
 		}`,
 		want: findings{
-			{code: codeEmptyMappingKey, path: "/mapping/"},
-			{code: codeFilterExcludedKey, path: "/mapping/"},
+			{code: codersdk.GroupSyncFindingEmptyMappingKey, path: "/mapping/"},
+			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/"},
 		},
 	},
 
@@ -568,7 +558,7 @@ var syntaxVectors = []syntaxVector{
 				"idp-eng": "eng"
 			}
 		}`,
-		want: findings{{code: codeLegacyMapping, path: "/legacy_group_name_mapping"}},
+		want: findings{{code: codersdk.GroupSyncFindingLegacyMapping, path: "/legacy_group_name_mapping"}},
 	},
 
 	// Group 8: texts with several findings. Findings are ordered by path, then
@@ -585,8 +575,8 @@ var syntaxVectors = []syntaxVector{
 			}
 		}`,
 		want: findings{
-			{code: codeNilUUID, path: "/mapping/a/0"},
-			{code: codeNullArray, path: "/mapping/b"},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/a/0"},
+			{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/b"},
 		},
 	},
 	{
@@ -611,16 +601,16 @@ var syntaxVectors = []syntaxVector{
 			}
 		}`,
 		want: findings{
-			{code: codeRepeatedUUID, path: "/mapping/eng/1"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/2"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/3"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/4"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/5"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/6"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/7"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/8"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/9"},
-			{code: codeRepeatedUUID, path: "/mapping/eng/10"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/1"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/2"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/3"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/4"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/5"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/6"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/7"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/8"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/9"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/10"},
 		},
 	},
 	{
@@ -634,8 +624,8 @@ var syntaxVectors = []syntaxVector{
 			"regex_filter": "^eng"
 		}`,
 		want: findings{
-			{code: codeFilterExcludedKey, path: "/mapping/ops"},
-			{code: codeNullArray, path: "/mapping/ops"},
+			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops"},
+			{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/ops"},
 		},
 	},
 	{
@@ -643,8 +633,8 @@ var syntaxVectors = []syntaxVector{
 		why:   "An empty `field` with a legacy mapping violates both W4 and W8.",
 		input: `{"field":"","legacy_group_name_mapping":{"idp-eng":"eng"}}`,
 		want: findings{
-			{code: codeFieldEmpty, path: "/field"},
-			{code: codeLegacyMapping, path: "/legacy_group_name_mapping"},
+			{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"},
+			{code: codersdk.GroupSyncFindingLegacyMapping, path: "/legacy_group_name_mapping"},
 		},
 	},
 	{
@@ -664,10 +654,159 @@ var syntaxVectors = []syntaxVector{
 			"regex_filter": "^eng-"
 		}`,
 		want: findings{
-			{code: codeRepeatedUUID, path: "/mapping/eng-a/1"},
-			{code: codeNullArray, path: "/mapping/eng-b"},
-			{code: codeNilUUID, path: "/mapping/eng-c/0"},
-			{code: codeFilterExcludedKey, path: "/mapping/ops"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng-a/1"},
+			{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/eng-b"},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng-c/0"},
+			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops"},
 		},
 	},
+}
+
+// allSyntaxCodes lists every finding code the syntax validator exports. Go
+// cannot enumerate a type's constants, so this list is kept by hand;
+// TestWellFormedFindingsCodes checks that every code in it is exercised and
+// that the vectors use no code outside it.
+var allSyntaxCodes = []codersdk.GroupSyncFindingCode{
+	codersdk.GroupSyncFindingFieldEmpty,
+	codersdk.GroupSyncFindingEmptyMappingKey,
+	codersdk.GroupSyncFindingNullArray,
+	codersdk.GroupSyncFindingNilUUID,
+	codersdk.GroupSyncFindingRepeatedUUID,
+	codersdk.GroupSyncFindingFilterExcludedKey,
+	codersdk.GroupSyncFindingLegacyMapping,
+}
+
+// decodeSyntaxInput decodes a vector's input the way `httpapi.Read` decodes a
+// request body: it reads one JSON value and ignores anything after it.
+func decodeSyntaxInput(input string) (codersdk.GroupSyncSettings, error) {
+	var s codersdk.GroupSyncSettings
+	err := json.NewDecoder(strings.NewReader(input)).Decode(&s)
+	return s, err
+}
+
+// asSyntaxFindings converts the validator's findings to the vectors'
+// representation. The result is never nil, so that it compares equal to an
+// empty findings literal.
+func asSyntaxFindings(got []codersdk.GroupSyncFinding) findings {
+	out := findings{}
+	for _, f := range got {
+		out = append(out, syntaxFinding{code: f.Code, path: f.Path})
+	}
+	return out
+}
+
+// comparePointers orders two JSON Pointers token by token. Two tokens that
+// are both array indexes compare as numbers; otherwise they compare by code
+// point. A pointer that is a prefix of another comes first.
+func comparePointers(a, b string) int {
+	at, bt := strings.Split(a, "/"), strings.Split(b, "/")
+	for i := range min(len(at), len(bt)) {
+		ai, aErr := strconv.Atoi(at[i])
+		bi, bErr := strconv.Atoi(bt[i])
+		if aErr == nil && bErr == nil {
+			if ai != bi {
+				return ai - bi
+			}
+			continue
+		}
+		if c := strings.Compare(at[i], bt[i]); c != 0 {
+			return c
+		}
+	}
+	return len(at) - len(bt)
+}
+
+// compareSyntaxFindings orders findings by path, then by code.
+func compareSyntaxFindings(a, b syntaxFinding) int {
+	if c := comparePointers(a.path, b.path); c != 0 {
+		return c
+	}
+	return strings.Compare(string(a.code), string(b.code))
+}
+
+// TestWellFormedFindingsTable checks the table of vectors itself: names are
+// unique, every vector has an expected outcome, and every list of expected
+// findings is in the documented order. A defect found here is in the table,
+// not in the validator.
+func TestWellFormedFindingsTable(t *testing.T) {
+	t.Parallel()
+
+	names := make(map[string]bool, len(syntaxVectors))
+	for _, v := range syntaxVectors {
+		require.False(t, names[v.name], "vector name %q is not unique", v.name)
+		names[v.name] = true
+		require.NotEmpty(t, v.why, "vector %q has no why", v.name)
+
+		switch want := v.want.(type) {
+		case decodeFails:
+		case findings:
+			require.True(t, slices.IsSortedFunc(want, compareSyntaxFindings),
+				"vector %q lists its findings out of order", v.name)
+		default:
+			require.Failf(t, "malformed vector", "vector %q: want must be decodeFails or findings, got %T", v.name, v.want)
+		}
+	}
+}
+
+// TestWellFormedFindingsCodes checks that the vectors use only the codes the
+// validator exports, and that every exported code is expected by at least one
+// vector.
+func TestWellFormedFindingsCodes(t *testing.T) {
+	t.Parallel()
+
+	known := make(map[codersdk.GroupSyncFindingCode]bool, len(allSyntaxCodes))
+	for _, code := range allSyntaxCodes {
+		require.False(t, known[code], "code %q is listed twice", code)
+		known[code] = true
+	}
+
+	used := make(map[codersdk.GroupSyncFindingCode]bool)
+	for _, v := range syntaxVectors {
+		want, ok := v.want.(findings)
+		if !ok {
+			continue
+		}
+		for _, f := range want {
+			require.True(t, known[f.code], "vector %q uses unknown code %q", v.name, f.code)
+			used[f.code] = true
+		}
+	}
+	for code := range known {
+		require.True(t, used[code], "no vector expects code %q", code)
+	}
+}
+
+// TestWellFormedFindings runs every vector through decoding and the syntax
+// validator. A vector that expects decodeFails must fail to decode. Any other
+// vector must decode, and the validator must report exactly its expected
+// findings, in order, on every call.
+func TestWellFormedFindings(t *testing.T) {
+	t.Parallel()
+
+	// repeats is how many times each vector is validated. `mapping` is a Go
+	// map, whose iteration order is randomized, so a validator that depends
+	// on it can pass one call by luck: about one time in k for findings under
+	// k keys. Across the two vectors with findings under several keys, three
+	// calls make a lucky pass roughly one in five hundred per test run.
+	const repeats = 3
+
+	for _, v := range syntaxVectors {
+		t.Run(v.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings, err := decodeSyntaxInput(v.input)
+			switch want := v.want.(type) {
+			case decodeFails:
+				require.Error(t, err, "input decoded, but the vector expects it not to: %s", v.why)
+			case findings:
+				require.NoError(t, err, "input failed to decode: %s", v.why)
+				for range repeats {
+					got := asSyntaxFindings(settings.WellFormedFindings())
+					require.Equal(t, want, got, v.why)
+				}
+			default:
+				require.Failf(t, "malformed vector", "want must be decodeFails or findings, got %T", v.want)
+			}
+		})
+	}
 }
