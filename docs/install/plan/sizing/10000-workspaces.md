@@ -3,7 +3,7 @@ title: "Reference architecture: up to 10,000 concurrent workspaces"
 ---
 
 This architecture supports up to 10,000 concurrent running workspaces.
-It targets enterprises with a very large global workforce, or applications that run many workspaces at the same time, such as AI agents.
+It targets enterprises with a large global workforce, or applications that run many workspaces at the same time, such as AI agents.
 
 The recommendations on this page apply to deployments with up to the following limits.
 If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./20000-workspaces.md).

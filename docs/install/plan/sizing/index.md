@@ -187,8 +187,8 @@ Choose the smallest architecture where your deployment stays within both:
 
 ##### Estimate concurrent workspaces from your users
 
-Your number of users doesn't determine the size of your deployment.
-The number of workspaces running at the same time does, and that number depends on how much your users rely on AI agents:
+Size your deployment by the number of workspaces that run at the same time.
+That number depends on how much your users rely on AI agents:
 
 - Without AI agents, most users have fewer than one running workspace at a time.
   Not everyone works at the same time, and workspaces can stop automatically when idle.
@@ -197,7 +197,7 @@ The number of workspaces running at the same time does, and that number depends 
   Several chats that run at the same time can each keep a workspace running.
   A user who relies heavily on agents can account for five or more running workspaces.
 
-Plan for the agent adoption you expect, not only for your current usage.
+When you choose an architecture, include the agent adoption you expect.
 For example, 1,000 developers who don't use agents run fewer than 1,000 concurrent workspaces, which fits the [1,200 workspace architecture](./1200-workspaces.md).
 If half of those developers each run 4 agents at the same time, the agents add 2,000 running workspaces.
 The deployment then needs the [6,000 workspace architecture](./6000-workspaces.md).
