@@ -3,20 +3,20 @@ description: Reference designs and best practices for sizing a Coder deployment,
 path: ./install/plan/sizing/index.md
 children:
   - title: Up to 600 workspaces
-    description: Hardware specifications for Coder deployments that run up to 600 concurrent workspaces, about 1,000 users.
+    description: Hardware specifications for Coder deployments that run up to 600 concurrent workspaces.
     path: ./install/plan/sizing/600-workspaces.md
   - title: Up to 1,200 workspaces
-    description: Hardware specifications for Coder deployments that run up to 1,200 concurrent workspaces, about 2,000 users.
+    description: Hardware specifications for Coder deployments that run up to 1,200 concurrent workspaces.
     path: ./install/plan/sizing/1200-workspaces.md
   - title: Up to 1,800 workspaces
-    description: Hardware specifications for Coder deployments that run up to 1,800 concurrent workspaces, about 3,000 users.
+    description: Hardware specifications for Coder deployments that run up to 1,800 concurrent workspaces.
     path: ./install/plan/sizing/1800-workspaces.md
   - title: Up to 6,000 workspaces
-    description: Hardware specifications for Coder deployments that run up to 6,000 concurrent workspaces, about 10,000 users.
+    description: Hardware specifications for Coder deployments that run up to 6,000 concurrent workspaces.
     path: ./install/plan/sizing/6000-workspaces.md
   - title: Up to 10,000 workspaces
-    description: Hardware specifications for Coder deployments that run up to 10,000 concurrent workspaces, about 16,000 users.
+    description: Hardware specifications for Coder deployments that run up to 10,000 concurrent workspaces.
     path: ./install/plan/sizing/10000-workspaces.md
   - title: Up to 20,000 workspaces
-    description: Hardware specifications for Coder deployments that run up to 20,000 concurrent workspaces, about 33,000 users.
+    description: Hardware specifications for Coder deployments that run up to 20,000 concurrent workspaces.
     path: ./install/plan/sizing/20000-workspaces.md

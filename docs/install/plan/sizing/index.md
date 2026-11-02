@@ -177,15 +177,30 @@ resource "kubernetes_deployment" "coder" {
 
 #### Node sizing
 
-Each reference architecture states 3 limits.
-Choose the smallest architecture where your deployment stays within all 3:
+Each reference architecture states 2 limits.
+Choose the smallest architecture where your deployment stays within both:
 
-- **Concurrent running workspaces**: the number of workspaces running at the same time.
+- **Concurrent running workspaces**: the number of workspaces running at the same time, including workspaces that AI agents use.
   Coder sizes each architecture by this limit.
 - **Concurrent workspace builds**: the number of workspace builds that can run at the same time.
   Each external provisioner runs one build at a time, so this limit matches the number of provisioners in the architecture.
-- **Estimated users**: a rough user count, which assumes about 60% of users have a running workspace at the same time.
-  If you know your number of concurrent running workspaces, size by that limit instead.
+
+##### Estimate concurrent workspaces from your users
+
+Your number of users doesn't determine the size of your deployment.
+The number of workspaces running at the same time does, and that number depends on how much your users rely on AI agents:
+
+- Without AI agents, most users have fewer than one running workspace at a time.
+  Not everyone works at the same time, and workspaces can stop automatically when idle.
+- With AI agents, each agent that runs code or edits files needs a running workspace.
+  A [Coder Agents chat](../../../ai-coder/agents/architecture.md#workspace-connection-lifecycle) creates or starts a workspace when it first needs one.
+  Several chats that run at the same time can each keep a workspace running.
+  A user who relies heavily on agents can account for five or more running workspaces.
+
+Plan for the agent adoption you expect, not only for your current usage.
+For example, 1,000 developers who don't use agents run fewer than 1,000 concurrent workspaces, which fits the [1,200 workspace architecture](./1200-workspaces.md).
+If half of those developers each run 4 agents at the same time, the agents add 2,000 running workspaces.
+The deployment then needs the [6,000 workspace architecture](./6000-workspaces.md).
 
 Coder derives these architectures from [scale tests](../../validate/scale-testing.md) that run each load scenario with a safety margin.
 Your actual load depends on how your users work, for example whether they rely on prebuilds or create workspaces from automated systems.

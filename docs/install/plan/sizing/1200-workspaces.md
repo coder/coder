@@ -2,16 +2,16 @@
 title: "Reference architecture: up to 1,200 concurrent workspaces"
 ---
 
-This architecture supports up to 1,200 concurrent running workspaces, which is about 2,000 users.
+This architecture supports up to 1,200 concurrent running workspaces.
 It suits mid-sized companies with a growing user base, or universities expanding access to more students.
 
 The recommendations on this page apply to deployments with up to the following limits.
 If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./1800-workspaces.md).
 To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
-|------------------------------:|----------------------------:|----------------:|
-|                         1,200 |                         120 |           2,000 |
+| Concurrent running workspaces | Concurrent workspace builds |
+|------------------------------:|----------------------------:|
+|                         1,200 |                         120 |
 
 **Observability**:
 Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
