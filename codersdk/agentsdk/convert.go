@@ -44,19 +44,13 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace ID: %w", err)
 	}
-	workspaceBuildID := uuid.Nil
-	if bid := manifest.GetWorkspaceBuildId(); len(bid) > 0 {
-		workspaceBuildID, err = uuid.FromBytes(bid)
-		if err != nil {
-			return Manifest{}, xerrors.Errorf("error converting workspace build ID: %w", err)
-		}
+	workspaceBuildID, err := uuid.FromBytes(manifest.WorkspaceBuildId)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting workspace build ID: %w", err)
 	}
-	templateID := uuid.Nil
-	if tid := manifest.GetTemplateId(); len(tid) > 0 {
-		templateID, err = uuid.FromBytes(tid)
-		if err != nil {
-			return Manifest{}, xerrors.Errorf("error converting template ID: %w", err)
-		}
+	templateID, err := uuid.FromBytes(manifest.TemplateId)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting template ID: %w", err)
 	}
 	devcontainers, err := DevcontainersFromProto(manifest.Devcontainers)
 	if err != nil {
