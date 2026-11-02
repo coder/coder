@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -49,13 +47,8 @@ func DefaultComputerUseDesktopGeometry(provider codersdk.ChatComputerUseProvider
 	}
 }
 
-// computerUseToolName is the name every computer use provider tool and its
-// runner share.
-const computerUseToolName = "computer"
-
-// anthropicHaltedActionText answers every Anthropic computer call that follows
-// a failed one in the same step. The model batches actions that assume the
-// earlier ones succeeded, so running them could act on the wrong screen.
+// anthropicHaltedActionText answers the Anthropic computer calls of a step
+// that follow a failed one.
 const anthropicHaltedActionText = "Not executed: an earlier computer action in this turn failed."
 
 // anthropicMaxDurationSeconds caps Anthropic wait and hold_key durations, which
@@ -79,23 +72,6 @@ type computerUseTool struct {
 	providerOptions      fantasy.ProviderOptions
 	clock                quartz.Clock
 	logger               slog.Logger
-
-	// step tracks the computer calls of the current step so Anthropic
-	// batches halt after a failure and end with a screenshot.
-	stepMu sync.Mutex
-	step   computerUseStep
-}
-
-// computerUseStep is the per-step state of Anthropic computer calls.
-type computerUseStep struct {
-	// rejected marks, in call order, the step's computer calls that were
-	// rejected before they could run, such as for malformed input. Those
-	// calls never reach Run.
-	rejected []bool
-	// next indexes rejected at the next call to run.
-	next int
-	// failed is set once a computer call in the step fails or is rejected.
-	failed bool
 }
 
 // NewComputerUseTool creates a provider-aware computer use AgentTool that
@@ -126,7 +102,7 @@ func NewComputerUseTool(
 
 func (*computerUseTool) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{
-		Name: computerUseToolName,
+		Name: "computer",
 		Description: "Control the desktop: take screenshots, move the mouse, click, type, and scroll. " +
 			"Use an explicit screenshot action when you want to share a screenshot with the user; " +
 			"those screenshots are also attached to the chat.",
@@ -183,80 +159,20 @@ func (t *computerUseTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 // because they act on one shared desktop.
 func (*computerUseTool) SerialToolCalls() bool { return true }
 
-// ObserveStepToolCalls starts a step: it counts the step's computer calls so
-// the runner knows which call is the last one, and clears the failure state of
-// the previous step.
-func (t *computerUseTool) ObserveStepToolCalls(names []string) {
-	calls := 0
-	for _, name := range names {
-		if name == computerUseToolName {
-			calls++
-		}
+// HaltedToolCallError halts the later Anthropic computer calls of a step after
+// one fails. The model batches actions that assume the earlier ones succeeded,
+// so running them could act on the wrong screen.
+func (t *computerUseTool) HaltedToolCallError() (string, bool) {
+	if DefaultComputerUseProvider(t.provider) != codersdk.ChatComputerUseProviderAnthropic {
+		return "", false
 	}
-	t.stepMu.Lock()
-	defer t.stepMu.Unlock()
-	t.step = computerUseStep{rejected: make([]bool, calls)}
-}
-
-// ObserveStepToolResults marks the step's computer calls that were rejected
-// before they could run. The chat loop reports those calls as errored, and
-// reports computer calls that have not run yet as not errored.
-func (t *computerUseTool) ObserveStepToolResults(names []string, errored []bool) {
-	t.stepMu.Lock()
-	defer t.stepMu.Unlock()
-	rejected := t.step.rejected[:0]
-	for i, name := range names {
-		if name == computerUseToolName {
-			rejected = append(rejected, errored[i])
-		}
-	}
-	t.step.rejected = rejected
-}
-
-// beginStepCall claims the next computer call of the step. last reports
-// whether no other computer call runs after it in the step; a call outside an
-// observed step counts as the last. halted reports whether an earlier call in
-// the step failed or was rejected.
-func (t *computerUseTool) beginStepCall() (last, halted bool) {
-	t.stepMu.Lock()
-	defer t.stepMu.Unlock()
-	step := &t.step
-	for step.next < len(step.rejected) && step.rejected[step.next] {
-		step.failed = true
-		step.next++
-	}
-	if step.next < len(step.rejected) {
-		step.next++
-	}
-	return !slices.Contains(step.rejected[step.next:], false), step.failed
-}
-
-// endStepCall records the outcome of a computer call. The last call of a step
-// clears the failure state so it cannot leak into a later step.
-func (t *computerUseTool) endStepCall(last, failed bool) {
-	t.stepMu.Lock()
-	defer t.stepMu.Unlock()
-	t.step.failed = !last && (t.step.failed || failed)
+	return anthropicHaltedActionText, true
 }
 
 func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	switch DefaultComputerUseProvider(t.provider) {
 	case codersdk.ChatComputerUseProviderAnthropic:
-		last, halted := t.beginStepCall()
-		if halted {
-			t.endStepCall(last, true)
-			return fantasy.NewTextErrorResponse(anthropicHaltedActionText), nil
-		}
-		// The toolset answers actions with text and attaches a screenshot
-		// only to the last result of a batch. Older versions screenshot
-		// after every action.
-		result := anthropicResultScreenshot
-		if t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801 && !last {
-			result = anthropicResultText
-		}
-		resp, err := t.runAnthropicComputerUse(ctx, call, result)
-		t.endStepCall(last, err != nil || resp.IsError)
-		return resp, err
+		return t.runAnthropicComputerUse(ctx, call)
 	case codersdk.ChatComputerUseProviderOpenAI:
 		return t.runOpenAIComputerUse(ctx, call)
 	default:
@@ -268,23 +184,12 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	}
 }
 
-// anthropicActionResult selects what a successful Anthropic action other
-// than screenshot returns to the model.
-type anthropicActionResult int
-
-const (
-	// anthropicResultScreenshot returns a screenshot taken after the action.
-	anthropicResultScreenshot anthropicActionResult = iota
-	// anthropicResultText returns the action's text output.
-	anthropicResultText
-)
-
-// runAnthropicComputerUse runs one Anthropic computer action and answers it
-// as result selects.
+// runAnthropicComputerUse runs one Anthropic computer action. The toolset
+// answers actions other than screenshot with text, and the model asks for a
+// screenshot when it needs one. Older versions screenshot after every action.
 func (t *computerUseTool) runAnthropicComputerUse(
 	ctx context.Context,
 	call fantasy.ToolCall,
-	result anthropicActionResult,
 ) (fantasy.ToolResponse, error) {
 	input, err := fantasyanthropic.ParseComputerUseInput(call.Input)
 	if err != nil {
@@ -302,25 +207,16 @@ func (t *computerUseTool) runAnthropicComputerUse(
 
 	declaredWidth, declaredHeight := t.declaredActionDimensions()
 
-	switch {
-	case input.Action == fantasyanthropic.ActionScreenshot:
+	textResult := t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801
+	switch input.Action {
+	case fantasyanthropic.ActionScreenshot:
 		return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)
-	case input.Action == fantasyanthropic.ActionWait:
+	case fantasyanthropic.ActionWait:
 		t.wait(ctx, anthropicDurationMillis(input.Duration))
-		if result == anthropicResultText {
+		if textResult {
 			return fantasy.NewTextResponse("wait action performed"), nil
 		}
 		return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
-	case t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801 && input.Action == "cursor_position":
-		// The position is the answer, even for the last call of a batch.
-		// The agent reports it in declared coordinates, which are the
-		// toolset's screenshot coordinates.
-		action := t.desktopAction(string(input.Action), declaredWidth, declaredHeight)
-		actionResp, errResp, done := t.executeDesktopAction(ctx, conn, action)
-		if done {
-			return errResp, nil
-		}
-		return fantasy.NewTextResponse(actionResp.Output), nil
 	}
 
 	// Build the action request.
@@ -368,7 +264,9 @@ func (t *computerUseTool) runAnthropicComputerUse(
 		}
 	}
 
-	if result == anthropicResultText {
+	if textResult {
+		// The agent reports cursor_position in declared coordinates, which
+		// are the toolset's screenshot coordinates.
 		output := actionResp.Output
 		if output == "" {
 			output = fmt.Sprintf("%s action performed", input.Action)

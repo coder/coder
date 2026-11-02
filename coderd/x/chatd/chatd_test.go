@@ -10326,14 +10326,14 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			"computer use subagent should NOT get the advisor guidance")
 	}
 
-	// 7. Verify both batch actions ran in order and only the last one
-	//    was followed by a screenshot.
+	// 7. Verify both batch actions ran in order and no screenshot
+	//    followed them.
 	desktopMu.Lock()
 	actions := append([]string(nil), desktopActions...)
 	desktopMu.Unlock()
 	clickIndex := slices.Index(actions, "left_click")
 	require.GreaterOrEqual(t, clickIndex, 0, "desktop actions: %v", actions)
-	require.Equal(t, []string{"left_click", "type", "screenshot"}, actions[clickIndex:])
+	require.Equal(t, []string{"left_click", "type"}, actions[clickIndex:])
 
 	// 8. Verify the follow-up request replays both member calls and
 	//    their results as toolset members.
@@ -10380,9 +10380,10 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		require.Contains(t, results, id)
 		require.Equal(t, "computer", results[id].ToolsetName, "tool_result %s", id)
 	}
-	require.Contains(t, string(results["toolu_click"].Content), "left_click action performed")
-	require.NotContains(t, string(results["toolu_click"].Content), `"image"`)
-	require.Contains(t, string(results["toolu_type"].Content), `"image"`)
+	for id, action := range map[string]string{"toolu_click": "left_click", "toolu_type": "type"} {
+		require.Contains(t, string(results[id].Content), action+" action performed")
+		require.NotContains(t, string(results[id].Content), `"image"`)
+	}
 
 	// 9. Verify the child chat has Mode = computer_use in
 	//    the DB.

@@ -985,8 +985,9 @@ func TestDecisionObservesToolCallsAnsweredBeforeExecution(t *testing.T) {
 
 	// A pre_tool_use hook denied the first computer call at admission, so
 	// its result committed with the assistant step and only the last call is
-	// left to run. Step observers still see the denied call in its place,
-	// while the pending client call stays out.
+	// left to run. The chat loop still sees the denied call in its place,
+	// so it can halt the later computer call, while the pending client call
+	// stays out.
 	messages := []database.ChatMessage{
 		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("fill in the form")),
 		dbMessage(t, 2, database.ChatMessageRoleAssistant, false,

@@ -155,7 +155,9 @@ type ExecuteLocalToolsOptions struct {
 	// ObservedToolCalls optionally carries the step's full assistant
 	// tool-call batch, including calls denied before execution, so
 	// step observers account for denied siblings that derivation will
-	// still count. Defaults to ToolCalls.
+	// still count, and halting tools skip the calls after a denied
+	// call. Calls missing from ToolCalls count as denied. Defaults to
+	// ToolCalls.
 	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
@@ -1328,14 +1330,34 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 	}
 	b.notifyStepToolResultObservers(localToolCalls, observed, settled)
 
+	// failed holds the halting tools with a call that failed in this batch.
+	failed := make(map[string]bool)
+	afterRejection := b.callsAfterRejection(localToolCalls, observed)
 	for _, i := range serialIndexes {
+		tc := localToolCalls[i]
+		name := b.resolve(tc.ToolName)
+		haltedText, halts := b.haltedCallError(name)
+		if halts && (failed[name] || afterRejection[tc.ToolCallID]) {
+			// The call never runs, so it records no start and is not billed.
+			executions[i].content = fantasy.ToolResultContent{
+				ToolCallID: tc.ToolCallID,
+				ToolName:   tc.ToolName,
+				Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(haltedText)},
+			}
+			executions[i].interval.End = clockNow(b.opts.Clock)
+			recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, executions[i].content)
+			continue
+		}
 		// Stamp serial calls at launch, not batch start.
 		startedAt := clockNow(b.opts.Clock)
 		executions[i].interval.Start = startedAt
 		if recorder != nil {
 			recorder.RecordStart(i, startedAt)
 		}
-		runCall(i, localToolCalls[i])
+		runCall(i, tc)
+		if _, isErr := executions[i].content.Result.(fantasy.ToolResultOutputContentError); halts && isErr {
+			failed[name] = true
+		}
 	}
 
 	return executions
@@ -1588,6 +1610,48 @@ func isToolActive(name string, activeTools []string) bool {
 // serialToolCaller is implemented by tools whose calls within one step
 // must execute in tool-call order because they claim from shared state.
 type serialToolCaller interface{ SerialToolCalls() bool }
+
+// haltingToolCaller is implemented by serial tools whose calls in one step
+// build on each other, for example computer actions that the model plans
+// against one screen. After a call of the tool fails, or is rejected before
+// it runs, no later call of the tool runs in the step. Each later call gets
+// an error result with the returned text. ok is false if the tool does not
+// halt.
+type haltingToolCaller interface {
+	HaltedToolCallError() (text string, ok bool)
+}
+
+// haltedCallError returns the error text for the calls of the tool name that
+// follow a failed call, and false if the tool does not halt.
+func (b *toolBatch) haltedCallError(name string) (string, bool) {
+	halting, ok := b.tools[name].(haltingToolCaller)
+	if !ok {
+		return "", false
+	}
+	return halting.HaltedToolCallError()
+}
+
+// callsAfterRejection returns the IDs of the calls that follow, in observed
+// order, a rejected call of the same tool. Observed calls missing from calls
+// were rejected before execution.
+func (b *toolBatch) callsAfterRejection(calls, observed []fantasy.ToolCallContent) map[string]bool {
+	executed := make(map[string]bool, len(calls))
+	for _, tc := range calls {
+		executed[tc.ToolCallID] = true
+	}
+	rejectedTools := make(map[string]bool)
+	after := make(map[string]bool)
+	for _, tc := range observed {
+		name := b.resolve(tc.ToolName)
+		switch {
+		case !executed[tc.ToolCallID]:
+			rejectedTools[name] = true
+		case rejectedTools[name]:
+			after[tc.ToolCallID] = true
+		}
+	}
+	return after
+}
 
 // stepToolCallObserver is implemented by tools that need to see every
 // tool-call name in the step before any call executes, for example so

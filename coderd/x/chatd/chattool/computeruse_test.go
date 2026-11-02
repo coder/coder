@@ -492,9 +492,9 @@ func TestComputerUseTool_Run_AnthropicHoldKeyDurationSeconds(t *testing.T) {
 	}
 }
 
-// The computer_toolset_20260801 toolset answers actions with text and sends a
-// screenshot only after the step's last computer call; older versions
-// screenshot after every action.
+// The computer_toolset_20260801 toolset answers actions other than screenshot
+// with text, and the model asks for a screenshot when it needs one. Older
+// versions screenshot after every action.
 func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 	t.Parallel()
 
@@ -505,29 +505,20 @@ func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		gomock.InOrder(
 			expectActionOutput(mockConn, "left_click", "left_click action performed"),
-			expectActionOutput(mockConn, "type", "type action performed"),
-			expectScreenshot(mockConn),
+			expectActionOutput(mockConn, "type", ""),
 			expectActionOutput(mockConn, "cursor_position", "x=10,y=20"),
 		)
 
 		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
-		observeStep(t, tool, "computer", "read_file", "computer")
-
-		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"left_click","coordinate":[100,200]}`))
-		require.NoError(t, err)
-		assert.Equal(t, fantasy.NewTextResponse("left_click action performed"), resp)
-
-		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"type","text":"hello"}`))
-		require.NoError(t, err)
-		assert.Equal(t, "image", resp.Type)
-		assert.False(t, resp.IsError)
-
-		// cursor_position answers with the position even as the last
-		// call of a step.
-		observeStep(t, tool, "computer")
-		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"cursor_position"}`))
-		require.NoError(t, err)
-		assert.Equal(t, fantasy.NewTextResponse("x=10,y=20"), resp)
+		for _, tc := range []struct{ input, want string }{
+			{input: `{"action":"left_click","coordinate":[100,200]}`, want: "left_click action performed"},
+			{input: `{"action":"type","text":"hello"}`, want: "type action performed"},
+			{input: `{"action":"cursor_position"}`, want: "x=10,y=20"},
+		} {
+			resp, err := tool.Run(context.Background(), anthropicComputerUseCall(tc.input))
+			require.NoError(t, err)
+			assert.Equal(t, fantasy.NewTextResponse(tc.want), resp, tc.input)
+		}
 	})
 
 	t.Run("ToolsetWait", func(t *testing.T) {
@@ -536,11 +527,10 @@ func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		// A wait before the step's last call takes no screenshot. The
-		// screenshot is answered so a regression fails on the result
+		// The screenshot is answered so a regression fails on the result
 		// instead of stalling the tool goroutine.
 		expectScreenshot(mockConn).Do(func(context.Context, workspacesdk.DesktopAction) {
-			t.Error("wait before the last call should not take a screenshot")
+			t.Error("toolset wait should not take a screenshot")
 		}).AnyTimes()
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().NewTimer("computeruse", "wait")
@@ -558,7 +548,6 @@ func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 			mClock,
 			slogtest.Make(t, nil),
 		)
-		observeStep(t, tool, "computer", "computer")
 
 		respCh := make(chan fantasy.ToolResponse, 1)
 		go func() {
@@ -584,8 +573,6 @@ func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 		)
 
 		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUse20251124, mockConn)
-		observeStep(t, tool, "computer", "computer")
-
 		for _, input := range []string{
 			`{"action":"left_click","coordinate":[100,200]}`,
 			`{"action":"type","text":"hello"}`,
@@ -597,55 +584,18 @@ func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 	})
 }
 
-// Later computer calls in a step act on the screen the failed call should
-// have produced, so they must not touch the desktop.
-func TestComputerUseTool_Run_AnthropicHaltsStepAfterFailure(t *testing.T) {
+// The model plans a step's Anthropic computer calls against one screen, so
+// after a call fails or is rejected before it runs, the later computer calls
+// of the step must not touch the desktop.
+func TestComputerUseTool_AnthropicHaltsStep(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	gomock.InOrder(
-		mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
-				assert.Equal(t, "key", action.Action)
-				return workspacesdk.DesktopActionResponse{}, xerrors.New("unknown key")
-			}),
-		expectScreenshot(mockConn),
-	)
-
-	tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
-	observeStep(t, tool, "computer", "computer", "computer")
-
-	resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"NotAKey"}`))
-	require.NoError(t, err)
-	assert.True(t, resp.IsError)
-	assert.Contains(t, resp.Content, "unknown key")
-
-	for _, input := range []string{
-		`{"action":"type","text":"hello"}`,
-		`{"action":"screenshot"}`,
-	} {
-		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(input))
-		require.NoError(t, err)
-		assert.Equal(t, fantasy.NewTextErrorResponse("Not executed: an earlier computer action in this turn failed."), resp, input)
-	}
-
-	// The failure does not carry into the next step.
-	observeStep(t, tool, "computer")
-	resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"screenshot"}`))
-	require.NoError(t, err)
-	assert.Equal(t, "image", resp.Type)
-	assert.False(t, resp.IsError)
-}
-
-// A computer call rejected before it runs, such as for malformed input, never
-// reaches the tool, yet it fails the step like a call that ran.
-func TestComputerUseTool_AnthropicStepWithRejectedCall(t *testing.T) {
-	t.Parallel()
-
+	const haltedText = "Not executed: an earlier computer action in this turn failed."
 	rejected := fantasy.ToolCallContent{ToolCallID: "toolu_rejected", ToolName: "computer", Input: `{"action":"left_click",`}
+	key := fantasy.ToolCallContent{ToolCallID: "toolu_key", ToolName: "computer", Input: `{"action":"key","text":"NotAKey"}`}
 	click := fantasy.ToolCallContent{ToolCallID: "toolu_click", ToolName: "computer", Input: `{"action":"left_click","coordinate":[100,200]}`}
 	typeText := fantasy.ToolCallContent{ToolCallID: "toolu_type", ToolName: "computer", Input: `{"action":"type","text":"hello"}`}
+	screenshot := fantasy.ToolCallContent{ToolCallID: "toolu_screenshot", ToolName: "computer", Input: `{"action":"screenshot"}`}
 
 	// runStep runs the executable calls as chatd does after it rejects the
 	// other observed calls.
@@ -667,34 +617,53 @@ func TestComputerUseTool_AnthropicStepWithRejectedCall(t *testing.T) {
 		require.Len(t, results, len(executed))
 		return results
 	}
+	requireHalted := func(t *testing.T, result fantasy.ToolResultContent) {
+		t.Helper()
+		halted, ok := result.Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok, "%T", result.Result)
+		require.EqualError(t, halted.Error, haltedText, result.ToolCallID)
+	}
 
-	t.Run("HaltsLaterCalls", func(t *testing.T) {
+	t.Run("AfterFailure", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+				assert.Equal(t, "key", action.Action)
+				return workspacesdk.DesktopActionResponse{}, xerrors.New("unknown key")
+			})
+
+		calls := []fantasy.ToolCallContent{key, typeText, screenshot}
+		results := runStep(t, mockConn, calls, calls)
+		failed, ok := results[0].Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok, "%T", results[0].Result)
+		require.ErrorContains(t, failed.Error, "unknown key")
+		for _, result := range results[1:] {
+			requireHalted(t, result)
+		}
+	})
+
+	t.Run("AfterRejectedCall", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 		results := runStep(t, mockConn, []fantasy.ToolCallContent{rejected, typeText}, []fantasy.ToolCallContent{typeText})
-		halted, ok := results[0].Result.(fantasy.ToolResultOutputContentError)
-		require.True(t, ok, "%T", results[0].Result)
-		require.EqualError(t, halted.Error, "Not executed: an earlier computer action in this turn failed.")
+		requireHalted(t, results[0])
 	})
 
-	t.Run("LastRunCallTakesScreenshot", func(t *testing.T) {
+	t.Run("EarlierCallsRun", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		// The screenshot expectation is the assertion: the last call that
-		// runs attaches the batch's screenshot.
-		gomock.InOrder(
-			expectActionOutput(mockConn, "left_click", "left_click action performed"),
-			expectScreenshot(mockConn),
-		)
+		expectActionOutput(mockConn, "left_click", "left_click action performed")
 
 		results := runStep(t, mockConn, []fantasy.ToolCallContent{click, rejected}, []fantasy.ToolCallContent{click})
-		_, isError := results[0].Result.(fantasy.ToolResultOutputContentError)
-		require.False(t, isError, "%v", results[0].Result)
+		require.Equal(t, fantasy.ToolResultOutputContentText{Text: "left_click action performed"}, results[0].Result)
 	})
 }
 
@@ -706,21 +675,18 @@ func TestComputerUseTool_Run_AnthropicKeyRepeat(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		gomock.InOrder(
-			mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
-					assert.Equal(t, "key", action.Action)
-					require.NotNil(t, action.Text)
-					assert.Equal(t, "Down", *action.Text)
-					return workspacesdk.DesktopActionResponse{Output: "key action performed"}, nil
-				}).Times(3),
-			expectScreenshot(mockConn),
-		)
+		mockConn.EXPECT().ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+				assert.Equal(t, "key", action.Action)
+				require.NotNil(t, action.Text)
+				assert.Equal(t, "Down", *action.Text)
+				return workspacesdk.DesktopActionResponse{Output: "key action performed"}, nil
+			}).Times(3)
 
 		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
 		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"Down","repeat":3}`))
 		require.NoError(t, err)
-		assert.Equal(t, "image", resp.Type)
+		assert.Equal(t, fantasy.NewTextResponse("key action performed"), resp)
 	})
 
 	t.Run("RejectsOutOfRange", func(t *testing.T) {
@@ -756,15 +722,6 @@ func newAnthropicComputerUseTool(t testing.TB, version fantasyanthropic.Computer
 
 func anthropicComputerUseCall(input string) fantasy.ToolCall {
 	return fantasy.ToolCall{ID: "anthropic-call", Name: "computer", Input: input}
-}
-
-// observeStep announces a step's tool calls as the chat loop does before
-// running them.
-func observeStep(t testing.TB, tool fantasy.AgentTool, names ...string) {
-	t.Helper()
-	observer, ok := tool.(interface{ ObserveStepToolCalls(names []string) })
-	require.True(t, ok, "computer use tool should observe step tool calls")
-	observer.ObserveStepToolCalls(names)
 }
 
 // expectDesktopAction expects one desktop action and answers it with resp.

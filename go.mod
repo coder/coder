@@ -130,8 +130,9 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
 //    the toolset tool definition, ComputerUseToolVersionForModel, and
 //    mapping of toolset member calls to and from the computer tool.
-// See: https://github.com/coder/fantasy/commits/a35507f3c47d
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261029210138-a35507f3c47d
+//    Since coder/fantasy#82, unknown model IDs take computer_20251124.
+// See: https://github.com/coder/fantasy/commits/7882f906a89a
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261102054736-7882f906a89a
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
