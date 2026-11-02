@@ -276,6 +276,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
+	# Generated from provisioner/terraform/terraform_SHA256SUMS by make gen.
 	TERRAFORM_VERSION="1.16.7"
 
 	if [ "${TRACE-}" ]; then
@@ -613,9 +614,11 @@ with_terraform() {
 }
 
 # terraform_sha256sums prints the SHA256 checksums of the Terraform release
-# zips that with_terraform can download, in SHA256SUMS format. They are copied
-# from HashiCorp's GPG-signed terraform_${TERRAFORM_VERSION}_SHA256SUMS and
-# must be updated together with TERRAFORM_VERSION.
+# zips that with_terraform can download, in SHA256SUMS format.
+#
+# Generated from provisioner/terraform/terraform_SHA256SUMS by
+# scripts/gen_install_sh_terraform.sh (make gen). Do not edit by hand.
+# BEGIN GENERATED: terraform_sha256sums
 terraform_sha256sums() {
 	cat <<-EOF
 		d17d1053bcbde650a8a919b7218ef2886eac76c474306e9ecd8bd64427408741  terraform_1.16.7_darwin_amd64.zip
@@ -630,6 +633,7 @@ terraform_sha256sums() {
 		eb520f390d06d75a24f6861db14ea03227e2dcde5c24215dedcff710eb705384  terraform_1.16.7_linux_s390x.zip
 	EOF
 }
+# END GENERATED: terraform_sha256sums
 
 # sha256_file prints the SHA256 checksum of a file.
 sha256_file() {
