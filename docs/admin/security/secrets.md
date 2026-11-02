@@ -20,7 +20,7 @@ Often, this workflow is simply:
 1. Your users write them to a persistent file after they've built their workspace
 
 > [!WARNING]
-> [Template parameters](../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
+> [Template parameters](../../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
 > Coder shows parameter values in cleartext throughout the product.
 > Assume anyone with view access to a workspace can also see its parameters.
 
