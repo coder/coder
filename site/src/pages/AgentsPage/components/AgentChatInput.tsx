@@ -1452,7 +1452,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<span
 						key={highlightKey}
 						aria-hidden="true"
-						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-composer-highlight"
+						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-flash"
 					/>
 				)}
 				{warning && (

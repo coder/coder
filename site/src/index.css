@@ -164,7 +164,8 @@
 		}
 	}
 
-	@keyframes composer-highlight {
+	/* Ends at the element's base opacity, so pair it with opacity-0. */
+	@keyframes flash {
 		0% {
 			opacity: 0;
 		}
@@ -188,7 +189,7 @@
 		calc(var(--spinner-leaf-count) * 0.1s) ease-in-out
 		calc(var(--spinner-leaf-index) * -0.1s) infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
-	--animate-composer-highlight: composer-highlight 1.4s ease-out;
+	--animate-flash: flash 1.4s ease-out;
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
 	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s

@@ -174,6 +174,21 @@ describe("AgentChatInput", () => {
 		);
 	});
 
+	it("focuses the editor each time the highlight key changes", async () => {
+		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
+		const editor = screen.getByRole("textbox", { name: "Chat message" });
+
+		for (const highlightKey of ["first-click", "second-click"]) {
+			act(() => editor.blur());
+			rerender(
+				<AppProviders>
+					<AgentChatInput {...inputProps} highlightKey={highlightKey} />
+				</AppProviders>,
+			);
+			await waitFor(() => expect(editor).toHaveFocus());
+		}
+	});
+
 	it("accepts drafts without sending while submission is disabled", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
