@@ -5286,6 +5286,8 @@ CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING 
 
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
+CREATE INDEX idx_notification_messages_queued_created_at ON notification_messages USING btree (created_at) WHERE (status = ANY (ARRAY['pending'::notification_message_status, 'temporary_failure'::notification_message_status, 'leased'::notification_message_status]));
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_disabled_skills_skill_id ON organization_member_disabled_skills USING btree (skill_id);
@@ -5299,6 +5301,10 @@ CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lo
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
 COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
+
+CREATE INDEX idx_provisioner_jobs_incomplete ON provisioner_jobs USING btree (created_at) WHERE (completed_at IS NULL);
+
+CREATE INDEX idx_provisioner_jobs_organization_id_created_at ON provisioner_jobs USING btree (organization_id, created_at DESC);
 
 CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
 
