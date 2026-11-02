@@ -4048,40 +4048,54 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
-		mClock := quartz.NewMock(t)
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
-		ctx := chatdTestContext(t)
-		user, org, model := seedInternalChatDeps(t, db)
+		for _, tc := range []struct {
+			name    string
+			timeout time.Duration
+			want    time.Duration
+		}{
+			{name: "Explicit", timeout: time.Second, want: time.Second},
+			{name: "ZeroUsesDefault", timeout: 0, want: 5 * time.Minute},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+				db, ps := dbtestutil.NewDB(t)
+				mClock := quartz.NewMock(t)
+				server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
+				ctx := chatdTestContext(t)
+				user, org, model := seedInternalChatDeps(t, db)
 
-		// Trap the timeout timer to know when the function
-		// has entered its poll loop.
-		timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+				parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-		type awaitResult struct {
-			err error
+				// Trap the timeout timer to know when the function
+				// has entered its poll loop.
+				timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+
+				resultCh := make(chan error, 1)
+				go func() {
+					_, _, err := server.awaitSubagentCompletion(
+						ctx, parent.ID, child.ID, tc.timeout,
+					)
+					resultCh <- err
+				}()
+
+				call := timerTrap.MustWait(ctx)
+				require.Equal(t, tc.want, call.Duration)
+				call.MustRelease(ctx)
+				timerTrap.Close()
+
+				// Advance to the timeout. With pubsub, the fallback
+				// poll ticks every 5s, and the mock clock cannot
+				// advance past a tick in one step.
+				for left := tc.want; left > 0; left -= subagentAwaitFallbackPoll {
+					mClock.Advance(min(left, subagentAwaitFallbackPoll)).MustWait(ctx)
+				}
+
+				err := testutil.RequireReceive(ctx, t, resultCh)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "timed out waiting for delegated subagent completion")
+			})
 		}
-		resultCh := make(chan awaitResult, 1)
-		go func() {
-			_, _, err := server.awaitSubagentCompletion(
-				ctx, parent.ID, child.ID, time.Second,
-			)
-			resultCh <- awaitResult{err}
-		}()
-
-		// Wait for the timer to be created, release it.
-		timerTrap.MustWait(ctx).MustRelease(ctx)
-		timerTrap.Close()
-
-		// Advance to the timeout. With pubsub, the fallback
-		// poll is at 5s, so the 1s timer fires first.
-		mClock.Advance(time.Second).MustWait(ctx)
-
-		result := testutil.RequireReceive(ctx, t, resultCh)
-		require.Error(t, result.err)
-		assert.Contains(t, result.err.Error(), "timed out waiting for delegated subagent completion")
 	})
 
 	t.Run("ContextCanceled", func(t *testing.T) {
@@ -4146,24 +4160,6 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		)
 		require.ErrorIs(t, shortCtx.Err(), context.DeadlineExceeded)
 		require.True(t, database.IsQueryCanceledError(err))
-	})
-
-	t.Run("ZeroTimeoutUsesDefault", func(t *testing.T) {
-		t.Parallel()
-		ctx := chatdTestContext(t)
-
-		parent, child := createParentChildChats(ctx, t, server, user, org, model)
-
-		// Pre-complete the child so it returns immediately.
-		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
-		insertAssistantMessage(t, db, child.ID, model.ID, "zero timeout ok")
-
-		gotChat, report, err := server.awaitSubagentCompletion(
-			ctx, parent.ID, child.ID, 0,
-		)
-		require.NoError(t, err)
-		assert.Equal(t, child.ID, gotChat.ID)
-		assert.Equal(t, "zero timeout ok", report)
 	})
 }
 
