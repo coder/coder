@@ -13,10 +13,10 @@
 # release branch checkout.
 #
 # On branches with provisioner/terraform/terraform_SHA256SUMS, that file is the
-# single source for the checksums scripts/Dockerfile.base and install.sh verify:
-# it's replaced with the verified SHA256SUMS and install.sh is regenerated from
-# it with the branch's scripts/gen_install_sh_terraform.sh. Older branches pin
-# the version in install.sh and Dockerfile.base directly.
+# single source for the version and checksums scripts/Dockerfile.base and
+# install.sh use, so it's replaced with the verified SHA256SUMS and neither of
+# them is edited. Older branches pin the version in install.sh and
+# Dockerfile.base directly.
 
 set -euo pipefail
 
@@ -152,14 +152,9 @@ update() {
 }
 
 checksum_file=provisioner/terraform/terraform_SHA256SUMS
-install_sh_gen=scripts/gen_install_sh_terraform.sh
 if [[ -f "$checksum_file" ]]; then
-	# The generator reads the version from install.go, which is already updated.
-	[[ -x "$install_sh_gen" ]] || error "$checksum_file exists but $install_sh_gen doesn't"
 	cat "$sums" >"$checksum_file"
 	changed+=("$checksum_file")
-	"./$install_sh_gen"
-	changed+=(install.sh)
 else
 	update install.sh -e "s/^([[:space:]]*TERRAFORM_VERSION=\")${semver_re}\"/\1${version}\"/"
 	update scripts/Dockerfile.base
@@ -267,7 +262,8 @@ if [[ -n "$leftover" ]]; then
 fi
 [[ "$(sed -nE "s/^[[:space:]]*TerraformVersion[[:space:]]*=[[:space:]]*version\.Must\(version\.NewVersion\(\"(${semver_re})\"\)\).*/\1/p" "$install_go")" == "$version" ]] ||
 	error "failed to update TerraformVersion in $install_go"
-if [[ -f install.sh ]]; then
+# Older branches pin the version in install.sh.
+if [[ -f install.sh ]] && grep -qE '^[[:space:]]*TERRAFORM_VERSION="' install.sh; then
 	[[ "$(sed -nE "s/^[[:space:]]*TERRAFORM_VERSION=\"(${semver_re})\"$/\1/p" install.sh)" == "$version" ]] ||
 		error "failed to update TERRAFORM_VERSION in install.sh"
 fi
