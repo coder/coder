@@ -249,6 +249,8 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 				// A tab stop for the grid: arrow keys move the active emoji while
 				// focus is anywhere inside the picker.
 				tabIndex={0}
+				// A generic div cannot carry a name, so give the tab stop a role.
+				role="group"
 				aria-label="Emojis and icons"
 				onScroll={handleScroll}
 				className="relative mt-1 flex-1 rounded-md outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset"
