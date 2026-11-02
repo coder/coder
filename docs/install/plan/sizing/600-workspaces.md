@@ -2,16 +2,16 @@
 title: "Reference architecture: up to 600 concurrent workspaces"
 ---
 
-This architecture supports up to 600 concurrent running workspaces, which is about 1,000 users.
+This architecture supports up to 600 concurrent running workspaces.
 It covers a wide range of workflows, for example at medium-sized tech startups, educational units, or small to mid-sized enterprises.
 
 The recommendations on this page apply to deployments with up to the following limits.
 If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./1200-workspaces.md).
 To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
-|------------------------------:|----------------------------:|----------------:|
-|                           600 |                          60 |           1,000 |
+| Concurrent running workspaces | Concurrent workspace builds |
+|------------------------------:|----------------------------:|
+|                           600 |                          60 |
 
 ## Hardware recommendations
 
