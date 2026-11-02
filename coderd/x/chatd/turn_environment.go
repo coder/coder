@@ -222,7 +222,6 @@ func (p *Server) buildTurnEnvironment(
 		return turnEnvironment{}, err
 	}
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	var computerUseToolVersion anthropic.ComputerUseToolVersion
@@ -246,7 +245,7 @@ func (p *Server) buildTurnEnvironment(
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
@@ -292,16 +291,20 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
-		var advisorErr error
+		advisorUses, advisorErr := currentTurnAdvisorUses(ctx, logger, input.Messages)
+		if advisorErr != nil {
+			return turnEnvironment{}, xerrors.Errorf("count advisor uses: %w", advisorErr)
+		}
 		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
+			advisorUses,
 			modelOpts,
 			logger,
 		)
@@ -1236,10 +1239,10 @@ func (p *Server) deriveFinalTurnRunResult(
 	chat database.Chat,
 	logger slog.Logger,
 ) runChatResult {
-	// generateFinalTurnStatusLabel only produces a model-generated label for
-	// the Waiting status, so skip the model resolution and history read
+	// generateFinalTurnStatusLabel only produces a model-generated label
+	// for a finished turn, so skip the model resolution and history read
 	// otherwise.
-	if chat.Status != database.ChatStatusWaiting {
+	if !turnFinished(chat.Status) {
 		return runChatResult{}
 	}
 
@@ -2037,7 +2040,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "message_agent", "interrupt_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:

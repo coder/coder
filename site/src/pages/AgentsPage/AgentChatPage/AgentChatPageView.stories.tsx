@@ -23,7 +23,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatDiffStatus,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -47,6 +52,7 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
+import type { EditingTarget } from "../components/ChatConversation/types";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -93,10 +99,10 @@ const buildEditing = (
 	editorInitialValue: "",
 	initialEditorState: undefined,
 	remountKey: 0,
-	editingMessageId: null as number | null,
+	editingTarget: null as EditingTarget | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
-	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
+	handleBeginHistoryEdit: fn(),
+	handleCancelEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -862,10 +868,14 @@ const buildMessage = (
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
 	status: TypesGen.ChatStatus = "waiting",
+	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
+	if (queuedMessages) {
+		store.setQueuedMessages(queuedMessages);
+	}
 	return store;
 };
 
@@ -946,9 +956,31 @@ export const EditingMessage: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages)}
 			editing={{
-				editingMessageId: 3,
+				editingTarget: { kind: "history", id: 3 },
 				editorInitialValue: "Now tell me a joke",
 			}}
+		/>
+	),
+};
+
+/** The turn finished while the queue head was under edit. The composer
+ *  queues a send. */
+export const PausedAtQueuedEdit: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", [
+				{
+					...MockChatQueuedMessageUnderEdit,
+					id: 1,
+					content: [{ type: "text", text: "Run the migrations" }],
+				},
+				{
+					...MockChatQueuedMessage,
+					id: 2,
+					content: [{ type: "text", text: "Start the dev server" }],
+				},
+			])}
+			chat={{ status: "paused" }}
 		/>
 	),
 };

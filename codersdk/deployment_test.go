@@ -47,7 +47,6 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
 		codersdk.ExperimentAIGatewayReverseProxy:     "AI Gateway Reverse Proxy",
 		codersdk.ExperimentChatProjectSharing:        "Chat Project Sharing",
-		codersdk.ExperimentChatAdvisor:               "Chat Advisor",
 		codersdk.ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
 		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",

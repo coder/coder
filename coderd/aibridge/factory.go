@@ -30,6 +30,32 @@ func AttributionFromContext(ctx context.Context) (Attribution, bool) {
 	return attr, ok && attr.WorkspaceID != uuid.Nil
 }
 
+// RequestOrganization is the organization coderd resolved for a request in
+// IsAuthorized. It is kept apart from [Attribution] because coderd computes it,
+// while delegated callers supply Attribution.
+type RequestOrganization struct {
+	ID uuid.UUID
+	// Source records how ID was chosen. It holds a
+	// database.AIBridgeInterceptionOrganizationSource value.
+	Source string
+}
+
+type requestOrganizationCtxKey struct{}
+
+// WithRequestOrganization returns a copy of ctx carrying the organization
+// coderd resolved for the request. It MUST ONLY be set from the IsAuthorized
+// response, and NEVER from client-provided HTTP headers.
+func WithRequestOrganization(ctx context.Context, org RequestOrganization) context.Context {
+	return context.WithValue(ctx, requestOrganizationCtxKey{}, org)
+}
+
+// RequestOrganizationFromContext returns the organization attached by
+// [WithRequestOrganization] and whether a non-zero ID was present.
+func RequestOrganizationFromContext(ctx context.Context) (RequestOrganization, bool) {
+	org, ok := ctx.Value(requestOrganizationCtxKey{}).(RequestOrganization)
+	return org, ok && org.ID != uuid.Nil
+}
+
 // Source identifies the call site that asked aibridge for a transport. It is
 // attached to the request context so downstream handlers and logs can attribute
 // traffic without changing behavior based on the value.

@@ -9,7 +9,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { MessageAttachment } from "./messageHelpers";
-import { getEditableUserMessagePayload } from "./messageParsing";
+import { getEditableContentPayload } from "./messageParsing";
 import { TurnAttachments } from "./TurnAttachments";
 
 type MessageActionBarProps = {
@@ -101,7 +101,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 							icon={<PencilIcon />}
 							onClick={() => {
 								const { text, fileBlocks, editorState } =
-									getEditableUserMessagePayload(message);
+									getEditableContentPayload(message.content);
 								onEditUserMessage(message.id, text, fileBlocks, editorState);
 							}}
 						/>

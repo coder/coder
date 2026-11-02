@@ -57,39 +57,6 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 		require.Len(t, allowed, 2)
 		require.Equal(t, []int{0, 1}, allowedIndexes)
 	})
-
-	// Execution resolves a deprecated name to its canonical tool, so
-	// validation has to resolve it too.
-	t.Run("deprecated alias", func(t *testing.T) {
-		t.Parallel()
-
-		var alias, canonical string
-		for a, name := range subagentToolNameAliases {
-			alias, canonical = a, name
-			break
-		}
-		require.NotEmpty(t, canonical)
-
-		type input struct {
-			ChatID string `json:"chat_id"`
-		}
-		tool := fantasy.NewAgentTool(canonical, "",
-			func(context.Context, input, fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.ToolResponse{}, nil
-			})
-		aliased := fantasy.ToolCallContent{
-			ToolCallID: "call_aliased",
-			ToolName:   alias,
-			Input:      `{"chat_id":"a","CHAT_ID":"b"}`,
-		}
-
-		prepared := turnEnvironment{
-			Tools:            []fantasy.AgentTool{tool},
-			BuiltinToolNames: map[string]bool{canonical: true},
-		}
-		_, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
-		require.Len(t, rejected, 1)
-	})
 }
 
 func TestValidateOverriddenToolInputs(t *testing.T) {

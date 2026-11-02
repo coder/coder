@@ -29,7 +29,7 @@ import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
@@ -215,7 +215,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving: isArchivingThisChat,
 		isUpdatingReadState,
-		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),

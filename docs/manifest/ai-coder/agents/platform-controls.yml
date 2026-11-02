@@ -34,7 +34,7 @@ children:
   - title: Advisor
     description: Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.
     path: ./ai-coder/agents/platform-controls/advisor.md
-    state: [early access]
+    state: [beta]
   - title: Virtual desktop
     description: Give Coder Agents a graphical virtual desktop inside workspaces for GUI-based tasks.
     path: ./ai-coder/agents/platform-controls/virtual-desktop.md

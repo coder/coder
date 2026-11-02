@@ -65,7 +65,10 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "../components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "../components/ChatConversation/chatQueueReconciliation";
+import {
+	runDeleteQueuedMessage,
+	runPromoteQueuedMessage,
+} from "../components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
 	useChatSelector,
@@ -580,24 +583,19 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
-		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
-		}
-	};
+	const handleDeleteQueuedMessage = (id: number) =>
+		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
+
+	const fetchQueueConvergence = (chatId: string) =>
+		queryClient.fetchQuery(chatQueueConvergence(chatId));
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
 			store,
 			promoteQueuedMessage,
+			fetchQueueConvergence,
+			setCacheQueuedMessages,
 			agentId,
 			clearChatErrorReason,
 			onError: handleRequestError,
@@ -609,11 +607,19 @@ const AgentChatPage: React.FC = () => {
 		chatInputRef,
 		inputValueRef,
 	});
-	const handleEditUserMessage = (
-		...args: Parameters<typeof editing.handleEditUserMessage>
+	const handleBeginHistoryEdit = (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => {
 		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleEditUserMessage(...args);
+		editing.handleBeginEdit(
+			{ kind: "history", id: messageId },
+			text,
+			fileBlocks,
+			editorState,
+		);
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -697,8 +703,7 @@ const AgentChatPage: React.FC = () => {
 		upsertCacheMessages,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
-		fetchQueueConvergence: (chatId: string) =>
-			queryClient.fetchQuery(chatQueueConvergence(chatId)),
+		fetchQueueConvergence,
 		setCachedChatPlanMode,
 	};
 
@@ -706,15 +711,15 @@ const AgentChatPage: React.FC = () => {
 		message,
 		attachments,
 		workspaceUploads,
-		editedMessageID,
+		editingTarget,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
 			attachments,
 			workspaceUploads,
-			editedMessageID,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
+			editingTarget,
 		});
 	}
 
@@ -795,7 +800,7 @@ const AgentChatPage: React.FC = () => {
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
+					editing={{ ...editing, handleBeginHistoryEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -807,7 +812,7 @@ const AgentChatPage: React.FC = () => {
 					reasoningEffort={effectiveReasoningEffort}
 					onReasoningEffortChange={(value) => {
 						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
+						if (editing.editingTarget !== null) {
 							isEditReasoningEffortDirtyRef.current = true;
 						}
 					}}
