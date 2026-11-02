@@ -50,26 +50,25 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 	case chatstate.StateE1, chatstate.StateR1, chatstate.StateI1:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+		if from == chatstate.StateI1 {
+			// Interrupt without a message: an interrupt send stores a
+			// steer row, and every row here must share the queue lane.
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+					return err
+				}
+				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "seed"})
+				return err
+			}))
+		}
 		var ids []int64
 		var bodies []string
 		for i := range rows {
 			body := fmt.Sprintf("queued-editing-%s-%d", from, i)
-			var sm chatstate.SendMessageResult
-			if from == chatstate.StateI1 && i == rows-1 {
-				sm = sendInterruptMessage(t, f, m, created.Chat.ID, body)
-			} else {
-				sm = sendQueuedMessage(t, f, m, body)
-			}
+			sm := sendQueuedMessage(t, f, m, body)
 			require.NotNil(t, sm.QueuedMessage)
 			ids = append(ids, sm.QueuedMessage.ID)
 			bodies = append(bodies, body)
-		}
-		if from == chatstate.StateI1 {
-			// The interrupt that starts the interruption goes to the
-			// queue head, so it is the first row in queue order.
-			last := len(ids) - 1
-			ids = append([]int64{ids[last]}, ids[:last]...)
-			bodies = append([]string{bodies[last]}, bodies[:last]...)
 		}
 		if from == chatstate.StateE1 {
 			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
