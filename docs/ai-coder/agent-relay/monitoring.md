@@ -95,13 +95,13 @@ The metrics listener is plain HTTP and also serves `/readyz`, which the Helm cha
 For Docker, set `CODER_AGENT_RELAY_PROMETHEUS_ENABLE=true` and `CODER_AGENT_RELAY_PROMETHEUS_ADDRESS=0.0.0.0:2112`.
 
 Metrics are named `agent_relay_<subsystem>_<name>` and labeled by `pool`.
-Shared dispatcher and reaper metrics also carry a `provider` label.
+Shared dispatcher, reaper, and pool health metrics also carry a `provider` label.
 
 ### Shared metrics
 
 | Metric                                                    | What it tells you                                                                                                                                            |
 |-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_relay_dispatcher_dispatches_total{result}`         | Dispatch outcomes: `created`, `rebuilt`, `skipped`, `expired`, or `failed`.                                                                                  |
+| `agent_relay_dispatcher_dispatches_total{result}`         | Dispatch outcomes: `created`, `rebuilt`, `skipped_serving`, `skipped_deleting`, `expired`, or `failed`.                                                      |
 | `agent_relay_dispatcher_claim_to_workspace_built_seconds` | Time from claim to a successful build. Compare it with the pool's build budget or deadline.                                                                  |
 | `agent_relay_reaper_workspaces{status}`                   | Workspaces by worker status, updated each sweep. Active sessions are `working` plus `serving`.                                                               |
 | `agent_relay_reaper_verdicts_total{verdict}`              | Reaper decisions, such as `keep`, `delete`, `failed`, and `stuck`. `stuck` means three delete builds failed in a row and the workspace needs manual cleanup. |
@@ -130,14 +130,14 @@ Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconne
 
 ### Suggested alerts
 
-- `pool_healthy` at `0` for more than a few minutes.
+- `agent_relay_pool_healthy` at `0` for more than a few minutes.
   A Claude Code pool that stops because Anthropic rejected its environment key stays down until Agent Relay restarts.
-- Any increase in `dispatches_total{result="failed"}`.
-- Any increase in `reaper_verdicts_total{verdict="stuck"}`, which leaves a workspace for you to clean up.
-- Any increase in `cursor_claim_fails_total{applied="error"}`, which leaves chats waiting.
+- Any increase in `agent_relay_dispatcher_dispatches_total{result="failed"}`.
+- Any increase in `agent_relay_reaper_verdicts_total{verdict="stuck"}`, which leaves a workspace for you to clean up.
+- Any increase in `agent_relay_cursor_claim_fails_total{applied="error"}`, which leaves chats waiting.
 - A sustained rise in rejected requests, which usually means developer emails don't match Coder accounts.
-- `cursor_pending_requests` above zero for longer than the pool's `dispatch_deadline`.
-- `claim_to_workspace_built_seconds` approaching the pool's build budget or deadline.
+- `agent_relay_cursor_pending_requests` above zero for longer than the pool's `dispatch_deadline`.
+- `agent_relay_dispatcher_claim_to_workspace_built_seconds` approaching the pool's build budget or deadline.
 
 ## Troubleshoot by symptom
 

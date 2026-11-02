@@ -90,6 +90,7 @@ Restart Agent Relay after you upgrade Coder.
 
 Agent Relay verifies organization permissions at startup.
 A missing organization permission stops the daemon.
+For example, a service account without the `workspace_secret` `create` permission stops it with `missing coderd capabilities [set-workspace-secrets[<org id>]]`.
 Agent Relay verifies template permissions per pool.
 A missing template permission degrades only that pool, and the pool recovers when you fix the template.
 
