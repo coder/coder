@@ -228,9 +228,7 @@ export const WorkspaceParametersPageView: React.FC<
 							<p className="text-sm text-content-secondary m-0">
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
-								<Link
-									href={docs("/admin/templates/extending-templates/parameters")}
-								>
+								<Link href={docs("/templates/extending-templates/parameters")}>
 									View docs
 								</Link>
 							</p>

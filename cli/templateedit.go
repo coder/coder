@@ -323,7 +323,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		},
 		{
 			Flag:        "require-active-version",
-			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is a Premium feature. See https://coder.com/docs/admin/templates/managing-templates#template-update-policies for more details.",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is a Premium feature. See https://coder.com/docs/templates/managing-templates#template-update-policies for more details.",
 			Value:       serpent.BoolOf(&requireActiveVersion),
 			Default:     "false",
 		},
