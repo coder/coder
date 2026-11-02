@@ -72,4 +72,17 @@ describe("IconField", () => {
 
 		expect(iconsCategory).toHaveAttribute("aria-current", "true");
 	});
+
+	// ARIA grid indexes start at 1; Frimousse 0.4.0 emits 0-based ones, so
+	// site/patches/frimousse@0.4.0.patch shifts them.
+	it("numbers grid rows and cells from 1", async () => {
+		renderComponent(<IconField onPickEmoji={vi.fn()} />);
+		const { user, search } = await openPicker();
+
+		await user.type(search, "docker");
+		const cell = await screen.findByRole("gridcell", { name: "docker" });
+
+		expect(cell).toHaveAttribute("aria-colindex", "1");
+		expect(screen.getByRole("row")).toHaveAttribute("aria-rowindex", "1");
+	});
 });

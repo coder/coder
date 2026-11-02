@@ -209,6 +209,9 @@
 			"esbuild",
 			"odiff-bin",
 			"ssh2"
-		]
+		],
+		"patchedDependencies": {
+			"frimousse@0.4.0": "patches/frimousse@0.4.0.patch"
+		}
 	}
 }
