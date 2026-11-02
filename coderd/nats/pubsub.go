@@ -170,6 +170,7 @@ type conn interface {
 	Close()
 	Flush() error
 	Subscribe(event string, handler natsgo.MsgHandler) (*natsgo.Subscription, error)
+	Status() natsgo.Status
 }
 
 // Pubsub is an embedded NATS-backed implementation of pubsub.Pubsub.
@@ -474,15 +475,38 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 	return nil
 }
 
-// HealthReport implements pubsub.ReportingPubsub.
-func (*Pubsub) HealthReport(context.Context) healthsdk.PubsubReport {
-	return healthsdk.PubsubReport{
+// HealthReport implements pubsub.ReportingPubsub. It warns when the embedded
+// server is not running or any owned connection is not connected.
+func (p *Pubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	report := healthsdk.PubsubReport{
 		BaseReport: healthsdk.BaseReport{
 			Severity: health.SeverityOK,
 			Warnings: []health.Message{},
 		},
 		Backend: pubsub.BackendNATS,
 	}
+	if p.Server == nil || !p.Server.Running() {
+		report.Warnings = append(report.Warnings,
+			health.Messagef(health.CodePubsubServerNotRunning, "embedded NATS server is not running"))
+	}
+	for _, pool := range []struct {
+		name  string
+		conns []conn
+	}{
+		{name: "publish", conns: p.publishPool},
+		{name: "subscribe", conns: p.subscribePool},
+	} {
+		for i, c := range pool.conns {
+			if status := c.Status(); status != natsgo.CONNECTED {
+				report.Warnings = append(report.Warnings,
+					health.Messagef(health.CodePubsubNotConnected, "NATS %s connection %d is %s", pool.name, i, status))
+			}
+		}
+	}
+	if len(report.Warnings) > 0 {
+		report.Severity = health.SeverityWarning
+	}
+	return report
 }
 
 // Flush blocks until every publisher connection has flushed buffered

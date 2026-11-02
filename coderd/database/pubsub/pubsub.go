@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lib/pq"
@@ -239,6 +240,10 @@ type PGPubsub struct {
 	closedListener   bool
 	closeListenerErr error
 
+	// connected tracks whether pgListener currently has a connection to
+	// PostgreSQL, as reported by its event callback.
+	connected atomic.Bool
+
 	metrics *BackendMetrics
 }
 
@@ -389,15 +394,22 @@ func (p *PGPubsub) Publish(event string, message []byte) error {
 	return nil
 }
 
-// HealthReport implements ReportingPubsub.
-func (*PGPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
-	return healthsdk.PubsubReport{
+// HealthReport implements ReportingPubsub. It warns when the listener is not
+// connected to PostgreSQL, since no messages are received until it reconnects.
+func (p *PGPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	report := healthsdk.PubsubReport{
 		BaseReport: healthsdk.BaseReport{
 			Severity: health.SeverityOK,
 			Warnings: []health.Message{},
 		},
 		Backend: BackendPostgres,
 	}
+	if !p.connected.Load() {
+		report.Severity = health.SeverityWarning
+		report.Warnings = append(report.Warnings,
+			health.Messagef(health.CodePubsubNotConnected, "pubsub listener is not connected to PostgreSQL"))
+	}
+	return report
 }
 
 // Close closes the pubsub instance.
@@ -422,6 +434,7 @@ func (p *PGPubsub) closeListener() error {
 	}
 	p.closedListener = true
 	p.closeListenerErr = p.pgListener.Close()
+	p.connected.Store(false)
 
 	return p.closeListenerErr
 }
@@ -560,13 +573,16 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			switch t {
 			case pq.ListenerEventConnected:
 				p.logger.Debug(ctx, "pubsub connected to postgres")
+				p.connected.Store(true)
 				p.metrics.MarkConnected()
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
+				p.connected.Store(false)
 				p.metrics.RecordDisconnect()
 				p.metrics.MarkDisconnected()
 			case pq.ListenerEventReconnected:
 				p.logger.Info(ctx, "pubsub reconnected to postgres")
+				p.connected.Store(true)
 				p.metrics.MarkConnected()
 			case pq.ListenerEventConnectionAttemptFailed:
 				p.logger.Error(ctx, "pubsub failed to connect to postgres", slog.Error(err))

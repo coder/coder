@@ -326,6 +326,38 @@ Update the provisioner daemon to match the currently running version of Coder.
 > [!NOTE]
 > This might be a transient issue if you are currently in the process of updating your deployment.
 
+## Pubsub
+
+Coder uses a publish-subscribe (pubsub) system to send events between its components and replicas.
+The health check reports which pubsub backend the Coder replica uses, either `nats` for the embedded NATS server or `postgres` for PostgreSQL, and whether that backend is connected.
+This section appears in the [JSON response](../../reference/api/debug.md#debug-info-deployment-health).
+
+### EPS01
+
+#### Pubsub not connected
+
+**Problem:**
+The Coder replica isn't connected to its pubsub backend.
+With the `postgres` backend, the replica's PostgreSQL listener connection is down.
+With the `nats` backend, one or more of the replica's connections to its embedded NATS server aren't in the connected state.
+While the replica is disconnected, it misses events, so features that depend on them, such as workspace build updates, can be delayed.
+
+**Solution:**
+Coder tries to reconnect automatically, so this might be a transient issue.
+If it persists with the `postgres` backend, investigate the health of the database and the network path between Coder and the database.
+If it persists with the `nats` backend, inspect the Coder server logs for NATS errors and restart the affected replica.
+
+### EPS02
+
+#### Embedded NATS server not running
+
+**Problem:**
+The embedded NATS server in the Coder replica isn't running.
+The replica can't send or receive pubsub events until the server runs again.
+
+**Solution:**
+Inspect the Coder server logs for NATS errors, then restart the affected replica.
+
 ### EUNKNOWN
 
 #### Unknown Error
