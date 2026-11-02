@@ -321,8 +321,7 @@
 								{
 									"title": "JetBrains Toolbox",
 									"description": "Connect to and manage your Coder workspaces from the JetBrains Toolbox app.",
-									"path": "./user-guides/workspace-access/jetbrains/toolbox.md",
-									"state": ["beta"]
+									"path": "./user-guides/workspace-access/jetbrains/toolbox.md"
 								}
 							]
 						},

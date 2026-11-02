@@ -204,11 +204,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 						<span className="flex flex-row items-center gap-2">
 							{template.display_name || template.name}
 							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge
-									variant="warning"
-									size="sm"
-									className="border-0 shadow-none"
-								>
+								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
 									Compatibility mode
 								</Badge>

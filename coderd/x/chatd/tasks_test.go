@@ -1093,7 +1093,7 @@ func TestStartGeneration_CancelsDeletedToolCallsOnAgent(t *testing.T) {
 				dials.Add(1)
 				return conn, func() {}, nil
 			}
-			debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
+			debugTurn := newRunnerDebugTurn(starter.opts.Logger)
 			defer debugTurn.Finalize(ctx)
 			current, err := f.db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)

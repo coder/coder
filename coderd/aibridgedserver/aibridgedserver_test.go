@@ -2333,13 +2333,14 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc.Model = "gpt-5-mini"
 					expectBudgetLookups(db, intc)
 
+					providerID := uuid.New()
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeAzure}, nil)
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-						Provider: string(database.AIProviderTypeAzure),
-						Model:    intc.Model,
-					}).Return(database.AIModelPrice{
-						Provider:   string(database.AIProviderTypeAzure),
+						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeAzure}, nil)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
+						ProviderType: string(database.AIProviderTypeAzure),
+						Model:        intc.Model,
+						ProviderID:   providerID,
+					}).Return(database.GetAIModelPriceForProviderRow{
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
 					}, nil)
@@ -2373,13 +2374,14 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc.ProviderName = "bedrock-eu"
 					expectBudgetLookups(db, intc)
 
+					providerID := uuid.New()
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeBedrock}, nil)
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-						Provider: string(database.AIProviderTypeBedrock),
-						Model:    intc.Model,
-					}).Return(database.AIModelPrice{
-						Provider:   string(database.AIProviderTypeBedrock),
+						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeBedrock}, nil)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
+						ProviderType: string(database.AIProviderTypeBedrock),
+						Model:        intc.Model,
+						ProviderID:   providerID,
+					}).Return(database.GetAIModelPriceForProviderRow{
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
 					}, nil)
@@ -2413,7 +2415,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
 						Return(database.AIProvider{}, sql.ErrNoRows)
 					// Without a provider there is nothing to key the price on.
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Times(0)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).Times(0)
 
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
@@ -2507,8 +2509,8 @@ func TestRecordTokenUsage(t *testing.T) {
 						Return(uuid.New(), nil)
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
 						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeAnthropic}, nil)
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
-						Return(database.AIModelPrice{}, sql.ErrConnDone)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).
+						Return(database.GetAIModelPriceForProviderRow{}, sql.ErrConnDone)
 				},
 				expectedErr: "resolve token usage cost",
 			},
@@ -3734,19 +3736,28 @@ func expectTokenUsageCostLookups(
 		}
 	}
 
+	providerID := uuid.New()
 	db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).Return(database.AIProvider{
+		ID:   providerID,
 		Name: intc.ProviderName,
 		Type: database.AIProviderType(intc.Provider),
 	}, nil)
 
 	if price != nil {
-		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-			Provider: intc.Provider,
-			Model:    intc.Model,
-		}).Return(*price, nil)
+		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
+			ProviderType: intc.Provider,
+			Model:        intc.Model,
+			ProviderID:   providerID,
+		}).Return(database.GetAIModelPriceForProviderRow{
+			Model:           intc.Model,
+			InputPrice:      price.InputPrice,
+			OutputPrice:     price.OutputPrice,
+			CacheReadPrice:  price.CacheReadPrice,
+			CacheWritePrice: price.CacheWritePrice,
+		}, nil)
 	} else {
-		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
-			Return(database.AIModelPrice{}, sql.ErrNoRows)
+		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).
+			Return(database.GetAIModelPriceForProviderRow{}, sql.ErrNoRows)
 	}
 }
 
