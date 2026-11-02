@@ -173,7 +173,7 @@ type Options struct {
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
 	Database          database.Store
-	Pubsub            pubsub.Pubsub
+	Pubsub            pubsub.ReportingPubsub
 	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be

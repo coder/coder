@@ -169,7 +169,7 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           pubsub.Pubsub
+	Pubsub           pubsub.ReportingPubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
@@ -834,6 +834,9 @@ func New(options *Options) *API {
 					Store:                  options.Database,
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
+				},
+				Pubsub: healthcheck.PubsubReportOptions{
+					Pubsub: options.Pubsub,
 				},
 				Progress: progress,
 			})

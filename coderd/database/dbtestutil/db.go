@@ -66,7 +66,7 @@ func withReturnSQLDB(f func(*sql.DB)) Option {
 	}
 }
 
-func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
+func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.ReportingPubsub, *sql.DB) {
 	t.Helper()
 
 	var sqlDB *sql.DB
@@ -89,7 +89,7 @@ func NowInDefaultTimezone() time.Time {
 	return time.Now().In(loc).Round(time.Microsecond)
 }
 
-func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
+func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.ReportingPubsub) {
 	t.Helper()
 
 	o := options{logger: testutil.Logger(t).Named("pubsub")}
@@ -98,7 +98,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	}
 
 	var db database.Store
-	var ps pubsub.Pubsub
+	var ps pubsub.ReportingPubsub
 
 	connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
 	if connectionURL == "" && o.url != "" {

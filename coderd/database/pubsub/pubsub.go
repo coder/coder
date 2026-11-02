@@ -15,6 +15,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 // Listener represents a pubsub handler.
@@ -54,6 +56,13 @@ type Pubsub interface {
 	Subscriber
 	Publisher
 	Close() error
+}
+
+// ReportingPubsub is a Pubsub that can report on its own health.
+type ReportingPubsub interface {
+	Pubsub
+	// HealthReport returns the health of the pubsub backend.
+	HealthReport(ctx context.Context) healthsdk.PubsubReport
 }
 
 // msgOrErr either contains a message or an error
@@ -378,6 +387,17 @@ func (p *PGPubsub) Publish(event string, message []byte) error {
 	}
 	p.metrics.RecordPublishSuccess(event, len(message))
 	return nil
+}
+
+// HealthReport implements ReportingPubsub.
+func (*PGPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
+	return healthsdk.PubsubReport{
+		BaseReport: healthsdk.BaseReport{
+			Severity: health.SeverityOK,
+			Warnings: []health.Message{},
+		},
+		Backend: BackendPostgres,
+	}
 }
 
 // Close closes the pubsub instance.
