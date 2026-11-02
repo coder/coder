@@ -29,7 +29,7 @@ Common modifications are:
   Docs: [Image management](./managing-templates/image-management.md).
 - Additional parameters (for example, disk size, instance type, or region).
   Docs: [Template parameters](./extending-templates/parameters/index.md).
-- Additional IDEs (for example, JetBrains) or features (for example, dotfiles, RDP).
+- Additional IDEs (for example, JetBrains) or features (for example, dotfiles, Remote Desktop Protocol (RDP)).
   Docs: [Adding IDEs and features](./extending-templates/index.md).
 
 Learn more about the various ways you can [extend your templates](./extending-templates/index.md).

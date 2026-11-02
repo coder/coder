@@ -52,7 +52,7 @@ You can now use the AI Assistant chat with the configured provider.
 ## BYOK (Personal API Key)
 
 > [!NOTE]
-> At the time of writing, JetBrains AI Assistant does not support sending custom headers, so BYOK mode is not available.
+> At the time of writing, JetBrains AI Assistant does not support sending custom headers, so Bring Your Own Key (BYOK) mode is not available.
 
 **References:**
 [Use custom models with JetBrains AI Assistant](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key)

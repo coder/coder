@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -63,6 +64,16 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 	}
 }
 
+type closeCountingBody struct {
+	io.Reader
+	closes *atomic.Int32
+}
+
+func (b closeCountingBody) Close() error {
+	b.closes.Add(1)
+	return nil
+}
+
 func TestChatClientRequests(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +110,54 @@ func TestChatClientRequests(t *testing.T) {
 		})
 		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
 		require.Error(t, err)
+	})
+
+	// ReadBodyAsError closes the body itself, and io.Closer leaves a
+	// second Close undefined.
+	t.Run("ClosesResponseBodyOnce", func(t *testing.T) {
+		t.Parallel()
+
+		getModel := func(ctx context.Context, client *codersdk.Client) error {
+			_, err := client.ChatModel(ctx, uuid.New(), uuid.New())
+			return err
+		}
+		deleteModel := func(ctx context.Context, client *codersdk.Client) error {
+			return client.DeleteChatModel(ctx, uuid.New(), uuid.New())
+		}
+		for _, tc := range []struct {
+			name    string
+			call    func(context.Context, *codersdk.Client) error
+			status  int
+			body    string
+			wantErr bool
+		}{
+			{name: "JSON", call: getModel, status: http.StatusOK, body: `{}`},
+			{name: "JSONUnexpectedStatus", call: getModel, status: http.StatusInternalServerError, body: `{"message":"failed"}`, wantErr: true},
+			{name: "JSONInvalidBody", call: getModel, status: http.StatusOK, body: `{"id":`, wantErr: true},
+			{name: "NoContent", call: deleteModel, status: http.StatusNoContent},
+			{name: "NoContentUnexpectedStatus", call: deleteModel, status: http.StatusInternalServerError, body: `{"message":"failed"}`, wantErr: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var closes atomic.Int32
+				client := newClient(t, func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: tc.status,
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       closeCountingBody{Reader: strings.NewReader(tc.body), closes: &closes},
+						Request:    req,
+					}, nil
+				})
+				err := tc.call(t.Context(), client)
+				if tc.wantErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				require.EqualValues(t, 1, closes.Load())
+			})
+		}
 	})
 }
 

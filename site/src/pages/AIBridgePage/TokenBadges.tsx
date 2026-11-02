@@ -28,10 +28,12 @@ const TokenPairBadge: React.FC<TokenPairBadgeProps> = ({
 	<span className="flex items-center whitespace-nowrap">
 		<Badge className="gap-0.5 rounded-e-none">
 			<first.Icon className="size-icon-xs shrink-0" />
+			<span className="sr-only">{first.title}: </span>
 			<span className="truncate min-w-0">{roundTokenDisplay(first.value)}</span>
 		</Badge>
 		<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
 			<second.Icon className="size-icon-xs shrink-0" />
+			<span className="sr-only">{second.title}: </span>
 			<span className="truncate min-w-0">
 				{roundTokenDisplay(second.value)}
 			</span>
