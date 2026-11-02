@@ -193,14 +193,6 @@
   },
   {
     "provider": "azure",
-    "model": "claude-opus-4-1",
-    "input_price": 15000000,
-    "output_price": 75000000,
-    "cache_read_price": 1500000,
-    "cache_write_price": 18750000
-  },
-  {
-    "provider": "azure",
     "model": "claude-opus-4-5",
     "input_price": 5000000,
     "output_price": 25000000,
@@ -324,14 +316,6 @@
     "model": "cohere-embed-v3-multilingual",
     "input_price": 100000,
     "output_price": 0,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "azure",
-    "model": "deepseek-r1",
-    "input_price": 1350000,
-    "output_price": 5400000,
     "cache_read_price": null,
     "cache_write_price": null
   },
@@ -646,6 +630,14 @@
     "output_price": 10000000,
     "cache_read_price": 100000,
     "cache_write_price": 2500000
+  },
+  {
+    "provider": "azure",
+    "model": "gpt-6.1-terra",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
   },
   {
     "provider": "azure",
@@ -1185,6 +1177,14 @@
   },
   {
     "provider": "bedrock",
+    "model": "au.anthropic.claude-sonnet-5-5",
+    "input_price": 2200000,
+    "output_price": 11000000,
+    "cache_read_price": 110000,
+    "cache_write_price": 2750000
+  },
+  {
+    "provider": "bedrock",
     "model": "ca.amazon.nova-lite-v1:0",
     "input_price": 64000,
     "output_price": 256000,
@@ -1558,6 +1558,14 @@
     "output_price": 10000000,
     "cache_read_price": 100000,
     "cache_write_price": 2500000
+  },
+  {
+    "provider": "bedrock",
+    "model": "global.openai.gpt-6.1-terra",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
   },
   {
     "provider": "bedrock",
@@ -2009,6 +2017,14 @@
   },
   {
     "provider": "bedrock",
+    "model": "openai.gpt-6.1-terra",
+    "input_price": 1100000,
+    "output_price": 5500000,
+    "cache_read_price": 55000,
+    "cache_write_price": 1375000
+  },
+  {
+    "provider": "bedrock",
     "model": "openai.gpt-oss-120b",
     "input_price": 150000,
     "output_price": 600000,
@@ -2417,6 +2433,14 @@
   },
   {
     "provider": "bedrock",
+    "model": "us.openai.gpt-6.1-terra",
+    "input_price": 1100000,
+    "output_price": 5500000,
+    "cache_read_price": 55000,
+    "cache_write_price": 1375000
+  },
+  {
+    "provider": "bedrock",
     "model": "us.writer.palmyra-x4-v1:0",
     "input_price": 2500000,
     "output_price": 10000000,
@@ -2769,6 +2793,14 @@
   },
   {
     "provider": "copilot",
+    "model": "gpt-6.1-terra",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "copilot",
     "model": "grok-4.5",
     "input_price": 2000000,
     "output_price": 6000000,
@@ -2805,14 +2837,6 @@
     "input_price": 3000000,
     "output_price": 15000000,
     "cache_read_price": 300000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "copilot",
-    "model": "mai-code-1-flash-picker",
-    "input_price": 750000,
-    "output_price": 4500000,
-    "cache_read_price": 75000,
     "cache_write_price": null
   },
   {
@@ -2913,23 +2937,7 @@
   },
   {
     "provider": "google",
-    "model": "gemini-3-pro-image-preview",
-    "input_price": 2000000,
-    "output_price": 120000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "google",
     "model": "gemini-3.1-flash-image",
-    "input_price": 500000,
-    "output_price": 60000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "google",
-    "model": "gemini-3.1-flash-image-preview",
     "input_price": 500000,
     "output_price": 60000000,
     "cache_read_price": null,
@@ -3385,6 +3393,14 @@
   },
   {
     "provider": "openai",
+    "model": "gpt-6.1-terra",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "openai",
     "model": "gpt-daybreak-blue-latest",
     "input_price": 4000000,
     "output_price": 20000000,
@@ -3705,14 +3721,6 @@
   },
   {
     "provider": "openrouter",
-    "model": "arcee-ai/trinity-large-thinking",
-    "input_price": 250000,
-    "output_price": 800000,
-    "cache_read_price": 60000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "bytedance-seed/seed-1.6",
     "input_price": 250000,
     "output_price": 2000000,
@@ -3890,9 +3898,9 @@
   {
     "provider": "openrouter",
     "model": "deepseek/deepseek-v4-flash-0731",
-    "input_price": 440000,
-    "output_price": 1320000,
-    "cache_read_price": 14000,
+    "input_price": 119000,
+    "output_price": 238000,
+    "cache_read_price": 23800,
     "cache_write_price": null
   },
   {
@@ -3922,8 +3930,8 @@
   {
     "provider": "openrouter",
     "model": "deepseek/deepseek-v4.1-flash",
-    "input_price": 300000,
-    "output_price": 1200000,
+    "input_price": 45000,
+    "output_price": 500000,
     "cache_read_price": 6000,
     "cache_write_price": null
   },
@@ -4114,9 +4122,9 @@
   {
     "provider": "openrouter",
     "model": "google/gemini-3.8-flash",
-    "input_price": 825000,
-    "output_price": 4125000,
-    "cache_read_price": 82500,
+    "input_price": 750000,
+    "output_price": 3750000,
+    "cache_read_price": 75000,
     "cache_write_price": 41667
   },
   {
@@ -4162,9 +4170,9 @@
   {
     "provider": "openrouter",
     "model": "google/gemma-3-4b-it",
-    "input_price": 40000,
-    "output_price": 50000,
-    "cache_read_price": 20000,
+    "input_price": 50000,
+    "output_price": 100000,
+    "cache_read_price": null,
     "cache_write_price": null
   },
   {
@@ -4225,17 +4233,9 @@
   },
   {
     "provider": "openrouter",
-    "model": "ibm-granite/granite-4.0-h-micro",
-    "input_price": 17000,
-    "output_price": 112000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "ibm-granite/granite-4.2-8b",
     "input_price": 60000,
-    "output_price": 250000,
+    "output_price": 150000,
     "cache_read_price": 15000,
     "cache_write_price": null
   },
@@ -4305,6 +4305,14 @@
   },
   {
     "provider": "openrouter",
+    "model": "liquid/lfm-2.5-2.6b",
+    "input_price": 350000,
+    "output_price": 500000,
+    "cache_read_price": 40000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openrouter",
     "model": "liquid/lfm-2.5-2.6b:free",
     "input_price": 0,
     "output_price": 0,
@@ -4362,8 +4370,8 @@
   {
     "provider": "openrouter",
     "model": "meta-llama/llama-3.2-3b-instruct",
-    "input_price": 50900,
-    "output_price": 335000,
+    "input_price": 50000,
+    "output_price": 330000,
     "cache_read_price": null,
     "cache_write_price": null
   },
@@ -4514,8 +4522,8 @@
   {
     "provider": "openrouter",
     "model": "minimax/minimax-m2.5",
-    "input_price": 270000,
-    "output_price": 950000,
+    "input_price": 300000,
+    "output_price": 1200000,
     "cache_read_price": 30000,
     "cache_write_price": null
   },
@@ -4537,10 +4545,10 @@
   },
   {
     "provider": "openrouter",
-    "model": "minimax/minimax-m3.1-flash:free",
-    "input_price": 0,
-    "output_price": 0,
-    "cache_read_price": null,
+    "model": "minimax/minimax-m3.1-flash",
+    "input_price": 150000,
+    "output_price": 600000,
+    "cache_read_price": 15000,
     "cache_write_price": null
   },
   {
@@ -4682,8 +4690,8 @@
   {
     "provider": "openrouter",
     "model": "mistralai/mistral-small-3.2-24b-instruct",
-    "input_price": 93750,
-    "output_price": 250000,
+    "input_price": 75000,
+    "output_price": 200000,
     "cache_read_price": null,
     "cache_write_price": null
   },
@@ -4762,17 +4770,25 @@
   {
     "provider": "openrouter",
     "model": "moonshotai/kimi-k2.7-code",
-    "input_price": 671200,
-    "output_price": 3350000,
-    "cache_read_price": 180000,
+    "input_price": 560000,
+    "output_price": 3100000,
+    "cache_read_price": 150000,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "moonshotai/kimi-k3",
-    "input_price": 239000,
-    "output_price": 11936000,
-    "cache_read_price": 210000,
+    "input_price": 192000,
+    "output_price": 15000000,
+    "cache_read_price": 182000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openrouter",
+    "model": "moonshotai/kimi-k3.1-pro",
+    "input_price": 2000000,
+    "output_price": 10000000,
+    "cache_read_price": 200000,
     "cache_write_price": null
   },
   {
@@ -4828,7 +4844,7 @@
     "model": "nousresearch/hermes-4-405b",
     "input_price": 1000000,
     "output_price": 3000000,
-    "cache_read_price": null,
+    "cache_read_price": 200000,
     "cache_write_price": null
   },
   {
@@ -4836,7 +4852,7 @@
     "model": "nvidia/nemotron-3-nano-30b-a3b",
     "input_price": 60000,
     "output_price": 240000,
-    "cache_read_price": null,
+    "cache_read_price": 12000,
     "cache_write_price": null
   },
   {
@@ -4853,14 +4869,6 @@
     "input_price": 300000,
     "output_price": 2400000,
     "cache_read_price": 150000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "nvidia/nemotron-3-super-120b-a12b:free",
-    "input_price": 0,
-    "output_price": 0,
-    "cache_read_price": null,
     "cache_write_price": null
   },
   {
@@ -4929,14 +4937,6 @@
   },
   {
     "provider": "openrouter",
-    "model": "openai/gpt-3.5-turbo",
-    "input_price": 500000,
-    "output_price": 1500000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "openai/gpt-3.5-turbo-0613",
     "input_price": 1000000,
     "output_price": 2000000,
@@ -4953,25 +4953,9 @@
   },
   {
     "provider": "openrouter",
-    "model": "openai/gpt-3.5-turbo-instruct",
-    "input_price": 1500000,
-    "output_price": 2000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "openai/gpt-4",
     "input_price": 30000000,
     "output_price": 60000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "openai/gpt-4-turbo",
-    "input_price": 10000000,
-    "output_price": 30000000,
     "cache_read_price": null,
     "cache_write_price": null
   },
@@ -4996,7 +4980,7 @@
     "model": "openai/gpt-4.1-nano",
     "input_price": 100000,
     "output_price": 400000,
-    "cache_read_price": 25000,
+    "cache_read_price": 30000,
     "cache_write_price": null
   },
   {
@@ -5130,14 +5114,6 @@
   {
     "provider": "openrouter",
     "model": "openai/gpt-5.2",
-    "input_price": 1750000,
-    "output_price": 14000000,
-    "cache_read_price": 175000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "openai/gpt-5.2-chat",
     "input_price": 1750000,
     "output_price": 14000000,
     "cache_read_price": 175000,
@@ -5337,6 +5313,22 @@
   },
   {
     "provider": "openrouter",
+    "model": "openai/gpt-6.1-terra",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "openrouter",
+    "model": "openai/gpt-6.1-terra-pro",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "openrouter",
     "model": "openai/gpt-audio",
     "input_price": 2500000,
     "output_price": 10000000,
@@ -5385,42 +5377,10 @@
   },
   {
     "provider": "openrouter",
-    "model": "openai/o1",
-    "input_price": 15000000,
-    "output_price": 60000000,
-    "cache_read_price": 7500000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "openai/o1-pro",
-    "input_price": 150000000,
-    "output_price": 600000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "openai/o3",
     "input_price": 2000000,
     "output_price": 8000000,
     "cache_read_price": 500000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "openai/o3-mini",
-    "input_price": 1100000,
-    "output_price": 4400000,
-    "cache_read_price": 550000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "openai/o3-mini-high",
-    "input_price": 1100000,
-    "output_price": 4400000,
-    "cache_read_price": 550000,
     "cache_write_price": null
   },
   {
@@ -5433,26 +5393,18 @@
   },
   {
     "provider": "openrouter",
-    "model": "openai/o4-mini",
-    "input_price": 1100000,
-    "output_price": 4400000,
-    "cache_read_price": 275000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
-    "model": "openai/o4-mini-high",
-    "input_price": 1100000,
-    "output_price": 4400000,
-    "cache_read_price": 275000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "openrouter/free",
     "input_price": 0,
     "output_price": 0,
     "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openrouter",
+    "model": "particle-ai/particle-1",
+    "input_price": 250000,
+    "output_price": 1000000,
+    "cache_read_price": 30000,
     "cache_write_price": null
   },
   {
@@ -5553,6 +5505,14 @@
   },
   {
     "provider": "openrouter",
+    "model": "prism-ml/ternary-bonsai-2-9b",
+    "input_price": 80000,
+    "output_price": 130000,
+    "cache_read_price": 40000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openrouter",
     "model": "qwen/qwen-2.5-72b-instruct",
     "input_price": 360000,
     "output_price": 400000,
@@ -5626,9 +5586,9 @@
   {
     "provider": "openrouter",
     "model": "qwen/qwen3-30b-a3b-instruct-2507",
-    "input_price": 90000,
+    "input_price": 100000,
     "output_price": 300000,
-    "cache_read_price": null,
+    "cache_read_price": 100000,
     "cache_write_price": null
   },
   {
@@ -5681,14 +5641,6 @@
   },
   {
     "provider": "openrouter",
-    "model": "qwen/qwen3-next-80b-a3b-thinking",
-    "input_price": 150000,
-    "output_price": 1200000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openrouter",
     "model": "qwen/qwen3-vl-235b-a22b-instruct",
     "input_price": 210000,
     "output_price": 1900000,
@@ -5722,17 +5674,17 @@
   {
     "provider": "openrouter",
     "model": "qwen/qwen3.5-122b-a10b",
-    "input_price": 400000,
-    "output_price": 3200000,
+    "input_price": 260000,
+    "output_price": 2080000,
     "cache_read_price": null,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "qwen/qwen3.5-27b",
-    "input_price": 270000,
-    "output_price": 2160000,
-    "cache_read_price": 270000,
+    "input_price": 260000,
+    "output_price": 2600000,
+    "cache_read_price": null,
     "cache_write_price": null
   },
   {
@@ -5754,9 +5706,9 @@
   {
     "provider": "openrouter",
     "model": "qwen/qwen3.5-9b",
-    "input_price": 80000,
-    "output_price": 130000,
-    "cache_read_price": 40000,
+    "input_price": 170000,
+    "output_price": 250000,
+    "cache_read_price": null,
     "cache_write_price": null
   },
   {
@@ -5786,17 +5738,17 @@
   {
     "provider": "openrouter",
     "model": "qwen/qwen3.6-27b",
-    "input_price": 250000,
-    "output_price": 2000000,
-    "cache_read_price": 25000,
+    "input_price": 450000,
+    "output_price": 2700000,
+    "cache_read_price": null,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "qwen/qwen3.6-35b-a3b",
     "input_price": 100000,
-    "output_price": 950000,
-    "cache_read_price": 50000,
+    "output_price": 900000,
+    "cache_read_price": 25000,
     "cache_write_price": null
   },
   {
@@ -5850,9 +5802,9 @@
   {
     "provider": "openrouter",
     "model": "qwen/qwen3.8-27b",
-    "input_price": 40000,
-    "output_price": 1350000,
-    "cache_read_price": 18000,
+    "input_price": 39000,
+    "output_price": 1250000,
+    "cache_read_price": 3900,
     "cache_write_price": null
   },
   {
@@ -5898,9 +5850,9 @@
   {
     "provider": "openrouter",
     "model": "reflection/beam-1.0-501b-a23b",
-    "input_price": 300000,
+    "input_price": 250000,
     "output_price": 1000000,
-    "cache_read_price": 40000,
+    "cache_read_price": 50000,
     "cache_write_price": null
   },
   {
@@ -6250,17 +6202,17 @@
   {
     "provider": "openrouter",
     "model": "xiaomi/mimo-v2.5",
-    "input_price": 119000,
-    "output_price": 238000,
-    "cache_read_price": 2550,
+    "input_price": 400000,
+    "output_price": 2000000,
+    "cache_read_price": 80000,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "xiaomi/mimo-v2.5-pro",
-    "input_price": 304500,
-    "output_price": 609000,
-    "cache_read_price": 2800,
+    "input_price": 480000,
+    "output_price": 1800000,
+    "cache_read_price": 96000,
     "cache_write_price": null
   },
   {
@@ -6322,9 +6274,9 @@
   {
     "provider": "openrouter",
     "model": "z-ai/glm-4.6",
-    "input_price": 550000,
-    "output_price": 2200000,
-    "cache_read_price": 110000,
+    "input_price": 500000,
+    "output_price": 2000000,
+    "cache_read_price": 100000,
     "cache_write_price": null
   },
   {
@@ -6332,7 +6284,7 @@
     "model": "z-ai/glm-4.6v",
     "input_price": 300000,
     "output_price": 900000,
-    "cache_read_price": 55000,
+    "cache_read_price": 50000,
     "cache_write_price": null
   },
   {
@@ -6378,25 +6330,25 @@
   {
     "provider": "openrouter",
     "model": "z-ai/glm-5.2",
-    "input_price": 34100,
+    "input_price": 6000,
     "output_price": 7000000,
-    "cache_read_price": 33000,
+    "cache_read_price": 5000,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "z-ai/glm-5.3",
-    "input_price": 79000,
+    "input_price": 69900,
     "output_price": 1400000,
-    "cache_read_price": 78000,
+    "cache_read_price": 68900,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "z-ai/glm-5.3-flash",
-    "input_price": 6700,
-    "output_price": 188000,
-    "cache_read_price": 6700,
+    "input_price": 45700,
+    "output_price": 74200,
+    "cache_read_price": 30000,
     "cache_write_price": null
   },
   {
@@ -6458,17 +6410,17 @@
   {
     "provider": "openrouter",
     "model": "~deepseek/deepseek-flash-latest",
-    "input_price": 70000,
-    "output_price": 500000,
-    "cache_read_price": 8000,
+    "input_price": 13300,
+    "output_price": 1330000,
+    "cache_read_price": 13200,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "~deepseek/deepseek-pro-latest",
-    "input_price": 223500,
+    "input_price": 103500,
     "output_price": 8000000,
-    "cache_read_price": 220000,
+    "cache_read_price": 100000,
     "cache_write_price": null
   },
   {
@@ -6498,9 +6450,9 @@
   {
     "provider": "openrouter",
     "model": "~moonshotai/kimi-latest",
-    "input_price": 238000,
-    "output_price": 16000000,
-    "cache_read_price": 228000,
+    "input_price": 182400,
+    "output_price": 9338800,
+    "cache_read_price": 180000,
     "cache_write_price": null
   },
   {
@@ -6538,10 +6490,10 @@
   {
     "provider": "openrouter",
     "model": "~openai/gpt-terra-latest",
-    "input_price": 2000000,
-    "output_price": 12000000,
-    "cache_read_price": 200000,
-    "cache_write_price": 2500000
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
   },
   {
     "provider": "openrouter",
@@ -6562,17 +6514,17 @@
   {
     "provider": "openrouter",
     "model": "~z-ai/glm-flash-latest",
-    "input_price": 6700,
-    "output_price": 188000,
-    "cache_read_price": 6700,
+    "input_price": 45700,
+    "output_price": 74200,
+    "cache_read_price": 30000,
     "cache_write_price": null
   },
   {
     "provider": "openrouter",
     "model": "~z-ai/glm-latest",
-    "input_price": 79000,
+    "input_price": 69900,
     "output_price": 1400000,
-    "cache_read_price": 78000,
+    "cache_read_price": 68900,
     "cache_write_price": null
   },
   {
@@ -6778,9 +6730,9 @@
   {
     "provider": "vercel",
     "model": "amazon/nova-2-lite",
-    "input_price": 300000,
-    "output_price": 2500000,
-    "cache_read_price": 75000,
+    "input_price": 330000,
+    "output_price": 2750000,
+    "cache_read_price": 82500,
     "cache_write_price": null
   },
   {
@@ -7618,9 +7570,9 @@
   {
     "provider": "vercel",
     "model": "minimax/minimax-m3.1-flash",
-    "input_price": 0,
-    "output_price": 0,
-    "cache_read_price": null,
+    "input_price": 150000,
+    "output_price": 600000,
+    "cache_read_price": 15000,
     "cache_write_price": null
   },
   {
@@ -7761,6 +7713,22 @@
   },
   {
     "provider": "vercel",
+    "model": "moonshotai/kimi-k3.1-pro",
+    "input_price": 2000000,
+    "output_price": 10000000,
+    "cache_read_price": 200000,
+    "cache_write_price": 2000000
+  },
+  {
+    "provider": "vercel",
+    "model": "moonshotai/kimi-k3.1-pro-highspeed",
+    "input_price": 4000000,
+    "output_price": 20000000,
+    "cache_read_price": 200000,
+    "cache_write_price": 4000000
+  },
+  {
+    "provider": "vercel",
     "model": "morph/morph-v3-fast",
     "input_price": 800000,
     "output_price": 1200000,
@@ -7841,22 +7809,6 @@
   },
   {
     "provider": "vercel",
-    "model": "openai/gpt-3.5-turbo",
-    "input_price": 500000,
-    "output_price": 1500000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "vercel",
-    "model": "openai/gpt-4-turbo",
-    "input_price": 10000000,
-    "output_price": 30000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "vercel",
     "model": "openai/gpt-4.1",
     "input_price": 2000000,
     "output_price": 8000000,
@@ -7892,15 +7844,7 @@
     "model": "openai/gpt-4.1-nano",
     "input_price": 100000,
     "output_price": 400000,
-    "cache_read_price": 25000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "vercel",
-    "model": "openai/gpt-4.1-nano-fast",
-    "input_price": 200000,
-    "output_price": 800000,
-    "cache_read_price": 50000,
+    "cache_read_price": 30000,
     "cache_write_price": null
   },
   {
@@ -8281,11 +8225,19 @@
   },
   {
     "provider": "vercel",
-    "model": "openai/gpt-image-1",
-    "input_price": 5000000,
-    "output_price": 40000000,
-    "cache_read_price": 1250000,
-    "cache_write_price": null
+    "model": "openai/gpt-6.1-terra",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 50000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "vercel",
+    "model": "openai/gpt-6.1-terra-fast",
+    "input_price": 2000000,
+    "output_price": 10000000,
+    "cache_read_price": 100000,
+    "cache_write_price": 2500000
   },
   {
     "provider": "vercel",
@@ -8441,10 +8393,10 @@
   },
   {
     "provider": "vercel",
-    "model": "openai/o4-mini-fast",
-    "input_price": 2000000,
-    "output_price": 8000000,
-    "cache_read_price": 500000,
+    "model": "particle/particle-1",
+    "input_price": 125000,
+    "output_price": 500000,
+    "cache_read_price": 15000,
     "cache_write_price": null
   },
   {
@@ -8549,22 +8501,6 @@
     "input_price": 50000,
     "output_price": 0,
     "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "vercel",
-    "model": "spacexai/grok-4.1-fast-non-reasoning",
-    "input_price": 200000,
-    "output_price": 500000,
-    "cache_read_price": 50000,
-    "cache_write_price": null
-  },
-  {
-    "provider": "vercel",
-    "model": "spacexai/grok-4.1-fast-reasoning",
-    "input_price": 200000,
-    "output_price": 500000,
-    "cache_read_price": 50000,
     "cache_write_price": null
   },
   {

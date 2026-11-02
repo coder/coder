@@ -21,22 +21,26 @@ When you select **New Template** on the **Templates** page, the builder opens au
 The builder guides you through up to five steps:
 
 1. **Select base infrastructure**:
-   Choose a starter template for your target platform (e.g. Docker, AWS EC2, Kubernetes).
+   Choose a starter template for your target platform (for example, Docker, AWS EC2, Kubernetes).
+
    Each base template provides a working foundation with the Coder agent pre-configured.
 
    ![Select a base infrastructure template in the template builder](../../images/templatebuilder_01_bases.png)
 
 1. **Base template parameters** *(optional)*: If the selected base template declares configurable variables, you can supply values for them here.
+
    If the base template has no parameters, this step is skipped automatically.
 
 1. **Select modules**:
    Pick from a curated list of [registry modules](https://registry.coder.com) to add IDEs, AI agents, source control integrations, and other tools.
+
    Modules are grouped by category and filtered for compatibility with the selected base template's operating system.
    You can select multiple modules.
 
    ![Select modules to add to your template](../../images/templatebuilder_02_modules.png)
 
 1. **Module settings** *(optional)*: Configure variables for the modules you selected.
+
    Required variables without defaults must be filled in before you can proceed.
    Modules that require secrets (such as API keys) display a notice that developers will be prompted for the value at workspace creation time.
 
@@ -97,7 +101,7 @@ Use the [`templates init`](../../reference/cli/templates/init.md) command to pul
 coder templates init
 ```
 
-After pulling the template to your local machine (e.g. `aws-linux`), you can rename it:
+After pulling the template to your local machine (for example, `aws-linux`), you can rename it:
 
 ```sh
 # This snippet applies to macOS and Linux only
@@ -184,12 +188,12 @@ You will then see your new template in the dashboard.
 ## From scratch (advanced)
 
 There may be cases where you want to create a template from scratch.
-You can use [any Terraform provider](https://registry.terraform.io) with Coder to create templates for additional clouds (e.g. Hetzner, Alibaba) or orchestrators (VMware, Proxmox) that we do not provide example templates for.
+You can use [any Terraform provider](https://registry.terraform.io) with Coder to create templates for additional clouds (for example, Hetzner, Alibaba) or orchestrators (VMware, Proxmox) that we do not provide example templates for.
 
 Refer to the following resources:
 
 - [Tutorial: Create a template from scratch](../../tutorials/template-from-scratch.md)
-- [Extending templates](./extending-templates/index.md): Features and concepts around templates (agents, parameters, variables, etc)
+- [Extending templates](./extending-templates/index.md): Features and concepts around templates (agents, parameters, variables, and so on)
 - [Coder Registry](https://registry.coder.com/templates): Official and community templates for Coder
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)
 

@@ -89,6 +89,67 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIBridgeInterceptionOrganizationSource string
+
+const (
+	AibridgeInterceptionOrganizationSourceWorkspace      AIBridgeInterceptionOrganizationSource = "workspace"
+	AibridgeInterceptionOrganizationSourceChatd          AIBridgeInterceptionOrganizationSource = "chatd"
+	AibridgeInterceptionOrganizationSourceEffectiveGroup AIBridgeInterceptionOrganizationSource = "effective_group"
+)
+
+func (e *AIBridgeInterceptionOrganizationSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	case string:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIBridgeInterceptionOrganizationSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIBridgeInterceptionOrganizationSource struct {
+	AIBridgeInterceptionOrganizationSource AIBridgeInterceptionOrganizationSource `json:"aibridge_interception_organization_source"`
+	Valid                                  bool                                   `json:"valid"` // Valid is true if AIBridgeInterceptionOrganizationSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIBridgeInterceptionOrganizationSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIBridgeInterceptionOrganizationSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIBridgeInterceptionOrganizationSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIBridgeInterceptionOrganizationSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIBridgeInterceptionOrganizationSource), nil
+}
+
+func (e AIBridgeInterceptionOrganizationSource) Valid() bool {
+	switch e {
+	case AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup:
+		return true
+	}
+	return false
+}
+
+func AllAIBridgeInterceptionOrganizationSourceValues() []AIBridgeInterceptionOrganizationSource {
+	return []AIBridgeInterceptionOrganizationSource{
+		AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup,
+	}
+}
+
 type AIModelPriceSource string
 
 const (
@@ -1920,6 +1981,7 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
+	ChatStatusPaused         ChatStatus = "paused"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1963,7 +2025,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusError,
 		ChatStatusRequiresAction,
-		ChatStatusInterrupting:
+		ChatStatusInterrupting,
+		ChatStatusPaused:
 		return true
 	}
 	return false
@@ -1976,6 +2039,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
+		ChatStatusPaused,
 	}
 }
 
@@ -5002,6 +5066,10 @@ type AIBridgeInterception struct {
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
 	// The workspace in which the agent ran. NULL when no workspace context is available.
 	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	// The organization the interception was attributed to. NULL when no organization was resolved.
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// How organization_id was chosen. NULL exactly when organization_id is NULL.
+	OrganizationSource NullAIBridgeInterceptionOrganizationSource `db:"organization_source" json:"organization_source"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -5553,6 +5621,8 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.
+	EditingSince sql.NullTime `db:"editing_since" json:"editing_since"`
 }
 
 type ChatTable struct {
@@ -6053,6 +6123,8 @@ type Organization struct {
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
 	// Roles granted to every member of this organization at request time. The set is unioned into each member's effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.
 	DefaultOrgMemberRoles []string `db:"default_org_member_roles" json:"default_org_member_roles"`
+	// Whether organization members can turn off organization skills for their own chats. While false, member choices are kept but ignored.
+	MembersCanDisableSkills bool `db:"members_can_disable_skills" json:"members_can_disable_skills"`
 }
 
 type OrganizationMember struct {
@@ -6061,6 +6133,21 @@ type OrganizationMember struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 	Roles          []string  `db:"roles" json:"roles"`
+}
+
+// Organization skills that a member turned off for their own chats. Applied only while organizations.members_can_disable_skills is true.
+type OrganizationMemberDisabledSkill struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	SkillID        uuid.UUID `db:"skill_id" json:"skill_id"`
+}
+
+// Per-member organization skill settings. Applied only while organizations.members_can_disable_skills is true.
+type OrganizationMemberSkillSetting struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	// Whether the member turned off every organization skill, including skills added later. Per-skill choices in organization_member_disabled_skills are kept and apply again when this is false.
+	AllSkillsDisabled bool `db:"all_skills_disabled" json:"all_skills_disabled"`
 }
 
 type ParameterSchema struct {

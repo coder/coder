@@ -14,6 +14,7 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -47,10 +48,6 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 		</div>
 	);
 };
-
-// 1×1 solid coral (#FF6B6B) PNG encoded as base64.
-const TEST_PNG_B64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
 const buildMessages = (messages: TypesGen.ChatMessage[]) =>
 	parseMessagesWithMergedTools(messages);
@@ -333,6 +330,7 @@ const buildParsedReadFileEntry = ({
 				},
 			],
 			blocks: [{ type: "tool", id: toolId }],
+			partBlockIndices: [0],
 			sources: [],
 			hookNotices: [],
 		},
@@ -814,7 +812,7 @@ export const UserMessageWithSingleImage: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 				],
 			},
@@ -847,17 +845,17 @@ export const UserMessageWithMultipleImages: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file",
 						media_type: "image/jpeg",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file",
 						media_type: "image/webp",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 				],
 			},
@@ -1279,7 +1277,7 @@ export const UserMessageWithMixedAttachments: Story = {
 		buildUserMessage({
 			text: "Here is a screenshot and some context",
 			files: [
-				buildInlineAttachmentPart("image/png", TEST_PNG_B64),
+				buildInlineAttachmentPart("image/png", MockPngBase64),
 				buildTextAttachmentPart("storybook-test-text"),
 			],
 		}),
@@ -1315,7 +1313,7 @@ export const AssistantMessageWithImage: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 						name: "generated-image.png",
 					},
 				],
@@ -1328,7 +1326,7 @@ export const AssistantMessageWithImage: Story = {
 		expect(images).toHaveLength(1);
 		expect(images[0]).toHaveAttribute(
 			"src",
-			`data:image/png;base64,${TEST_PNG_B64}`,
+			`data:image/png;base64,${MockPngBase64}`,
 		);
 		expect(
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
@@ -1425,7 +1423,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file-reference",
@@ -1670,7 +1668,6 @@ export const UserMessageJumpArrows: Story = {
 	},
 };
 
-/** Copy + edit actions appear below user messages on hover. */
 export const UserMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,
@@ -1735,7 +1732,6 @@ export const UserMessageCopyButton: Story = {
 	},
 };
 
-/** Copy button is present on assistant messages on hover. */
 export const AssistantMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,
@@ -1758,17 +1754,6 @@ export const AssistantMessageCopyButton: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal toolbar visible.
-		for (const el of canvasElement.querySelectorAll("[class]")) {
-			if (
-				el instanceof HTMLElement &&
-				el.className.includes("group-hover/msg:opacity-100")
-			) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 
@@ -1820,63 +1805,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/** Copy button calls clipboard API with the raw markdown text. */
-export const CopyButtonWritesToClipboard: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "What is the answer?" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "Here is the **answer**." }],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-
-		try {
-			const canvas = within(canvasElement);
-			// Force the hover-reveal toolbar visible.
-			for (const el of canvasElement.querySelectorAll("[class]")) {
-				if (
-					el instanceof HTMLElement &&
-					el.className.includes("group-hover/msg:opacity-100")
-				) {
-					el.style.opacity = "1";
-				}
-			}
-			// Find the assistant's copy button (last message-actions).
-			const actions = canvas.getAllByTestId("message-actions");
-			const assistantActions = actions[actions.length - 1];
-			const copyBtn = within(assistantActions).getByRole("button", {
-				name: "Copy message",
-			});
-			await userEvent.click(copyBtn);
-			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
-	},
-};
-
 /**
  * Regression: sources-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
@@ -1919,16 +1847,85 @@ export const SourcesOnlyAssistantSpacing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: /searched 2 results/i }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: /^2 sources$/ }));
 	},
 };
 
 /**
- * Regression: action bar must appear on the last *visible* assistant
- * message even when invisible assistant messages (provider-executed
- * tool-result-only) follow it before the next user turn.
+ * A provider-executed OpenAI web search lists its found pages, tagged with
+ * the call ID, in its own row. The untagged citation goes to the answer's
+ * source row.
+ */
+export const ProviderWebSearchWithCitations: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "What is new in Coder?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						args: {
+							type: "search",
+							queries: JSON.stringify(["coder release notes"]),
+						},
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/changelog",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://github.com/coder/coder/releases",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/blog",
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {},
+					},
+					{ type: "text", text: "The latest release adds Coder Agents." },
+					{
+						type: "source",
+						url: "https://coder.com/changelog",
+						title: "Coder changelog",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder release notes/i }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: /^1 source$/ }));
+	},
+};
+
+/**
+ * Regression: the visible assistant message keeps its action bar when
+ * invisible assistant messages (provider-executed tool-result-only) follow it
+ * before the next user turn.
  */
 export const AssistantActionBarAfterHiddenMessages: Story = {
 	args: {
@@ -1968,18 +1965,6 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal action bars visible using stable test IDs.
-		// The invisible provider-executed tool-result message (id=3)
-		// must not prevent the assistant (id=2) from showing its bar.
-		for (const el of canvasElement.querySelectorAll(
-			'[data-testid="message-actions"]',
-		)) {
-			if (el instanceof HTMLElement) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 
@@ -2046,6 +2031,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 						{ type: "tool", id: "execute-tool" },
 						{ type: "tool", id: "edit-tool" },
 					],
+					partBlockIndices: [],
 					sources: [],
 					hookNotices: [],
 				},

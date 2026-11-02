@@ -77,7 +77,7 @@ Learn about configuring workspace dormancy in the template scheduling docs.
 ### Orphan resources
 
 Typically, when a workspace is deleted, all of the workspace's resources are deleted along with it.
-Rarely, one may wish to delete a workspace without deleting its resources, e.g. a workspace in a broken state.
+Rarely, one may wish to delete a workspace without deleting its resources, for example, a workspace in a broken state.
 Users with the Template Admin role have the option to do so both in the UI, and also in the CLI by running the delete command with the `--orphan` flag.
 This option should be considered cautiously as orphaning may lead to unaccounted cloud resources.
 

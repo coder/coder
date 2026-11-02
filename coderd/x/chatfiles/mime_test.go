@@ -343,6 +343,38 @@ func TestIsAllowedPromptInputMediaType(t *testing.T) {
 	require.False(t, chatfiles.IsAllowedPromptInputMediaType("application/zip"))
 }
 
+func TestParseBaseMediaType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{name: "plain", input: "text/csv", want: "text/csv"},
+		{name: "parameters_lowercased", input: "Text/Plain; charset=utf-8", want: "text/plain"},
+		{name: "no_subtype", input: "garbage", wantErr: true},
+		{name: "invalid_parameter", input: "text/plain; bogus", wantErr: true},
+		{name: "control_in_quoted_parameter", input: "text/plain; charset=\"\x01\"", wantErr: true},
+		{name: "nul", input: "text/plain\x00", wantErr: true},
+		{name: "too_long", input: "text/plain; x=" + strings.Repeat("a", chatfiles.MaxMediaTypeBytes), wantErr: true},
+		{name: "empty", input: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := chatfiles.ParseBaseMediaType(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestIsInlineRenderableStoredMediaType(t *testing.T) {
 	t.Parallel()
 

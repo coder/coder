@@ -34,6 +34,29 @@ Claude Desktop can list your running Coder workspaces, so you can connect to the
 1. Restart Claude Desktop.
    Your running workspaces appear in Claude Desktop.
 
+## Show workspace status in Claude Code
+
+The `coder-workspace-status` plugin shows the status of the workspace Claude Code runs in, right above the prompt.
+The status covers health, startup scripts, autostop, repositories, and ports opened during the session.
+Run `/coder-workspace-status` for a card with links to the dashboard, a browser terminal, and the workspace's apps.
+
+![Coder workspace status line and the /coder-workspace-status card in Claude Desktop](../../images/user-guides/claude-desktop-coder-workspace-status.png)
+
+<small>The status line above the prompt, and the card that `/coder-workspace-status` draws.</small>
+
+The plugin works with Claude Code only, version 2.1.287 or later.
+Install it in the workspace, where Claude Code runs:
+
+```sh
+claude plugin marketplace add coder/skills
+claude plugin install coder-workspace-status@coder-skills
+```
+
+Then start a new session, or run `/reload-plugins` in the current one.
+
+To install the plugin in every workspace a template creates, run the same two commands from a [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script) that runs after Claude Code is installed.
+Visit the [plugin's README](https://github.com/coder/skills/tree/main/plugins/coder-workspace-status) for everything it shows and the data it reads.
+
 ## Troubleshooting
 
 If your workspaces don't appear in Claude Desktop, check the following:

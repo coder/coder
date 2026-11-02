@@ -788,10 +788,10 @@ func stageObservationCount(t *testing.T, registry *prometheus.Registry, stage ch
 // context as soon as the finishing commit publishes.
 func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 	t.Parallel()
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID, runnerID := uuid.New(), uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
 	turn := newRunnerTurnSpan(tracer, false)
@@ -836,17 +836,17 @@ func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 // between two generation steps.
 func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 	t.Parallel()
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID, runnerID := uuid.New(), uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
 	turn := newRunnerTurnSpan(tracer, false)
 	_, token := turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt)
 	require.NotZero(t, token)
 
-	interrupting := f.interruptChat(t, chat.ID)
+	interrupting := interruptChat(t, f, chat.ID)
 	require.Equal(t, database.ChatStatusInterrupting, interrupting.Status)
 	require.NoError(t, starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -870,17 +870,17 @@ func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 // while FinishInterruption publishes.
 func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
 	t.Parallel()
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID, runnerID := uuid.New(), uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
 	turn := newRunnerTurnSpan(tracer, false)
 	_, token := turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt)
 	require.NotZero(t, token)
 
-	interrupting := f.interruptChat(t, chat.ID)
+	interrupting := interruptChat(t, f, chat.ID)
 	var promoted turnToken
 	f.pubsub.mu.Lock()
 	f.pubsub.onPublish = func(channel string) {

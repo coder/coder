@@ -4,7 +4,8 @@ title: Extend templates
 
 There are a variety of Coder-native features to extend the configuration of your development environments.
 Many of the following features are defined in your templates using the [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs).
-The provider docs will provide code examples for usage; alternatively, you can view our [example templates](../../../../examples/templates) to get started.
+The provider docs will provide code examples for usage.
+Alternatively, you can view our [example templates](../../../../examples/templates) to get started.
 
 ## Workspace agents
 
@@ -111,7 +112,7 @@ resource "coder_app" "zed" {
 
 </div>
 
-Check out our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our OSS community.
+Visit our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our OSS community.
 
 ## Environment variables
 

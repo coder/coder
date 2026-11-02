@@ -2,33 +2,38 @@
 title: Workspace startup coordination
 ---
 
+We recommend using [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync` to order whole startup and shutdown scripts.
+
+As a template author, you can use the experimental `coder exp sync` commands to coordinate named units of work within startup scripts.
+You can mark a unit complete while its script continues other work.
+
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
-
-When workspaces start, scripts often need to run in a specific order.
-For example, an IDE or coding agent might need the repository cloned before it can start.
-Without explicit coordination, these scripts can race against each other, leading to startup failures and inconsistent workspace states.
-
-Coder's workspace startup coordination feature lets you declare dependencies between startup scripts and ensure they run in the correct order.
-This eliminates race conditions and makes workspace startup predictable and reliable.
+> The `coder exp sync` commands are experimental and might change without notice.
 
 ## Why use this?
 
-Simply placing all of your workspace initialization logic in a single script works, but leads to slow workspace startup times.
-Breaking this out into multiple independent `coder_script` resources improves startup times by allowing the scripts to run in parallel.
-However, this can lead to intermittent failures between dependent scripts due to timing issues.
-Up until now, template authors have had to rely on manual coordination methods (for example, touching a file upon completion).
-The goal of startup script coordination is to provide a single reliable source of truth for coordination between workspace startup scripts.
+Use `coder exp sync` when another script needs only part of a startup script's work to finish.
+For example, a script can mark dependency installation complete, then continue building an application.
+Scripts that need the installed dependencies can proceed while the build runs.
 
-## Quick Start
+## Quick start
 
-To start using workspace startup coordination, add calls to `coder exp sync (start|complete)` in your startup scripts where required:
+For an existing `git-clone` unit that checks out a Node.js project at `~/app`, add these commands to a startup script:
 
-  ```sh
-  trap 'coder exp sync complete my-script' EXIT
-  coder exp sync want my-script my-other-script
-  coder exp sync start my-script
-  # Existing startup logic
-  ```
+```sh
+set -e
+
+coder exp sync want install-dependencies git-clone
+coder exp sync start install-dependencies
+cd ~/app
+npm ci
+coder exp sync complete install-dependencies
+
+npm run build
+```
+
+The script waits for `git-clone` to complete before installing dependencies.
+After installation succeeds, it marks `install-dependencies` complete and continues with `npm run build`.
+Other scripts that depend on `install-dependencies` can proceed without waiting for the build to finish.
 
 For more information, refer to the [usage documentation](./usage.md), [troubleshooting documentation](./troubleshooting.md), or view our [examples](./example.md).

@@ -134,6 +134,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    ```
 
 1. Create a `values.yaml` file for the Coder Helm chart.
+
    Replace `<app-gateway-public-ip>` with the IP address from the previous step, or with a domain that resolves to it:
 
    ```yaml

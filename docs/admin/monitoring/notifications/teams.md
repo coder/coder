@@ -137,6 +137,7 @@ Finally, go to the **Notification Settings** in Coder and switch the notifier to
 ## Limitations
 
 1. **Public Webhook Trigger**:
+
    The Teams webhook trigger must be open to the public (**"Anyone"** can send the payload).
    It's recommended to keep the endpoint secret and apply additional authorization layers to protect against unauthorized access.
 

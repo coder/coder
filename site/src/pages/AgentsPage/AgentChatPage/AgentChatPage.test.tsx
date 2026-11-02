@@ -36,7 +36,6 @@ afterEach(() => {
 
 describe("AgentChatPage", () => {
 	it("refreshes the project actions after a send fails", async () => {
-		vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
 		vi.spyOn(apiModule, "watchChat").mockImplementation(
 			() =>
 				new OneWayWebSocket({
