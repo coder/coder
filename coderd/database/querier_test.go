@@ -11205,6 +11205,78 @@ func TestWorkspaceACLObjectConstraint(t *testing.T) {
 	})
 }
 
+// TestGetTemplateAverageBuildTime checks that build times come from the newest
+// successful builds across all versions of a template.
+func TestGetTemplateAverageBuildTime(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	newVersion := func() database.TemplateVersion {
+		return dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		})
+	}
+	oldVersion, latestVersion := newVersion(), newVersion()
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+
+	base := dbtime.Now().Add(-24 * time.Hour)
+	buildNumber := int32(0)
+	insertBuild := func(versionID uuid.UUID, createdAt time.Time, execTime time.Duration, failed bool) {
+		buildNumber++
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: createdAt, Valid: true},
+			CompletedAt:    sql.NullTime{Time: createdAt.Add(execTime), Valid: true},
+			Error:          sql.NullString{String: "failed", Valid: failed},
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			CreatedAt:         createdAt,
+			BuildNumber:       buildNumber,
+			WorkspaceID:       workspace.ID,
+			InitiatorID:       user.ID,
+			TemplateVersionID: versionID,
+			JobID:             job.ID,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+	}
+
+	// The old version has 150 builds taking 100+i seconds. The newest 60 of
+	// them failed, so its newest 50 successful builds take 140s to 189s.
+	for i := range 150 {
+		insertBuild(oldVersion.ID, base.Add(time.Duration(i)*time.Minute), time.Duration(100+i)*time.Second, i >= 90)
+	}
+	// The latest version has the 50 newest builds, taking 10s each.
+	for i := range 50 {
+		insertBuild(latestVersion.ID, base.Add(time.Duration(200+i)*time.Minute), 10*time.Second, false)
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	row, err := db.GetTemplateAverageBuildTime(ctx, uuid.NullUUID{UUID: template.ID, Valid: true})
+	require.NoError(t, err)
+
+	// The newest 100 successful builds across both versions are the 50 builds
+	// of the latest version and the newest 50 successful builds of the old
+	// version. Failed builds must be skipped before limiting per version.
+	require.Equal(t, 10.0, row.Start50)
+	require.Equal(t, 184.0, row.Start95)
+	require.Equal(t, -1.0, row.Stop50)
+	require.Equal(t, -1.0, row.Delete95)
+}
+
 // TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
 // workspaces and builds. It then tests that
 // GetLatestWorkspaceBuildsByWorkspaceIDs returns the latest build for some
