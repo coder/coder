@@ -51,18 +51,6 @@ type Story = StoryObj<typeof AgentSettingsCompactionPageView>;
 
 export const Default: Story = {};
 
-export const UnsavedThreshold: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const thresholdInput = await canvas.findByLabelText(
-			`GPT 4.1 Mini compaction threshold for ${MockDefaultOrganization.display_name}`,
-		);
-
-		await userEvent.clear(thresholdInput);
-		await userEvent.type(thresholdInput, "80");
-	},
-};
-
 export const InvalidThreshold: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

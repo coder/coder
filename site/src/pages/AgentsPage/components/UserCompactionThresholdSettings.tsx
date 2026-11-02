@@ -448,37 +448,39 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 							</TooltipContent>
 						)}
 					</Tooltip>
-					{isDirty ? (
-						<div className="flex flex-col gap-1.5 sm:flex-row">
-							<Button
-								size="xs"
-								type="submit"
-								disabled={parsedDraftValue === null || isThisModelMutating}
-								aria-busy={isThisModelMutating}
-								aria-label={`Save ${modelName} threshold for ${organizationName}`}
-							>
-								{isThisModelMutating && (
-									<Spinner loading size="sm" aria-hidden />
-								)}
-								Save
-							</Button>
-							<Button
-								size="xs"
-								variant="outline"
-								type="button"
-								onClick={() => {
-									inputRef.current?.focus({ preventScroll: true });
-									onCancel();
-								}}
-								aria-label={`Cancel ${modelName} threshold for ${organizationName}`}
-								disabled={isThisModelMutating}
-							>
-								Cancel
-							</Button>
-						</div>
-					) : isSavedVisible ? (
-						<TemporarySavedState />
-					) : null}
+					<div className="contents sm:block sm:w-32 sm:shrink-0">
+						{isDirty ? (
+							<div className="flex flex-col gap-1.5 sm:flex-row">
+								<Button
+									size="xs"
+									type="submit"
+									disabled={parsedDraftValue === null || isThisModelMutating}
+									aria-busy={isThisModelMutating}
+									aria-label={`Save ${modelName} threshold for ${organizationName}`}
+								>
+									{isThisModelMutating && (
+										<Spinner loading size="sm" aria-hidden />
+									)}
+									Save
+								</Button>
+								<Button
+									size="xs"
+									variant="outline"
+									type="button"
+									onClick={() => {
+										inputRef.current?.focus({ preventScroll: true });
+										onCancel();
+									}}
+									aria-label={`Cancel ${modelName} threshold for ${organizationName}`}
+									disabled={isThisModelMutating}
+								>
+									Cancel
+								</Button>
+							</div>
+						) : isSavedVisible ? (
+							<TemporarySavedState />
+						) : null}
+					</div>
 				</form>
 				{isInvalid && (
 					<span className="sr-only" aria-live="polite">
