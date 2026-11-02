@@ -128,7 +128,7 @@ If your templates run Docker or Podman inside a workspace on a RHEL-family node,
 ## Hardened base images
 
 Coder publishes a container image built on Red Hat's UBI9-minimal base through [Iron Bank](https://ironbank.dso.mil/), the Department of Defense hardened container registry.
-Choose that image when your compliance program requires an accredited base image.
+Choose that image when your security policy requires hardened, vulnerability-scanned base images from Iron Bank.
 The Iron Bank image is a container image, so deploy it with [Kubernetes](./kubernetes/index.md) or [OpenShift](./openshift.md) rather than through the RPM.
 
 ## Learn more
