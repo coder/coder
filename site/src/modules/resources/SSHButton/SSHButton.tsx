@@ -37,10 +37,16 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 	let connectCommand: string | undefined;
 	if (!isLoading) {
 		if (sshSuffix) {
+			const shortHostname = `${workspace.name}.${sshSuffix}`;
+			const hostnamePrefix = data?.hostname_prefix;
+			// SSH selects legacy prefix blocks before suffix blocks.
+			const matchesLegacyPrefix = hostnamePrefix
+				? shortHostname.toLowerCase().startsWith(hostnamePrefix.toLowerCase())
+				: false;
 			// Shared workspaces need the full hostname; SSH has no workspace.owner form.
 			connectCommand =
-				isSingleAgent && user.id === workspace.owner_id
-					? `ssh ${workspace.name}.${sshSuffix}`
+				isSingleAgent && user.id === workspace.owner_id && !matchesLegacyPrefix
+					? `ssh ${shortHostname}`
 					: `ssh ${agentName}.${workspace.name}.${workspace.owner_name}.${sshSuffix}`;
 		} else {
 			// The CLI needs no SSH config, so it remains usable without a suffix.

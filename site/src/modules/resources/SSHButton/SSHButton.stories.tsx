@@ -65,6 +65,35 @@ export const OpenedSingleAgent: Story = {
 	args: { workspace: MockWorkspace },
 };
 
+const mockWorkspaceWithPrefixCollision: Workspace = {
+	...MockWorkspace,
+	name: "coder",
+	latest_build: {
+		...MockWorkspace.latest_build,
+		workspace_name: "coder",
+	},
+};
+
+const mockDeploymentSSHWithPrefixCollision = {
+	...MockDeploymentSSH,
+	hostname_prefix: "coder.",
+	hostname_suffix: "dev",
+};
+
+/** The legacy prefix must not capture a workspace's suffix-based hostname. */
+export const OpenedWithLegacyPrefixCollision: Story = {
+	...OpenedSingleAgent,
+	args: { workspace: mockWorkspaceWithPrefixCollision },
+	parameters: {
+		queries: [
+			{
+				key: deploymentSSHConfigQueryKey,
+				data: mockDeploymentSSHWithPrefixCollision,
+			},
+		],
+	},
+};
+
 /** Shared SSH hostnames must keep the agent and workspace owner explicit. */
 export const OpenedSharedSingleAgent: Story = {
 	...OpenedSingleAgent,
