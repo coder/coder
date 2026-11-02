@@ -151,7 +151,8 @@ The persona ID of a sweep is `language`, and of a verifier batch is `verifier`.
 Every other agent's persona ID is its agent ID.
 
 A Copy Editor sweep can start at once.
-Every other persona starts only after `change-model.md` exists.
+Every other persona starts only after `change-model.md` exists at the top of the packet.
+When the Analyst finishes without writing it, record the Analyst as `blocked`, and write the change model from step 3 with its last line replaced by `The Analyst did not finish, so this model is empty. Check each docs claim against the code at the head.`, so the other personas still run.
 Decide the skips that depend on the change model then, from its first two lines.
 
 ### 3. Run the deterministic checks
@@ -249,7 +250,7 @@ First run these checks yourself, because they need a lookup, not judgment, and d
 Do not judge a finding's substance yourself, such as by reading the pages or code it cites: that is the verifier's job, and doing it twice doubles the cost.
 
 - **The quote exists.** The `quote` appears on the head at `file:line`, such as with `sed -n '120,122p' <file>` for a finding on line 120. A quote that spans lines starts at `line`.
-- **Not already reported in a thread.** No open doc-check review thread in `review-comments.jsonl` raises it.
+- **Not already reported in a thread.** No review thread in `review-comments.jsonl` raises it, whether doc-check or a person wrote it.
 - **Not already reported by a check.** No annotation in `checks.md` is on the same line and refers to the same rule page and anchor.
 
 Then merge findings with the same `file`, `line`, and `rule`, keeping the one with more evidence.

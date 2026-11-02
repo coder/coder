@@ -23,7 +23,8 @@ Do not read docs pages. Whether the docs explain the change is the other persona
 
 ## Output
 
-Write `change-model.md` in the packet, starting with these two lines so the orchestrator can plan without reading the rest:
+Write the change model to `change-model.md` at the top of the packet, next to `manifest.md`, not under `out/`.
+It starts with these two lines so the orchestrator can plan without reading the rest:
 
 ```text
 user_facing_changes: <count of items from step 1>
@@ -31,5 +32,5 @@ literals_changed: <count of literals from step 3>
 ```
 
 Then one section per user-facing change, then the old literals, then the PR description claims.
-Write your output file as the contract says, with your checks and anything you could not trace in `not_done`.
-Findings are not yours: return `findings: []`.
+Then write your output file as the contract says, with your checks and anything you could not trace in `not_done`.
+The output file does not repeat the change model, and its findings are always `findings: []`.
