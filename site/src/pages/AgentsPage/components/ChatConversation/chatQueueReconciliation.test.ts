@@ -278,14 +278,6 @@ describe("runEditQueuedMessage", () => {
 			});
 			return { store, promise };
 		};
-		const response = (
-			queued_messages: ChatQueuedMessage[],
-		): ChatMessagesResponse => ({
-			messages: [],
-			has_more: false,
-			queued_messages,
-		});
-
 		it.each([
 			{
 				name: "keeps the begin when the update predates it",
@@ -298,7 +290,11 @@ describe("runEditQueuedMessage", () => {
 				refetched: [saved, row6],
 			},
 		])("$name", async ({ duringRequest, refetched }) => {
-			const fetchQueueConvergence = vi.fn(async () => response(refetched));
+			const fetchQueueConvergence = vi.fn(async () => ({
+				messages: [],
+				has_more: false,
+				queued_messages: refetched,
+			}));
 			const { store, promise } = runWithUpdate(
 				duringRequest,
 				fetchQueueConvergence,
@@ -306,6 +302,15 @@ describe("runEditQueuedMessage", () => {
 			await promise;
 			expect(fetchQueueConvergence).toHaveBeenCalledWith("chat-1");
 			expect(store.getSnapshot().queuedMessages).toEqual(refetched);
+		});
+
+		it("drops the refetched queue after a switch to another chat", async () => {
+			const { store, promise } = runWithUpdate([saved, row6], async () => {
+				store.setActiveChatID("chat-2");
+				return { messages: [], has_more: false, queued_messages: [row5Marked] };
+			});
+			await promise;
+			expect(store.getSnapshot().queuedMessages).toEqual([saved, row6]);
 		});
 
 		it("keeps the update when the refetch fails", async () => {

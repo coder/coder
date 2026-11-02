@@ -173,8 +173,7 @@ export const runDeleteQueuedMessage = async (params: {
  * `editing` is written into the store so the composer does not wait for the
  * queue_update. When the queue convergence fence moved during the request, a
  * queue update can predate or follow the edit, so the queue is refetched
- * into the store instead. Every failure is reported through onError and
- * rethrown.
+ * instead. Every failure is reported through onError and rethrown.
  */
 export const runEditQueuedMessage = async (params: {
 	id: number;
@@ -228,13 +227,14 @@ export const runEditQueuedMessage = async (params: {
 		const refetchFence = store.getQueueConvergenceFence();
 		let queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 		try {
-			queuedMessages =
-				(await fetchQueueConvergence(chatID)).queued_messages ?? [];
+			queuedMessages = (await fetchQueueConvergence(chatID)).queued_messages;
 		} catch {
-			// The edit succeeded and its queue_update still follows.
+			// The edit succeeded, so its own queue_update still converges the
+			// store.
 			return;
 		}
-		// A queue update or chat switch during the refetch is newer.
+		// A queue update during the refetch is newer, and after a chat switch
+		// the refetched queue belongs to another chat.
 		if (
 			store.getActiveChatID() === chatID &&
 			store.getQueueConvergenceFence() === refetchFence
