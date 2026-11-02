@@ -340,11 +340,22 @@ describe("AgentChatPage", () => {
 
 		// The row was queued with another model than the one the picker shows.
 		it.each([
-			["keeps the row's model when the picker is untouched", undefined],
-			["sends the model picked during the edit", "model-c"],
-		])("saving a queued edit %s", async (_name, pickedModel) => {
+			[
+				"keeps the row's model when the picker is untouched",
+				"model-b",
+				false,
+				undefined,
+			],
+			["sends the model picked during the edit", "model-b", true, "model-c"],
+			[
+				"sends the picker's model when the row's model is no longer available",
+				"model-deleted",
+				false,
+				MockChat.last_model_config_id,
+			],
+		])("saving a queued edit %s", async (_name, rowModel, pickC, want) => {
 			const page = renderQueuedChat({
-				queuedMessages: [{ ...row, model_config_id: "model-b" }],
+				queuedMessages: [{ ...row, model_config_id: rowModel }],
 				models: [
 					{
 						...MockChatModel,
@@ -359,7 +370,7 @@ describe("AgentChatPage", () => {
 			await waitFor(() =>
 				expect(page.composer().textContent).toBe("queued text"),
 			);
-			if (pickedModel) {
+			if (pickC) {
 				await page.user.click(
 					screen.getByRole("combobox", { name: "Model A" }),
 				);
@@ -378,7 +389,7 @@ describe("AgentChatPage", () => {
 					row.id,
 					expect.objectContaining({
 						content: expect.anything(),
-						model_config_id: pickedModel,
+						model_config_id: want,
 					}),
 				),
 			);
