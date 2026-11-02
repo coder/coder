@@ -743,7 +743,9 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 							environment (IAM role, instance profile, AWS_PROFILE).{" "}
 							<DocsLink
 								size="sm"
-								href={docs("/ai-coder/ai-gateway/providers#amazon-bedrock")}
+								href={docs(
+									"/ai-governance/ai-gateway/providers#amazon-bedrock",
+								)}
 								target="_blank"
 								rel="noreferrer"
 							>

@@ -218,7 +218,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 			</div>
 			<div className="mt-4 text-sm">
 				<Link
-					href={docs("/ai-coder/agents/licensing-usage")}
+					href={docs("/coder-agents/licensing-usage")}
 					size="lg"
 					target="_blank"
 					rel="noreferrer"

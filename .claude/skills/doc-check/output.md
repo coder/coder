@@ -13,7 +13,7 @@ The orchestrator keeps the same fields through verification and posting.
   persona: accuracy
   class: wrong              # wrong | missing | broken | rule | suggestion | friction | adjacent
   blocking: true            # set by the orchestrator from SKILL.md#blocking, never by the persona
-  file: docs/ai-coder/agents/extending-agents.md
+  file: docs/coder-agents/extending-agents.md
   line: 304                 # line on the PR head, or null for a missing page
   quote: "Downloads add the line back for manual-only skills."
   evidence:
@@ -94,7 +94,7 @@ Never post a second summary comment.
 </details>
 
 ---
-*Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents). Reply to a finding's thread with the reason if the finding is wrong.*
+*Automated review via [Coder Agents](https://coder.com/docs/coder-agents). Reply to a finding's thread with the reason if the finding is wrong.*
 
 <!-- doc-check-sticky -->
 ````
@@ -139,7 +139,7 @@ doc-check-trace:
   deterministic_checks:
     - {name: make lint/emdash, result: pass}
   pages_read:
-    - docs/ai-coder/agents/extending-agents.md
+    - docs/coder-agents/extending-agents.md
   searches:
     - {query: "grep -rn 'model_invocable' docs/ | grep -v '^docs/reference/'", hits: 4}
   pr_claims_unsupported:
