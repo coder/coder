@@ -17,7 +17,6 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-	CommandSeparator,
 } from "#/components/Command/Command";
 import {
 	Popover,
@@ -86,7 +85,7 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 					aria-label={`Project: ${label}`}
 					className={cn(
 						"group flex h-6 w-auto min-w-0 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none whitespace-nowrap transition-colors",
-						"hover:text-content-primary focus:ring-0",
+						"rounded-sm hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 						"disabled:cursor-not-allowed disabled:opacity-50",
 					)}
 				>
@@ -103,8 +102,9 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
+				side="top"
 				align="start"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-72 overflow-hidden p-0"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-72 max-w-[calc(100vw-2rem)] overflow-hidden p-0"
 				onOpenAutoFocus={(event) => {
 					// Focusing the search input on touch devices opens the software
 					// keyboard, which hides the list.
@@ -113,13 +113,18 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 					}
 				}}
 			>
-				<Command loop filter={filterByKeywords} label="Search projects">
-					<CommandInput placeholder="Search…" className="text-xs" />
+				<Command
+					size="sm"
+					loop
+					filter={filterByKeywords}
+					label="Search projects"
+				>
+					<CommandInput placeholder="Search projects..." />
 					<CommandList className="max-h-72">
-						<CommandEmpty className="text-xs">No projects found</CommandEmpty>
+						<CommandEmpty>No projects found</CommandEmpty>
 						<CommandGroup>
 							<CommandItem
-								className="text-xs font-normal"
+								className={cn(value === null && "bg-surface-secondary")}
 								value="no-project"
 								keywords={[noProjectLabel]}
 								onSelect={() => select(null)}
@@ -131,7 +136,6 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 								)}
 							</CommandItem>
 						</CommandGroup>
-						<CommandSeparator />
 						{isLoading ? (
 							<div className="flex items-center gap-2 px-4 py-3 text-xs text-content-secondary">
 								<Spinner loading size="sm" />
@@ -162,7 +166,9 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 									{options.map((project) => (
 										<CommandItem
 											key={project.id}
-											className="text-xs font-normal"
+											className={cn(
+												value?.id === project.id && "bg-surface-secondary",
+											)}
 											value={project.id}
 											keywords={[project.name]}
 											onSelect={() => select(project)}
@@ -181,11 +187,11 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 				</Command>
 				{/* Outside Command so search never filters it out and it stays
 				    visible while the list scrolls. */}
-				<div className="border-0 border-t border-solid border-border p-1">
+				<div className="border-0 border-t border-solid border-border px-2 py-1">
 					<Button
 						variant="subtle"
 						size="sm"
-						className="w-full justify-start"
+						className="w-full justify-start gap-2 px-2 [&>svg]:p-0"
 						onClick={() => {
 							setOpen(false);
 							onCreateProject();

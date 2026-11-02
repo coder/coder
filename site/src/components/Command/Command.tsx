@@ -1,16 +1,39 @@
+import { cva, type VariantProps } from "class-variance-authority";
 import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
 
-export const Command: React.FC<
-	React.ComponentProps<typeof CommandPrimitive>
-> = ({ className, ...props }) => {
+const commandVariants = cva(
+	"flex h-full w-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
+	{
+		variants: {
+			size: {
+				default: "",
+				sm: `
+ [&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:border-border
+ [&_[cmdk-input-wrapper]]:h-8 [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-0 [&_[cmdk-input-wrapper]>svg]:size-3.5
+ [&_[cmdk-input]]:h-full [&_[cmdk-input]]:p-0 [&_[cmdk-input]]:text-xs [&_[cmdk-input]]:leading-[18px]
+ [&_[cmdk-list]]:p-2 [&_[cmdk-group]]:p-0 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:leading-[18px]
+ [&_[cmdk-item]]:min-h-8 [&_[cmdk-item]]:gap-2 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-1.5 [&_[cmdk-item]]:text-xs [&_[cmdk-item]]:leading-[18px]
+ [&_[cmdk-empty]]:py-3 [&_[cmdk-empty]]:text-xs [&_[cmdk-empty]]:leading-[18px]
+ `,
+			},
+		},
+		defaultVariants: { size: "default" },
+	},
+);
+
+type CommandProps = React.ComponentProps<typeof CommandPrimitive> &
+	VariantProps<typeof commandVariants>;
+
+export const Command: React.FC<CommandProps> = ({
+	className,
+	size,
+	...props
+}) => {
 	return (
 		<CommandPrimitive
-			className={cn(
-				"flex h-full w-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
-				className,
-			)}
+			className={cn(commandVariants({ size }), className)}
 			{...props}
 		/>
 	);
