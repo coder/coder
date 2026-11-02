@@ -53,10 +53,10 @@ func TestEditing_WhileRunning(t *testing.T) {
 	setEditing(t, m, ids[2], true)
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "an edit behind the head changes nothing")
 
-	require.NotNil(t, finishTurn(t, m).PromotedMessage, "row 1 promoted")
-	require.NotNil(t, finishTurn(t, m).PromotedMessage, "row 2 promoted")
+	require.Len(t, finishTurn(t, m).PromotedMessages, 1, "row 1 promoted")
+	require.Len(t, finishTurn(t, m).PromotedMessages, 1, "row 2 promoted")
 	third := finishTurn(t, m)
-	require.Nil(t, third.PromotedMessage, "row 3 is under edit")
+	require.Empty(t, third.PromotedMessages, "row 3 is under edit")
 	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[2:], queuedIDsByPosition(ctx, t, f, chatID))
 
@@ -97,7 +97,7 @@ func TestEditing_UnownedInterruptRunsAheadOfEditedHead(t *testing.T) {
 	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
 	assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
-	require.Nil(t, finishTurn(t, m).PromotedMessage, "the row under edit is not promoted")
+	require.Empty(t, finishTurn(t, m).PromotedMessages, "the row under edit is not promoted")
 	require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
 	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
 }
