@@ -467,9 +467,9 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 
 			var workspaceResources map[uuid.UUID][]codersdk.WorkspaceResource
+			var workspaces []codersdk.Workspace
 			if configOptions.noWildcard {
 				// Fetch all workspaces to generate individual host entries.
-				var workspaces []codersdk.Workspace
 				offset := 0
 				const pageSize = 100
 				for {
@@ -554,18 +554,21 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				_, _ = fmt.Fprintf(out, "Updated %q\n", sshConfigFile)
 			}
 
-			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-				Owner: codersdk.Me,
-				Limit: 1,
-			})
-			if err != nil {
-				return xerrors.Errorf("fetch workspaces failed: %w", err)
+			if !configOptions.noWildcard {
+				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+					Owner: codersdk.Me,
+					Limit: 1,
+				})
+				if err != nil {
+					return xerrors.Errorf("fetch workspaces failed: %w", err)
+				}
+				workspaces = res.Workspaces
 			}
 
-			if len(res.Workspaces) > 0 {
+			if len(workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
 				if configOptions.hostnameSuffix != "" || configOptions.userHostPrefix != "" {
-					ws := res.Workspaces[0]
+					ws := workspaces[0]
 					host := ws.Name
 					agents := startAgentNames(ws.LatestBuild.Resources)
 					if len(agents) == 0 {

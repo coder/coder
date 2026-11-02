@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -182,7 +183,9 @@ func TestConfigSSH_Example(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		APIMiddleware: func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources") {
+				isHistory := strings.HasPrefix(r.URL.Path, "/api/v2/workspaces/") && strings.HasSuffix(r.URL.Path, "/builds")
+				isImport := strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources")
+				if r.Method == http.MethodGet && (isHistory || isImport) {
 					counter, _ := resourceRequests.LoadOrStore(r.URL.Path, new(atomic.Int32))
 					counter.(*atomic.Int32).Add(1)
 				}
@@ -193,16 +196,35 @@ func TestConfigSSH_Example(t *testing.T) {
 	admin := coderdtest.CreateFirstUser(t, client)
 
 	for _, noWildcard := range []bool{false, true} {
-		for _, stopped := range []bool{false, true} {
-			t.Run(fmt.Sprintf("NoWildcard=%t/Stopped=%t", noWildcard, stopped), func(t *testing.T) {
+		for _, tc := range []struct {
+			stopped bool
+			agents  int
+		}{{false, 2}, {true, 2}, {true, 1}} {
+			t.Run(fmt.Sprintf("NoWildcard=%t/Stopped=%t/Agents=%d", noWildcard, tc.stopped, tc.agents), func(t *testing.T) {
 				t.Parallel()
 
 				member, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+					OrganizationID: admin.OrganizationID,
+					CreatedBy:      user.ID,
+				}).Resources(&sdkproto.Resource{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{
+						{Id: uuid.NewString(), Name: "aardvark", Auth: &sdkproto.Agent_Token{Token: uuid.NewString()}},
+						{Id: uuid.NewString(), Name: "zebra", Auth: &sdkproto.Agent_Token{Token: uuid.NewString()}},
+					},
+				}).Do()
 				build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 					OrganizationID: admin.OrganizationID,
 					OwnerID:        user.ID,
+					TemplateID:     version.Template.ID,
+					Name:           "ssh-" + uuid.NewString()[:8],
 				}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
 					agents[0].Name = "alpha"
+					if tc.agents == 1 {
+						return agents
+					}
 					return append(agents, &sdkproto.Agent{
 						Id:   uuid.NewString(),
 						Name: "beta",
@@ -210,30 +232,41 @@ func TestConfigSSH_Example(t *testing.T) {
 						Env:  map[string]string{},
 					})
 				})
-				if stopped {
-					build = build.Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop})
-				}
 				workspace := build.Do().Workspace
-				args := []string{"config-ssh", "--ssh-config-file", sshConfigFileName(t), "--hostname-suffix", "coder", "--yes"}
+				if tc.stopped {
+					dbfake.WorkspaceBuild(t, db, workspace).Seed(database.WorkspaceBuild{
+						Transition:  database.WorkspaceTransitionStop,
+						BuildNumber: 2,
+					}).Do()
+				}
+				sshConfigPath := sshConfigFileName(t)
+				args := []string{"config-ssh", "--ssh-config-file", sshConfigPath, "--hostname-suffix", "coder", "--yes"}
 				if noWildcard {
 					args = append(args, "--no-wildcard")
 				}
 				inv, root := clitest.New(t, args...)
 				clitest.SetupConfig(t, member, root)
-				stdout := expecter.NewAttachedToInvocation(t, inv)
+				var stdout bytes.Buffer
+				inv.Stdout = &stdout
 				ctx := testutil.Context(t, testutil.WaitLong)
-				waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
-				stdout.ExpectMatch(ctx, "$ ssh alpha."+workspace.Name+"."+user.Username+".coder")
-				waiter.RequireSuccess()
+				require.NoError(t, inv.WithContext(ctx).Run())
+				want := "$ ssh " + workspace.Name + ".coder"
+				if tc.agents > 1 {
+					want = "$ ssh alpha." + workspace.Name + "." + user.Username + ".coder"
+				}
+				require.Contains(t, stdout.String(), want)
+				if noWildcard {
+					require.Contains(t, sshConfigFileRead(t, sshConfigPath), "Host "+strings.TrimPrefix(want, "$ ssh ")+"\n")
+				}
 
-				if stopped {
-					workspace, err := member.Workspace(ctx, workspace.ID)
-					require.NoError(t, err)
-					path := "/api/v2/templateversions/" + workspace.LatestBuild.TemplateVersionID.String() + "/resources"
+				if tc.stopped {
+					path := "/api/v2/workspaces/" + workspace.ID.String() + "/builds"
 					counter, ok := resourceRequests.Load(path)
-					require.True(t, ok, "stopped workspace hint fetches template resources")
+					require.True(t, ok, "stopped workspace hint fetches its start-build resources")
 					require.EqualValues(t, 1, counter.(*atomic.Int32).Load(), "reuse the resources fetched for host entries")
 				}
+				_, imported := resourceRequests.Load("/api/v2/templateversions/" + version.TemplateVersion.ID.String() + "/resources")
+				require.False(t, imported, "import defaults do not describe this workspace's agents")
 			})
 		}
 	}
