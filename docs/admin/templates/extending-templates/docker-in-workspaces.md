@@ -352,29 +352,7 @@ spec:
         user.max_user_namespaces: 65536
 ```
 
-Reference the `NodeClass` from a `NodePool`:
-
-```yaml
-apiVersion: karpenter.sh/v1
-kind: NodePool
-metadata:
-  name: podman
-spec:
-  template:
-    spec:
-      nodeClassRef:
-        group: eks.amazonaws.com
-        kind: NodeClass
-        name: podman
-      requirements:
-        # The codercom/example-podman image is published for amd64 only.
-        - key: kubernetes.io/arch
-          operator: In
-          values: ["amd64"]
-```
-
-Auto Mode labels each node with `eks.amazonaws.com/nodeclass` set to the name of its `NodeClass`.
-Schedule Podman workspaces onto the pool with the node selector `eks.amazonaws.com/nodeclass: podman`.
+Reference the `NodeClass` from a `NodePool` and schedule Podman workspaces onto that pool with a node selector.
 Refer to [Create a Node Class for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-node-class.html) for the full `advancedCompute` reference.
 
 If you can't use `advancedCompute`, run Podman workspaces on a managed node group instead.
@@ -392,19 +370,16 @@ The value must be a multiple of 65536, and `idsPerPod` requires `user.max_user_n
       idsPerPod: 1048576
 ```
 
-### Use native overlay storage instead of `fuse-overlayfs`
+### Use native overlay storage instead of fuse-overlayfs
 
 Kernel overlayfs cannot stack on the workspace container's own overlay root filesystem.
 Without extra configuration, Podman falls back to `fuse-overlayfs`, which requires the `/dev/fuse` device and the smarter-device-manager setup above.
 On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
 
 1. Put the Podman graph root on a real filesystem such as ext4 or xfs.
-
    If your template mounts a persistent volume at `/home/coder`, like the `kubernetes` starter, the default graph root already qualifies and keeps images across workspace restarts.
-   For ephemeral workspaces, mount an `emptyDir` volume at `/home/coder/.local/share/containers` instead.
-   Pulled images and build cache are lost when the workspace stops.
+   For ephemeral workspaces, mount an `emptyDir` volume at `/home/coder/.local/share/containers` instead; pulled images and build cache are lost when the workspace stops.
 1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`.
-
    Write the override from the agent `startup_script`, which can also start the Docker-compatible API socket:
 
    ```tf
@@ -426,8 +401,7 @@ On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
    `docker buildx` commands still require BuildKit and aren't supported.
 
 With both settings, Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
-When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec.
-Without the device plugin, that limit keeps pods in `Pending`.
+When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec; without the device plugin, that limit keeps pods in `Pending`.
 
 For a complete reference template, run `coder templates init --id kubernetes-podman-rootless` or refer to [`examples/templates/kubernetes-podman-rootless`](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-podman-rootless).
 

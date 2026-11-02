@@ -24,8 +24,9 @@ The agent starts a Docker-compatible API socket for tools such as Testcontainers
 
 ## Notes
 
-- The Podman graph root is an `emptyDir` volume, so pulled images are lost when the workspace stops.
-  Mount a persistent volume at `/home/coder` to keep them instead.
+- The home directory is a persistent volume, so cloned repositories, pulled images, and build cache survive workspace restarts.
+  The volume must be ext4 or xfs for native overlay storage, which most default storage classes provide.
+- If Podman can't start its API socket, for example because user namespaces are disabled on the node, the startup script fails and prints the Podman error to the startup logs.
 - One level of container nesting is supported.
   For dev containers, use the `docker-outside-of-docker` feature.
   Refer to [Docker in workspaces](https://coder.com/docs/admin/templates/extending-templates/docker-in-workspaces#nested-container-engines).
