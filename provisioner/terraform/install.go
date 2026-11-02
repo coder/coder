@@ -24,7 +24,8 @@ var (
 	// copy of HashiCorp's GPG-signed checksum file for this version.
 	// scripts/Dockerfile.base reads the version and checksums from it, and
 	// `make gen` regenerates install.sh from it and fails if this version
-	// doesn't match.
+	// doesn't match. scripts/update_terraform_version.sh bumps this version,
+	// the checksum file and the other pins together.
 	TerraformVersion = version.Must(version.NewVersion("1.16.7"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
