@@ -1,6 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useQuery } from "react-query";
 import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import {
+	deploymentSSHConfig,
+	deploymentSSHConfigQueryKey,
+} from "#/api/queries/deployment";
 import {
 	MockDeploymentSSH,
 	MockWorkspace,
@@ -42,6 +47,7 @@ export const Opened: Story = {
 	decorators: [withDesktopViewport],
 };
 
+/** No connection command is offered before the first request settles. */
 export const OpenedLoading: Story = {
 	...Opened,
 	beforeEach: () => {
@@ -49,6 +55,7 @@ export const OpenedLoading: Story = {
 	},
 };
 
+/** Initial request failures leave the CLI fallback usable beside the error. */
 export const OpenedWithError: Story = {
 	...Opened,
 	beforeEach: () => {
@@ -58,10 +65,35 @@ export const OpenedWithError: Story = {
 	},
 };
 
+/** A cached suffix stays usable when refreshing the deployment settings fails. */
+export const OpenedWithRefetchError: Story = {
+	...OpenedWithError,
+	parameters: {
+		queries: [{ key: deploymentSSHConfigQueryKey, data: MockDeploymentSSH }],
+	},
+	decorators: [
+		withDesktopViewport,
+		(Story) => {
+			useQuery({ ...deploymentSSHConfig(), refetchOnMount: "always" });
+			return <Story />;
+		},
+	],
+};
+
+const mockDeploymentSSHWithoutHostnameSuffix = {
+	...MockDeploymentSSH,
+	hostname_suffix: "",
+};
+
+/** Deployments without a hostname suffix do not require SSH configuration. */
 export const OpenedWithoutHostnameSuffix: Story = {
 	...Opened,
-	beforeEach: () => {
-		const mockDeploymentSSH = { ...MockDeploymentSSH, hostname_suffix: "" };
-		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(mockDeploymentSSH);
+	parameters: {
+		queries: [
+			{
+				key: deploymentSSHConfigQueryKey,
+				data: mockDeploymentSSHWithoutHostnameSuffix,
+			},
+		],
 	},
 };

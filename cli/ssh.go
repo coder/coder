@@ -968,6 +968,7 @@ func findWorkspaceAndAgentByHostname(
 // ssh hostname resolvable. Otherwise the user invoked coder ssh directly and
 // must be pointed back to it, including the owner if includeOwner is set.
 func agentSSHSuggestion(config codersdk.SSHConfigResponse, ws codersdk.Workspace, agent codersdk.WorkspaceAgent, includeOwner bool) string {
+	// Prefixes include their separators verbatim; suffixes need a leading dot.
 	switch {
 	case config.HostnameSuffix != "":
 		return fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix)

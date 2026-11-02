@@ -30,11 +30,14 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 }) => {
 	const { data, isLoading, error } = useQuery(deploymentSSHConfig());
 	const sshSuffix = data?.hostname_suffix;
+	const configCommand = sshSuffix ? "coder config-ssh" : undefined;
 	// The CLI needs no SSH config, so it remains usable when the suffix is
 	// empty or the deployment SSH config could not be loaded.
-	const connectCommand = sshSuffix
-		? `ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`
-		: `coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`;
+	const connectCommand = isLoading
+		? undefined
+		: sshSuffix
+			? `ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`
+			: `coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`;
 
 	return (
 		<Popover>
@@ -58,19 +61,21 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 					<ErrorAlert error={error} showDebugDetail={false} className="mt-3" />
 				)}
 
-				<Spinner loading={isLoading} className="mt-3">
+				<Spinner loading={connectCommand === undefined} className="mt-3">
 					<ol style={{ margin: 0, padding: 0 }}>
 						<div className="flex flex-col gap-1 mt-3">
-							{sshSuffix && (
+							{configCommand && (
 								<SSHStep
 									helpText="Configure SSH hosts on machine:"
-									codeExample="coder config-ssh"
+									codeExample={configCommand}
 								/>
 							)}
-							<SSHStep
-								helpText="Connect to the agent:"
-								codeExample={connectCommand}
-							/>
+							{connectCommand && (
+								<SSHStep
+									helpText="Connect to the agent:"
+									codeExample={connectCommand}
+								/>
+							)}
 						</div>
 					</ol>
 				</Spinner>
