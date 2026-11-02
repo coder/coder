@@ -489,7 +489,7 @@ func TestExecuteTool(t *testing.T) {
 				assert.Contains(t, result.Error, tt.wantPrefix)
 				assert.Contains(t, result.Error, `exec: "sh": executable file not found`)
 				assert.Contains(t, result.Error, "Git Bash")
-				assert.Contains(t, result.Error, "https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement")
+				assert.Contains(t, result.Error, "https://coder.com/docs/coder-agents/architecture#windows-workspace-shell-requirement")
 			})
 		}
 	})
