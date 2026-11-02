@@ -1,8 +1,7 @@
 import * as path from "node:path";
-import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import tailwindcss from "@tailwindcss/vite";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
@@ -14,24 +13,9 @@ import { defineConfig } from "vitest/config";
 // preserves performance instrumentation.
 const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
 
-const compilerPreset = reactCompilerPreset();
-compilerPreset.rolldown.filter = {
-	...compilerPreset.rolldown.filter,
-	id: {
-		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
-		include: [
-			/src\/modules\/aiModels\//,
-			/src\/pages\/AgentsPage\//,
-			/src\/pages\/AIBridgePage\//,
-			/src\/pages\/TemplateBuilder\//,
-		],
-	},
-};
-
 const plugins: PluginOption[] = [
 	tailwindcss(),
-	react(),
-	babel({ presets: [compilerPreset] }),
+	react({ compiler: true }),
 	checker({
 		typescript: true,
 	}),
