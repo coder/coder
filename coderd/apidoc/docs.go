@@ -36515,7 +36515,8 @@ const docTemplate = `{
                 "Websocket",
                 "Database",
                 "WorkspaceProxy",
-                "ProvisionerDaemons"
+                "ProvisionerDaemons",
+                "Pubsub"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
@@ -36523,7 +36524,8 @@ const docTemplate = `{
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
                 "HealthSectionWorkspaceProxy",
-                "HealthSectionProvisionerDaemons"
+                "HealthSectionProvisionerDaemons",
+                "HealthSectionPubsub"
             ]
         },
         "healthsdk.HealthSettings": {

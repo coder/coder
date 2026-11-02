@@ -34,6 +34,7 @@ const (
 	HealthSectionDatabase           HealthSection = "Database"
 	HealthSectionWorkspaceProxy     HealthSection = "WorkspaceProxy"
 	HealthSectionProvisionerDaemons HealthSection = "ProvisionerDaemons"
+	HealthSectionPubsub             HealthSection = "Pubsub"
 )
 
 var HealthSections = []HealthSection{
@@ -43,6 +44,7 @@ var HealthSections = []HealthSection{
 	HealthSectionDatabase,
 	HealthSectionWorkspaceProxy,
 	HealthSectionProvisionerDaemons,
+	HealthSectionPubsub,
 }
 
 type HealthSettings struct {
@@ -124,6 +126,7 @@ func (r *HealthcheckReport) Summarize(docsURL string) []string {
 	msgs = append(msgs, r.Database.Summarize("Database:", docsURL)...)
 	msgs = append(msgs, r.DERP.Summarize("DERP:", docsURL)...)
 	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:", docsURL)...)
+	msgs = append(msgs, r.Pubsub.Summarize("Pubsub:", docsURL)...)
 	msgs = append(msgs, r.Websocket.Summarize("Websocket:", docsURL)...)
 	msgs = append(msgs, r.WorkspaceProxy.Summarize("Workspace Proxies:", docsURL)...)
 	return msgs
