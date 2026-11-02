@@ -20,6 +20,8 @@ CREATE INDEX idx_chats_shared_roots ON chats (id)
 -- many chats pass it by about 150x and sorts all of a large owner's chats
 -- instead of reading idx_chats_owner_root_list in order. Expression
 -- statistics require PostgreSQL 14, and ANALYZE fills them right away.
+-- Databases that run this migration on PostgreSQL 13 do not get them after
+-- a later server upgrade, and dump.sql (generated on 13) omits them.
 DO $$
 BEGIN
 	IF current_setting('server_version_num')::int >= 140000 THEN

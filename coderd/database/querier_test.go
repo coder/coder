@@ -2202,9 +2202,9 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	}
 }
 
-// DeleteOldChats purges chats one at a time, so a parent can be deleted
-// before its descendants. The orphaned chat keeps root_chat_id, is listed as
-// a root, and inherits the root's ACL through chats_expanded.
+// DeleteOldChats selects chats by age, not hierarchy, so a parent can be
+// deleted before its descendants. The orphaned chat keeps root_chat_id, is
+// listed as a root, and inherits the root's ACL through chats_expanded.
 //
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetAuthorizedChatsPurgedParent(t *testing.T) {
