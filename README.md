@@ -76,13 +76,13 @@ Without these flags, Coder uses a built-in database and sets up a `*.try.coder.a
 
 Browse the [documentation](https://coder.com/docs) or visit a specific section below:
 
-- [**Workspaces**](https://coder.com/docs/workspaces/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
+- [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
 - [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
 - [**Coder Agents**](https://coder.com/docs/ai-coder/agents): Delegate coding work to AI agents running on your self-hosted infrastructure
 - [**AI Gateway**](https://coder.com/docs/ai-coder/ai-gateway): Centralize authentication, auditing, and cost controls for AI tooling
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about paid features built for large teams
-- [**IDEs**](https://coder.com/docs/workspaces/workspace-access): Connect your existing editor to a workspace
+- [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
 
 ## Support
 
@@ -103,7 +103,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 - [**coderd Terraform Provider**](https://github.com/coder/terraform-provider-coderd): Declaratively manage your Coder deployment configuration as code
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
 - [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
-- [**Dev Containers**](https://coder.com/docs/workspaces/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
+- [**Dev Containers**](https://coder.com/docs/user-guides/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
 - [**Kubernetes Log Stream**](https://github.com/coder/coder-logstream-kube): Stream Kubernetes Pod events to the Coder startup logs
 - [**Self-Hosted VS Code Extension Marketplace**](https://github.com/coder/code-marketplace): A private extension marketplace that works in restricted or airgapped networks integrating with [code-server](https://github.com/coder/code-server).
 - [**GitHub Actions**](https://github.com/marketplace/actions/setup-coder): An action to set up the Coder CLI in GitHub workflows

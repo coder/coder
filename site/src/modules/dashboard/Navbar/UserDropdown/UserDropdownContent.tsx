@@ -22,7 +22,7 @@ import { useClipboard } from "#/hooks/useClipboard";
 import { supportsCoderDesktop } from "#/utils/platform";
 import { SupportIcon } from "../SupportIcon";
 
-const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/workspaces/desktop";
+const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/user-guides/desktop";
 
 const CodernautsSVG = () => (
 	<svg

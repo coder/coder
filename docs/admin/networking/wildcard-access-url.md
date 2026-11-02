@@ -11,7 +11,7 @@ While optional for basic SSH usage, this feature becomes essential when teams ne
 ### Key benefits
 
 - **Enables port access**:
-  Each application gets a unique subdomain with [port support](https://coder.com/docs/workspaces/workspace-access/port-forwarding#dashboard) (for example, `8080--main--myworkspace--john.coder.example.com`).
+  Each application gets a unique subdomain with [port support](../../workspaces/workspace-access/port-forwarding.md#dashboard) (for example, `8080--main--myworkspace--john.coder.example.com`).
 - **Enhanced security**:
   Applications run in isolated subdomains with separate browser security contexts and prevents access to the Coder API from malicious JavaScript
 - **Better compatibility**:

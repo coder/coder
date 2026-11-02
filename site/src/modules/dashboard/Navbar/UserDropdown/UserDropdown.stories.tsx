@@ -373,7 +373,7 @@ export const InstallCoderDesktopMacOS: Story = {
 				const menu = await openDropdown(canvasElement);
 				expect(
 					menu.getByRole("menuitem", { name: "Install Coder Desktop" }),
-				).toHaveAttribute("href", "https://coder.com/docs/workspaces/desktop");
+				).toHaveAttribute("href", "https://coder.com/docs/user-guides/desktop");
 				expect(
 					menu.getByRole("menuitem", { name: "Install CLI" }),
 				).toBeInTheDocument();

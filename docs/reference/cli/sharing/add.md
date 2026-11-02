@@ -21,7 +21,7 @@ coder sharing add [flags] <workspace> --user <user>:<role> --group <group>:<role
 ## Description
 
 ```console
-This command fails if workspace sharing is disabled for the deployment, or if the organization's sharing policy doesn't allow sharing the workspace. See https://coder.com/docs/workspaces/shared-workspaces#policies for sharing policies.
+This command fails if workspace sharing is disabled for the deployment, or if the organization's sharing policy doesn't allow sharing the workspace. See https://coder.com/docs/user-guides/shared-workspaces#policies for sharing policies.
 ```
 
 ## Options
