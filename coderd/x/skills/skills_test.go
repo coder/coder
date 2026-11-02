@@ -178,18 +178,20 @@ func TestMergeSkills(t *testing.T) {
 	shared := []skills.Skill{{Name: "shared", Description: "Shared"}}
 
 	for _, tc := range []struct {
-		name                              string
-		personal, organization, workspace []skills.Skill
-		want                              []skills.ResolvedSkill
+		name                                       string
+		personal, organization, project, workspace []skills.Skill
+		want                                       []skills.ResolvedSkill
 	}{
 		{
 			name:         "NonCollidingSkillsUseBareAliasesSortedByName",
 			personal:     []skills.Skill{{Name: "personal-skill"}},
 			organization: []skills.Skill{{Name: "org-skill"}},
+			project:      []skills.Skill{{Name: "project-skill"}},
 			workspace:    []skills.Skill{{Name: "workspace-skill"}},
 			want: []skills.ResolvedSkill{
 				resolved("org-skill", skills.SourceOrganization, "org-skill", ""),
 				resolved("personal-skill", skills.SourcePersonal, "personal-skill", ""),
+				resolved("project-skill", skills.SourceProject, "project-skill", ""),
 				resolved("workspace-skill", skills.SourceWorkspace, "workspace-skill", ""),
 			},
 		},
@@ -224,10 +226,12 @@ func TestMergeSkills(t *testing.T) {
 			name:         "AllSourcesCollide",
 			personal:     shared,
 			organization: shared,
+			project:      shared,
 			workspace:    shared,
 			want: []skills.ResolvedSkill{
 				resolved("personal/shared", skills.SourcePersonal, "shared", "Shared"),
 				resolved("org/shared", skills.SourceOrganization, "shared", "Shared"),
+				resolved("project/shared", skills.SourceProject, "shared", "Shared"),
 				resolved("workspace/shared", skills.SourceWorkspace, "shared", "Shared"),
 			},
 		},
@@ -244,7 +248,12 @@ func TestMergeSkills(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, skills.MergeSkills(tc.personal, tc.organization, tc.workspace))
+			require.Equal(t, tc.want, skills.MergeSkills(
+				skills.SourceSkills{Source: skills.SourcePersonal, Skills: tc.personal},
+				skills.SourceSkills{Source: skills.SourceOrganization, Skills: tc.organization},
+				skills.SourceSkills{Source: skills.SourceProject, Skills: tc.project},
+				skills.SourceSkills{Source: skills.SourceWorkspace, Skills: tc.workspace},
+			))
 		})
 	}
 }
@@ -254,9 +263,9 @@ func TestLookup(t *testing.T) {
 
 	shared := []skills.Skill{{Name: "shared"}}
 	merged := skills.MergeSkills(
-		append([]skills.Skill{{Name: "personal-skill"}}, shared...),
-		append([]skills.Skill{{Name: "org-skill"}}, shared...),
-		[]skills.Skill{{Name: "workspace-skill"}},
+		skills.SourceSkills{Source: skills.SourcePersonal, Skills: append([]skills.Skill{{Name: "personal-skill"}}, shared...)},
+		skills.SourceSkills{Source: skills.SourceOrganization, Skills: append([]skills.Skill{{Name: "org-skill"}}, shared...)},
+		skills.SourceSkills{Source: skills.SourceWorkspace, Skills: []skills.Skill{{Name: "workspace-skill"}}},
 	)
 
 	for _, tc := range []struct {

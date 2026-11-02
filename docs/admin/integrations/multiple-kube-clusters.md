@@ -52,7 +52,7 @@ If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/co
 ### Create a Coder template
 
 You can start from our [example template](../../../examples/templates/kubernetes).
-From there, add [template parameters](../templates/extending-templates/parameters.md) to allow developers to pick their desired cluster.
+From there, add [template parameters](../templates/extending-templates/parameters/index.md) to allow developers to pick their desired cluster.
 
 ```tf
 # main.tf

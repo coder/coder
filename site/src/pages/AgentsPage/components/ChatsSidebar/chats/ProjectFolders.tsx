@@ -1,7 +1,8 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, type To, useLocation } from "react-router";
+import type { ChatListInput } from "#/api/queries/chats";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -21,9 +22,15 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
+import {
+	getPersistedProjectsSectionExpanded,
+	savePersistedProjectsSectionExpanded,
+} from "../../../utils/projectsSectionStorage";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
-import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
+import { ProjectFolderChats } from "./ProjectFolderChats";
+import { ProjectsSectionDropArea } from "./ProjectsSectionDropArea";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -35,56 +42,90 @@ export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
+	readonly currentUserId: string;
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
+	/** The Pinned section lists these, so folders only count them. */
+	readonly pinnedChatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
+	readonly chatListInput: ChatListInput;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDelete: DeleteProject;
 	readonly isLoading: boolean;
 	readonly error: unknown;
+	/**
+	 * True when the first load failed. A failed refetch keeps cached
+	 * projects, including an empty list, so its empty state stays.
+	 */
+	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
+	currentUserId,
 	projects,
 	organizations,
 	chatsByProjectId,
+	pinnedChatsByProjectId,
+	chatListInput,
 	expandedProjectIds,
 	onToggle,
 	onOpenProjectDialog,
 	onDelete,
 	isLoading,
 	error,
+	isLoadError,
 	onRetry,
 	emptyMessage,
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
-	const [isExpanded, setIsExpanded] = useState(true);
+	const [isExpanded, setIsExpanded] = useState(() =>
+		getPersistedProjectsSectionExpanded(currentUserId),
+	);
+	const setExpanded = (expanded: boolean) => {
+		setIsExpanded(expanded);
+		savePersistedProjectsSectionExpanded(currentUserId, expanded);
+	};
+	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
+	const isShowingEmptyState =
+		isExpanded && !isLoading && !isLoadError && projects.length === 0;
+	// Also hidden while an expanded section loads: if the load comes back
+	// empty, the empty state's button would replace a focused header button
+	// and drop keyboard focus.
+	const isShowingHeaderNewProject =
+		!isShowingEmptyState && !(isExpanded && isLoading);
 
 	return (
 		<div>
-			<SidebarSectionHeader
-				title="Projects"
-				collapsible={{
-					expanded: isExpanded,
-					onToggle: () => setIsExpanded((expanded) => !expanded),
-				}}
-				actions={
-					<Button
-						variant="subtle"
-						size="icon"
-						className="size-7"
-						aria-label="New project"
-						onClick={() => onOpenProjectDialog({ mode: "create" })}
-					>
-						<PlusIcon />
-					</Button>
-				}
-			/>
+			<ProjectsSectionDropArea
+				isExpanded={isExpanded}
+				onExpand={() => setExpanded(true)}
+			>
+				<SidebarSectionHeader
+					title="Projects"
+					collapsible={{
+						expanded: isExpanded,
+						onToggle: () => setExpanded(!isExpanded),
+					}}
+					actions={
+						isShowingHeaderNewProject && (
+							<Button
+								variant="subtle"
+								size="icon"
+								className="size-7"
+								aria-label="New project"
+								onClick={openCreateDialog}
+							>
+								<PlusIcon />
+							</Button>
+						)
+					}
+				/>
+			</ProjectsSectionDropArea>
 			{isExpanded && (
 				<div className="px-2">
 					{Boolean(error) && (
@@ -99,10 +140,16 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 						/>
 					)}
 					{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
-					{!isLoading && !error && projects.length === 0 && (
-						<p className="m-0 px-2.5 py-1 text-xs text-content-secondary">
-							No projects yet
-						</p>
+					{isShowingEmptyState && (
+						<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border mx-1 px-8 py-5 text-center">
+							<p className="m-0 text-sm text-content-secondary">
+								Group related chats together, with shared members and history.
+							</p>
+							<Button variant="outline" size="sm" onClick={openCreateDialog}>
+								<PlusIcon />
+								New project
+							</Button>
+						</div>
 					)}
 					{projects.length > 0 && (
 						<div className="flex flex-col gap-0.5">
@@ -112,6 +159,8 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									project={project}
 									organizationLabel={organizationLabels.get(project.id)}
 									chats={chatsByProjectId.get(project.id) ?? []}
+									pinnedChats={pinnedChatsByProjectId.get(project.id) ?? []}
+									chatListInput={chatListInput}
 									expanded={Boolean(expandedProjectIds[project.id])}
 									locationSearch={location.search}
 									onToggle={() => onToggle(project.id)}
@@ -132,6 +181,8 @@ type ProjectFolderProps = {
 	readonly project: ChatProject;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
+	readonly pinnedChats: readonly Chat[];
+	readonly chatListInput: ChatListInput;
 	readonly expanded: boolean;
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
@@ -144,6 +195,8 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
 	organizationLabel,
 	chats,
+	pinnedChats,
+	chatListInput,
 	expanded,
 	locationSearch,
 	onToggle,
@@ -158,12 +211,21 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
+	const toggleRef = useRef<HTMLButtonElement>(null);
 	return (
-		<div>
+		<ChatDropArea
+			target={{
+				kind: "project",
+				projectId: project.id,
+				organizationId: project.organization_id,
+				label: projectLabel,
+			}}
+		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 						<Button
+							ref={toggleRef}
 							variant="subtle"
 							size="icon"
 							className="size-6 min-w-0 p-0 text-current [&>svg]:size-3.5"
@@ -179,18 +241,25 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<NavLink
 							to={projectPath}
 							aria-label={projectLabel}
-							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
+							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
 						>
-							<ChatProjectIcon
-								project={project}
-								expanded={expanded}
-								className="size-4"
-							/>
-							<span className="flex-1 truncate">{project.name}</span>
-							{organizationLabel && (
-								<span className="max-w-[40%] shrink-0 truncate text-xs text-content-secondary">
-									{organizationLabel}
-								</span>
+							{({ isActive }) => (
+								<>
+									<ChatProjectIcon
+										project={project}
+										expanded={expanded}
+										className="size-4 stroke-[1.75]"
+									/>
+									<span
+										className={cn(
+											"flex-1 truncate text-content-primary",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+										)}
+									>
+										{project.name}
+									</span>
+								</>
 							)}
 						</NavLink>
 						<DropdownMenu>
@@ -235,6 +304,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
 								/>
@@ -247,24 +317,25 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
 					/>
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (
-				// pl-[7px] and pr-2 offset ChatTreeNode's -mx-2 bleed: rows span the
-				// folder row's width and an active row's border covers the guide line.
-				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
-					{chats.length === 0 ? (
-						<p className="m-0 px-2 py-1 text-xs text-content-secondary">
-							{emptyMessage}
-						</p>
-					) : (
-						chats.map((chat) => <ChatTreeNode key={chat.id} chat={chat} />)
-					)}
+				<div className="ml-[15.5px] flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
+					<ProjectFolderChats
+						projectId={project.id}
+						projectLabel={projectLabel}
+						filedChats={chats}
+						filedPinnedChats={pinnedChats}
+						chatListInput={chatListInput}
+						emptyMessage={emptyMessage}
+						onRetryFocusLost={() => toggleRef.current?.focus()}
+					/>
 				</div>
 			)}
-		</div>
+		</ChatDropArea>
 	);
 };

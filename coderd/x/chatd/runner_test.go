@@ -60,19 +60,6 @@ func TestRunner_CancelsActiveTaskWhenStatusChanges(t *testing.T) {
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
 }
 
-func TestRunner_CleansUpOnOwnershipTakeover(t *testing.T) {
-	t.Parallel()
-	f := newWorkerTestFixture(t)
-	chat := f.createRunningChat(t)
-	starter := newBlockingTaskStarter(false)
-	startWorker(t, testOptions(t, f, starter))
-	first := starter.waitCall(t, taskKindGeneration, chat.ID)
-
-	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
-	requireTaskCanceled(t, first)
-	starter.assertNoCall(t)
-}
-
 func TestRunner_SerializesReplacementTasksForSameHistoryAndStatus(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

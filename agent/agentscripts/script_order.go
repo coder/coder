@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -22,6 +23,11 @@ import (
 // Often enough to show the wait is alive, rare enough not to flood the log.
 const dependencyLogInterval = 30 * time.Second
 
+const (
+	canceledBeforeStartLine = "Canceled before starting."
+	canceledRunningLine     = "Canceled while running."
+)
+
 // lifecycleExecutor runs one start or stop execution whose scripts carry
 // dependencies.
 type lifecycleExecutor struct {
@@ -30,6 +36,9 @@ type lifecycleExecutor struct {
 	getScriptLogger func(uuid.UUID) ScriptLogger
 	// run is Runner.runTracked; tests replace it with a fake.
 	run func(context.Context, codersdk.WorkspaceAgentScript, ExecuteOption) error
+	// reportUnstarted is Runner.reportUnstarted; tests replace it with a
+	// fake or leave it nil.
+	reportUnstarted func(context.Context, codersdk.WorkspaceAgentScript, ExecuteOption, proto.Timing_Status)
 }
 
 func (e lifecycleExecutor) execute(ctx context.Context, scripts []codersdk.WorkspaceAgentScript, option ExecuteOption) error {
@@ -172,6 +181,8 @@ func (e lifecycleExecutor) executeScript(
 	}
 	if err != nil {
 		if ctx.Err() != nil {
+			e.logCanceled(ctx, script, canceledBeforeStartLine)
+			e.report(ctx, script, option, proto.Timing_CANCELED)
 			return errors.Join(err, record(unit.OutcomeCanceled))
 		}
 		return err
@@ -180,6 +191,7 @@ func (e lifecycleExecutor) executeScript(
 	switch evaluation.Decision {
 	case unit.DecisionSkip:
 		e.logSkipped(ctx, script, scriptsByAddress, evaluation)
+		e.report(ctx, script, option, proto.Timing_SKIPPED)
 		if err := record(unit.OutcomeSkipped); err != nil {
 			return err
 		}
@@ -194,10 +206,29 @@ func (e lifecycleExecutor) executeScript(
 	}
 
 	runErr := e.run(ctx, script, option)
-	if err := record(scriptOutcome(runErr, ctx.Err())); err != nil {
+	outcome := scriptOutcome(runErr, ctx.Err())
+	if outcome == unit.OutcomeCanceled {
+		// run already sent the timing with the real interval.
+		e.logCanceled(ctx, script, canceledRunningLine)
+	}
+	if err := record(outcome); err != nil {
 		return errors.Join(runErr, err)
 	}
 	return runErr
+}
+
+func (e lifecycleExecutor) report(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption, status proto.Timing_Status) {
+	if e.reportUnstarted != nil {
+		e.reportUnstarted(ctx, script, option, status)
+	}
+}
+
+// logCanceled uses a context that outlives the canceled execution, because
+// sending through the execution's context would fail at exactly this moment.
+func (e lifecycleExecutor) logCanceled(ctx context.Context, script codersdk.WorkspaceAgentScript, line string) {
+	logCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reportTimeout)
+	defer cancel()
+	e.sendScriptLog(logCtx, script, line)
 }
 
 func recordOutcome(manager *unit.Manager, id unit.ID, outcome unit.Outcome) error {

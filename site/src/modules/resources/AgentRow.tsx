@@ -551,7 +551,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 									connectivityIssues.length === 0 && (
 										<Badge
 											variant="default"
-											size="xs"
+											size="sm"
 											className="ml-1.5"
 											svgSize="sm"
 										>
@@ -566,7 +566,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 								{hasConnectivityIssues && (
 									<Badge
 										variant={hasWarningConnectivityIssues ? "warning" : "info"}
-										size="xs"
+										size="sm"
 										className="ml-1.5"
 									>
 										{hasWarningConnectivityIssues ? (
@@ -631,7 +631,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															{tab.error && (
 																<Badge
 																	variant="warning"
-																	size="xs"
+																	size="sm"
 																	className="ml-1.5"
 																>
 																	<TriangleAlertIcon />
@@ -684,7 +684,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 																			{tab.error && (
 																				<Badge
 																					variant="warning"
-																					size="xs"
+																					size="sm"
 																					className="ml-1.5"
 																				>
 																					<TriangleAlertIcon />

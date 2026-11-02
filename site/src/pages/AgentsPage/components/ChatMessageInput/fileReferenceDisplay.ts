@@ -3,11 +3,12 @@ import { $getNodeByKey } from "lexical";
 import { getPathBasename } from "../../utils/path";
 
 export type InlinePart =
-	| { readonly type: "file-reference" }
+	| { readonly type: "chip" }
 	| { readonly type: "text"; readonly text: string };
 
-const isFileReferenceNode = (node: LexicalNode) => {
-	return node.getType() === "file-reference";
+const isChipNode = (node: LexicalNode) => {
+	const type = node.getType();
+	return type === "file-reference" || type === "skill-invocation";
 };
 
 export const getFileReferenceDisplay = ({
@@ -33,7 +34,7 @@ export const hasInlineContentBefore = (
 ) => {
 	for (let i = index - 1; i >= 0; i--) {
 		const part = parts[i];
-		if (part.type === "file-reference") {
+		if (part.type === "chip") {
 			return true;
 		}
 		if (part.text.length > 0) {
@@ -49,7 +50,7 @@ export const hasInlineContentAfter = (
 ) => {
 	for (let i = index + 1; i < parts.length; i++) {
 		const part = parts[i];
-		if (part.type === "file-reference") {
+		if (part.type === "chip") {
 			return true;
 		}
 		if (part.text.length > 0) {
@@ -75,8 +76,8 @@ export const getFileReferenceSiblingSpacing = (
 		let sibling = node.getPreviousSibling();
 		const previousParts: InlinePart[] = [];
 		while (sibling) {
-			if (isFileReferenceNode(sibling)) {
-				previousParts.unshift({ type: "file-reference" });
+			if (isChipNode(sibling)) {
+				previousParts.unshift({ type: "chip" });
 			} else {
 				previousParts.unshift({ type: "text", text: sibling.getTextContent() });
 			}
@@ -85,12 +86,12 @@ export const getFileReferenceSiblingSpacing = (
 
 		parts.push(...previousParts);
 		referenceIndex = parts.length;
-		parts.push({ type: "file-reference" });
+		parts.push({ type: "chip" });
 
 		sibling = node.getNextSibling();
 		while (sibling) {
-			if (isFileReferenceNode(sibling)) {
-				parts.push({ type: "file-reference" });
+			if (isChipNode(sibling)) {
+				parts.push({ type: "chip" });
 			} else {
 				parts.push({ type: "text", text: sibling.getTextContent() });
 			}

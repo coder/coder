@@ -7,6 +7,7 @@ const skills = (...names: string[]) =>
 type Lists = {
 	personal?: readonly string[];
 	org?: readonly string[];
+	project?: readonly string[];
 	workspace?: readonly string[];
 };
 
@@ -14,6 +15,8 @@ const triggersFor = (lists: Lists) =>
 	resolveSkillTriggers([
 		{ source: "personal", skills: lists.personal && skills(...lists.personal) },
 		{ source: "org", skills: lists.org && skills(...lists.org) },
+		// Only chats in a project have project skills, so default to none.
+		{ source: "project", skills: skills(...(lists.project ?? [])) },
 		{
 			source: "workspace",
 			skills: lists.workspace && skills(...lists.workspace),
@@ -41,6 +44,16 @@ describe("resolveSkillTriggers", () => {
 			name: "qualifies a name found in every source",
 			lists: { personal: ["review"], org: ["review"], workspace: ["review"] },
 			expected: ["/personal/review", "/org/review", "/workspace/review"],
+		},
+		{
+			name: "keeps project names bare unless another source has them",
+			lists: {
+				personal: ["review"],
+				org: [],
+				project: ["review", "deploy"],
+				workspace: [],
+			},
+			expected: ["/personal/review", "/project/review", "/deploy"],
 		},
 		{
 			name: "keeps triggers qualified while a list is unknown",

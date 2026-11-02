@@ -47,7 +47,7 @@ import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -199,13 +199,10 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
-	// The per-chat stream updates this before the global chat record catches up.
-	const isArchiveBlocked = chat
-		? !chatFamilyAllowsArchive(
-				liveChatStatus ?? chat.status,
-				activeChatChildren,
-			)
-		: false;
+	// The per-chat stream reports status before the chat record query refetches.
+	const archiveBlockedReason = chat
+		? getArchiveBlockedReason(liveChatStatus ?? chat.status, activeChatChildren)
+		: undefined;
 	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
 		!isEmbedded && chat !== undefined && Boolean(chatTitle);
@@ -297,7 +294,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						canManage={canManage}
 						hasWorkspace={hasWorkspace}
 						isArchiving={isArchivingThisChat}
-						isArchiveBlocked={isArchiveBlocked}
+						archiveBlockedReason={archiveBlockedReason}
 						onPinAgent={() => pinMutation.mutate(chat.id)}
 						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => {

@@ -73,7 +73,7 @@ module "agent-firewall" {
 For examples of wrapping an agent or process such as Claude Code with Agent Firewall, see the [agent-firewall module README](https://registry.coder.com/modules/coder/agent-firewall#with-claude-code).
 
 For a basic recommendation of what to allow for agents, see the [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
-For a comprehensive example of a production Agent Firewall configuration, see the [Coder dogfood policy example](../../../dogfood/coder/boundary-config.yaml).
+For a comprehensive configuration covering multi-language development, refer to the [example policy](./example-policy.md).
 
 To load the policy from a `config.yaml` file in your template directory instead, pass it via `agent_firewall_config`.
 The module writes the config to the workspace and exposes the resolved path via `agent_firewall_config_path`, so everyone who launches Agent Firewall manually inside the workspace picks up the same configuration without extra flags.
@@ -112,7 +112,7 @@ module "agent-firewall" {
   Only applies to the `nsjail` jail type.
 - `proxy_port` defines the port used by the HTTP proxy.
   Default: `8080`.
-- `use_real_dns` uses the host's real DNS resolver inside the jail instead of the built-in dummy DNS server.
+- `use_real_dns` uses the host's real DNS resolver inside the jail instead of the built-in mock DNS server.
   This allows DNS resolution for non-proxied traffic but permits DNS-based data exfiltration.
   Default: `false`.
 
@@ -133,10 +133,12 @@ When running the binary directly, Agent Firewall reads `config.yaml` from `~/.co
 Agent Firewall supports two different jail types for process isolation, each with different characteristics and requirements:
 
 1. **nsjail** - Uses Linux namespaces for isolation.
+
    This is the default jail type and provides network namespace isolation.
    See [nsjail documentation](./nsjail/index.md) for detailed information about runtime requirements and Docker configuration.
 
 2. **landjail** - Uses Landlock V4 for network isolation.
+
    This provides network isolation through the Landlock Linux Security Module (LSM) without requiring network namespace capabilities.
    See [landjail documentation](./landjail.md) for implementation details.
 

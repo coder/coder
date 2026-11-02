@@ -12,7 +12,7 @@ For a full list of the options, run `coder server --help` or see our [CLI docume
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel.
-Set this to the external URL that users and workspaces use to connect to Coder (e.g. <https://coder.example.com>).
+Set this to the external URL that users and workspaces use to connect to Coder (for example, <https://coder.example.com>).
 This should not be localhost.
 
 Access URL should be an external IP address or domain with DNS records pointing to Coder.
@@ -57,7 +57,10 @@ It requires a DNS record and TLS certificate for `*.example.com`.
 If you are providing TLS certificates directly to the control plane, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
-1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart, or [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options (these both take a comma separated list of files; list certificates and their respective keys in the same order).
+1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart, or [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options.
+
+   These options both take a comma separated list of files.
+   List certificates and their respective keys in the same order.
 
 After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.
 
@@ -137,7 +140,7 @@ To migrate from the built-in database to an external database, follow these step
 
 To configure Coder behind a corporate proxy, set the environment variables `HTTP_PROXY` and `HTTPS_PROXY`.
 Be sure to restart the control plane.
-Lowercase values (e.g. `http_proxy`) are also respected in this case.
+Lowercase values (for example, `http_proxy`) are also respected in this case.
 
 ## Continue your setup with external authentication
 
@@ -146,7 +149,7 @@ This allows enabling integrations with Git providers, such as GitHub, GitLab, an
 
 External authentication can also be used to integrate with external services like JFrog Artifactory and others.
 
-Please refer to the [external authentication](../external-auth.md) section for more information.
+Refer to the [external authentication](../external-auth.md) section for more information.
 
 ## Up Next
 

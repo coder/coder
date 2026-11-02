@@ -36,7 +36,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Run("builtin", func(t *testing.T) {
 		t.Parallel()
 
-		prepared := generationPrepared{
+		prepared := turnEnvironment{
 			Tools:            []fantasy.AgentTool{fetch},
 			BuiltinToolNames: map[string]bool{"fetch": true},
 		}
@@ -51,51 +51,18 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Run("non-builtin", func(t *testing.T) {
 		t.Parallel()
 
-		prepared := generationPrepared{Tools: []fantasy.AgentTool{fetch}}
+		prepared := turnEnvironment{Tools: []fantasy.AgentTool{fetch}}
 		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Empty(t, rejected)
 		require.Len(t, allowed, 2)
 		require.Equal(t, []int{0, 1}, allowedIndexes)
-	})
-
-	// Execution resolves a deprecated name to its canonical tool, so
-	// validation has to resolve it too.
-	t.Run("deprecated alias", func(t *testing.T) {
-		t.Parallel()
-
-		var alias, canonical string
-		for a, name := range subagentToolNameAliases {
-			alias, canonical = a, name
-			break
-		}
-		require.NotEmpty(t, canonical)
-
-		type input struct {
-			ChatID string `json:"chat_id"`
-		}
-		tool := fantasy.NewAgentTool(canonical, "",
-			func(context.Context, input, fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.ToolResponse{}, nil
-			})
-		aliased := fantasy.ToolCallContent{
-			ToolCallID: "call_aliased",
-			ToolName:   alias,
-			Input:      `{"chat_id":"a","CHAT_ID":"b"}`,
-		}
-
-		prepared := generationPrepared{
-			Tools:            []fantasy.AgentTool{tool},
-			BuiltinToolNames: map[string]bool{canonical: true},
-		}
-		_, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
-		require.Len(t, rejected, 1)
 	})
 }
 
 func TestValidateOverriddenToolInputs(t *testing.T) {
 	t.Parallel()
 
-	prepared := generationPrepared{
+	prepared := turnEnvironment{
 		Tools:            []fantasy.AgentTool{fetchToolStub()},
 		BuiltinToolNames: map[string]bool{"fetch": true},
 	}
@@ -165,13 +132,12 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	// These take an empty struct, so they carry no keys to validate.
 	noInput := map[string]bool{

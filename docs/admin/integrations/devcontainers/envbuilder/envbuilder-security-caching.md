@@ -2,6 +2,12 @@
 title: Envbuilder security and caching
 ---
 
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../integration.md).
+> To find the best approach for your deployment, join our [community](https://coder.com/community) to be guided towards the best approach.
+
 Ensure Envbuilder can only pull pre-approved images and artifacts by configuring it with your existing HTTP proxies, firewalls, and artifact managers.
 
 ## Configure registry authentication

@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -2764,6 +2765,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			}
 
 			// Token usage on root: 100 input, 50 output, 20 cache read, 5 cache write.
+			// 100 input tokens at $3/M + 50 output tokens at $15/M: $0.00105.
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 				InterceptionID:        root.ID,
 				ProviderResponseID:    "resp-root",
@@ -2773,6 +2775,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				CacheWriteInputTokens: 5,
 				Metadata:              json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 5}`),
 				CreatedAt:             now.Add(offset),
+				CostMicros:            sql.NullInt64{Int64: 1050, Valid: true},
+				PricedModel:           sql.NullString{String: "claude-4", Valid: true},
+				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 15_000_000, Valid: true},
 			})
 
 			// Add a child interception with its own token usage.
@@ -2796,6 +2802,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				CacheReadInputTokens: 30,
 				Metadata:             json.RawMessage(`{"cache_read_input": 30}`),
 				CreatedAt:            now.Add(offset + 15*time.Minute),
+				// No cost, so the thread and session have unpriced usage.
+				CostMicros: sql.NullInt64{},
 			})
 		}
 
@@ -2825,6 +2833,22 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
 		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
 		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
+
+		// Per-thread cost covers only the priced root, and the unpriced child
+		// is flagged.
+		require.EqualValues(t, 1050, res.Threads[0].TokenUsage.CostMicros)
+		require.True(t, res.Threads[0].TokenUsage.HasUnpricedUsage)
+		require.Equal(t, &codersdk.AIBridgePricedModel{
+			Model:       "claude-4",
+			InputPrice:  ptr.Ref(int64(3_000_000)),
+			OutputPrice: ptr.Ref(int64(15_000_000)),
+		}, res.Threads[0].PricedModel)
+		require.Len(t, res.Threads[0].AgenticActions, 1)
+		require.Nil(t, res.Threads[0].AgenticActions[0].PricedModel)
+
+		// Session-level cost includes all 3 threads (3 * 1050).
+		require.EqualValues(t, 3150, res.TokenUsageSummary.CostMicros)
+		require.True(t, res.TokenUsageSummary.HasUnpricedUsage)
 	})
 
 	t.Run("TokenUsageBeyondFiftyThreads", func(t *testing.T) {
@@ -5713,8 +5737,8 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
 			}
 		}
-		other := user(otherUser, []string{"anthropic"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
-		target := user(targetUser, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
+		other := user(otherUser, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
+		target := user(targetUser, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
 		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}
 
 		t.Run("Default", func(t *testing.T) {
@@ -5772,7 +5796,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
 					},
 				},
 				{
@@ -5780,7 +5804,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
-						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
 					},
 				},
 				{
@@ -5796,7 +5820,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
 					},
 				},
 				{
@@ -5806,7 +5830,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
 					},
 				},
 				{

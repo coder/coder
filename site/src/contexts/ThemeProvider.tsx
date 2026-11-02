@@ -34,6 +34,16 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({
 		root.classList.add(concreteName);
 		root.classList.add(baseModeFor(concreteName));
 
+		// Browsers paint the title bar or toolbar from theme-color. Read the body
+		// background after the classes apply and write it into every meta, so the
+		// active theme overrides index.html's per-scheme pair.
+		const themeColor = getComputedStyle(document.body).backgroundColor;
+		for (const meta of document.querySelectorAll<HTMLMetaElement>(
+			'meta[name="theme-color"]',
+		)) {
+			meta.content = themeColor;
+		}
+
 		return () => {
 			if (!root.dataset.embedTheme) {
 				root.classList.remove(...CONCRETE_THEMES);

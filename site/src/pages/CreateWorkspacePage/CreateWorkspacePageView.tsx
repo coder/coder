@@ -442,9 +442,7 @@ export const CreateWorkspacePageView: React.FC<
 								<br />
 								<Link
 									size="sm"
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
+									href={docs("/admin/templates/extending-templates/parameters")}
 								>
 									View docs
 								</Link>
@@ -484,13 +482,12 @@ export const CreateWorkspacePageView: React.FC<
 								to dynamic parameters.{" "}
 								<Link
 									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
+										"/admin/templates/extending-templates/parameters/compatibility-mode",
 									)}
 									target="_blank"
 									rel="noreferrer"
 								>
 									View docs
-									<span className="sr-only"> (opens in new tab)</span>
 								</Link>
 							</AlertDescription>
 						</Alert>
@@ -650,7 +647,7 @@ export const CreateWorkspacePageView: React.FC<
 									parameters cannot be modified once the workspace is created.
 									<Link
 										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
+											"/admin/templates/extending-templates/parameters",
 										)}
 									>
 										View docs

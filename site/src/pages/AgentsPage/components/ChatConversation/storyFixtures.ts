@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -116,16 +117,25 @@ export const workingFixtureTime = (seconds: number) =>
 
 /** Two completed steps that ran for the twelve seconds before the pinned clock. */
 export const MockWorkingBlock: WorkingBlock = {
-	key: "working:through:message:5",
+	key: "working:through:message:4",
 	liveKey: "working:live:message:1:0",
-	rowIndices: [0, 1],
+	slices: [
+		{ rowIndex: 1, pieceRange: { start: 0, end: 1 }, key: "message:2" },
+		{ rowIndex: 2, pieceRange: { start: 0, end: 1 }, key: "message:4" },
+	],
 	memberIds: [2, 4],
+	pieceKeys: ["2:0", "4:0"],
 	startedAt: FIXTURE_NOW - 12_000,
 	endedAt: FIXTURE_NOW,
 	stepCount: 2,
-	endsWithAnswer: false,
 	isLive: false,
 	isPartial: false,
+};
+
+type ToolStep = {
+	toolName: string;
+	args: NonNullable<TypesGen.ChatToolCallPart["args"]>;
+	result: TypesGen.ChatToolResultPart["result"];
 };
 
 const workingStepMessages = (
@@ -133,6 +143,11 @@ const workingStepMessages = (
 	toolCallId: string,
 	callAt: number,
 	resultAt: number,
+	{
+		toolName = "execute",
+		args = { command: `echo ${toolCallId}` },
+		result = { output: `${toolCallId} output`, exit_code: "0" },
+	}: Partial<ToolStep> = {},
 ): TypesGen.ChatMessage[] => [
 	{
 		...MockChatMessage,
@@ -143,8 +158,8 @@ const workingStepMessages = (
 			{
 				type: "tool-call",
 				tool_call_id: toolCallId,
-				tool_name: "execute",
-				args: { command: `echo ${toolCallId}` },
+				tool_name: toolName,
+				args,
 				created_at: workingFixtureTime(callAt),
 			},
 		],
@@ -158,13 +173,46 @@ const workingStepMessages = (
 			{
 				type: "tool-result",
 				tool_call_id: toolCallId,
-				tool_name: "execute",
-				result: { output: `${toolCallId} output`, exit_code: "0" },
+				tool_name: toolName,
+				result,
 				created_at: workingFixtureTime(resultAt),
 			},
 		],
 	},
 ];
+
+/** A tool step that attaches `file`, in the message shape the server stores. */
+export const attachmentStepMessages = ({
+	id,
+	toolCallId,
+	callAt,
+	file,
+	...step
+}: ToolStep & {
+	id: number;
+	toolCallId: string;
+	callAt: number;
+	file: TypesGen.ChatFilePart;
+}): TypesGen.ChatMessage[] => {
+	const [callMessage, resultMessage] = workingStepMessages(
+		id,
+		toolCallId,
+		callAt,
+		callAt + 1,
+		step,
+	);
+	return [
+		callMessage,
+		{
+			...MockChatMessage,
+			id: id + 1,
+			role: "assistant",
+			created_at: workingFixtureTime(callAt + 1),
+			content: [file],
+		},
+		{ ...resultMessage, id: id + 2 },
+	];
+};
 
 /**
  * One completed turn of two shell steps with part timestamps: prompt at 0s,
@@ -187,6 +235,15 @@ export const MockWorkingMessages: TypesGen.ChatMessage[] = [
 		content: [{ type: "text", text: "Workspace inspection complete." }],
 	},
 ];
+
+/** MockWorkingMessages' second step, called after text about the first. */
+export const MockTextBeforeSecondStepMessage: TypesGen.ChatMessage = {
+	...MockWorkingMessages[3],
+	content: [
+		{ type: "text", text: "The first check passed. Running the trials next." },
+		...(MockWorkingMessages[3].content ?? []),
+	],
+};
 
 /**
  * MockWorkingMessages whose final answer also reasoned, narrated, and searched
@@ -280,6 +337,41 @@ export const MockUncitedSearchAnswerMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** A turn whose first step attached a report from 1s to 2s. */
+export const MockAttachedFileMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	...attachmentStepMessages({
+		id: 2,
+		toolCallId: "attach",
+		callAt: 1,
+		toolName: "attach_file",
+		args: { path: "/home/coder/report.md" },
+		file: {
+			type: "file",
+			media_type: "text/markdown",
+			name: "report.md",
+			file_id: "storybook-report",
+		},
+		result: { name: "report.md" },
+	}),
+];
+
+/**
+ * A history page that starts at MockAttachedFileMessages' file, then runs a
+ * shell step from 5s to 13s and answers at 14s.
+ */
+export const MockPageFromAttachedFileMessages: TypesGen.ChatMessage[] = [
+	...MockAttachedFileMessages.slice(2),
+	...workingStepMessages(5, "verify", 5, 13),
+	{
+		...MockChatMessage,
+		id: 7,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "The inspection report is attached." }],
+	},
+];
+
 /**
  * A turn without tools whose answer narrates, then searches the web from 1s to
  * 3s before writing its text, with no reasoning.
@@ -319,6 +411,153 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** MockWorkingMessages with an attach_file step between its two shell steps. */
+export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "attach",
+		callAt: 5,
+		toolName: "attach_file",
+		args: { path: "/home/coder/report.pdf" },
+		file: {
+			type: "file",
+			media_type: "application/pdf",
+			name: "report.pdf",
+			file_id: "report-file",
+		},
+		result: { name: "report.pdf" },
+	}),
+	...workingStepMessages(7, "second", 7, 13),
+	{
+		...MockChatMessage,
+		id: 9,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+/** Base64 1x1 amber PNG, so stacked thumbnails differ from MockPngBase64. */
+const MockAmberPngData =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
+
+export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockAttachmentWorkingMessages,
+	{
+		...MockChatMessage,
+		id: 10,
+		created_at: workingFixtureTime(20),
+		content: [{ type: "text", text: "Compare the dashboard with the spec" }],
+	},
+	...(
+		[
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "dashboard-before.png",
+				data: MockPngBase64,
+			},
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "dashboard-after.png",
+				data: MockAmberPngData,
+			},
+			{
+				type: "file",
+				media_type: "text/markdown",
+				name: "findings.md",
+				file_id: "findings-file",
+			},
+			{
+				type: "file",
+				media_type: "application/pdf",
+				name: "spec.pdf",
+				file_id: "spec-file",
+			},
+		] satisfies TypesGen.ChatFilePart[]
+	).flatMap((file, index) =>
+		attachmentStepMessages({
+			id: 11 + index * 3,
+			toolCallId: `attach-${index}`,
+			callAt: 21 + index * 2,
+			toolName: "attach_file",
+			args: { path: `/home/coder/${file.name}` },
+			file,
+			result: { name: file.name },
+		}),
+	),
+	{
+		...MockChatMessage,
+		id: 23,
+		role: "assistant",
+		created_at: workingFixtureTime(30),
+		content: [{ type: "text", text: "The dashboard matches the spec." }],
+	},
+];
+
+export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.slice(0, -1);
+
+export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockMixedAttachmentMessages,
+	...workingStepMessages(24, "clear", 31, 31, {
+		toolName: "chat_cleared",
+		args: { source: "manual" },
+		result: { source: "manual" },
+	}),
+];
+
+export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
+	MockAttachmentWorkingMessages.map((message) =>
+		message.id === 9
+			? {
+					...MockWebSearchAnswerMessages[
+						MockWebSearchAnswerMessages.length - 1
+					],
+					id: message.id,
+				}
+			: message,
+	);
+
+export const MockBrokenImageAttachmentMessages: TypesGen.ChatMessage[] =
+	MockMixedAttachmentMessages.map((message) => ({
+		...message,
+		content: message.content?.map((part) =>
+			part.type === "file" && part.name === "dashboard-after.png"
+				? { ...part, data: "not-valid-base64" }
+				: part,
+		),
+	}));
+
+const planPath = "/home/coder/.coder/plans/PLAN.md";
+
+/** A turn that proposes a plan file after the first step of MockWorkingMessages. */
+export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "plan",
+		callAt: 5,
+		toolName: "propose_plan",
+		args: { path: planPath },
+		file: {
+			type: "file",
+			media_type: "text/markdown",
+			name: "PLAN.md",
+			file_id: "plan-file",
+		},
+		result: {
+			ok: true,
+			path: planPath,
+			kind: "plan",
+			file_id: "plan-file",
+			media_type: "text/markdown",
+		},
+	}),
+];
+
 /** A question the agent asks after the first step of MockWorkingMessages. */
 export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
@@ -331,6 +570,23 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 			tool_call_id: "question",
 			tool_name: "ask_user_question",
 			args: {},
+			created_at: workingFixtureTime(5),
+		},
+	],
+};
+
+/** A client tool call after the first step of MockWorkingMessages. */
+export const MockPendingToolMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: workingFixtureTime(5),
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "editor",
+			tool_name: "open_editor",
+			args: { path: "README.md" },
 			created_at: workingFixtureTime(5),
 		},
 	],

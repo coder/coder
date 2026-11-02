@@ -1,0 +1,79 @@
+# Coder.LGBTQ - flag outdated or offensive terms for sex, gender, and sexual
+# orientation, and suggest current terms. Refer to
+# accessibility-and-inclusion.md#inclusive-lgbtq-terms for the policy.
+#
+# Adapted from the LGBTQ list in the alex Vale package
+# (https://github.com/errata-ai/alex, file alex/LGBTQ.yml), which is released
+# under the MIT License, Copyright (c) 2020 errata.ai. The upstream license
+# text is available at https://github.com/errata-ai/alex/blob/master/LICENSE.
+#
+# Changes from upstream:
+# - Dropped `bi`. It flags "Power BI" and other uses of "BI" as an initialism.
+# - Dropped `special rights`. Permissions docs can use it as a plain technical
+#   phrase, so it is a likely false positive.
+# - Dropped `homo`. It flags "Homo sapiens" and the Latin prefix.
+# - Added `a transgender`, used as a noun, which the style guide lists. The key
+#   matches only when a verb or conjunction follows, so "a transgender person"
+#   and "a transgender woman" stay clean. A noun use followed by punctuation,
+#   as in "Ask a transgender.", isn't caught.
+# - Replaced the upstream `|` suggestion separator with ", ".
+# - Added the message, link, and level fields for Coder.
+#
+# Vale skips code spans and fenced code blocks, so literal identifiers stay
+# untouched when they sit in code font.
+#
+# Level: warning. Some terms have legitimate quoted or historical uses, so the
+# fix is a judgment call.
+extends: substitution
+message: "Use '%s' instead of '%s'. Refer to accessibility-and-inclusion.md#inclusive-lgbtq-terms."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#inclusive-lgbtq-terms
+level: warning
+ignorecase: true
+action:
+  name: replace
+swap:
+  bathroom bill: non-discrimination law, non-discrimination ordinance
+  biologically female: assigned female at birth, designated female at birth
+  biologically male: assigned male at birth, designated male at birth
+  born a man: assigned male at birth, designated male at birth
+  born a woman: assigned female at birth, designated female at birth
+  dyke: gay
+  fag: gay
+  faggot: gay
+  gay agenda: gay issues
+  gay lifestyle: gay lives, gay/lesbian lives
+  gay rights: equal rights, civil rights for gay people
+  gender pronoun: pronoun, pronouns
+  gender pronouns: pronoun, pronouns
+  genetically female: assigned female at birth, designated female at birth
+  genetically male: assigned male at birth, designated male at birth
+  hermaphrodite: person who is intersex, person, intersex person
+  hermaphroditic: intersex
+  heshe: transgender person, person
+  homosexual: gay, gay man, lesbian, gay person/people
+  homosexual agenda: gay issues
+  homosexual couple: couple
+  homosexual lifestyle: gay lives, gay/lesbian lives
+  homosexual marriage: gay marriage, same-sex marriage
+  homosexual relations: relationship
+  homosexual relationship: relationship
+  preferred pronoun: pronoun, pronouns
+  preferred pronouns: pronoun, pronouns
+  pseudo hermaphrodite: person who is intersex, person, intersex person
+  pseudo hermaphroditic: intersex
+  pseudohermaphrodite: person who is intersex, person, intersex person
+  pseudohermaphroditic: intersex
+  sex change: transition, gender confirmation surgery
+  sex change operation: sex reassignment surgery, gender confirmation surgery
+  sexchange: transition, gender confirmation surgery
+  sexual preference: sexual orientation, orientation
+  she male: transgender person, person
+  shehe: transgender person, person
+  shemale: transgender person, person
+  sodomite: gay
+  tranny: transgender
+  transgendered: transgender
+  transgenderism: being transgender, the movement for transgender equality
+  transgenders: transgender people
+  transvestite: cross-dresser
+  'a transgender (?:is|was|who|and|or|but|that|has|had|can|will|would|should)': transgender person

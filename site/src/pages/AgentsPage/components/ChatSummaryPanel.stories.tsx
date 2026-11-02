@@ -1,9 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, waitFor, within } from "storybook/test";
+import { onlineManager } from "react-query";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import {
+	chatAttachmentsKey,
+	chatCostTreeKey,
+	chatEntityKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatAttachment,
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { createChatStore } from "./ChatConversation/chatStore";
+import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const ROOT_CHAT_ID = "root-chat-id";
@@ -61,11 +76,69 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,
+		hasMoreMessages: false,
+		isHydratingMessages: false,
 	},
+	render: (args) => <ChatSummaryPanel {...args} store={createChatStore()} />,
 };
 
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
+
+const mockUploadPart: TypesGen.ChatFilePart = {
+	type: "file",
+	media_type: "text/plain",
+	name: "uploaded-ci.log",
+	file_id: "upload-file",
+};
+
+const mockScreenshotPart: TypesGen.ChatFilePart = {
+	type: "file",
+	media_type: "image/png",
+	name: "ci-dashboard.png",
+	data: MockPngBase64,
+};
+
+const mockAttachmentMessages: TypesGen.ChatMessage[] = [
+	{
+		...MockChatMessage,
+		id: 1,
+		role: "user",
+		content: [
+			{ type: "text", text: "Here is the failing log." },
+			mockUploadPart,
+		],
+	},
+	...attachmentStepMessages({
+		id: 2,
+		toolCallId: "attach",
+		callAt: 1,
+		toolName: "attach_file",
+		args: { path: "/home/coder/flaky-runs.csv" },
+		file: {
+			type: "file",
+			media_type: "text/csv",
+			name: "flaky-runs.csv",
+			file_id: "runs-file",
+		},
+		result: { name: "flaky-runs.csv" },
+	}),
+	...attachmentStepMessages({
+		id: 5,
+		toolCallId: "screenshot",
+		callAt: 3,
+		toolName: "computer",
+		args: { action: "screenshot" },
+		file: mockScreenshotPart,
+		result: { data: "", mime_type: "image/png" },
+	}),
+];
+
+const createAttachmentStore = (messages = mockAttachmentMessages) => {
+	const store = createChatStore();
+	store.replaceMessages(messages);
+	return store;
+};
 
 export const WithSummary: Story = {
 	beforeEach: () =>
@@ -116,7 +189,6 @@ export const NotVisible: Story = {
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Gating disables both queries, so nothing renders and no API call fires.
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		expect(
@@ -136,5 +208,284 @@ export const GatewayUnavailable: Story = {
 		});
 		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
+const mockSummaryChat: TypesGen.Chat = {
+	...MockChat,
+	summary:
+		"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+};
+
+export const WithAttachments: Story = {
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const mockLatestMessages: TypesGen.ChatMessage[] = attachmentStepMessages({
+	id: 20,
+	toolCallId: "report",
+	callAt: 10,
+	toolName: "attach_file",
+	args: { path: "/home/coder/latency-report.csv" },
+	file: {
+		type: "file",
+		media_type: "text/csv",
+		name: "latency-report.csv",
+		file_id: "report-file",
+	},
+	result: { name: "latency-report.csv" },
+});
+
+const renderWithLatestMessages: Story["render"] = (args) => (
+	<ChatSummaryPanel
+		{...args}
+		store={createAttachmentStore(mockLatestMessages)}
+	/>
+);
+
+const mockEarlierScreenshot: TypesGen.ChatAttachment = {
+	...MockChatAttachment,
+	message_id: 6,
+	role: "assistant",
+	file: mockScreenshotPart,
+};
+
+const mockEarlierUpload: TypesGen.ChatAttachment = {
+	...MockChatAttachment,
+	message_id: 1,
+	part_index: 1,
+	file: mockUploadPart,
+};
+
+export const WithEarlierAttachments: Story = {
+	args: { hasMoreMessages: true },
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+			{
+				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
+				data: { attachments: [mockEarlierScreenshot, mockEarlierUpload] },
+			},
+		],
+	},
+};
+
+export const EarlierAttachmentsWhileFinalPageHydrates: Story = {
+	args: { isHydratingMessages: true },
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+			{
+				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
+				data: { attachments: [mockEarlierScreenshot, mockEarlierUpload] },
+			},
+		],
+	},
+};
+
+export const EarlierAttachmentsLoading: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const mockAttachmentsError = mockApiError({
+	message: "Failed to get chat attachments.",
+});
+
+export const EarlierAttachmentsFailed: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments").mockRejectedValue(
+			mockAttachmentsError,
+		);
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	// The alert pushes Retry below the panel frame's fold.
+	play: async ({ canvasElement }) => {
+		const retry = await within(canvasElement).findByRole("button", {
+			name: "Retry",
+		});
+		retry.scrollIntoView();
+	},
+};
+
+export const EarlierAttachmentsRetrying: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(mockAttachmentsError)
+			.mockReturnValue(new Promise(() => {}));
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: "Retry" }),
+		);
+	},
+};
+
+// A Retry clicked offline pauses until the network returns, so the screenshot
+// shows the alert with Retry enabled.
+export const EarlierAttachmentsRetryingOffline: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments").mockRejectedValue(
+			mockAttachmentsError,
+		);
+		return () => onlineManager.setOnline(true);
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const retry = await within(canvasElement).findByRole("button", {
+			name: "Retry",
+		});
+		onlineManager.setOnline(false);
+		await userEvent.click(retry);
+	},
+};
+
+// After the Retry fails too, a reconnect refetches the attachments without a
+// Retry, so the screenshot shows the loading state.
+export const EarlierAttachmentsRefetchAfterFailedRetry: Story = {
+	args: { hasMoreMessages: true },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(mockAttachmentsError)
+			.mockRejectedValueOnce(
+				mockApiError({
+					message: "Failed to get chat attachments.",
+					detail: "context deadline exceeded",
+				}),
+			)
+			.mockReturnValue(new Promise(() => {}));
+	},
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(await canvas.findByRole("button", { name: "Retry" }));
+		await canvas.findByText("context deadline exceeded");
+		onlineManager.setOnline(false);
+		onlineManager.setOnline(true);
+	},
+};
+
+export const LoadingMessages: Story = {
+	args: { isHydratingMessages: true },
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+export const LiveMessageArriving: Story = {
+	args: { isHydratingMessages: true },
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const mockRunsFile: TypesGen.ChatFileMetadata = {
+	...MockChatFileMetadata,
+	id: "runs-file",
+	name: "flaky-runs.csv",
+	mime_type: "text/csv",
+};
+
+const mockRunsOnlyChat: TypesGen.Chat = {
+	...MockChat,
+	files: [mockRunsFile],
+};
+
+export const ExpiredAttachment: Story = {
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockRunsOnlyChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const mockReportFile: TypesGen.ChatFileMetadata = {
+	...MockChatFileMetadata,
+	id: "report-file",
+	name: "latency-report.csv",
+	mime_type: "text/csv",
+};
+
+const mockReportOnlyChat: TypesGen.Chat = {
+	...MockChat,
+	files: [mockReportFile],
+};
+
+export const ExpiredEarlierAttachment: Story = {
+	args: { hasMoreMessages: true },
+	render: renderWithLatestMessages,
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockReportOnlyChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+			{
+				key: chatAttachmentsKey(MockChat.id, mockLatestMessages[0].id),
+				data: { attachments: [mockEarlierScreenshot, mockEarlierUpload] },
+			},
+		],
 	},
 };

@@ -45,6 +45,8 @@ const mockThreadLong: AIBridgeThread = {
 			cache_read_input_tokens: 6000,
 			cache_creation_input_tokens: 2000,
 		},
+		cost_micros: 0,
+		has_unpriced_usage: false,
 	},
 	agentic_actions: [
 		{
@@ -57,6 +59,8 @@ const mockThreadLong: AIBridgeThread = {
 				cache_read_input_tokens: 1800,
 				cache_write_input_tokens: 500,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [
@@ -83,6 +87,8 @@ const mockThreadLong: AIBridgeThread = {
 				cache_read_input_tokens: 1800,
 				cache_write_input_tokens: 500,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [
@@ -112,6 +118,8 @@ const mockThreadLong: AIBridgeThread = {
 				cache_read_input_tokens: 0,
 				cache_write_input_tokens: 0,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [],

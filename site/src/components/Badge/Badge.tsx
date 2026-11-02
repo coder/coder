@@ -16,27 +16,24 @@ const badgeVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"border-surface-secondary bg-surface-secondary text-content-secondary shadow-sm",
+					"border-transparent bg-surface-secondary text-content-secondary",
 				outline:
 					"border-border bg-transparent text-content-primary shadow-none",
 				dashed:
 					"border-dashed border-border bg-surface-secondary text-content-secondary shadow-none",
 				warning:
-					"border-highlight-orange bg-surface-orange text-highlight-orange shadow-sm",
+					"border-highlight-orange bg-surface-orange text-highlight-orange",
 				destructive:
-					"border-border-destructive bg-surface-red text-highlight-red shadow-sm",
-				green:
-					"border-border-green bg-surface-green text-highlight-green shadow-sm",
-				purple:
-					"border-border-purple bg-surface-purple text-highlight-purple shadow-sm",
+					"border-border-destructive bg-surface-red text-highlight-red",
+				green: "border-border-green bg-surface-green text-highlight-green",
+				purple: "border-border-purple bg-surface-purple text-highlight-purple",
 				magenta:
-					"border-border-magenta bg-surface-magenta text-highlight-magenta shadow-sm",
-				info: "border-border-pending bg-surface-sky text-highlight-sky shadow-sm",
+					"border-border-magenta bg-surface-magenta text-highlight-magenta",
+				info: "border-border-pending bg-surface-sky text-highlight-sky",
 			},
 			size: {
-				xs: "border-0 text-2xs font-normal h-[18px] rounded",
-				sm: "text-2xs font-normal py-1",
-				md: "text-xs font-normal py-1",
+				sm: "h-[18px] border-0 rounded-sm text-2xs font-normal",
+				md: "h-[26px] py-1 text-xs font-normal",
 			},
 			svgSize: {
 				xs: "[&_svg]:size-icon-xs",

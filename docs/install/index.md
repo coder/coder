@@ -25,7 +25,7 @@ The five phases are meant to be read in order: each phase produces the required 
 
 Phases 1 and 2 are advisory rather than a gate.
 Nothing stops you from installing the control plane first, but the recommendations in those phases are what keep a deployment from needing to be rebuilt later.
-Don't know where to start?
+Not sure where to start?
 Read [Plan your deployment](./plan/index.md) and [Prepare prerequisites](./prepare/index.md) first.
 
 <children></children>

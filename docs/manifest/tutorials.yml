@@ -19,7 +19,7 @@ children:
     description: Configure custom Okta claims and scopes to drive Coder group and role sync.
     path: ./tutorials/configuring-okta.md
   - title: Persistent shared workspaces
-    description: Set up long-lived shared workspaces with service accounts and workspace sharing
+    description: Set up long-lived shared workspaces with service accounts and workspace sharing.
     path: ./tutorials/persistent-shared-workspaces.md
     state: [premium]
   - title: Google Cloud to AWS federation
