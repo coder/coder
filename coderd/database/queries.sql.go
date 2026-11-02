@@ -18277,38 +18277,95 @@ func (q *sqlQuerier) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID)
 
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
-	-- Create a list of all unique apps by template, this is used to
-	-- filter out irrelevant template usage stats.
-	apps AS (
-		SELECT DISTINCT ON (ws.template_id, app.slug)
-			ws.template_id,
-			app.slug,
-			app.display_name,
-			app.icon,
-			app.created_at
+	-- (template, app name) pairs with usage in the timeframe.
+	usage_slugs AS (
+		SELECT DISTINCT
+			template_id,
+			slug
+		FROM (
+			SELECT
+				tus.template_id,
+				usage_slug.slug
+			FROM
+				template_usage_stats AS tus,
+				jsonb_object_keys(tus.app_usage_mins) AS usage_slug(slug)
+			WHERE
+				tus.start_time >= $1::timestamptz
+				AND tus.end_time <= $2::timestamptz
+				AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
+				-- The rollup only writes objects; this keeps a stray value from
+				-- failing jsonb_object_keys.
+				AND jsonb_typeof(tus.app_usage_mins) = 'object'
+			-- OFFSET 0 keeps the planner from assuming 100 names per row. That
+			-- overestimate is multiplied into the probes below and pushes the
+			-- plan cost over the JIT optimization threshold, which alone costs
+			-- about a second.
+			OFFSET 0
+		) AS usage_names
+	),
+	-- Usage names that are some app's slug. Ports and [terminal] are not, and
+	-- this rejects them with one index probe per name instead of a walk of
+	-- every build of the template. ORDER BY keeps the probe on the index.
+	app_slugs AS (
+		SELECT
+			names.slug
 		FROM
-			workspaces ws
-		JOIN
-			workspace_builds AS build
-		ON
-			build.workspace_id = ws.id
-		JOIN
-			workspace_resources AS resource
-		ON
-			resource.job_id = build.job_id
-		JOIN
-			workspace_agents AS agent
-		ON
-			agent.resource_id = resource.id
-		JOIN
-			workspace_apps AS app
-		ON
-			app.agent_id = agent.id
+			(SELECT DISTINCT slug FROM usage_slugs) AS names
 		WHERE
-			-- Partial query parameter filter.
-			CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN ws.template_id = ANY($1::uuid[]) ELSE TRUE END
-		ORDER BY
-			ws.template_id, app.slug, app.created_at DESC
+			(
+				SELECT
+					TRUE
+				FROM
+					workspace_apps AS app
+				WHERE
+					app.slug = names.slug
+				ORDER BY
+					app.created_at
+				LIMIT 1
+			)
+	),
+	-- Keep the pairs that are apps of some build of the template, used to
+	-- filter out irrelevant template usage stats. Each probe stops at the
+	-- first match instead of joining every app in the deployment.
+	apps AS (
+		SELECT
+			usage_slugs.template_id,
+			usage_slugs.slug
+		FROM
+			usage_slugs
+		WHERE
+			-- CASE fixes the evaluation order, cheapest first.
+			CASE
+				WHEN usage_slugs.slug NOT IN (SELECT slug FROM app_slugs) THEN FALSE
+				ELSE EXISTS (
+					SELECT
+						1
+					FROM (
+						-- Only live workspaces are indexed by template, and they
+						-- nearly always match, so deleted ones are scanned last.
+						SELECT id FROM workspaces WHERE template_id = usage_slugs.template_id AND NOT deleted
+						UNION ALL
+						SELECT id FROM workspaces WHERE template_id = usage_slugs.template_id AND deleted
+					) AS ws
+					JOIN
+						workspace_builds AS build
+					ON
+						build.workspace_id = ws.id
+					JOIN
+						workspace_resources AS resource
+					ON
+						resource.job_id = build.job_id
+					JOIN
+						workspace_agents AS agent
+					ON
+						agent.resource_id = resource.id
+					JOIN
+						workspace_apps AS app
+					ON
+						app.agent_id = agent.id
+						AND app.slug = usage_slugs.slug
+				)
+			END
 	),
 	-- Join apps and template usage stats to filter out irrelevant rows.
 	-- Note that this way of joining will eliminate all data-points that
@@ -18328,9 +18385,9 @@ WITH
 			template_usage_stats AS tus
 		ON
 			-- Query parameter filter.
-			tus.start_time >= $2::timestamptz
-			AND tus.end_time <= $3::timestamptz
-			AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
+			tus.start_time >= $1::timestamptz
+			AND tus.end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
 			-- Primary join condition.
 			AND tus.template_id = apps.template_id
 			AND tus.app_usage_mins ? apps.slug -- Key exists in object.
@@ -18340,6 +18397,7 @@ WITH
 	-- multiple templates.
 	app_insights AS (
 		SELECT
+			start_time,
 			user_id,
 			slug,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
@@ -18351,73 +18409,210 @@ WITH
 	),
 	-- Analyze the users unique app usage across all templates. Count
 	-- usage across consecutive intervals as continuous usage.
-	times_used AS (
-		SELECT DISTINCT ON (user_id, slug, uniq)
+	user_app_usage AS (
+		SELECT
 			slug,
-			-- Turn start_time into a unique identifier that identifies a users
-			-- continuous app usage. The value of uniq is otherwise garbage.
-			--
-			-- Since we're aggregating per user app usage across templates,
-			-- there can be duplicate start_times. To handle this, we use the
-			-- dense_rank() function, otherwise row_number() would suffice.
-			start_time - (
-				dense_rank() OVER (
-					PARTITION BY
-						user_id, slug
-					ORDER BY
-						start_time
-				) * '30 minutes'::interval
-			) AS uniq
-		FROM
-			template_usage_stats_with_apps
+			user_id,
+			SUM(usage_mins) AS usage_mins,
+			COUNT(DISTINCT uniq) AS times_used
+		FROM (
+			SELECT
+				slug,
+				user_id,
+				usage_mins,
+				-- Turn start_time into a unique identifier that identifies a users
+				-- continuous app usage. The value of uniq is otherwise garbage.
+				-- app_insights has one row per start_time, so row_number()
+				-- suffices.
+				start_time - (
+					row_number() OVER (
+						PARTITION BY
+							user_id, slug
+						ORDER BY
+							start_time
+					) * '30 minutes'::interval
+				) AS uniq
+			FROM
+				app_insights
+		) AS runs
+		GROUP BY
+			slug, user_id
 	),
 	-- Even though we allow identical apps to be aggregated across
 	-- templates, we still want to be able to report which templates
-	-- the data comes from.
+	-- the data comes from. Every pair in apps has usage, so this needs
+	-- no pass over the usage rows.
 	templates AS (
 		SELECT
 			slug,
 			array_agg(DISTINCT template_id)::uuid[] AS template_ids
 		FROM
-			template_usage_stats_with_apps
+			apps
 		GROUP BY
 			slug
 	),
+	-- The newest app of each filtered template, built only when the walk
+	-- below finds no match among the recent apps.
+	filtered_newest_apps AS MATERIALIZED (
+		SELECT
+			ws.template_id,
+			app.slug,
+			MAX(app.created_at) AS created_at
+		FROM
+			workspaces AS ws
+		JOIN
+			workspace_builds AS build
+		ON
+			build.workspace_id = ws.id
+		JOIN
+			workspace_resources AS resource
+		ON
+			resource.job_id = build.job_id
+		JOIN
+			workspace_agents AS agent
+		ON
+			agent.resource_id = resource.id
+		JOIN
+			workspace_apps AS app
+		ON
+			app.agent_id = agent.id
+		WHERE
+			COALESCE(array_length($3::uuid[], 1), 0) > 0
+			AND ws.template_id = ANY($3::uuid[])
+		GROUP BY
+			ws.template_id, app.slug
+	),
 	-- Apps merge across templates by slug, so show the newest app's
 	-- display name and icon among the templates with usage.
-	presentation AS (
-		SELECT DISTINCT ON (apps.slug)
-			apps.slug,
-			apps.display_name,
-			apps.icon
+	newest_app_times AS (
+		SELECT
+			templates.slug,
+			templates.template_ids,
+			COALESCE(
+				-- The newest apps nearly always include one of the templates,
+				-- so walk them newest first. Deployment wide the walk is
+				-- unbounded. With a template filter it stops after the 1000
+				-- newest apps and falls back to the filtered templates' apps,
+				-- in case those templates have not been built in a while.
+				(
+					SELECT
+						app.created_at
+					FROM
+						workspace_apps AS app
+					JOIN
+						workspace_agents AS agent
+					ON
+						agent.id = app.agent_id
+					JOIN
+						workspace_resources AS resource
+					ON
+						resource.id = agent.resource_id
+					JOIN
+						workspace_builds AS build
+					ON
+						build.job_id = resource.job_id
+					JOIN
+						workspaces AS ws
+					ON
+						ws.id = build.workspace_id
+					WHERE
+						app.slug = templates.slug
+						AND ws.template_id = ANY(templates.template_ids)
+						AND app.created_at >= CASE
+							WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN (
+								SELECT
+									COALESCE(MIN(recent.created_at), '-infinity'::timestamptz)
+								FROM (
+									SELECT
+										recent.created_at
+									FROM
+										workspace_apps AS recent
+									WHERE
+										recent.slug = templates.slug
+									ORDER BY
+										recent.created_at DESC
+									LIMIT 1000
+								) AS recent
+							)
+							ELSE '-infinity'::timestamptz
+						END
+					ORDER BY
+						app.created_at DESC
+					LIMIT 1
+				),
+				(
+					SELECT
+						MAX(filtered_newest_apps.created_at)
+					FROM
+						filtered_newest_apps
+					WHERE
+						filtered_newest_apps.slug = templates.slug
+						AND filtered_newest_apps.template_id = ANY(templates.template_ids)
+				)
+			) AS created_at
 		FROM
-			apps
-		JOIN
 			templates
-		ON
-			templates.slug = apps.slug
-			AND apps.template_id = ANY(templates.template_ids)
-		ORDER BY
-			apps.slug, apps.created_at DESC, apps.template_id
+	),
+	presentation AS (
+		SELECT
+			newest_app_times.slug,
+			newest_app.display_name,
+			newest_app.icon
+		FROM
+			newest_app_times
+		CROSS JOIN LATERAL (
+			SELECT
+				app.display_name,
+				app.icon
+			FROM
+				workspace_apps AS app
+			JOIN
+				workspace_agents AS agent
+			ON
+				agent.id = app.agent_id
+			JOIN
+				workspace_resources AS resource
+			ON
+				resource.id = agent.resource_id
+			JOIN
+				workspace_builds AS build
+			ON
+				build.job_id = resource.job_id
+			JOIN
+				workspaces AS ws
+			ON
+				ws.id = build.workspace_id
+			WHERE
+				app.slug = newest_app_times.slug
+				AND app.created_at = newest_app_times.created_at
+				AND ws.template_id = ANY(newest_app_times.template_ids)
+			ORDER BY
+				ws.template_id
+			LIMIT 1
+		) AS newest_app
+	),
+	app_totals AS (
+		SELECT
+			slug,
+			COUNT(*) AS active_users,
+			(SUM(usage_mins) * 60)::bigint AS usage_seconds,
+			SUM(times_used)::bigint AS times_used
+		FROM
+			user_app_usage
+		GROUP BY
+			slug
 	)
 
 SELECT
 	t.template_ids,
-	COUNT(DISTINCT ai.user_id) AS active_users,
-	ai.slug,
+	ai.active_users,
+	ai.slug::text AS slug,
 	p.display_name,
 	p.icon,
-	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
-	COALESCE((
-		SELECT
-			COUNT(*)
-		FROM
-			times_used
-		WHERE
-			times_used.slug = ai.slug
-	), 0)::bigint AS times_used
+	ai.usage_seconds,
+	ai.times_used
 FROM
-	app_insights AS ai
+	app_totals AS ai
 JOIN
 	templates AS t
 ON
@@ -18426,14 +18621,12 @@ JOIN
 	presentation AS p
 ON
 	p.slug = ai.slug
-GROUP BY
-	t.template_ids, ai.slug, p.display_name, p.icon
 `
 
 type GetTemplateAppInsightsParams struct {
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateAppInsightsRow struct {
@@ -18449,8 +18642,11 @@ type GetTemplateAppInsightsRow struct {
 // GetTemplateAppInsights returns the aggregate usage of each app in a given
 // timeframe. The result can be filtered on template_ids, meaning only user data
 // from workspaces based on those templates will be included.
+//
+// Apps are looked up from the usage names, so the query does not join every
+// app in the deployment to its template.
 func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
 		return nil, err
 	}

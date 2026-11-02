@@ -5414,6 +5414,8 @@ CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING b
 
 CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
 
+CREATE INDEX workspace_apps_slug_created_at_idx ON workspace_apps USING btree (slug, created_at);
+
 CREATE INDEX workspace_builds_template_version_id_created_at_idx ON workspace_builds USING btree (template_version_id, created_at DESC);
 
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);

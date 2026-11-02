@@ -915,6 +915,9 @@ type sqlcQuerier interface {
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
+	//
+	// Apps are looked up from the usage names, so the query does not join every
+	// app in the deployment to its template.
 	GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error)
 	// GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateAppInsights and UpsertTemplateUsageStats.
