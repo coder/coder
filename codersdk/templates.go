@@ -25,7 +25,7 @@ type Template struct {
 	DisplayName             string          `json:"display_name"`
 	Provisioner             ProvisionerType `json:"provisioner" enums:"terraform"`
 	ActiveVersionID         uuid.UUID       `json:"active_version_id" format:"uuid"`
-	// ActiveUserCount is set to -1 when loading.
+	// Set to -1 when loading.
 	ActiveUserCount    int                    `json:"active_user_count"`
 	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
 	Description        string                 `json:"description"`
@@ -35,34 +35,30 @@ type Template struct {
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
-	// TimeTilAutostopNotifyMillis is the duration before the workspace's
-	// autostop deadline at which a reminder notification is sent. 0 disables
-	// the notification.
+	// The duration before the workspace's autostop deadline at which a reminder
+	// notification is sent. 0 disables the notification.
 	TimeTilAutostopNotifyMillis int64 `json:"time_til_autostop_notify_ms"`
-	// AutostopRequirement and AutostartRequirement are Premium features. Their
-	// values are only used if your license is entitled to use the advanced template
-	// scheduling feature.
+	// Premium feature, as is `autostart_requirement`. The value is only used if
+	// your license is entitled to use the advanced template scheduling feature.
 	AutostopRequirement  TemplateAutostopRequirement  `json:"autostop_requirement"`
 	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
 	CreatedByID          uuid.UUID                    `json:"created_by_id" format:"uuid"`
 	CreatedByName        string                       `json:"created_by_name"`
 
-	// AllowUserAutostart and AllowUserAutostop are Premium features. Their
-	// values are only used if your license is entitled to use the advanced
-	// template scheduling feature.
+	// Premium feature, as is `allow_user_autostop`. The value is only used if your
+	// license is entitled to use the advanced template scheduling feature.
 	AllowUserAutostart           bool `json:"allow_user_autostart"`
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 
-	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their
-	// values are used if your license is entitled to use the advanced
-	// template scheduling feature.
+	// Premium feature, as are `time_til_dormant_ms` and
+	// `time_til_dormant_autodelete_ms`. The value is used if your license is
+	// entitled to use the advanced template scheduling feature.
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
 	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
 	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
 
-	// RequireActiveVersion mandates that workspaces are built with the active
-	// template version.
+	// Mandates that workspaces are built with the active template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
@@ -70,19 +66,18 @@ type Template struct {
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
 	AgentsAllowed           bool `json:"agents_allowed"`
 
-	// DisableModuleCache disables the use of cached Terraform modules during
-	// provisioning for this template. It is read-only while
-	// ModuleCacheDisabledByDeployment is true.
+	// Turns off the use of cached Terraform modules during provisioning for this
+	// template. It is read-only while `module_cache_disabled_by_deployment` is
+	// true.
 	DisableModuleCache bool `json:"disable_module_cache"`
 
-	// ModuleCacheDisabledByDeployment reports that the deployment disables the
-	// Terraform module cache for every template. Templates cannot opt back in,
-	// so the effective state is disabled regardless of DisableModuleCache.
+	// Reports that the deployment disables the Terraform module cache for every
+	// template. Templates cannot opt back in, so the effective state is disabled
+	// regardless of `disable_module_cache`.
 	ModuleCacheDisabledByDeployment bool `json:"module_cache_disabled_by_deployment"`
 
-	// AllowWorkspaceRenames permits users to rename workspaces built from this
-	// template. Renaming can be destructive for templates whose Terraform
-	// references the workspace name.
+	// Whether users can rename workspaces built from this template. Renaming can
+	// be destructive for templates whose Terraform references the workspace name.
 	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
 }
 
@@ -144,25 +139,23 @@ func BitmapToWeekdays(bitmap uint8) []string {
 var AllDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
 
 type TemplateAutostartRequirement struct {
-	// DaysOfWeek is a list of days of the week in which autostart is allowed
-	// to happen. If no days are specified, autostart is not allowed.
+	// A list of days of the week in which autostart is allowed to happen. If no
+	// days are specified, autostart is not allowed.
 	DaysOfWeek []string `json:"days_of_week" enums:"monday,tuesday,wednesday,thursday,friday,saturday,sunday"`
 }
 
 type TemplateAutostopRequirement struct {
-	// DaysOfWeek is a list of days of the week on which restarts are required.
-	// Restarts happen within the user's quiet hours (in their configured
-	// timezone). If no days are specified, restarts are not required. Weekdays
-	// cannot be specified twice.
+	// A list of days of the week on which restarts are required. Restarts happen
+	// within the user's quiet hours (in their configured timezone). If no days are
+	// specified, restarts are not required. Weekdays cannot be specified twice.
 	//
 	// Restarts will only happen on weekdays in this list on weeks which line up
-	// with Weeks.
+	// with `weeks`.
 	DaysOfWeek []string `json:"days_of_week" enums:"monday,tuesday,wednesday,thursday,friday,saturday,sunday"`
-	// Weeks is the number of weeks between required restarts. Weeks are synced
-	// across all workspaces (and Coder deployments) using modulo math on a
-	// hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).
-	// Values of 0 or 1 indicate weekly restarts. Values of 2 indicate
-	// fortnightly restarts, etc.
+	// The number of weeks between required restarts. Weeks are synced across all
+	// workspaces (and Coder deployments) using modulo math on a hardcoded epoch
+	// week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1
+	// indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.
 	Weeks int64 `json:"weeks"`
 }
 
@@ -226,13 +219,13 @@ type TemplateUser struct {
 }
 
 type UpdateTemplateACL struct {
-	// UserPerms is a mapping from valid user UUIDs to the template role they
-	// should be granted. To remove a user from the template, use "" as the role
-	// (available as a constant named codersdk.TemplateRoleDeleted)
+	// A mapping from valid user UUIDs to the template role they should be granted.
+	// To remove a user from the template, use "" as the role (available as a
+	// constant named codersdk.TemplateRoleDeleted)
 	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<user_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
-	// GroupPerms is a mapping from valid group UUIDs to the template role they
-	// should be granted. To remove a group from the template, use "" as the role
-	// (available as a constant named codersdk.TemplateRoleDeleted)
+	// A mapping from valid group UUIDs to the template role they should be
+	// granted. To remove a group from the template, use "" as the role (available
+	// as a constant named codersdk.TemplateRoleDeleted)
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
@@ -251,18 +244,16 @@ type UpdateTemplateMeta struct {
 	Description      *string `json:"description,omitempty"`
 	Icon             *string `json:"icon,omitempty"`
 	DefaultTTLMillis *int64  `json:"default_ttl_ms,omitempty"`
-	// ActivityBumpMillis allows optionally specifying the activity bump
-	// duration for all workspaces created from this template. Defaults to 1h
-	// but can be set to 0 to disable activity bumping.
+	// Optional activity bump duration for all workspaces created from this
+	// template. Defaults to 1h but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
-	// TimeTilAutostopNotifyMillis allows optionally specifying the duration
-	// before the autostop deadline at which a reminder notification is sent for
-	// workspaces created from this template. Defaults to 0 (disabled). Omitting
-	// the field keeps the existing value.
+	// Optional duration before the autostop deadline at which a reminder
+	// notification is sent for workspaces created from this template. Defaults to
+	// 0 (disabled). Omitting the field keeps the existing value.
 	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
-	// AutostopRequirement and AutostartRequirement can only be set if your license
-	// includes the advanced template scheduling feature. If you attempt to set this
-	// value while unlicensed, it will be ignored.
+	// Along with `autostart_requirement`, this can only be set if your license
+	// includes the advanced template scheduling feature. If you attempt to set
+	// this value while unlicensed, it will be ignored.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 	AllowUserAutostart             *bool                         `json:"allow_user_autostart,omitempty"`
@@ -271,49 +262,43 @@ type UpdateTemplateMeta struct {
 	FailureTTLMillis               *int64                        `json:"failure_ttl_ms,omitempty"`
 	TimeTilDormantMillis           *int64                        `json:"time_til_dormant_ms,omitempty"`
 	TimeTilDormantAutoDeleteMillis *int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
-	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
-	// spawned from the template. This is useful for preventing workspaces being
-	// immediately locked when updating the inactivity_ttl field to a new, shorter
-	// value.
+	// Updates the last_used_at field of workspaces spawned from the template. This
+	// is useful for preventing workspaces being immediately locked when updating
+	// the inactivity_ttl field to a new, shorter value.
 	UpdateWorkspaceLastUsedAt *bool `json:"update_workspace_last_used_at,omitempty"`
-	// UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
-	// from the template. This is useful for preventing dormant workspaces being
-	// immediately deleted when updating the dormant_ttl field to a new, shorter
-	// value.
+	// Updates the dormant_at field of workspaces spawned from the template. This
+	// is useful for preventing dormant workspaces being immediately deleted when
+	// updating the dormant_ttl field to a new, shorter value.
 	UpdateWorkspaceDormantAt *bool `json:"update_workspace_dormant_at,omitempty"`
-	// RequireActiveVersion mandates workspaces built using this template
-	// use the active version of the template. This option has no
-	// effect on template admins.
+	// Mandates workspaces built using this template use the active version of the
+	// template. This option has no effect on template admins.
 	RequireActiveVersion *bool `json:"require_active_version,omitempty"`
-	// DeprecationMessage if set, will mark the template as deprecated and block
-	// any new workspaces from using this template.
-	// If passed an empty string, will remove the deprecated message, making
-	// the template usable for new workspaces again.
+	// If set, marks the template as deprecated and blocks any new workspaces from
+	// using this template. If passed an empty string, removes the deprecation
+	// message, making the template usable for new workspaces again.
 	DeprecationMessage *string `json:"deprecation_message,omitempty"`
-	// DisableEveryoneGroupAccess allows optionally disabling the default
-	// behavior of granting the 'everyone' group access to use the template.
-	// If this is set to true, the template will not be available to all users,
-	// and must be explicitly granted to users or groups in the permissions settings
-	// of the template.
+	// Allows optionally disabling the default behavior of granting the 'everyone'
+	// group access to use the template. If this is set to true, the template will
+	// not be available to all users, and must be explicitly granted to users or
+	// groups in the permissions settings of the template.
 	DisableEveryoneGroupAccess *bool                         `json:"disable_everyone_group_access,omitempty"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
 	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
-	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
-	// parameter flow when creating a workspace. This only affects deployments with the experiment
-	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is
-	// made the default.
-	// An "opt-out" is present in case the new feature breaks some existing templates.
+	// A flag that switches the default behavior to use the classic parameter flow
+	// when creating a workspace. This only affects deployments with the experiment
+	// "dynamic-parameters" enabled. This setting will live for a period after the
+	// experiment is made the default. An "opt-out" is present in case the new
+	// feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
-	// DisableModuleCache disables the using of cached Terraform modules during
-	// provisioning. It is ignored while the deployment disables the module
-	// cache for all templates. It is recommended not to disable this.
+	// Turns off the use of cached Terraform modules during provisioning. It is
+	// ignored while the deployment disables the module cache for all templates. It
+	// is recommended not to disable this.
 	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
-	// AgentsAllowed controls whether Coder Agents can create workspaces using
-	// this template. If omitted, the current value is preserved.
+	// Whether Coder Agents can create workspaces using this template. If omitted,
+	// the current value is preserved.
 	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
-	// AllowWorkspaceRenames permits users to rename workspaces built from this
-	// template. Renaming can be destructive for templates whose Terraform
-	// references the workspace name.
+	// Whether users can rename workspaces built from this template. Renaming can
+	// be destructive for templates whose Terraform references the workspace name.
 	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
@@ -540,9 +525,9 @@ type AgentStatsReportRequest struct{}
 // request by the agent.
 type AgentStatsReportResponse struct {
 	NumConns int64 `json:"num_comms"`
-	// RxBytes is the number of received bytes.
+	// The number of received bytes.
 	RxBytes int64 `json:"rx_bytes"`
-	// TxBytes is the number of transmitted bytes.
+	// The number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
 }
 

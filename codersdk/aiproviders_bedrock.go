@@ -32,39 +32,36 @@ const (
 // from "explicitly clear" (empty string), e.g. when migrating to
 // IAM role-based authentication.
 type AIProviderBedrockSettings struct {
-	// Region is the AWS region used to construct the Bedrock endpoint
-	// URL when BaseURL is not set on the parent provider.
+	// The AWS region used to construct the Bedrock endpoint URL when BaseURL is
+	// not set on the parent provider.
 	Region string `json:"region,omitempty"`
-	// Model is the AWS Bedrock model identifier used for primary
-	// requests.
+	// The AWS Bedrock model identifier used for primary requests.
 	Model string `json:"model,omitempty"`
-	// SmallFastModel is the AWS Bedrock model identifier used for
-	// background tasks (e.g. Claude Code's haiku-class model).
+	// The AWS Bedrock model identifier used for background tasks (e.g. Claude
+	// Code's haiku-class model).
 	SmallFastModel string `json:"small_fast_model,omitempty"`
-	// AccessKey is the AWS access key ID used to authenticate against
-	// Bedrock. Write-only.
+	// The AWS access key ID used to authenticate against Bedrock. Write-only.
 	AccessKey *string `json:"access_key,omitempty"`
-	// AccessKeySecret is the AWS secret access key paired with
-	// AccessKey. Write-only.
+	// The AWS secret access key paired with `access_key`. Write-only.
 	AccessKeySecret *string `json:"access_key_secret,omitempty"`
-	// RoleARN, when set, is the IAM role assumed via STS before calling
-	// Bedrock. The base identity (static keys or the AWS environment, e.g.
-	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
-	// call, and the resulting temporary credentials sign Bedrock requests.
+	// The IAM role assumed via STS before calling Bedrock, when set. The base
+	// identity (static keys or the AWS environment, e.g. IRSA / EKS Pod Identity /
+	// EC2 Instance Profile) signs the AssumeRole call, and the resulting temporary
+	// credentials sign Bedrock requests.
 	RoleARN string `json:"role_arn,omitempty"`
-	// ExternalID is the STS external ID sent on the AssumeRole call when
-	// RoleARN is set. The server generates and owns it: create and update
-	// reject any client-supplied value that differs from the stored one (an
-	// update may echo the stored value back).
+	// The STS external ID sent on the AssumeRole call when `role_arn` is set. The
+	// server generates and owns it: create and update reject any client-supplied
+	// value that differs from the stored one (an update may echo the stored value
+	// back).
 	ExternalID string `json:"external_id,omitempty"`
-	// Protocol selects the Bedrock wire protocol. An empty value resolves to
+	// Selects the Bedrock wire protocol. An empty value resolves to
 	// AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
 	// behavior.
 	Protocol AIProviderBedrockProtocol `json:"protocol,omitempty"`
-	// ResolvedModel and ResolvedSmallFastModel are the model IDs behind the
-	// configured identifiers, which differ from them only for application
-	// inference profile ARNs. The server resolves those through AWS when the
-	// provider is written and owns the values; a client cannot set them.
+	// Along with `resolved_small_fast_model`, the model IDs behind the configured
+	// identifiers, which differ from them only for application inference profile
+	// ARNs. The server resolves those through AWS when the provider is written and
+	// owns the values. A client cannot set them.
 	ResolvedModel          string `json:"resolved_model,omitempty"`
 	ResolvedSmallFastModel string `json:"resolved_small_fast_model,omitempty"`
 }

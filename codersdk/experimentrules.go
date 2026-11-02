@@ -29,15 +29,14 @@ const (
 
 // ExperimentRule is the stored runtime rule of one experiment.
 type ExperimentRule struct {
-	// Mode is one of the ExperimentRuleMode values, or empty when the
-	// stored rule is malformed. A malformed rule decides off until it is
-	// replaced. It is a plain string so that clients can represent the
-	// malformed state.
+	// One of the ExperimentRuleMode values, or empty when the stored rule is
+	// malformed. A malformed rule decides off until it is replaced. It is a plain
+	// string so that clients can represent the malformed state.
 	Mode string `json:"mode"`
-	// Condition is the CEL expression of a condition rule.
+	// The CEL expression of a condition rule.
 	Condition string `json:"condition,omitempty"`
-	// Revision increases on every change and starts at 1. Zero means the
-	// stored rule has no readable positive revision, so it is malformed.
+	// Increases on every change and starts at 1. Zero means the stored rule has no
+	// readable positive revision, so it is malformed.
 	Revision  int64     `json:"revision"`
 	UpdatedBy uuid.UUID `json:"updated_by" format:"uuid"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
@@ -45,28 +44,27 @@ type ExperimentRule struct {
 
 // ExperimentRuleEntry describes the runtime rule state of one experiment.
 type ExperimentRuleEntry struct {
-	// Experiment is the experiment name. Ignored entries can name
-	// experiments this version does not know, so it is a plain string.
+	// The experiment name. `ignored` entries can name experiments this version
+	// does not know, so it is a plain string.
 	Experiment string `json:"experiment"`
-	// StaticDefault reports whether the experiment is in the startup
-	// --experiments list of the replica that answered.
+	// Whether the experiment is in the startup --experiments list of the replica
+	// that answered.
 	StaticDefault bool `json:"static_default"`
-	// Rule is null when no rule was ever stored.
+	// Null when no rule was ever stored.
 	Rule *ExperimentRule `json:"rule"`
-	// Ignored is true for a stored rule of an experiment that does not
-	// accept runtime rules. Such a rule has no effect.
+	// True for a stored rule of an experiment that does not accept runtime rules.
+	// Such a rule has no effect.
 	Ignored bool `json:"ignored"`
 }
 
 // PutExperimentRuleRequest replaces the runtime rule of one experiment.
 type PutExperimentRuleRequest struct {
 	Mode ExperimentRuleMode `json:"mode" enums:"inherit,on,off,condition"`
-	// Condition is required for the condition mode and must be empty
-	// otherwise.
+	// Required for the condition mode and must be empty otherwise.
 	Condition string `json:"condition,omitempty"`
-	// ExpectedRevision must equal the current revision of the stored rule,
-	// or zero when no rule is stored or the stored rule has no readable
-	// positive revision. A different revision fails with 409 Conflict.
+	// Must equal the current revision of the stored rule, or zero when no rule is
+	// stored or the stored rule has no readable positive revision. A different
+	// revision fails with 409 Conflict.
 	ExpectedRevision int64 `json:"expected_revision"`
 }
 

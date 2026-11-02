@@ -37,13 +37,13 @@ func (s SlimRole) UniqueName() string {
 type AssignableRoles struct {
 	Role       `table:"r,recursive_inline"`
 	Assignable bool `json:"assignable" table:"assignable"`
-	// BuiltIn roles are immutable
+	// Built-in roles are immutable.
 	BuiltIn bool `json:"built_in" table:"built_in"`
 }
 
 // Permission is the format passed into the rego.
 type Permission struct {
-	// Negate makes this a negative permission
+	// Makes this a negative permission.
 	Negate       bool         `json:"negate"`
 	ResourceType RBACResource `json:"resource_type"`
 	Action       RBACAction   `json:"action"`
@@ -56,9 +56,11 @@ type Role struct {
 	DisplayName     string       `json:"display_name" table:"display name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
 	UserPermissions []Permission `json:"user_permissions" table:"user permissions"`
-	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
+	// Permissions specific to the organization in the `organization_id` field
+	// above.
 	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
-	// OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.
+	// Permissions specific to the organization in the `organization_id` field
+	// above.
 	OrganizationMemberPermissions []Permission `json:"organization_member_permissions" table:"organization member permissions"`
 }
 
@@ -68,9 +70,9 @@ type CustomRoleRequest struct {
 	DisplayName     string       `json:"display_name" table:"display name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
 	UserPermissions []Permission `json:"user_permissions" table:"user permissions"`
-	// OrganizationPermissions are specific to the organization the role belongs to.
+	// Permissions specific to the organization the role belongs to.
 	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
-	// OrganizationMemberPermissions are specific to the organization the role belongs to.
+	// Permissions specific to the organization the role belongs to.
 	OrganizationMemberPermissions []Permission `json:"organization_member_permissions" table:"organization member permissions"`
 }
 

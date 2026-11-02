@@ -73,7 +73,7 @@ type WorkspaceBuild struct {
 	WorkspaceID      uuid.UUID `json:"workspace_id" format:"uuid"`
 	WorkspaceName    string    `json:"workspace_name"`
 	WorkspaceOwnerID uuid.UUID `json:"workspace_owner_id" format:"uuid"`
-	// WorkspaceOwnerName is the username of the owner of the workspace.
+	// The username of the owner of the workspace.
 	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
 	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
 	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
@@ -141,8 +141,7 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 // WorkspaceBuildDebugEventRequest is the request body for
 // POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.
 type WorkspaceBuildDebugEventRequest struct {
-	// ID identifies this click so a later step of the funnel can be
-	// attributed to it.
+	// Identifies this click so a later step of the funnel can be attributed to it.
 	ID uuid.UUID `json:"id" format:"uuid" validate:"required"`
 }
 
@@ -169,7 +168,7 @@ const (
 )
 
 type CancelWorkspaceBuildParams struct {
-	// ExpectStatus ensures the build is in the expected status before canceling.
+	// Ensures the build is in the expected status before canceling.
 	ExpectStatus CancelWorkspaceBuildStatus `json:"expect_status,omitempty"`
 }
 
@@ -309,6 +308,7 @@ type WorkspaceBuildTimings struct {
 	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
 	// TODO: Consolidate agent-related timing metrics into a single struct when
 	// updating the API version
+
 	AgentScriptTimings     []AgentScriptTiming     `json:"agent_script_timings"`
 	AgentConnectionTimings []AgentConnectionTiming `json:"agent_connection_timings"`
 }

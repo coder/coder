@@ -28,7 +28,7 @@ const (
 
 type WorkspaceProxyStatus struct {
 	Status ProxyHealthStatus `json:"status" table:"status,default_sort"`
-	// Report provides more information about the health of the workspace proxy.
+	// Provides more information about the health of the workspace proxy.
 	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
 	CheckedAt time.Time         `json:"checked_at" table:"checked at" format:"date-time"`
 }
@@ -36,9 +36,9 @@ type WorkspaceProxyStatus struct {
 // ProxyHealthReport is a report of the health of the workspace proxy.
 // A healthy report will have no errors. Warnings are not fatal.
 type ProxyHealthReport struct {
-	// Errors are problems that prevent the workspace proxy from being healthy
+	// Problems that prevent the workspace proxy from being healthy.
 	Errors []string `json:"errors"`
-	// Warnings do not prevent the workspace proxy from being healthy, but
+	// Problems that do not prevent the workspace proxy from being healthy, but
 	// should be addressed.
 	Warnings []string `json:"warnings"`
 }
@@ -49,7 +49,7 @@ type WorkspaceProxy struct {
 	DerpEnabled bool `json:"derp_enabled" table:"derp enabled"`
 	DerpOnly    bool `json:"derp_only" table:"derp only"`
 
-	// Status is the latest status check of the proxy. This will be empty for deleted
+	// The latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
 	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
@@ -189,15 +189,13 @@ type Region struct {
 	IconURL     string    `json:"icon_url" table:"icon url"`
 	Healthy     bool      `json:"healthy" table:"healthy"`
 
-	// PathAppURL is the URL to the base path for path apps. Optional
-	// unless wildcard_hostname is set.
-	// E.g. https://us.example.com
+	// The URL to the base path for path apps. Optional unless wildcard_hostname is
+	// set. E.g. https://us.example.com
 	PathAppURL string `json:"path_app_url" table:"url"`
 
-	// WildcardHostname is the wildcard hostname for subdomain apps.
-	// E.g. *.us.example.com
-	// E.g. *--suffix.au.example.com
-	// Optional. Does not need to be on the same domain as PathAppURL.
+	// The wildcard hostname for subdomain apps. E.g. *.us.example.com E.g.
+	// *--suffix.au.example.com Optional. Does not need to be on the same domain as
+	// `path_app_url`.
 	WildcardHostname string `json:"wildcard_hostname" table:"wildcard hostname"`
 }
 

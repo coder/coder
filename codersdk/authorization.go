@@ -11,11 +11,10 @@ type AuthorizationResponse map[string]bool
 // go-playground/validate can only validate structs. If you attempt to pass
 // a map into `httpapi.Read`, you will get an invalid type error.
 type AuthorizationRequest struct {
-	// Checks is a map keyed with an arbitrary string to a permission check.
-	// The key can be any string that is helpful to the caller, and allows
-	// multiple permission checks to be run in a single request.
-	// The key ensures that each permission check has the same key in the
-	// response.
+	// A map keyed with an arbitrary string to a permission check. The key can be
+	// any string that is helpful to the caller, and allows multiple permission
+	// checks to be run in a single request. The key ensures that each permission
+	// check has the same key in the response.
 	Checks map[string]AuthorizationCheck `json:"checks"`
 }
 
@@ -23,13 +22,14 @@ type AuthorizationRequest struct {
 //
 // @Description AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
 type AuthorizationCheck struct {
-	// Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.
-	// When defining an object, use the most specific language when possible to
-	// produce the smallest set. Meaning to set as many fields on 'Object' as
-	// you can. Example, if you want to check if you can update all workspaces
-	// owned by 'me', try to also add an 'OrganizationID' to the settings.
-	// Omitting the 'OrganizationID' could produce the incorrect value, as
-	// workspaces have both `user` and `organization` owners.
+	// Can represent a "set" of objects, such as: all workspaces in an
+	// organization, all workspaces owned by me, and all workspaces across the
+	// entire product. When defining an object, use the most specific language when
+	// possible to produce the smallest set. Meaning to set as many fields on
+	// `object` as you can. Example, if you want to check if you can update all
+	// workspaces owned by 'me', try to also add an 'OrganizationID' to the
+	// settings. Omitting the 'OrganizationID' could produce the incorrect value,
+	// as workspaces have both `user` and `organization` owners.
 	Object AuthorizationObject `json:"object"`
 	Action RBACAction          `json:"action" enums:"create,read,update,delete"`
 }
@@ -40,21 +40,22 @@ type AuthorizationCheck struct {
 // @Description AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me,
 // @Description all workspaces across the entire product.
 type AuthorizationObject struct {
-	// ResourceType is the name of the resource.
-	// `./coderd/rbac/object.go` has the list of valid resource types.
+	// The name of the resource. `./coderd/rbac/object.go` has the list of valid
+	// resource types.
 	ResourceType RBACResource `json:"resource_type"`
-	// OwnerID (optional) adds the set constraint to all resources owned by a given user.
+	// Optional. Adds the set constraint to all resources owned by a given user.
 	OwnerID string `json:"owner_id,omitempty"`
-	// OrganizationID (optional) adds the set constraint to all resources owned by a given organization.
+	// Optional. Adds the set constraint to all resources owned by a given
+	// organization.
 	OrganizationID string `json:"organization_id,omitempty"`
-	// ResourceID (optional) reduces the set to a singular resource. This assigns
-	// a resource ID to the resource type, eg: a single workspace.
-	// The rbac library will not fetch the resource from the database, so if you
-	// are using this option, you should also set the owner ID and organization ID
-	// if possible. Be as specific as possible using all the fields relevant.
+	// Optional. Reduces the set to a singular resource. This assigns a resource ID
+	// to the resource type, eg: a single workspace. The rbac library will not
+	// fetch the resource from the database, so if you are using this option, you
+	// should also set the owner ID and organization ID if possible. Be as specific
+	// as possible using all the fields relevant.
 	ResourceID string `json:"resource_id,omitempty"`
-	// AnyOrgOwner (optional) will disregard the org_owner when checking for permissions.
-	// This cannot be set to true if the OrganizationID is set.
+	// Optional. Disregards the org_owner when checking for permissions. This
+	// cannot be set to true if the `organization_id` is set.
 	AnyOrgOwner bool `json:"any_org,omitempty"`
 }
 

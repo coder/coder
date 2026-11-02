@@ -94,13 +94,11 @@ func IsAgentsUnsupportedProviderType(t AIProviderType) bool {
 // settings variants on AIProviderTypeAnthropic, which is why
 // ClaudePlatformAWS has no matching AIProviderType.
 type AIProviderSettings struct {
-	// Bedrock, when set, indicates this provider authenticates against
-	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
-	// AIProviderTypeAnthropic.
+	// When set, indicates this provider authenticates against AWS Bedrock instead
+	// of api.anthropic.com. Only meaningful for AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
-	// ClaudePlatformAWS, when set, indicates this provider targets
-	// Anthropic's AWS-hosted Messages API. Only valid for
-	// AIProviderTypeAnthropic.
+	// When set, indicates this provider targets Anthropic's AWS-hosted Messages
+	// API. Only valid for AIProviderTypeAnthropic.
 	ClaudePlatformAWS *AIProviderClaudePlatformAWSSettings `json:"-"`
 }
 
@@ -251,7 +249,7 @@ type AIProvider struct {
 	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
 
-	// Status carries runtime routing status; nil when empty.
+	// The runtime routing status, or nil when empty.
 	Status *AIProviderStatus `json:"status,omitempty"`
 }
 
