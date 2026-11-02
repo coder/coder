@@ -94,7 +94,7 @@ Never post a second summary comment.
 </details>
 
 ---
-*Automated review via [Coder Agents](https://coder.com/docs/coder-agents). Reply to a finding's thread with the reason if the finding is wrong.*
+*Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents). Reply to a finding's thread with the reason if the finding is wrong.*
 
 <!-- doc-check-sticky -->
 ````

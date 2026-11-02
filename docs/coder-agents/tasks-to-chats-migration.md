@@ -70,7 +70,7 @@ With Coder Agents, credentials are configured once in the control plane:
 1. Add at least one model, and set it as the default.
 
 You no longer pass API keys in template variables or workspace environment.
-See https://coder.com/docs/coder-agents/getting-started for more information.
+See [Getting started with Coder Agents](./getting-started.md) for more information.
 
 ### 2. Update task creation calls
 
