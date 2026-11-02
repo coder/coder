@@ -19802,21 +19802,28 @@ WITH
 			agent_stats.user_id,
 			app_name,
 			COUNT(DISTINCT agent_stats.minute_bucket)::smallint AS usage_mins
-		FROM
-			agent_stats_rows AS agent_stats
-		JOIN
-			agent_stats_buckets AS buckets
-		ON
-			buckets.time_bucket = agent_stats.time_bucket
-			AND buckets.template_id = agent_stats.template_id
-			AND buckets.user_id = agent_stats.user_id
-			-- Same gate as the union below, so an app-stats-only bucket
-			-- records no session usage.
-			AND buckets.has_connection
+		FROM (
+			-- The window keeps the rows ordered by bucket, so the grouping
+			-- below only sorts within each bucket instead of sorting every
+			-- expanded row. It matches has_connection in agent_stats_buckets.
+			SELECT
+				time_bucket,
+				template_id,
+				user_id,
+				minute_bucket,
+				session_counts,
+				BOOL_OR(connection_count > 0) OVER (PARTITION BY time_bucket, user_id, template_id) AS has_connection
+			FROM
+				agent_stats_rows
+		) AS agent_stats
 		CROSS JOIN
 			jsonb_object_keys(agent_stats.session_counts) AS app_name
+		WHERE
+			-- Same gate as the union below, so an app-stats-only bucket
+			-- records no session usage.
+			agent_stats.has_connection
 		GROUP BY
-			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, app_name
+			agent_stats.time_bucket, agent_stats.user_id, agent_stats.template_id, app_name
 	),
 	stats AS (
 		SELECT
@@ -19858,40 +19865,33 @@ WITH
 		GROUP BY
 			stats.time_bucket, stats.template_id, stats.user_id
 	),
-	minute_buckets AS (
-		-- Create distinct minute buckets for user-activity, so we can filter out
-		-- irrelevant latencies.
-		SELECT DISTINCT ON (stats.start_time, stats.template_id, stats.user_id, minute_bucket)
+	latencies AS (
+		-- Select all non-zero latencies for all the minutes that a user used the
+		-- workspace in some way. A stat's bucket follows from its minute, so
+		-- matching the bucket and checking the minute against the bucket's
+		-- minutes keeps the join on the bucket key.
+		SELECT
 			stats.start_time,
 			stats.template_id,
 			stats.user_id,
-			minute_bucket
-		FROM
-			stats, unnest(minute_buckets) AS minute_bucket
-	),
-	latencies AS (
-		-- Select all non-zero latencies for all the minutes that a user used the
-		-- workspace in some way.
-		SELECT
-			mb.start_time,
-			mb.template_id,
-			mb.user_id,
 			-- TODO(mafredri): We're doing medians on medians here, we may want to
 			-- improve upon this at some point.
 			PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY was.connection_median_latency_ms)::real AS median_latency_ms
 		FROM
-			minute_buckets AS mb
-		JOIN
 			workspace_agent_stats AS was
+		JOIN
+			stats
 		ON
+			stats.start_time = date_trunc('hour', was.created_at) + trunc(date_part('minute', was.created_at) / 30) * 30 * '1 minute'::interval
+			AND stats.template_id = was.template_id
+			AND stats.user_id = was.user_id
+			AND date_trunc('minute', was.created_at) = ANY(stats.minute_buckets)
+		WHERE
 			was.created_at >= (SELECT t FROM latest_start)
 			AND was.created_at < NOW()
-			AND date_trunc('minute', was.created_at) = mb.minute_bucket
-			AND was.template_id = mb.template_id
-			AND was.user_id = mb.user_id
 			AND was.connection_median_latency_ms > 0
 		GROUP BY
-			mb.start_time, mb.template_id, mb.user_id
+			stats.start_time, stats.template_id, stats.user_id
 	),
 	upsert_stats AS (
 		INSERT INTO template_usage_stats AS tus (
@@ -19920,6 +19920,23 @@ WITH
 				latencies.start_time = stats.start_time
 				AND latencies.template_id = stats.template_id
 				AND latencies.user_id = stats.user_id
+			WHERE
+				-- Skip unchanged rows before ON CONFLICT locks and WAL-logs
+				-- them. Matches the no-op guard below.
+				NOT EXISTS (
+					SELECT
+						1
+					FROM
+						template_usage_stats AS existing
+					WHERE
+						existing.start_time = stats.start_time
+						AND existing.template_id = stats.template_id
+						AND existing.user_id = stats.user_id
+						AND existing.end_time = stats.end_time
+						AND existing.usage_mins = stats.usage_mins
+						AND existing.median_latency_ms IS NOT DISTINCT FROM latencies.median_latency_ms
+						AND existing.app_usage_mins IS NOT DISTINCT FROM stats.app_usage_mins
+				)
 		)
 		ON CONFLICT
 			(start_time, template_id, user_id)
@@ -19934,22 +19951,58 @@ WITH
 	-- The child writes share this statement, so the foreign keys are checked
 	-- once it completes and see the main rows the upsert added; Postgres runs
 	-- that upsert whether or not the statement reads it.
-	--
-	-- NOT IN, not NOT EXISTS: the planner has no statistics for the CTE and
-	-- turns NOT EXISTS into a nested loop that rescans it per row, 20 seconds
-	-- per rollup. Every column is non-null, so both delete the same rows.
+	-- Session app rows to write or delete: one hash or merge join of the
+	-- computed rows with the stored ones. Unchanged rows are left out, as ON
+	-- CONFLICT would lock and WAL-log each of them. The CTEs have no
+	-- statistics, so anti joins and NOT IN against them can turn into a
+	-- rescan per row; a full join cannot.
+	session_apps_diff AS MATERIALIZED (
+		SELECT
+			COALESCE(minutes.time_bucket, existing.start_time) AS start_time,
+			COALESCE(minutes.user_id, existing.user_id) AS user_id,
+			COALESCE(minutes.template_id, existing.template_id) AS template_id,
+			COALESCE(minutes.app_name, existing.app_name) AS app_name,
+			minutes.usage_mins
+		FROM
+			agent_stats_session_minutes AS minutes
+		FULL JOIN (
+			SELECT
+				start_time,
+				user_id,
+				template_id,
+				app_name,
+				usage_mins
+			FROM
+				template_usage_stats_session_apps
+			WHERE
+				-- Every recomputed bucket starts here.
+				start_time >= (SELECT t FROM latest_start)
+		) AS existing
+		ON
+			existing.start_time = minutes.time_bucket
+			AND existing.user_id = minutes.user_id
+			AND existing.template_id = minutes.template_id
+			AND existing.app_name = minutes.app_name
+		WHERE
+			minutes.usage_mins IS DISTINCT FROM existing.usage_mins
+	),
+	-- Every recomputed bucket rewrites its own child rows: app names that
+	-- disappeared are deleted. A stored bucket with no agent stats left is
+	-- not recomputed, so its rows stay.
 	delete_apps AS (
 		DELETE FROM
 			template_usage_stats_session_apps AS apps
 		USING
-			agent_stats_buckets AS buckets
+			session_apps_diff AS diff
 		WHERE
-			apps.start_time = buckets.time_bucket
-			AND apps.template_id = buckets.template_id
-			AND apps.user_id = buckets.user_id
-			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
-				SELECT time_bucket, template_id, user_id, app_name
-				FROM agent_stats_session_minutes
+			diff.usage_mins IS NULL
+			AND apps.start_time = diff.start_time
+			AND apps.user_id = diff.user_id
+			AND apps.template_id = diff.template_id
+			AND apps.app_name = diff.app_name
+			AND (diff.start_time, diff.template_id, diff.user_id) IN (
+				SELECT time_bucket, template_id, user_id
+				FROM agent_stats_buckets
 			)
 	)
 
@@ -19961,13 +20014,15 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 	usage_mins
 ) (
 	SELECT
-		time_bucket,
+		start_time,
 		template_id,
 		user_id,
 		app_name,
 		usage_mins
 	FROM
-		agent_stats_session_minutes
+		session_apps_diff
+	WHERE
+		usage_mins IS NOT NULL
 )
 ON CONFLICT
 	(start_time, template_id, user_id, app_name)
