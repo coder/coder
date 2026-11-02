@@ -118,7 +118,7 @@ export const webhookOrigin = (accessURL: string, pageOrigin: string) => {
 };
 
 export const webhookPublishEndpoint = (origin: string, automationId: string) =>
-	`${origin}/api/experimental/chat-automations/${encodeURIComponent(automationId)}/events`;
+	`${origin}/api/experimental/chats/automations/${encodeURIComponent(automationId)}/events`;
 
 /** Receives a new webhook secret, which never reaches the mutation cache. */
 type OnWebhookSecret = (automationId: string, secret: string) => void;

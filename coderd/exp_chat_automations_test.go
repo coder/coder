@@ -248,7 +248,7 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, codersdk.ChatAutomationWhenBusySkip, *skip.Automation.WhenBusy)
 
 		// The secret and its hash never leave the create response.
-		basePath := fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", env.orgID)
+		basePath := fmt.Sprintf("/api/experimental/organizations/%s/chats/automations", env.orgID)
 		for _, path := range []string{basePath, basePath + "/" + webhook.Automation.ID.String()} {
 			status, body := rawGet(t, env.member, path)
 			require.Equal(t, http.StatusOK, status, body)
@@ -603,7 +603,7 @@ func TestChatAutomations(t *testing.T) {
 			if tc.rawReq != nil {
 				body = tc.rawReq
 			}
-			res, err := env.member.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chat-automations/%s", env.orgID, tc.id), body)
+			res, err := env.member.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/automations/%s", env.orgID, tc.id), body)
 			require.NoError(t, err)
 			sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
 			_ = res.Body.Close()
@@ -1035,7 +1035,7 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, wantHash[:], stored.WebhookSecretHash)
 		require.Equal(t, int64(2), stored.WebhookSecretVersion)
 
-		basePath := fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", env.orgID)
+		basePath := fmt.Sprintf("/api/experimental/organizations/%s/chats/automations", env.orgID)
 		for _, path := range []string{basePath, basePath + "/" + id.String()} {
 			status, body := rawGet(t, env.member, path)
 			require.Equal(t, http.StatusOK, status, body)
@@ -1479,8 +1479,24 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 	t.Run("NoV2Alias", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)
-		status, body := rawGet(t, env.member, fmt.Sprintf("/api/v2/organizations/%s/chat-automations", env.orgID))
+		status, body := rawGet(t, env.member, fmt.Sprintf("/api/v2/organizations/%s/chats/automations", env.orgID))
 		require.Equal(t, http.StatusNotFound, status, body)
+	})
+
+	// The webhook lives under /api/experimental/chats/automations, which
+	// shares a prefix with the /chats/{chat} wildcard. Authenticated
+	// requests for other paths under that segment must 404, not reach
+	// ExtractChatParam and fail UUID parsing with a 400.
+	t.Run("ChatsWildcardReserved", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		for _, path := range []string{
+			"/api/experimental/chats/automations",
+			"/api/experimental/chats/automations/" + uuid.NewString(),
+		} {
+			status, body := rawGet(t, env.member, path)
+			require.Equal(t, http.StatusNotFound, status, "%s: %s", path, body)
+		}
 	})
 }
 

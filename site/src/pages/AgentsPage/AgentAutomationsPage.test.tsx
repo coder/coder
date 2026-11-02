@@ -76,7 +76,7 @@ const mockNewChatListAutomation: ChatAutomation = {
 };
 
 const automationsPath = (organizationId: string) =>
-	`/api/experimental/organizations/${organizationId}/chat-automations`;
+	`/api/experimental/organizations/${organizationId}/chats/automations`;
 
 const setup = ({
 	experiments = ["chat-automations"],
@@ -99,7 +99,7 @@ const setup = ({
 			return HttpResponse.json([MockChat]);
 		}),
 		http.all(
-			"/api/experimental/organizations/:organizationId/chat-automations*",
+			"/api/experimental/organizations/:organizationId/chats/automations*",
 			({ request }) => {
 				requests.push(request);
 				return undefined;

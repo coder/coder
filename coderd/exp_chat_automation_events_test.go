@@ -32,7 +32,7 @@ func postChatAutomationEvent(t *testing.T, client *codersdk.ExperimentalClient, 
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		client.URL.JoinPath("api", "experimental", "chat-automations", automationID.String(), "events").String(),
+		client.URL.JoinPath("api", "experimental", "chats", "automations", automationID.String(), "events").String(),
 		bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -299,7 +299,7 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Equal(t, ptr.Ref(codersdk.ChatAutomationRunReasonSingleUseConsumed), got.Reason)
 
 		// The JSON shape clients render.
-		raw, err := env.member.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chat-automations/%s", env.orgID, created.Automation.ID), nil)
+		raw, err := env.member.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/automations/%s", env.orgID, created.Automation.ID), nil)
 		require.NoError(t, err)
 		defer raw.Body.Close()
 		var shape struct {

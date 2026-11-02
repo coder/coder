@@ -46,6 +46,6 @@ export const expectNewWebhookEndpoint = async (
 	const form = screen.getByRole("form", { name: "New automation" });
 	expect(window.location.origin).not.toBe(new URL(accessURL).origin);
 	within(form).getByText(
-		`${expectedOrigin}/api/experimental/chat-automations/<automation-id>/events`,
+		`${expectedOrigin}/api/experimental/chats/automations/<automation-id>/events`,
 	);
 };

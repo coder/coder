@@ -715,7 +715,7 @@ func (p *Server) automationWebhookURL(row database.ChatAutomation) string {
 	if row.Kind != database.ChatAutomationKindWebhook || p.accessURL == nil {
 		return ""
 	}
-	return p.accessURL.JoinPath("api", "experimental", "chat-automations", row.ID.String(), "events").String()
+	return p.accessURL.JoinPath("api", "experimental", "chats", "automations", row.ID.String(), "events").String()
 }
 
 // manageAutomationsError maps service errors to tool errors that reveal

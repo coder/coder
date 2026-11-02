@@ -3964,7 +3964,7 @@ class ExperimentalApiMethods {
 		filter?: TypesGen.ChatAutomationsFilter,
 	): Promise<TypesGen.ChatAutomation[]> => {
 		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations`,
 			{ params: filter?.owner ? { owner: filter.owner } : undefined },
 		);
 		return response.data;
@@ -3985,7 +3985,7 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.CreateChatAutomationResponse> => {
 		const response =
 			await this.axios.post<TypesGen.CreateChatAutomationResponse>(
-				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations`,
 				req,
 			);
 		return response.data;
@@ -3998,7 +3998,7 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.ChatAutomationSchedulePreviewResponse> => {
 		const response =
 			await this.axios.post<TypesGen.ChatAutomationSchedulePreviewResponse>(
-				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/schedule-preview`,
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations/schedule-preview`,
 				req,
 				{ signal },
 			);
@@ -4011,7 +4011,7 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatAutomationRequest,
 	): Promise<TypesGen.ChatAutomation> => {
 		const response = await this.axios.patch<TypesGen.ChatAutomation>(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations/${encodeURIComponent(automationId)}`,
 			req,
 		);
 		return response.data;
@@ -4022,7 +4022,7 @@ class ExperimentalApiMethods {
 		automationId: string,
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations/${encodeURIComponent(automationId)}`,
 		);
 	};
 
@@ -4031,7 +4031,7 @@ class ExperimentalApiMethods {
 		automationId: string,
 	): Promise<TypesGen.ChatAutomationRunResponse> => {
 		const response = await this.axios.post<TypesGen.ChatAutomationRunResponse>(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/runs`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations/${encodeURIComponent(automationId)}/runs`,
 		);
 		return response.data;
 	};
@@ -4042,7 +4042,7 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.RotateChatAutomationSecretResponse> => {
 		const response =
 			await this.axios.post<TypesGen.RotateChatAutomationSecretResponse>(
-				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/secret/rotate`,
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/automations/${encodeURIComponent(automationId)}/secret/rotate`,
 			);
 		return response.data;
 	};

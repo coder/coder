@@ -1351,7 +1351,7 @@ func New(options *Options) *API {
 	// a fresh bucket. This limiter keys by automation and caller IP, and
 	// requests for unknown automations share one bucket per IP.
 	r.With(api.chatAutomationEventRateLimit(options.APIRateLimit, time.Minute)).
-		Post("/api/experimental/chat-automations/{automation}/events", api.postChatAutomationEvent)
+		Post("/api/experimental/chats/automations/{automation}/events", api.postChatAutomationEvent)
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
@@ -1383,7 +1383,7 @@ func New(options *Options) *API {
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
-		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
+		r.Route("/organizations/{organization}/chats/automations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.requireChatAutomations,

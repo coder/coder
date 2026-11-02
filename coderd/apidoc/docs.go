@@ -154,7 +154,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chat-automations/{automation}/events": {
+        "/api/experimental/chats/automations/{automation}/events": {
             "post": {
                 "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to the deployment's webhook body limit, 64 KiB by default. The event data must also fit that limit after HTML escaping, which counts each \u003c, \u003e, \u0026, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
                 "consumes": [
@@ -580,7 +580,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/organizations/{organization}/chat-automations": {
+        "/api/experimental/organizations/{organization}/chats/automations": {
             "get": {
                 "produces": [
                     "application/json"
@@ -679,7 +679,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/organizations/{organization}/chat-automations/schedule-preview": {
+        "/api/experimental/organizations/{organization}/chats/automations/schedule-preview": {
             "post": {
                 "description": "Validates a schedule like chat automation create does and returns its next run times. Nothing is stored.",
                 "consumes": [
@@ -729,7 +729,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/organizations/{organization}/chat-automations/{automation}": {
+        "/api/experimental/organizations/{organization}/chats/automations/{automation}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -867,7 +867,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/organizations/{organization}/chat-automations/{automation}/runs": {
+        "/api/experimental/organizations/{organization}/chats/automations/{automation}/runs": {
             "post": {
                 "description": "Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Running needs permission to update the automation, so an administrator can run another member's automation, which still acts as that member.",
                 "produces": [
@@ -949,7 +949,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate": {
+        "/api/experimental/organizations/{organization}/chats/automations/{automation}/secret/rotate": {
             "post": {
                 "description": "Rotating needs permission to update the webhook automation. The previous secret stops working, and the new secret is returned only in this response.",
                 "produces": [

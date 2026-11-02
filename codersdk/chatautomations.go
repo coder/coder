@@ -323,7 +323,7 @@ type ChatAutomationReference struct {
 }
 
 func chatAutomationsPath(organizationID uuid.UUID) string {
-	return fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", organizationID)
+	return fmt.Sprintf("/api/experimental/organizations/%s/chats/automations", organizationID)
 }
 
 // ChatAutomationsFilter narrows the chat automation list.

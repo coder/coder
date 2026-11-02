@@ -117,10 +117,10 @@ Coder shows the secret only once.
 
 ### Create it with the API
 
-Send a `POST` request to `/api/experimental/organizations/{organization}/chat-automations`, where `{organization}` is the organization name or ID:
+Send a `POST` request to `/api/experimental/organizations/{organization}/chats/automations`, where `{organization}` is the organization name or ID:
 
 ```sh
-curl -X POST "$CODER_URL/api/experimental/organizations/$ORGANIZATION/chat-automations" \
+curl -X POST "$CODER_URL/api/experimental/organizations/$ORGANIZATION/chats/automations" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   --data @- <<EOF
@@ -163,16 +163,16 @@ The secret starts with `coder_automation_`.
 Coder returns it only in this response and when you rotate it, and stores only a SHA-256 hash of it.
 
 The response doesn't contain the endpoint URL.
-Build it from the automation ID: `/api/experimental/chat-automations/{automation}/events`.
+Build it from the automation ID: `/api/experimental/chats/automations/{automation}/events`.
 
 Other management requests use the same base path:
 
-| Request                                                                               | Purpose                                                              |
-|---------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| `GET /api/experimental/organizations/{organization}/chat-automations`                 | List the automations you can read.                                   |
-| `GET /api/experimental/organizations/{organization}/chat-automations/{automation}`    | Get one automation.                                                  |
-| `PATCH /api/experimental/organizations/{organization}/chat-automations/{automation}`  | Change fields. Send `{"enabled": false}` to turn the automation off. |
-| `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation.                                               |
+| Request                                                                                | Purpose                                                              |
+|----------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `GET /api/experimental/organizations/{organization}/chats/automations`                 | List the automations you can read.                                   |
+| `GET /api/experimental/organizations/{organization}/chats/automations/{automation}`    | Get one automation.                                                  |
+| `PATCH /api/experimental/organizations/{organization}/chats/automations/{automation}`  | Change fields. Send `{"enabled": false}` to turn the automation off. |
+| `DELETE /api/experimental/organizations/{organization}/chats/automations/{automation}` | Delete the automation.                                               |
 
 Changing the prompt doesn't change messages that the automation already queued: they keep the prompt they were sent with.
 To remove those messages, turn the automation off or delete it.
@@ -239,7 +239,7 @@ Responses include `owner` with the `id`, `username`, `name`, and `avatar_url` of
 Send a `POST` request to the endpoint with the secret as a bearer token and a JSON body:
 
 ```sh
-curl -X POST "$CODER_URL/api/experimental/chat-automations/$AUTOMATION_ID/events" \
+curl -X POST "$CODER_URL/api/experimental/chats/automations/$AUTOMATION_ID/events" \
   -H "Authorization: Bearer $WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"event":"deploy","status":"failed"}'
@@ -311,7 +311,7 @@ Rotating the secret invalidates the old one immediately, and requests with the o
 To rotate it in the dashboard, edit the automation and select **Rotate secret**, then confirm.
 The **Copy the webhook secret** dialog shows the new secret.
 
-To rotate it with the API, send a `POST` request to `/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate`.
+To rotate it with the API, send a `POST` request to `/api/experimental/organizations/{organization}/chats/automations/{automation}/secret/rotate`.
 The response contains `webhook_secret` and `webhook_secret_version`.
 
 You can't rotate the secret of a used single-use webhook.
@@ -373,7 +373,7 @@ The control plane computes the next runs of a schedule:
 - The editor lists them under **Upcoming runs** while you type.
 - Responses for turned-on schedules include `next_run_times`, up to five times in UTC.
   The list is empty while the schedule has [`paused_reasons`](#read-why-an-automation-cant-run).
-- `POST /api/experimental/organizations/{organization}/chat-automations/schedule-preview` evaluates an unsaved schedule.
+- `POST /api/experimental/organizations/{organization}/chats/automations/schedule-preview` evaluates an unsaved schedule.
   Send `schedule_cron` and `schedule_time_zone`, and the response contains `next_run_times`.
   When the time zone changes its clocks within a year, the response also contains `clock_change_note`, which explains how the schedule runs across the change.
   The editor shows the note under **Upcoming runs**.
@@ -403,7 +403,7 @@ When you change its cron expression or time zone, Coder recomputes its next run.
 ### Run a schedule now
 
 To send a schedule's prompt immediately, select **Run now** on its row on the **Automations** page.
-With the API, send a `POST` request to `/api/experimental/organizations/{organization}/chat-automations/{automation}/runs`.
+With the API, send a `POST` request to `/api/experimental/organizations/{organization}/chats/automations/{automation}/runs`.
 
 Run now works only for schedule automations that are turned on, and needs permission to update the automation.
 It returns `202` with `input_id` and `chat_id`, and doesn't change the schedule's next run.

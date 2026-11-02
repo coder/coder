@@ -566,7 +566,7 @@ This endpoint never sets an admission callback. Automations send messages with t
 
 Other input states are not supported.
 
-### `POST /api/experimental/chat-automations/{automation}/events`
+### `POST /api/experimental/chats/automations/{automation}/events`
 
 A webhook automation with an `existing_chat` target delivers an event to its chat. The caller has no Coder session: the handler compares the SHA-256 of the bearer secret with the stored hash in constant time, and only then checks the `chat-automations` experiment for the automation owner and reads the body (at most 256 KiB of JSON). An unknown automation, a schedule automation, and a wrong secret get the same 401. The route sits outside the `/api/experimental` group, and its rate limiter keys every caller by one endpoint key, so varying the automation id in the path does not reset the caller's budget.
 
@@ -1235,7 +1235,7 @@ A chat that a `new_chat` schedule automation creates is titled with the automati
 
 ### Run now
 
-`POST /api/experimental/organizations/{organization}/chat-automations/{automation}/runs` publishes the saved prompt of a schedule automation immediately. The route sits behind the same experiment check for the caller as the other management routes and loads the automation as the caller, so an automation the caller cannot read, or one in another organization, is not found. Only the owner may run an automation: an organization admin or site owner who can update it gets 403, checked before anything else about the automation is revealed. A webhook automation gets 400, and a disabled automation gets 409.
+`POST /api/experimental/organizations/{organization}/chats/automations/{automation}/runs` publishes the saved prompt of a schedule automation immediately. The route sits behind the same experiment check for the caller as the other management routes and loads the automation as the caller, so an automation the caller cannot read, or one in another organization, is not found. Only the owner may run an automation: an organization admin or site owner who can update it gets 403, checked before anything else about the automation is revealed. A webhook automation gets 400, and a disabled automation gets 409.
 
 TODO: RBAC now decides who may run, change, or rotate an automation. `RunAutomation`, `RotateAutomationSecret`, and every `UpdateAutomation` request, including a pure disable, lock the row as the caller through `GetChatAutomationByIDForUpdate`, which dbauthz authorizes with `update`. Built-in roles grant `create` on `chat_automation` only at the organization-member level (agents-access); the member also holds `read`, `update`, and `delete` on their own automations, and site owners and organization admins hold `read`, `update`, and `delete` on every automation in scope. Runs still act as the owner, and a Run now start entry names the caller (`AutomationRequest.ActorID`). The service no longer compares actor IDs, and a refusal is a dbauthz NotAuthorized error that the API maps to the normal 403. Describe this here.
 

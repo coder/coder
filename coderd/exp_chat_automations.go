@@ -198,7 +198,7 @@ func (api *API) requireChatAutomations(next http.Handler) http.Handler {
 // @Param owner query string false "Only the automations of this owner: me, a username, or a user ID. Omitted lists every automation the caller can read."
 // @Success 200 {array} codersdk.ChatAutomation
 // @Failure 400 {object} codersdk.Response
-// @Router /api/experimental/organizations/{organization}/chat-automations [get]
+// @Router /api/experimental/organizations/{organization}/chats/automations [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -290,7 +290,7 @@ func (api *API) chatAutomationOwnerFilter(rw http.ResponseWriter, r *http.Reques
 // @Param organization path string true "Organization ID"
 // @Param request body codersdk.CreateChatAutomationRequest true "Chat automation"
 // @Success 201 {object} codersdk.CreateChatAutomationResponse
-// @Router /api/experimental/organizations/{organization}/chat-automations [post]
+// @Router /api/experimental/organizations/{organization}/chats/automations [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -340,7 +340,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param automation path string true "Automation ID" format(uuid)
 // @Success 200 {object} codersdk.ChatAutomation
-// @Router /api/experimental/organizations/{organization}/chat-automations/{automation} [get]
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation} [get]
 // @x-apidocgen {"skip": true}
 func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -369,7 +369,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // @Param automation path string true "Automation ID" format(uuid)
 // @Param request body codersdk.UpdateChatAutomationRequest true "Chat automation changes"
 // @Success 200 {object} codersdk.ChatAutomation
-// @Router /api/experimental/organizations/{organization}/chat-automations/{automation} [patch]
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -486,7 +486,7 @@ func readChatAutomationUpdate(ctx context.Context, rw http.ResponseWriter, r *ht
 // @Param organization path string true "Organization ID"
 // @Param automation path string true "Automation ID" format(uuid)
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/chat-automations/{automation} [delete]
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation} [delete]
 // @x-apidocgen {"skip": true}
 func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -527,7 +527,7 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 // @Failure 403 {object} codersdk.Response
 // @Failure 404 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
-// @Router /api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate [post]
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation}/secret/rotate [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -577,7 +577,7 @@ func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.R
 // @Failure 409 {object} codersdk.Response
 // @Failure 429 {object} codersdk.Response
 // @Failure 502 {object} codersdk.Response
-// @Router /api/experimental/organizations/{organization}/chat-automations/{automation}/runs [post]
+// @Router /api/experimental/organizations/{organization}/chats/automations/{automation}/runs [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -613,7 +613,7 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param request body codersdk.ChatAutomationSchedulePreviewRequest true "Schedule"
 // @Success 200 {object} codersdk.ChatAutomationSchedulePreviewResponse
-// @Router /api/experimental/organizations/{organization}/chat-automations/schedule-preview [post]
+// @Router /api/experimental/organizations/{organization}/chats/automations/schedule-preview [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationSchedulePreview(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -731,7 +731,7 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 // @Failure 413 {object} codersdk.Response
 // @Failure 429 {object} codersdk.Response
 // @Failure 502 {object} codersdk.Response
-// @Router /api/experimental/chat-automations/{automation}/events [post]
+// @Router /api/experimental/chats/automations/{automation}/events [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

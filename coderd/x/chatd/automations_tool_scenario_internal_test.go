@@ -141,7 +141,7 @@ func TestManageAutomationsAgentScenario(t *testing.T) {
 	f.endTurn(ctx, t)
 	callback := mustCall(t, `{"action":"create","name":"Deploy done","kind":"webhook","target_mode":"existing_chat",`+
 		`"webhook_use":"single","prompt":"The deploy job finished. Summarize the result."}`)
-	require.Equal(t, "https://coder.example.com/api/experimental/chat-automations/"+callback.Automation.ID.String()+"/events", callback.Automation.WebhookURL)
+	require.Equal(t, "https://coder.example.com/api/experimental/chats/automations/"+callback.Automation.ID.String()+"/events", callback.Automation.WebhookURL)
 	require.NotEmpty(t, callback.WebhookSecret)
 	require.Equal(t, manageAutomationsSingleUseSecretNote, callback.WebhookSecretNote)
 	require.Contains(t, callback.WebhookSecretNote, "anyone who can read this chat can use the URL and secret once")

@@ -111,6 +111,14 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
+		// The automation event webhook is mounted on the root router, so
+		// reserve the segment here to return 404 instead of falling into
+		// the {chat} wildcard and failing UUID parsing with a 400.
+		r.Route("/automations", func(r chi.Router) {
+			r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+				httpapi.RouteNotFound(rw)
+			})
+		})
 		r.Route("/projects", func(r chi.Router) {
 			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
 			r.Get("/", api.listChatProjects)
