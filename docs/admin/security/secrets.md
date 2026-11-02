@@ -3,7 +3,7 @@ title: Secrets
 ---
 
 Coder is open-minded about how you get your secrets into your workspaces.
-For more information about how to use secrets and other security tips, visit our guide to [security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
+For more information about how to use secrets and other security tips, visit our guide to [security best practices](security-best-practices.md#secrets).
 
 Use this guide to configure how templates make secrets available to Coder workspaces.
 To authenticate workspace provisioners with Coder, see the <a href="../../install/operate/provisioners/index.md#authentication">provisioners documentation</a>.
@@ -120,4 +120,4 @@ Refer to our [HashiCorp Vault Integration](../integrations/vault.md) guide for m
 
 ## Next steps
 
-- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)
+- [Security - best practices](security-best-practices.md)
