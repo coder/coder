@@ -42,26 +42,26 @@ For information about authenticating with AI Gateway, visit [AI Gateway Authenti
 
 The table below shows tested AI clients and their compatibility with AI Gateway.
 
-| Client                            | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
-|-----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Xum](./xum.md)                   | ✅      | ✅         | -    |                                                                                                                                                        |
-| [Claude Code](./claude-code.md)   | -      | ✅         | ✅    |                                                                                                                                                        |
-| [Codex CLI](./codex.md)           | ✅      | -         | ✅    |                                                                                                                                                        |
-| [OpenCode](./opencode.md)         | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Factory](./factory.md)           | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Cline](./cline.md)               | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Kilo Code](./kilo-code.md)       | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [VS Code](./vscode.md)            | ✅      | ✅         | ❌    | VS Code 1.122+ via Custom Endpoint provider. GitHub sign-in not required. Inline suggestions still require GitHub Copilot.                             |
-| [JetBrains IDEs](./jetbrains.md)  | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
-| [Junie](./junie.md)               | ✅      | ✅         | ✅    | Junie CLI via custom model profiles.                                                                                                                   |
-| [Zed](./zed.md)                   | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)    | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
-| Devin Desktop (formerly Windsurf) | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Cursor                            | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
-| Sourcegraph Amp                   | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Kiro                              | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Gemini CLI                        | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
-| Antigravity                       | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Client                            | OpenAI | Anthropic | Bring Your Own Key (BYOK) | Notes                                                                                                                                                  |
+|-----------------------------------|--------|-----------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Xum](./xum.md)                   | ✅      | ✅         | -                         |                                                                                                                                                        |
+| [Claude Code](./claude-code.md)   | -      | ✅         | ✅                         |                                                                                                                                                        |
+| [Codex CLI](./codex.md)           | ✅      | -         | ✅                         |                                                                                                                                                        |
+| [OpenCode](./opencode.md)         | ✅      | ✅         | ✅                         |                                                                                                                                                        |
+| [Factory](./factory.md)           | ✅      | ✅         | ✅                         |                                                                                                                                                        |
+| [Cline](./cline.md)               | ✅      | ✅         | ✅                         |                                                                                                                                                        |
+| [Kilo Code](./kilo-code.md)       | ✅      | ✅         | ❌                         |                                                                                                                                                        |
+| [VS Code](./vscode.md)            | ✅      | ✅         | ❌                         | VS Code 1.122+ via Custom Endpoint provider. GitHub sign-in not required. Inline suggestions still require GitHub Copilot.                             |
+| [JetBrains IDEs](./jetbrains.md)  | ✅      | ❌         | ❌                         | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
+| [Junie](./junie.md)               | ✅      | ✅         | ✅                         | Junie CLI via custom model profiles.                                                                                                                   |
+| [Zed](./zed.md)                   | ✅      | ✅         | ❌                         |                                                                                                                                                        |
+| [GitHub Copilot](./copilot.md)    | ⚙️     | -         | -                         | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
+| Devin Desktop (formerly Windsurf) | ❌      | ❌         | ❌                         | No option to override base URL.                                                                                                                        |
+| Cursor                            | ❌      | ❌         | ❌                         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
+| Sourcegraph Amp                   | ❌      | ❌         | ❌                         | No option to override base URL.                                                                                                                        |
+| Kiro                              | ❌      | ❌         | ❌                         | No option to override base URL.                                                                                                                        |
+| Gemini CLI                        | ❌      | ❌         | ❌                         | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
+| Antigravity                       | ❌      | ❌         | ❌                         | No option to override base URL.                                                                                                                        |
 |
 
 *Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*
@@ -101,7 +101,7 @@ You can also configure AI tools running outside of a Coder workspace, such as lo
 Use the same settings as the in-workspace case, configure the [base URL](#base-urls) and authenticate with a Coder API token.
 
 For base URL setup, the client machine must have network access to the gateway endpoint on your Coder deployment.
-Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able to reach the proxy endpoint and trust its CA certificate.
+Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able to reach the proxy endpoint and trust its certificate authority (CA) certificate.
 
 Users can generate a long-lived API token from the Coder UI or CLI.
 Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.

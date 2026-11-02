@@ -54,7 +54,7 @@ This could be due to a number of reasons, including but not limited to:
 - DNS lookup failure
 - A misconfigured firewall
 - A misconfigured reverse proxy
-- Invalid or expired SSL certificates
+- Invalid or expired Secure Sockets Layer (SSL) certificates
 
 **Solution:**
 Investigate and resolve the root cause of the connection issue.
@@ -121,7 +121,7 @@ Alternatively, you can raise the configured threshold to a higher value (this wi
 
 ## DERP
 
-Coder workspace agents may use [DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp) to communicate with Coder.
+Coder workspace agents may use [Designated Encrypted Relay for Packets (DERP)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp) to communicate with Coder.
 This requires connectivity to a number of configured [DERP servers](../../reference/cli/server/index.md#--derp-config-path) which are used to relay traffic between Coder and workspace agents.
 Coder periodically queries the health of its configured DERP servers and may return one or more of the following:
 
@@ -184,12 +184,12 @@ For example:
 #### No STUN servers available
 
 **Problem:**
-This is shown if no STUN servers are available.
+This is shown if no Session Traversal Utilities for Network Address Translation (STUN) servers are available.
 Coder will use STUN to establish [direct connections](../networking/stun.md).
 Without at least one working STUN server, direct connections may not be possible.
 
 **Solution:**
-Ensure that the [configured STUN severs](../../reference/cli/server/index.md#--derp-server-stun-addresses) are reachable from Coder and that UDP traffic can be sent/received on the configured port.
+Ensure that the [configured STUN severs](../../reference/cli/server/index.md#--derp-server-stun-addresses) are reachable from Coder and that User Datagram Protocol (UDP) traffic can be sent/received on the configured port.
 
 ### ESTUN02
 
@@ -197,7 +197,7 @@ Ensure that the [configured STUN severs](../../reference/cli/server/index.md#--d
 
 **Problem:**
 This is a warning shown when multiple attempts to determine our public IP address/port via STUN resulted in different `ip:port` combinations.
-This is a sign that you are behind a "hard NAT", and may result in difficulty establishing direct connections.
+This is a sign that you are behind a "hard Network Address Translation (NAT)", and may result in difficulty establishing direct connections.
 However, it does not mean that direct connections are impossible.
 
 **Solution:**
@@ -244,7 +244,7 @@ There are multiple possible causes of this problem:
 
 1. Validate that any reverse proxy servers in front of Coder's configured access URL are not prematurely closing the connection.
 2. Validate that the network link between Coder and the workspace proxy is stable, for example, by using `ping`.
-3. Validate that any internal network infrastructure (for example, firewalls, proxies, VPNs) do not interfere with WebSocket connections.
+3. Validate that any internal network infrastructure (for example, firewalls, proxies, virtual private networks (VPNs)) do not interfere with WebSocket connections.
 
 ## Workspace Proxy
 
