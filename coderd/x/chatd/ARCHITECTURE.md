@@ -864,6 +864,8 @@ A chat may use model configs only from its own organization. Chat creation, mess
 
 Queued-message promotion revalidates the stored model with daemon authorization. It keeps the model when the model and its provider are enabled and the model belongs to the chat's organization. Worker generation preparation revalidates with the chat owner's authorization context, so it also requires the model to remain readable by the owner. When those checks make the stored model unavailable, the path selects that organization's enabled default. If no local default is available, processing fails with `ErrNoDefaultChatModelConfig`; it never falls back to another organization's model.
 
+<!-- TODO(mafredri): queued-message promotion now falls back to the chat's last model when that model passes the same checks, and only then to the organization default. -->
+
 ## Acquisition loop
 
 The acquisition loop is a simple component that greedily acquires unowned or lease-expired chats from the database anytime it has a chance. It's driven by two triggers:
