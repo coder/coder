@@ -32,6 +32,7 @@ import {
 } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { parseStoredDraft } from "../utils/draftStorage";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -58,7 +59,8 @@ beforeAll(() => {
 });
 
 // Renders the page for MockChat with the given queued rows; the user owns
-// the chat. publish delivers stream events to the page.
+// the chat. publish delivers stream events to the page. Queries are scoped
+// to this render, so a test can render the page twice as two tabs.
 const renderQueuedChat = ({
 	queuedMessages,
 	chat = MockChat,
@@ -109,24 +111,28 @@ const renderQueuedChat = ({
 		.mockResolvedValue(undefined);
 	const user = userEvent.setup();
 
-	renderWithAuth(<Outlet context={outletContext} />, {
-		path: "/agents",
-		route: `/agents/${chat.id}`,
-		children: [{ path: ":agentId", element: <AgentChatPage /> }],
-	});
+	const { container, unmount } = renderWithAuth(
+		<Outlet context={outletContext} />,
+		{
+			path: "/agents",
+			route: `/agents/${chat.id}`,
+			children: [{ path: ":agentId", element: <AgentChatPage /> }],
+		},
+	);
+	const view = within(container);
 
-	const composer = () => screen.getByRole("textbox", { name: "Chat message" });
+	const composer = () => view.getByRole("textbox", { name: "Chat message" });
 	// Lexical does not handle userEvent keystrokes in jsdom; a paste goes
 	// through its input path.
 	const type = async (text: string) => {
 		await user.click(
-			await screen.findByRole("textbox", { name: "Chat message" }),
+			await view.findByRole("textbox", { name: "Chat message" }),
 		);
 		await user.paste(text);
 	};
 	// The tests render one queued row, so its actions have unique names.
 	const rowAction = async (action: string) => {
-		await user.click(await screen.findByRole("button", { name: action }));
+		await user.click(await view.findByRole("button", { name: action }));
 	};
 	const publish = (event: TypesGen.ChatStreamEvent) =>
 		act(() =>
@@ -136,6 +142,8 @@ const renderQueuedChat = ({
 		);
 	return {
 		user,
+		view,
+		unmount,
 		composer,
 		type,
 		rowAction,
@@ -221,6 +229,87 @@ describe("AgentChatPage", () => {
 			chat_id: MockChat.id,
 			content: [{ type: "text" as const, text: "queued text" }],
 		};
+		const draftKey = `agents.draft-input.${MockChat.id}`;
+		const savedEditKey = `${draftKey}.queued.${row.id}`;
+
+		// Opens the row's edit and types into it, so the typed text is saved.
+		const editAndType = async (page: ReturnType<typeof renderQueuedChat>) => {
+			await page.rowAction("Edit");
+			await waitFor(() =>
+				expect(page.composer().textContent).toBe("queued text"),
+			);
+			await page.type(" edit");
+			await waitFor(() =>
+				expect(localStorage.getItem(savedEditKey)).not.toBeNull(),
+			);
+		};
+
+		// Tab b renders after tab a typed into its edit, so b follows the edit
+		// and loads the typed text.
+		it.each([
+			["gives its own draft back", ""],
+			["keeps text it typed there as a draft", " more"],
+		])(
+			"when another tab's edit ends, a tab that followed it %s",
+			async (_name, typedInB) => {
+				const a = renderQueuedChat({ queuedMessages: [row] });
+				await a.view.findByRole("button", { name: "Send now" });
+				await a.type("draft");
+				await editAndType(a);
+
+				const b = renderQueuedChat({
+					queuedMessages: [{ ...row, editing_since: "2024-01-01T00:00:00Z" }],
+				});
+				await b.view.findByRole("button", { name: "Editing" });
+				await waitFor(() =>
+					expect(b.composer().textContent).toBe("queued text edit"),
+				);
+				if (typedInB) {
+					await b.type(typedInB);
+				}
+				await b.publish({
+					type: "queue_update",
+					chat_id: MockChat.id,
+					queued_messages: [row],
+				});
+
+				const expected = typedInB ? `queued text edit${typedInB}` : "draft";
+				await waitFor(() => expect(b.composer().textContent).toBe(expected));
+				expect(parseStoredDraft(localStorage.getItem(draftKey)).text).toBe(
+					expected,
+				);
+				expect(localStorage.getItem(savedEditKey)).toBeNull();
+			},
+		);
+
+		it.each([
+			[
+				"restores the typed text while the row is unchanged",
+				"queued text",
+				"queued text edit",
+			],
+			[
+				"loads the row's content when another client saved it since the text was typed",
+				"saved elsewhere",
+				"saved elsewhere",
+			],
+		])("Edit after a reload %s", async (_name, rowText, expected) => {
+			const before = renderQueuedChat({ queuedMessages: [row] });
+			await editAndType(before);
+			before.unmount();
+
+			const after = renderQueuedChat({
+				queuedMessages: [
+					{ ...row, content: [{ type: "text", text: rowText }] },
+				],
+			});
+			await after.rowAction("Edit");
+
+			await waitFor(() => expect(after.composer().textContent).toBe(expected));
+			expect(localStorage.getItem(savedEditKey) !== null).toBe(
+				rowText === "queued text",
+			);
+		});
 
 		it.each([
 			["Remove from queue", "deleteChatQueuedMessage"],
@@ -232,11 +321,7 @@ describe("AgentChatPage", () => {
 				await screen.findByRole("button", { name: "Send now" });
 				await page.type("draft");
 				expect(page.composer().textContent).toBe("draft");
-				await page.rowAction("Edit");
-				await waitFor(() =>
-					expect(page.composer().textContent).toBe("queued text"),
-				);
-				await page.type(" edit");
+				await editAndType(page);
 
 				await page.rowAction(action);
 
@@ -249,6 +334,7 @@ describe("AgentChatPage", () => {
 					row.id,
 					expect.objectContaining({ content: expect.anything() }),
 				);
+				expect(localStorage.getItem(savedEditKey)).toBeNull();
 			},
 		);
 
@@ -296,6 +382,7 @@ describe("AgentChatPage", () => {
 					}),
 				),
 			);
+			expect(localStorage.getItem(savedEditKey)).toBeNull();
 		});
 
 		// react-query delivers the failed request's state to the page on a

@@ -25,9 +25,32 @@ type LoadedTarget = {
 	target: EditingTarget;
 	text: string;
 	fileBlocks: readonly ChatMessagePart[];
+	// The target's content as loaded, in the form SavedQueuedEdit.base uses.
+	base: string;
+	// The saved edit text loaded with the target, if any.
+	savedEdit?: ParsedDraft;
 };
 
 const noFileBlocks: readonly ChatMessagePart[] = [];
+
+/** Text typed in a queued edit, saved until the edit ends. */
+type SavedQueuedEdit = {
+	// The row content it was typed against.
+	base: string;
+	state: string;
+};
+
+const readSavedQueuedEdit = (raw: string | null): SavedQueuedEdit | null => {
+	try {
+		const saved = JSON.parse(raw ?? "null");
+		if (typeof saved?.base === "string" && typeof saved.state === "string") {
+			return saved;
+		}
+	} catch {
+		// Not a saved edit.
+	}
+	return null;
+};
 
 export function useConversationEditingState(deps: {
 	chatID: string;
@@ -56,8 +79,10 @@ export function useConversationEditingState(deps: {
 	} = deps;
 
 	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
-	// Holds the editor state of an open queued edit, so typed text survives
-	// a reload or a return to the chat until the edit ends.
+	// Holds the SavedQueuedEdit of an open queued edit, so typed text survives
+	// a reload or a return to the chat until the edit ends. Every tab shares
+	// it, and loads it only while the row still has the content it was typed
+	// against.
 	const queuedEditStorageKey = (id: number) =>
 		`${draftStorageKey}.queued.${id}`;
 	const removeQueuedEdit = (target: EditingTarget | undefined) => {
@@ -181,13 +206,18 @@ export function useConversationEditingState(deps: {
 	// unless the composer mode was already set to draft, as a refused Edit
 	// does.
 	// The pre-edit draft is captured once per session. A queued row with
-	// text saved from an earlier mount loads that text, which counts as
-	// changed against the row's content.
+	// saved text typed against its current content loads that text, which
+	// counts as changed against the row's content. When that edit ends, the
+	// loaded saved text counts as unchanged, so only text typed since the
+	// load stays as a draft.
 	const loadTargetIntoEditor = useEffectEvent(() => {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
 		}
 
+		if (loadedTarget?.savedEdit !== undefined) {
+			loadedContentRef.current = loadedTarget.savedEdit;
+		}
 		removeQueuedEdit(loadedTarget?.target);
 
 		if (isEditorChanged() && (target === null || composerMode === "follow")) {
@@ -222,17 +252,29 @@ export function useConversationEditingState(deps: {
 			});
 		}
 		loadEditorText(text, editorState);
+		const base = JSON.stringify(targetContent ?? []);
 		const savedEdit =
 			target.kind === "queued"
-				? localStorage.getItem(queuedEditStorageKey(target.id))
+				? readSavedQueuedEdit(
+						localStorage.getItem(queuedEditStorageKey(target.id)),
+					)
 				: null;
-		if (savedEdit !== null) {
-			const saved = parseStoredDraft(savedEdit);
+		let saved: ParsedDraft | undefined;
+		if (savedEdit?.base === base) {
+			saved = parseStoredDraft(savedEdit.state);
 			loadEditorText(saved.text, saved.editorState);
 			loadedContentRef.current = { text, editorState };
+		} else {
+			removeQueuedEdit(target);
 		}
 
-		setLoadedTarget({ target, text, fileBlocks: fileBlocks ?? noFileBlocks });
+		setLoadedTarget({
+			target,
+			text,
+			fileBlocks: fileBlocks ?? noFileBlocks,
+			base,
+			savedEdit: saved,
+		});
 		targetLoadCountRef.current++;
 	});
 	useLayoutEffect(() => {
@@ -340,13 +382,17 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = serializedEditorState;
 		hasFileReferencesRef.current = hasFileReferences;
 
-		const loaded = loadedTarget?.target;
-		if (loaded?.kind === "queued") {
+		if (loadedTarget?.target.kind === "queued") {
+			const loaded = loadedTarget.target;
 			if (isEditorChanged() && (content.trim() || hasFileReferences)) {
+				const savedEdit: SavedQueuedEdit = {
+					base: loadedTarget.base,
+					state: serializedEditorState,
+				};
 				try {
 					localStorage.setItem(
 						queuedEditStorageKey(loaded.id),
-						serializedEditorState,
+						JSON.stringify(savedEdit),
 					);
 				} catch {
 					// QuotaExceededError, silently discard the saved edit.
