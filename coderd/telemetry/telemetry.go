@@ -1155,6 +1155,9 @@ const (
 	AgentRelayProviderClaudeCode = "claude_code"
 	AgentRelayProviderCursor     = "cursor"
 	AgentRelayProviderUnknown    = "unknown"
+	// AgentRelayProviderAmbiguous is reported when a build carries
+	// parameters of more than one provider.
+	AgentRelayProviderAmbiguous = "ambiguous"
 )
 
 // convertWorkspaceBuildAgentRelay returns nil unless the parameters mark the
@@ -1166,7 +1169,7 @@ func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBui
 		return nil
 	}
 	relay := &WorkspaceBuildAgentRelay{
-		Provider:       AgentRelayProviderUnknown,
+		Provider:       agentRelayProvider(parameters),
 		ClientPlatform: parameters[agentRelayParameterClientPlatform],
 		SessionIDHash:  fmt.Sprintf("%x", sha256.Sum256([]byte(sessionID))),
 	}
@@ -1176,21 +1179,32 @@ func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBui
 	if attempt, err := strconv.Atoi(parameters[agentRelayParameterAttempt]); err == nil {
 		relay.Attempt = attempt
 	}
+	return relay
+}
+
+// agentRelayProvider reports which provider's parameters the build carries.
+// Builds without provider parameters are unknown: the Claude Code provider's
+// required parameter is ephemeral, so its stop and restart builds lack it.
+func agentRelayProvider(parameters map[string]string) string {
+	var claudeCode, cursor bool
 	for name := range parameters {
 		switch {
-		case strings.HasPrefix(name, agentRelayParameterCursorPrefix):
-			relay.Provider = AgentRelayProviderCursor
 		case strings.HasPrefix(name, agentRelayParameterClaudeCodePrefix):
-			relay.Provider = AgentRelayProviderClaudeCode
+			claudeCode = true
+		case strings.HasPrefix(name, agentRelayParameterCursorPrefix):
+			cursor = true
 		}
 	}
-	// Only the Claude Code provider stamps a client platform. Its
-	// provider-specific parameter is ephemeral, so stop and restart builds
-	// lack it; the platform still identifies the provider there.
-	if relay.Provider == AgentRelayProviderUnknown && relay.ClientPlatform != "" {
-		relay.Provider = AgentRelayProviderClaudeCode
+	switch {
+	case claudeCode && cursor:
+		return AgentRelayProviderAmbiguous
+	case claudeCode:
+		return AgentRelayProviderClaudeCode
+	case cursor:
+		return AgentRelayProviderCursor
+	default:
+		return AgentRelayProviderUnknown
 	}
-	return relay
 }
 
 // ConvertProvisionerJob anonymizes a provisioner job.
@@ -1821,7 +1835,7 @@ type WorkspaceBuild struct {
 // WorkspaceBuildAgentRelay describes a build dispatched by Agent Relay,
 // derived from the agent_relay_* rich parameters it stamps on the build.
 type WorkspaceBuildAgentRelay struct {
-	// Provider is claude_code, cursor, or unknown.
+	// Provider is claude_code, cursor, ambiguous, or unknown.
 	Provider string `json:"provider"`
 	// ClientPlatform is the surface that started the session, such as
 	// claude_in_slack. Only the Claude Code provider reports it.

@@ -2119,17 +2119,28 @@ func TestConvertWorkspaceBuild_AgentRelay(t *testing.T) {
 			},
 		},
 		{
-			// Rebuilds keep persistent parameters only, so the ephemeral
-			// Claude Code parameter is missing.
-			name: "ClaudeCodeFromClientPlatform",
+			// The client platform alone does not identify a provider.
+			name: "UnknownWithClientPlatform",
 			params: map[string]string{
 				"agent_relay_session_id":      "session-1",
 				"agent_relay_client_platform": "web_claude_ai",
 			},
 			want: &telemetry.WorkspaceBuildAgentRelay{
-				Provider:       telemetry.AgentRelayProviderClaudeCode,
+				Provider:       telemetry.AgentRelayProviderUnknown,
 				ClientPlatform: "web_claude_ai",
 				SessionIDHash:  hash("session-1"),
+			},
+		},
+		{
+			name: "Ambiguous",
+			params: map[string]string{
+				"agent_relay_session_id":                  "session-4",
+				"agent_relay_claude_code_lock_to_account": "true",
+				"agent_relay_cursor_pool_name":            "pool",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:      telemetry.AgentRelayProviderAmbiguous,
+				SessionIDHash: hash("session-4"),
 			},
 		},
 		{
