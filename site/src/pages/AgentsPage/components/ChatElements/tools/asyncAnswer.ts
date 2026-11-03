@@ -40,3 +40,19 @@ export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 	}
 	return { toolCallId: match[1], body: text.slice(match[0].length) };
 };
+
+/**
+ * Returns the answer to the async call without its prefix line, or the text
+ * unchanged when asyncToolCallId is unset. Returns undefined when there is no
+ * text or the text does not answer the async call.
+ */
+export const getAnswerBody = (
+	text: string | undefined,
+	asyncToolCallId: string | undefined,
+): string | undefined => {
+	if (text === undefined || asyncToolCallId === undefined) {
+		return text;
+	}
+	const answer = parseAsyncAnswer(text);
+	return answer?.toolCallId === asyncToolCallId ? answer.body : undefined;
+};

@@ -39,6 +39,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
+import { deriveAskUserQuestionState } from "./ChatConversation/askUserQuestionState";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -57,12 +58,16 @@ import {
 	useChatMessages,
 	useChatSelector,
 	type useChatStore,
+	useUndeliveredQueuedMessages,
 } from "./ChatConversation/chatStore";
 import {
 	LiveStreamTailContent,
 	TerminalStatusRow,
 } from "./ChatConversation/LiveStreamTail";
-import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
+import {
+	deriveLiveStatus,
+	showsStreamOutput,
+} from "./ChatConversation/liveStatusModel";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
@@ -167,6 +172,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		store,
 		selectSubagentStatusOverrides,
 	);
+	const undeliveredQueuedMessages = useUndeliveredQueuedMessages(store);
 	const isChatCompleted = !hasStream;
 
 	const liveStreamState =
@@ -198,6 +204,11 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		...streamTools,
 	]);
 	const onRenderProfiler = useOnRenderProfiler();
+	const askUserQuestionState = deriveAskUserQuestionState(
+		parsedMessages,
+		showsStreamOutput(liveStatus) ? streamTools : [],
+		undeliveredQueuedMessages,
+	);
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -235,6 +246,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						isChatCompleted={isChatCompleted}
 						hasActiveStream={hasStream}
 						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						askUserQuestionState={askUserQuestionState}
 						urlTransform={urlTransform}
 						mcpServers={mcpServers}
 						showDesktopPreviews={false}

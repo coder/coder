@@ -2,11 +2,13 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { AskUserQuestionTool } from "./AskUserQuestionTool";
+import { getAsyncAnswerPrefix } from "./asyncAnswer";
 
 const questions = [
 	{
@@ -458,6 +460,64 @@ describe("AskUserQuestionTool", () => {
 		rerender(<DraftQuestion previousResponseText="Use a single migration." />);
 
 		expect(localStorage).toHaveLength(0);
+	});
+
+	it.each([
+		{ removal: "after its send resolves", isSendPending: false },
+		{ removal: "while its send is pending", isSendPending: true },
+	])(
+		"reopens an async question when its queued answer is removed $removal",
+		async ({ isSendPending }) => {
+			const user = userEvent.setup();
+			const pendingSend = createDeferred<undefined>();
+			const onSubmitAnswer = vi
+				.fn()
+				.mockReturnValueOnce(isSendPending ? pendingSend.promise : undefined);
+			const answer = `${getAsyncAnswerPrefix("call-123")}Use a single migration.`;
+			const queryClient = createTestQueryClient();
+			const AsyncQuestion: React.FC<{ previousResponseText?: string }> = ({
+				previousResponseText,
+			}) => (
+				<QueryClientProvider client={queryClient}>
+					<AskUserQuestionTool
+						questions={questions}
+						status="completed"
+						isError={false}
+						isLatestAskUserQuestion
+						asyncToolCallId="call-123"
+						previousResponseText={previousResponseText}
+						onSubmitAnswer={onSubmitAnswer}
+					/>
+				</QueryClientProvider>
+			);
+			const { rerender } = renderComponent(<AsyncQuestion />);
+
+			await user.click(screen.getByRole("button", { name: "Submit" }));
+			rerender(<AsyncQuestion previousResponseText={answer} />);
+			rerender(<AsyncQuestion />);
+			pendingSend.resolve(undefined);
+			await user.click(await screen.findByRole("button", { name: "Submit" }));
+
+			expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
+			expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, answer);
+		},
+	);
+
+	it("announces an answerable async question", () => {
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isLatestAskUserQuestion
+					asyncToolCallId="call-123"
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByRole("status")).toHaveTextContent("The agent asked");
 	});
 
 	it("drops a saved draft once a newer question replaces it and the stream ends", async () => {
