@@ -35,7 +35,7 @@ Anthropic calls this unit an *environment* in claude.ai and a *pool* in its API,
 - Cloud sessions turned on for your Anthropic organization.
 - An Anthropic organization **without** Zero Data Retention.
   Self-hosted environments are unavailable when it's on.
-- Repositories hosted on GitHub or GitHub Enterprise Server.
+- Repositories hosted on GitHub.
 - A workspace image with Claude Code version 2.1.224 or later, or the module's `install_cli = true`.
 - Git version 2.24 or later in the workspace image.
 
@@ -239,7 +239,7 @@ Workspaces need outbound HTTPS to at least:
 
 - Your Coder deployment's access URL, plus any external DERP or STUN servers your deployment uses.
 - `api.anthropic.com`, for the runner control plane, session streaming, and model inference.
-- Your Git host, such as `github.com` or your GitHub Enterprise Server host, over port 443 or 22.
+- `github.com`, over port 443 or 22.
 - `claude.ai` and `downloads.claude.ai`, if `install_cli = true` or sessions install Anthropic marketplace plugins.
 
 Refer to [Anthropic's network requirements](https://code.claude.com/docs/en/self-hosted-environments-deploy#network-requirements) for the authoritative list before you finalize your allowlist.
@@ -273,7 +273,7 @@ Confirm that Anthropic and Coder emails match before you onboard users, especial
 Source control for a session has two independent sides, and you must configure both:
 
 1. **Claude Code must see the repository.**
-   Claude Code only offers repositories that the Claude GitHub app or your GitHub Enterprise Server integration can reach.
+   Claude Code only offers repositories that the Claude GitHub app can reach.
 1. **The workspace must be able to clone and push.**
    The runner clones the selected repository with the Git credentials in the workspace.
    Coder can supply each developer's credentials through external authentication, but a template admin must configure the template to provide them.

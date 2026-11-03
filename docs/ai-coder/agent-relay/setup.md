@@ -53,7 +53,8 @@ In every organization that a pool names, the service account needs these permiss
 | `workspace_secret`    | `create`                                      |
 
 On every template that a pool names, the service account needs `read` and `use`.
-These can come from the template's access control list instead of a role.
+By default, a new template grants `use`, which includes `read`, to its organization's `Everyone` group, so a service account in the organization already has both.
+Grant them in the template's permissions only if the template doesn't give the `Everyone` group access.
 
 The `organization-admin` role in each organization covers all of these permissions.
 To grant less, create an organization-scoped [custom role](../../admin/users/groups-roles.md#custom-roles) with only the permissions above.
@@ -434,7 +435,9 @@ Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` f
 ## Upgrade from early access
 
 Agent Relay v0.14.0 and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
-Templates on an early access module version, `agent-relay-claude-code` 0.4.0 or earlier or `agent-relay-cursor` 0.7.0 or earlier, keep working until you move them.
+Early access module versions, `agent-relay-claude-code` 0.4.0 or earlier and `agent-relay-cursor` 0.7.0 or earlier, don't support build secrets.
+Upgrade Coder, Agent Relay, and every Agent Relay template in the same maintenance window.
+If you need help planning the upgrade, contact Coder.
 
 1. Upgrade Coder to 2.39 or later.
 
@@ -445,11 +448,11 @@ Templates on an early access module version, `agent-relay-claude-code` 0.4.0 or 
 
 1. Convert each Cursor pool's `idle_release_timeout` from seconds to a duration, such as `10m` for `600`.
 
+   `0` still turns off idle release.
+
 1. Upgrade Agent Relay to v0.14.0 or later.
 
-1. Move templates to module version 1.0.0 one at a time.
-
-To roll back Coder or Agent Relay, pin templates back to their early access module version first.
+1. Update every Agent Relay template to module version 1.0.0.
 
 ## Learn more
 
