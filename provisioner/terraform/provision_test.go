@@ -638,51 +638,71 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel_hang.sh")
 
-	dir := t.TempDir()
-	binPath := filepath.Join(dir, "terraform")
-
-	// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
-	content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String())
-	err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
-	require.NoError(t, err)
-
-	ctx, api := setupProvisioner(t, &provisionerServeOptions{
-		binaryPath:  binPath,
-		exitTimeout: time.Second,
-	})
-
-	sess := configure(ctx, t, api, &proto.Config{})
-	sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
-
-	// provisioner requires plan before apply, so test cancel with plan.
-	err = sendPlan(sess, proto.WorkspaceTransition_START)
-	require.NoError(t, err)
-
-	for _, line := range []string{"plan_start"} {
-	LoopStart:
-		msg, err := sess.Recv()
-		require.NoError(t, err)
-
-		t.Log(msg.Type)
-
-		log := msg.GetLog()
-		if log == nil {
-			goto LoopStart
-		}
-		require.Equal(t, line, log.Output)
+	tests := []struct {
+		name      string
+		mode      string
+		wantError string
+	}{
+		{
+			name:      "ExitsOnSecondInterrupt",
+			mode:      "second-interrupt",
+			wantError: "exit status 1",
+		},
+		{
+			name:      "Killed",
+			mode:      "hang",
+			wantError: "killed",
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			binPath := filepath.Join(dir, "terraform")
 
-	err = sess.Send(&proto.Request{Type: &proto.Request_Cancel{Cancel: &proto.CancelRequest{}}})
-	require.NoError(t, err)
+			// Example: exec /path/to/fake_cancel_hang.sh 1.2.1 hang "$@"
+			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
+			err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+			require.NoError(t, err)
 
-	for {
-		msg, err := sess.Recv()
-		require.NoError(t, err)
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath:  binPath,
+				exitTimeout: time.Second,
+			})
 
-		if c := msg.GetPlan(); c != nil {
-			require.Contains(t, c.Error, "killed")
-			break
-		}
+			sess := configure(ctx, t, api, &proto.Config{})
+			sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+
+			// provisioner requires plan before apply, so test cancel with plan.
+			err = sendPlan(sess, proto.WorkspaceTransition_START)
+			require.NoError(t, err)
+
+			for _, line := range []string{"plan_start"} {
+			LoopStart:
+				msg, err := sess.Recv()
+				require.NoError(t, err)
+
+				t.Log(msg.Type)
+
+				log := msg.GetLog()
+				if log == nil {
+					goto LoopStart
+				}
+				require.Equal(t, line, log.Output)
+			}
+
+			err = sess.Send(&proto.Request{Type: &proto.Request_Cancel{Cancel: &proto.CancelRequest{}}})
+			require.NoError(t, err)
+
+			for {
+				msg, err := sess.Recv()
+				require.NoError(t, err)
+
+				if c := msg.GetPlan(); c != nil {
+					require.Contains(t, c.Error, tt.wantError)
+					break
+				}
+			}
+		})
 	}
 }
 

@@ -59,6 +59,29 @@ func (e *executor) basicEnv() []string {
 	return env
 }
 
+// forceExitTimeout is how long a Terraform command can run after its
+// second interrupt before it is killed. Terraform exits within seconds of
+// a second interrupt, after it stops its provider plugins.
+const forceExitTimeout = 10 * time.Second
+
+// command creates a Terraform command that stops when killCtx ends. Where
+// interrupts are supported, it interrupts Terraform a second time and kills
+// it only if it is still running after forceExitTimeout, because a kill
+// leaves the provider plugins of Terraform running.
+func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd.Dir = e.files.WorkDirectory()
+	if runtime.GOOS != "windows" {
+		cmd.Cancel = func() error {
+			return cmd.Process.Signal(os.Interrupt)
+		}
+		// A short exit timeout also shortens the wait after the second
+		// interrupt.
+		cmd.WaitDelay = min(forceExitTimeout, e.server.exitTimeout)
+	}
+	return cmd
+}
+
 // execWriteOutput must only be called while the lock is held.
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
@@ -86,9 +109,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		return xerrors.New("environment variables not sanitized, this is a bug within Coder")
 	}
 
-	// #nosec
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.files.WorkDirectory()
+	cmd := e.command(killCtx, args...)
 	if env == nil {
 		// We don't want to passthrough host env when unset.
 		env = []string{}
@@ -127,9 +148,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 		return ctx.Err()
 	}
 
-	// #nosec
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.files.WorkDirectory()
+	cmd := e.command(killCtx, args...)
 	cmd.Env = env
 	out := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
@@ -494,9 +513,8 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	}
 
 	var out strings.Builder
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd := e.command(killCtx, args...)
 	cmd.Stdout = &out
-	cmd.Dir = e.files.WorkDirectory()
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",

@@ -36,13 +36,16 @@ type ServeOptions struct {
 	// ExitTimeout defines how long we will wait for a running Terraform
 	// command to exit (cleanly) if the provision was stopped. This
 	// happens when the provision is canceled via RPC and when the command is
-	// still running after the provision stream is closed.
+	// still running after the provision stream is closed. When it expires,
+	// the command is interrupted again and killed if it is still running
+	// after 10 seconds or ExitTimeout, whichever is shorter.
 	//
 	// This is a no-op on Windows where the process can't be interrupted.
 	//
-	// Default value: 3 minutes (jobreaper.HungJobExitTimeout). This value should
-	// be kept less than the value that Coder uses to mark hung jobs as failed,
-	// which is 5 minutes (see jobreaper package).
+	// Default value: 3 minutes (jobreaper.HungJobExitTimeout). This value plus
+	// the wait after the second interrupt should be kept less than the value
+	// that Coder uses to mark hung jobs as failed, which is 5 minutes (see
+	// jobreaper package).
 	ExitTimeout time.Duration
 }
 
