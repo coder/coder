@@ -1,9 +1,11 @@
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter4,
@@ -288,6 +290,59 @@ describe("WorkspaceParametersPage", () => {
 			name: /update and restart/i,
 		});
 		await waitFor(() => expect(submitButton).toBeDisabled());
+	});
+
+	it("allows updating to a required active version without permission to change versions", async () => {
+		const workspace = MockOutdatedStoppedWorkspaceRequireActiveVersion;
+		vi.mocked(API.getWorkspaceByOwnerAndName)
+			.mockReset()
+			.mockResolvedValue(workspace);
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			readWorkspace: true,
+			shareWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: false,
+			deleteFailedWorkspace: false,
+		});
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: -1,
+						parameters: [
+							MockPreviewParameter1,
+							MockPreviewParameter4,
+							MockPreviewParameter7,
+						],
+						diagnostics: [],
+					}),
+				}),
+			);
+		});
+
+		renderWorkspaceParametersPage(
+			`/@${workspace.owner_name}/${workspace.name}/settings?templateVersionId=${workspace.template_active_version_id}`,
+		);
+		await waitForLoaderToBeRemoved();
+
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /update and start/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
+				workspace.id,
+				expect.objectContaining({
+					template_version_id: workspace.template_active_version_id,
+				}),
+			),
+		);
 	});
 
 	it("does not clobber edited parameters", async () => {
