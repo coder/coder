@@ -114,6 +114,20 @@ resource "coder_app" "zed" {
 
 Visit our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our open source software (OSS) community.
 
+### Session tokens in external app links
+
+An external app's `url` can include the `$SESSION_TOKEN` placeholder so a desktop IDE can sign in to Coder.
+The dashboard and `coder open app` replace the placeholder with the user's session token only when all of these are true:
+
+- The link opens a Coder IDE extension, such as `vscode://coder.coder-remote/open` or `jetbrains://gateway/com.coder.toolbox`.
+- The link's `url` parameter is this deployment's URL, with no path.
+- The placeholder is the whole value of the link's `token` parameter.
+
+Coder doesn't add a token to any other link.
+The dashboard shows the app as disabled, and `coder open app` prints the URL with a warning instead of opening it.
+Dev container apps never receive a session token.
+Refer to [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md) for details.
+
 ## Environment variables
 
 Use the [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) resource to inject environment variables into workspace agents.
