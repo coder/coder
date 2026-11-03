@@ -81,7 +81,7 @@
 		"formik": "2.4.9",
 		"front-matter": "4.0.2",
 		"humanize-duration": "3.34.0",
-		"jszip": "3.10.1",
+		"jszip": "3.10.2",
 		"lexical": "0.44.0",
 		"lodash": "4.18.1",
 		"lucide-react": "0.577.0",
