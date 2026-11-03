@@ -1,61 +1,39 @@
-# TEMPORARY workflow to finish the v2.39.0 release.
-#
-# The v2.39.0 release run failed inside the "Publish Helm Chart" step while
-# pushing the charts to ghcr.io (a registry transient after the GCS uploads
-# succeeded). Everything after that step never ran. Re-running the release job
-# would rebuild and re-sign every artifact of a release that is already live,
-# so this workflow finishes only the missing steps:
-#
-#   1. Push the three chart tags to ghcr.io/coder/chart, using the exact chart
-#      archives already published as release assets (OCI is content-addressed,
-#      so identical bytes yield identical digests).
-#   2. Send the coder-release repository-dispatch to coder/packages.
-#   3. Run the publish-homebrew and publish-winget jobs, copied from
-#      release.yaml with the version hardcoded.
-#
-# This file lives on release/2.39 (not main) and must be dispatched at that
-# ref: the jobs needing CDRCI_GITHUB_TOKEN use the "release" environment,
-# whose deployment policy only allows v* tags and release/* branches.
-#
-#   gh workflow run finish-v2.39.0.yaml --ref release/2.39 -f dry_run=true
-#
-# An identical copy must also exist on main: GitHub only registers a
-# dispatch-only workflow (making it addressable by filename) once the file is
-# on the default branch. The run itself executes this copy, at the release/2.39
-# ref.
-#
-# Operator notes:
-#   - Dispatch BEFORE the next mainline release ships; the coder/packages
-#     dispatch re-points the snap stable channel at 2.39.0, which would be a
-#     downgrade once a newer mainline exists. If that window is missed, skip
-#     or remove the dispatch-packages job.
-#   - Do NOT also re-run the original failed v2.39.0 release run: a rebuild is
-#     not byte-identical and would race this workflow on the same ghcr tags.
-#   - Revert this commit (and the main copy) after the run succeeds, BEFORE
-#     the next v2.39.x tag is cut; the release environment also allows v*
-#     tags, so a tag containing this file would keep it dispatchable.
-name: Finish v2.39.0 release (temporary)
-
+# GitHub release workflow.
+name: Release
 on:
   workflow_dispatch:
     inputs:
+      release_channel:
+        type: choice
+        description: Release channel
+        options:
+          - mainline
+          - stable
+          - rc
+      release_notes:
+        description: Release notes for the publishing the release. This is required to create a release.
       dry_run:
-        description: Download and verify the charts and show what would be pushed, but do not publish anything.
+        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
         required: true
-        default: true
+        default: false
 
 permissions:
   contents: read
 
-# Two simultaneous dispatches must not double-fire the downstream publishes.
-concurrency: ${{ github.workflow }}
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  VERSION: "2.39.0"
+  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
+  # booleans, not strings.
+  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
+  CODER_RELEASE: ${{ !inputs.dry_run }}
+  CODER_DRY_RUN: ${{ inputs.dry_run }}
+  CODER_RELEASE_CHANNEL: ${{ inputs.release_channel }}
+  CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
-  # Only allow maintainers/admins, same gate as release.yaml.
+  # Only allow maintainers/admins to release.
   check-perms:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
@@ -81,146 +59,653 @@ jobs:
 
             if (!allowed) core.setFailed('Denied: requires maintain or admin');
 
-  publish-helm-oci:
-    name: Push v2.39.0 Helm charts to ghcr.io
-    needs: check-perms
-    runs-on: ubuntu-latest
+  release:
+    name: Build and publish
+    needs: [check-perms]
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
-      contents: read
-      # Necessary to push the charts to ghcr.io.
+      # Required to publish a release
+      contents: write
+      # Necessary to push docker images to ghcr.io.
       packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
+      id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
-      - name: Download charts and checksums from the published release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euxo pipefail
-          gh release download "v${VERSION}" --repo "${GITHUB_REPOSITORY}" \
-            --pattern "coder_helm_${VERSION}.tgz" \
-            --pattern "provisioner_helm_${VERSION}.tgz" \
-            --pattern "ai-gateway_helm_${VERSION}.tgz" \
-            --pattern "coder_${VERSION}_checksums.txt" \
-            --pattern "coder_${VERSION}_checksums.txt.asc"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      # The charts and the checksums file both come from the release, so on
-      # their own they only prove internal consistency. The GPG signature was
-      # made with the release signing key at publish time and cannot be
-      # regenerated by a tampering writer, so it anchors the verification.
-      - name: Verify checksums signature
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Print version
+        id: version
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/contents/release.key?ref=${GITHUB_SHA}" --jq .content | base64 -d > release.key
-          gpg --import release.key
-          gpg --verify "coder_${VERSION}_checksums.txt.asc" "coder_${VERSION}_checksums.txt"
+          version="$(./scripts/version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Speed up future version.sh calls.
+          echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "$version"
 
-      - name: Verify charts against the release checksums
+      # Verify that all expectations for a release are met.
+      - name: Verify release input
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          grep -E "_helm_${VERSION//./\\.}\.tgz\$" "coder_${VERSION}_checksums.txt" > helm_checksums.txt || true
-          if [[ "$(wc -l < helm_checksums.txt)" -ne 3 ]]; then
-            echo "::error::expected 3 helm chart entries in checksums, got:" >&2
-            cat helm_checksums.txt >&2
+
+          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
+            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
             exit 1
           fi
-          sha256sum -c helm_checksums.txt
+
+          # Derive the release branch from the version tag.
+          # Non-RC releases must be on a release/X.Y branch.
+          # RC tags are allowed on any branch (typically main).
+          version="$(./scripts/version.sh)"
+          # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
+          base_version="${version%%-*}"
+          # Then strip patch to get major.minor (e.g. 2.32.0 -> 2.32)
+          release_branch="release/${base_version%.*}"
+
+          if [[ "$version" == *-rc.* ]]; then
+            echo "RC release detected, skipping release branch check (RC tags are cut from main)."
+          else
+            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+            if [[ -z "${branch_contains_tag}" ]]; then
+              echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
+              exit 1
+            fi
+          fi
+
+          if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
+            echo "Release notes are required to create a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          echo "Release inputs verified:"
+          echo
+          echo "- Ref: ${GITHUB_REF}"
+          echo "- Version: ${version}"
+          echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
+          echo "- Release branch: ${release_branch}"
+          echo "- Release notes: true"
+
+      - name: Create release notes file
+        run: |
+          set -euo pipefail
+
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> "$GITHUB_ENV"
+
+      - name: Show release notes
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
-        if: ${{ !inputs.dry_run }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push missing chart tags
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm helm cosign syft"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
+
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
+      - name: Install nsis and zstd
+        run: sudo apt-get install -y nsis zstd
+
+      - name: Install rcodesign
         run: |
           set -euo pipefail
-          # Asset file -> chart name (the OCI repository under ghcr.io/coder/chart).
-          declare -A charts=(
-            ["coder_helm_${VERSION}.tgz"]="coder"
-            ["provisioner_helm_${VERSION}.tgz"]="coder-provisioner"
-            ["ai-gateway_helm_${VERSION}.tgz"]="coder-ai-gateway"
-          )
-          for tgz in "${!charts[@]}"; do
-            chart="${charts[$tgz]}"
-            ref="oci://ghcr.io/coder/chart/${chart}"
-            if [[ "${DRY_RUN}" == "true" ]]; then
-              echo "DRY RUN: would push ${tgz} ($(sha256sum "${tgz}" | awk '{print $1}')) to ${ref}:${VERSION}"
-              continue
-            fi
-            mkdir -p "pulled/${chart}"
-            if helm pull "${ref}" --version "${VERSION}" -d "pulled/${chart}" 2>/dev/null; then
-              echo "${ref}:${VERSION} already exists, skipping push"
-            else
-              helm push "${tgz}" "oci://ghcr.io/coder/chart"
-            fi
-          done
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
+          ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+          rm /tmp/rcodesign.tar.gz
 
-      - name: Verify pushed charts match the release assets byte for byte
+      - name: Setup Apple Developer certificate and API key
+        run: |
+          set -euo pipefail
+          touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
+        env:
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
+
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          ./.github/scripts/retry.sh -- wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      - name: Test migrations from current ref to main
+        run: |
+          POSTGRES_VERSION=13 make test-migrations
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Build binaries
+        run: |
+          set -euo pipefail
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
+
+          version="$(./scripts/version.sh)"
+          make gen/mark-fresh
+          make -j \
+            build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
+            build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
+            build/coder_"$version"_windows_amd64_installer.exe \
+            build/coder_helm_"$version".tgz \
+            build/provisioner_helm_"$version".tgz \
+            build/ai-gateway_helm_"$version".tgz
+        env:
+          CODER_SIGN_WINDOWS: "1"
+          CODER_SIGN_DARWIN: "1"
+          CODER_SIGN_GPG: "1"
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_WINDOWS_RESOURCES: "1"
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
+          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+          AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
+          AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
+          AC_APIKEY_FILE: /tmp/apple_apikey.p8
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
+
+      - name: Delete Apple Developer certificate and API key
+        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+      - name: Delete Windows EV Signing Cert
+        run: rm /tmp/ev_cert.pem
+
+      - name: Determine base image tag
+        id: image-base-tag
+        run: |
+          set -euo pipefail
+          if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
+            # Empty value means use the default and avoid building a fresh one.
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create empty base-build-context directory
+        if: steps.image-base-tag.outputs.tag != ''
+        run: mkdir base-build-context
+
+      - name: Install depot.dev CLI
+        if: steps.image-base-tag.outputs.tag != ''
+        uses: depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c # v1.7.2
+
+      # This uses OIDC authentication, so no auth variables are required.
+      - name: Build base Docker image via depot.dev
+        id: build_base_image
+        if: steps.image-base-tag.outputs.tag != ''
+        uses: depot/build-push-action@98e78adca7817480b8185f474a400b451d74e287 # v1.18.0
+        with:
+          project: wl5hnrrkns
+          context: base-build-context
+          file: scripts/Dockerfile.base
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          provenance: true
+          sbom: true
+          pull: true
+          no-cache: true
+          push: true
+          tags: |
+            ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: Verify that images are pushed properly
+        if: steps.image-base-tag.outputs.tag != ''
+        run: |
+          # retry 10 times with a 5 second delay as the images may not be
+          # available immediately
+          for i in {1..10}; do
+            rc=0
+            raw_manifests=$(docker buildx imagetools inspect --raw "${IMAGE_TAG}") || rc=$?
+            if [[ "$rc" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$i" -eq 10 ]]; then
+              echo "Failed to pull manifests after 10 retries"
+              exit 1
+            fi
+            echo "Failed to pull manifests, retrying in 5 seconds"
+            sleep 5
+          done
+
+          manifests=$(
+            echo "$raw_manifests" | \
+              jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
+          )
+
+          # Verify all 3 platforms are present.
+          set -euxo pipefail
+          echo "$manifests" | grep -q linux/amd64
+          echo "$manifests" | grep -q linux/arm64
+          echo "$manifests" | grep -q linux/arm/v7
+        env:
+          IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: GitHub Attestation for Base Docker image
+        id: attest_base
+        if: ${{ !inputs.dry_run && steps.build_base_image.outputs.digest != '' }}
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/coder-base
+          subject-digest: ${{ steps.build_base_image.outputs.digest }}
+          push-to-registry: true
+
+      - name: Build Linux Docker images
+        id: build_docker
+        run: |
+          set -euxo pipefail
+
+          # we can't build multi-arch if the images aren't pushed, so quit now
+          # if dry-running
+          if [[ "$CODER_RELEASE" != *t* ]]; then
+            echo Skipping multi-arch docker builds due to dry-run.
+            exit 0
+          fi
+
+          # build Docker images for each architecture
+          version="$(./scripts/version.sh)"
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+          # build and push multi-arch manifest, this depends on the other images
+          # being pushed so will automatically push them.
+          make push/build/coder_"$version"_linux.tag
+
+          multiarch_image="$(./scripts/image_tag.sh)"
+          echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
+
+          # For debugging, print all docker image tags
+          docker images
+
+          # if the current version is equal to the highest (according to semver)
+          # version in the repo, also create a multi-arch image as ":latest" and
+          # push it
+          if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
+            latest_target="$(./scripts/image_tag.sh --version latest)"
+            # shellcheck disable=SC2046
+            ./scripts/build_docker_multiarch.sh \
+              --push \
+              --target "${latest_target}" \
+              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
+            echo "latest_target=${latest_target}" >> "$GITHUB_OUTPUT"
+          else
+            echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: SBOM Generation and Attestation
+        if: ${{ !inputs.dry_run }}
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+          MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
+        run: |
+          set -euxo pipefail
+
+          # Generate SBOM for multi-arch image with version in filename
+          echo "Generating SBOM for multi-arch image: ${MULTIARCH_IMAGE}"
+          syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
+
+          echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
+          cosign clean --force=true "${MULTIARCH_IMAGE}"
+          cosign attest --type spdxjson \
+            --predicate "coder_${VERSION}_sbom.spdx.json" \
+            --yes \
+            "${MULTIARCH_IMAGE}"
+
+          # If latest tag was created, also attest it
+          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
+            latest_tag="$(./scripts/image_tag.sh --version latest)"
+            echo "Generating SBOM for latest image: ${latest_tag}"
+            syft "${latest_tag}" -o spdx-json > coder_latest_sbom.spdx.json
+
+            echo "Attesting SBOM to latest image: ${latest_tag}"
+            cosign clean --force=true "${latest_tag}"
+            cosign attest --type spdxjson \
+              --predicate coder_latest_sbom.spdx.json \
+              --yes \
+              "${latest_tag}"
+          fi
+
+      - name: Resolve Docker image digests for attestation
+        id: docker_digests
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        env:
+          MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
+          LATEST_TARGET: ${{ steps.build_docker.outputs.latest_target }}
+        run: |
+          set -euxo pipefail
+          if [[ -n "${MULTIARCH_IMAGE}" ]]; then
+            multiarch_digest=$(docker buildx imagetools inspect --raw "${MULTIARCH_IMAGE}" | sha256sum | awk '{print "sha256:"$1}')
+            echo "multiarch_digest=${multiarch_digest}" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -n "${LATEST_TARGET}" ]]; then
+            latest_digest=$(docker buildx imagetools inspect --raw "${LATEST_TARGET}" | sha256sum | awk '{print "sha256:"$1}')
+            echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.multiarch_digest != '' }}
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/coder
+          subject-digest: ${{ steps.docker_digests.outputs.multiarch_digest }}
+          push-to-registry: true
+
+      - name: GitHub Attestation for "latest" Docker image
+        id: attest_latest
+        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.latest_digest != '' }}
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/coder/coder
+          subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
+          push-to-registry: true
+
+      - name: GitHub Attestation for release binaries
+        id: attest_binaries
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ./build/*.tar.gz
+            ./build/*.zip
+            ./build/*.deb
+            ./build/*.rpm
+            ./build/*.apk
+            ./build/*_installer.exe
+            ./build/*_helm_*.tgz
+            ./build/provisioner_helm_*.tgz
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: ${{ !inputs.dry_run }}
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
+          if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for base image failed"
+          fi
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main image failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" && "${{ steps.attest_latest.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for latest image failed"
+          fi
+          if [[ "${{ steps.attest_binaries.outcome }}" == "failure" && "${{ steps.attest_binaries.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for release binaries failed"
+          fi
+
+      - name: Generate offline docs
+        run: |
+          version="$(./scripts/version.sh)"
+          make -j build/coder_docs_"$version".tgz
+
+      - name: ls build
+        run: ls -lh build
+
+      - name: Publish Coder CLI binaries and detached signatures to GCS
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euxo pipefail
+
+          version="$(./scripts/version.sh)"
+
+          # Source array of slim binaries
+          declare -A binaries
+          binaries["coder-darwin-amd64"]="coder-slim_${version}_darwin_amd64"
+          binaries["coder-darwin-arm64"]="coder-slim_${version}_darwin_arm64"
+          binaries["coder-linux-amd64"]="coder-slim_${version}_linux_amd64"
+          binaries["coder-linux-arm64"]="coder-slim_${version}_linux_arm64"
+          binaries["coder-linux-armv7"]="coder-slim_${version}_linux_armv7"
+          binaries["coder-windows-amd64.exe"]="coder-slim_${version}_windows_amd64.exe"
+          binaries["coder-windows-arm64.exe"]="coder-slim_${version}_windows_arm64.exe"
+
+          for cli_name in "${!binaries[@]}"; do
+            slim_binary="${binaries[$cli_name]}"
+            detached_signature="${slim_binary}.asc"
+            gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
+            gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
+          done
+
+      # Mint a short-lived installation token from the dedicated release
+      # GitHub App. The default GITHUB_TOKEN (github-actions[bot]) cannot be
+      # added to the "Auto-imported tag create protections" ruleset bypass
+      # list, so `gh release create` fails to create the tag with a 403. The
+      # App is added to that ruleset's bypass list as an Integration actor.
+      - name: Generate release App token
+        id: release_app_token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Publish release
+        run: |
+          set -euo pipefail
+
+          publish_args=()
+          if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
+            publish_args+=(--stable)
+          fi
+          if [[ $CODER_RELEASE_CHANNEL == "rc" ]]; then
+            publish_args+=(--rc)
+          fi
+          if [[ $CODER_DRY_RUN == *t* ]]; then
+            publish_args+=(--dry-run)
+          fi
+          declare -p publish_args
+
+          # Build the list of files to publish
+          files=(
+            ./build/*_installer.exe
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.tgz
+            ./build/*.apk
+            ./build/*.deb
+            ./build/*.rpm
+            "./coder_${VERSION}_sbom.spdx.json"
+          )
+
+          # Only include the latest SBOM file if it was created
+          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
+            files+=(./coder_latest_sbom.spdx.json)
+          fi
+
+          ./scripts/release/publish.sh \
+            "${publish_args[@]}" \
+            --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
+            "${files[@]}"
+        env:
+          # Use the dedicated release App token (github-actions[bot] is blocked
+          # from creating tags by the tag-create protection ruleset).
+          GITHUB_TOKEN: ${{ steps.release_app_token.outputs.token }}
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
+
+      # Mark the Linear release as shipped.
+      - name: Extract Linear release version
+        if: ${{ !inputs.dry_run }}
+        id: linear_version
+        run: |
+          # Skip RC releases — they must not complete the Linear release.
+          if [[ "$VERSION" == *-rc* ]]; then
+            echo "RC release (${VERSION}), skipping Linear release completion."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
+          linear_version=$(echo "$VERSION" | cut -d. -f1,2)
+          echo "version=$linear_version" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Completing Linear release ${linear_version}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Complete Linear release
+        if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
+        continue-on-error: true
+        uses: linear/linear-release-action@30f9ae77461ec29f07fffe0c52edd1909bfbb6f5 # v0.18.1
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          version: ${{ steps.linear_version.outputs.version }}
+          timeout: 300
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # 3.0.1
+
+      - name: Publish Helm Chart
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          declare -A charts=(
-            ["coder_helm_${VERSION}.tgz"]="coder"
-            ["provisioner_helm_${VERSION}.tgz"]="coder-provisioner"
-            ["ai-gateway_helm_${VERSION}.tgz"]="coder-ai-gateway"
-          )
-          failed=0
-          for tgz in "${!charts[@]}"; do
-            chart="${charts[$tgz]}"
-            rm -rf verify && mkdir -p verify
-            helm pull "oci://ghcr.io/coder/chart/${chart}" --version "${VERSION}" -d verify
-            want="$(sha256sum "${tgz}" | awk '{print $1}')"
-            got="$(sha256sum verify/*.tgz | awk '{print $1}')"
-            if [[ "${want}" == "${got}" ]]; then
-              echo "OK ${chart}:${VERSION} ${got}"
-            else
-              echo "::error::${chart}:${VERSION} digest mismatch: release asset ${want}, registry ${got}" >&2
-              failed=1
-            fi
-          done
-          exit "${failed}"
+          version="$(./scripts/version.sh)"
+          mkdir -p build/helm
+          cp "build/coder_helm_${version}.tgz" build/helm
+          cp "build/provisioner_helm_${version}.tgz" build/helm
+          cp "build/ai-gateway_helm_${version}.tgz" build/helm
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/ai-gateway_helm_${version}.tgz" gs://helm.coder.com/v2
 
-  # Same as the "Send repository-dispatch event" step of release.yaml, with the
-  # payload hardcoded. v2.39.0 was a mainline release.
-  dispatch-packages:
-    name: Dispatch coder/packages
-    needs: publish-helm-oci
-    if: ${{ !inputs.dry_run }}
-    runs-on: ubuntu-latest
-    environment: release
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+          # index.yaml is shared by every release, so two releases publishing
+          # concurrently would each merge only their own charts and the last
+          # writer would drop the other's entries. The if-generation-match
+          # precondition makes the loser fail instead; re-running the job
+          # merges against the fresh index.
+          index_url=gs://helm.coder.com/v2/index.yaml
+          generation="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          gsutil cp "$index_url" build/helm/index.yaml
+          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
+          if ! gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${generation}" cp build/helm/index.yaml "$index_url"; then
+            echo "::error::index.yaml was modified by another release since it was read (generation $generation). Re-run this job to merge against the current index." >&2
+            exit 1
+          fi
+
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
+          helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          helm push "build/ai-gateway_helm_${version}.tgz" oci://ghcr.io/coder/chart
+
+      - name: Upload artifacts to actions (if dry-run)
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          egress-policy: audit
+          name: release-artifacts
+          path: |
+            ./build/*_installer.exe
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.tgz
+            ./build/*.apk
+            ./build/*.deb
+            ./build/*.rpm
+            ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
+          retention-days: 7
+
+      - name: Upload latest sbom artifact to actions (if dry-run)
+        if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: latest-sbom-artifact
+          path: ./coder_latest_sbom.spdx.json
+          retention-days: 7
 
       - name: Send repository-dispatch event
+        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "2.39.0", "release_channel": "mainline"}'
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
 
-  # Copied from release.yaml publish-homebrew, with the version hardcoded and
-  # the environment switched from release-publish to release (release-publish
-  # only allows v* tag refs; CDRCI_GITHUB_TOKEN exists in both).
   publish-homebrew:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
-    needs: publish-helm-oci
-    if: ${{ !inputs.dry_run }}
-    environment: release
+    needs: release
+    if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
 
     steps:
       - name: Harden Runner
@@ -232,6 +717,7 @@ jobs:
         env:
           GH_REPO: coder/homebrew-coder
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           # Keep version number around for reference, removing any potential leading v
           coder_version="$(echo "${VERSION}" | tr -d v)"
@@ -291,15 +777,11 @@ jobs:
             -a "${GITHUB_ACTOR}" \
             -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
-  # Copied from release.yaml publish-winget, with the version hardcoded, the
-  # environment switched to release (see publish-homebrew above), and the
-  # unused repo checkout steps dropped (nothing below reads the repo).
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
-    needs: publish-helm-oci
-    if: ${{ !inputs.dry_run }}
-    environment: release
+    needs: release
+    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
 
     steps:
       - name: Harden Runner
@@ -312,6 +794,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
       - name: Install wingetcreate
         run: |
           Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
@@ -319,6 +815,8 @@ jobs:
       - name: Submit updated manifest to winget-pkgs
         run: |
           # The package version is the same as the tag minus the leading "v".
+          # The version in this output already has the leading "v" removed but
+          # we do it again to be safe.
           $version = $env:VERSION.Trim('v')
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
@@ -352,11 +850,9 @@ jobs:
           # wingetcreate will read the token from the environment variable defined below.
           # Reference: https://aka.ms/winget-create-token
           WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
 
       - name: Comment on PR
-        # Courtesy ping only; a search-indexing lag must not fail the job and
-        # bait a full re-run after a successful submission.
-        continue-on-error: true
         run: |
           # wait 30 seconds
           Start-Sleep -Seconds 30.0
@@ -372,3 +868,4 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
