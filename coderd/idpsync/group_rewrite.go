@@ -1,0 +1,230 @@
+package idpsync
+
+import (
+	"encoding/json"
+	"strconv"
+	"strings"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
+)
+
+// GroupSyncRewriteOutcome is what the rewriter did with the settings as a
+// whole.
+type GroupSyncRewriteOutcome string
+
+const (
+	// GroupSyncRewriteOutcomeValid: the settings had no findings and were
+	// returned unchanged, whether or not they were in canonical form.
+	GroupSyncRewriteOutcomeValid GroupSyncRewriteOutcome = "valid"
+	// GroupSyncRewriteOutcomeRewritten: the settings were brought into valid
+	// canonical form.
+	GroupSyncRewriteOutcomeRewritten GroupSyncRewriteOutcome = "rewritten"
+	// GroupSyncRewriteOutcomeNotRewritten: the settings were returned
+	// unchanged.
+	GroupSyncRewriteOutcomeNotRewritten GroupSyncRewriteOutcome = "not_rewritten"
+)
+
+// GroupSyncRewriteResult is the result of carrying out a rewrite plan.
+type GroupSyncRewriteResult struct {
+	// Outcome is what the rewriter did with the settings as a whole.
+	Outcome GroupSyncRewriteOutcome
+	// Settings is the settings to save or return: in canonical form when the
+	// outcome is rewritten, and the input unchanged otherwise.
+	Settings codersdk.GroupSyncSettings
+	// Warnings holds one warning for each finding, in the same order as the
+	// findings.
+	Warnings []codersdk.GroupSyncWarning
+}
+
+// RewriteResult carries out plan on settings, whose findings are findings.
+// The plan must be the one RewritePlan gave for those findings, so it has
+// one action for each finding, in the same order. The rewriter makes no
+// decisions of its own:
+//
+//   - accept: settings are returned unchanged, with no warnings;
+//   - rewrite: every finding's rewrite rule is applied and the result is
+//     returned in canonical form, with one warning per finding;
+//   - keep: settings are returned unchanged, with one warning per finding;
+//   - reject: RewriteResult returns an error, since there is nothing to
+//     carry out.
+//
+// It also returns an error when the plan's actions do not match the
+// findings one for one.
+func RewriteResult(settings codersdk.GroupSyncSettings, findings []codersdk.GroupSyncFinding, plan GroupSyncRewritePlan) (GroupSyncRewriteResult, error) {
+	if len(plan.Actions) != len(findings) {
+		return GroupSyncRewriteResult{}, xerrors.Errorf("plan has %d actions for %d findings", len(plan.Actions), len(findings))
+	}
+
+	switch plan.Instruction {
+	case GroupSyncInstructionAccept:
+		return GroupSyncRewriteResult{
+			Outcome:  GroupSyncRewriteOutcomeValid,
+			Settings: settings,
+			Warnings: []codersdk.GroupSyncWarning{},
+		}, nil
+
+	case GroupSyncInstructionKeep:
+		warnings := make([]codersdk.GroupSyncWarning, 0, len(findings))
+		for _, f := range findings {
+			received, err := elementJSON(settings, f.Path)
+			if err != nil {
+				return GroupSyncRewriteResult{}, err
+			}
+			warnings = append(warnings, codersdk.GroupSyncWarning{Code: f.Code, Path: f.Path, Received: received, Accepted: received})
+		}
+		return GroupSyncRewriteResult{
+			Outcome:  GroupSyncRewriteOutcomeNotRewritten,
+			Settings: settings,
+			Warnings: warnings,
+		}, nil
+
+	case GroupSyncInstructionRewrite:
+		return rewriteSettings(settings, findings)
+
+	case GroupSyncInstructionReject:
+		return GroupSyncRewriteResult{}, xerrors.New("plan rejects the settings, so there is nothing to carry out")
+
+	default:
+		return GroupSyncRewriteResult{}, xerrors.Errorf("plan has unknown instruction %q", plan.Instruction)
+	}
+}
+
+// rewriteSettings applies the rewrite rule of every finding to settings and
+// returns the result in canonical form. Every finding must be rewritable.
+func rewriteSettings(settings codersdk.GroupSyncSettings, findings []codersdk.GroupSyncFinding) (GroupSyncRewriteResult, error) {
+	// Each rule removes a member, removes an element, or replaces a `null`
+	// array with an empty one. Collect them first, so that the rules apply to
+	// the settings as received and paths keep their meaning.
+	removedMembers := make(map[string]bool)
+	removedElements := make(map[string]map[int]bool)
+	warnings := make([]codersdk.GroupSyncWarning, 0, len(findings))
+
+	for _, f := range findings {
+		received, err := elementJSON(settings, f.Path)
+		if err != nil {
+			return GroupSyncRewriteResult{}, err
+		}
+		key, index, hasIndex, ok := parseMappingPath(f.Path)
+		warning := codersdk.GroupSyncWarning{Code: f.Code, Path: f.Path, Received: received}
+
+		switch f.Code {
+		case codersdk.GroupSyncFindingNilUUID, // R1
+			codersdk.GroupSyncFindingRepeatedUUID, // R2
+			GroupSyncFindingEveryoneGroup,         // R5
+			GroupSyncFindingMissingGroup,          // R6
+			GroupSyncFindingOutsideGroup:          // R7
+			if !ok || !hasIndex {
+				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping element", f.Code, f.Path)
+			}
+			if removedElements[key] == nil {
+				removedElements[key] = make(map[int]bool)
+			}
+			removedElements[key][index] = true
+
+		case codersdk.GroupSyncFindingNullArray: // R3
+			if !ok || hasIndex {
+				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping member", f.Code, f.Path)
+			}
+			// The member is kept, so its replacement is accepted.
+			warning.Accepted = json.RawMessage(`[]`)
+
+		case codersdk.GroupSyncFindingFilterExcludedKey: // R4
+			if !ok || hasIndex {
+				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping member", f.Code, f.Path)
+			}
+			removedMembers[key] = true
+
+		default:
+			return GroupSyncRewriteResult{}, xerrors.Errorf("finding code %q has no rewrite rule", f.Code)
+		}
+		warnings = append(warnings, warning)
+	}
+
+	// Canonical form: `mapping` is an object, never `null`; an empty
+	// `regex_filter` is `null`; an empty legacy mapping is absent. A rewrite
+	// only happens with no legacy finding, so the legacy mapping is empty.
+	rewritten := settings
+	rewritten.Mapping = make(map[string][]uuid.UUID, len(settings.Mapping))
+	for key, ids := range settings.Mapping {
+		if removedMembers[key] {
+			continue
+		}
+		// An array emptied by removals, or `null` in the input, becomes an
+		// empty array. The member stays, since it keeps its name out of N.
+		kept := make([]uuid.UUID, 0, len(ids))
+		for i, id := range ids {
+			if !removedElements[key][i] {
+				kept = append(kept, id)
+			}
+		}
+		rewritten.Mapping[key] = kept
+	}
+	if rewritten.RegexFilter != nil && rewritten.RegexFilter.String() == "" {
+		rewritten.RegexFilter = nil
+	}
+	rewritten.LegacyNameMapping = nil
+
+	return GroupSyncRewriteResult{
+		Outcome:  GroupSyncRewriteOutcomeRewritten,
+		Settings: rewritten,
+		Warnings: warnings,
+	}, nil
+}
+
+// parseMappingPath recovers the `mapping` key, and the array index when there
+// is one, from a finding's path. It reports ok as false for a path that is
+// not under `mapping`.
+func parseMappingPath(path string) (key string, index int, hasIndex bool, ok bool) {
+	tokens := strings.Split(path, "/")
+	// A path under `mapping` is "", "mapping", key, and maybe an index.
+	if len(tokens) < 3 || len(tokens) > 4 || tokens[0] != "" || tokens[1] != "mapping" {
+		return "", 0, false, false
+	}
+	key = codersdk.UnescapeJSONPointerToken(tokens[2])
+	if len(tokens) == 4 {
+		i, err := strconv.Atoi(tokens[3])
+		if err != nil || i < 0 {
+			return "", 0, false, false
+		}
+		return key, i, true, true
+	}
+	return key, 0, false, true
+}
+
+// elementJSON returns the JSON text of the element of settings that a
+// finding's path refers to. The empty path refers to the whole settings.
+func elementJSON(settings codersdk.GroupSyncSettings, path string) (json.RawMessage, error) {
+	var element any
+	switch path {
+	case "":
+		element = settings
+	case "/field":
+		element = settings.Field
+	case "/legacy_group_name_mapping":
+		element = settings.LegacyNameMapping
+	default:
+		key, index, hasIndex, ok := parseMappingPath(path)
+		if !ok {
+			return nil, xerrors.Errorf("finding path %q refers to no element of the settings", path)
+		}
+		ids, present := settings.Mapping[key]
+		switch {
+		case !present:
+			return nil, xerrors.Errorf("finding path %q names a mapping key that is not present", path)
+		case !hasIndex:
+			element = ids
+		case index >= len(ids):
+			return nil, xerrors.Errorf("finding path %q indexes past the end of its array", path)
+		default:
+			element = ids[index]
+		}
+	}
+	b, err := json.Marshal(element)
+	if err != nil {
+		return nil, xerrors.Errorf("encode element at %q: %w", path, err)
+	}
+	return b, nil
+}

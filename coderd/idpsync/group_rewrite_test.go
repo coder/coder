@@ -1,6 +1,15 @@
 package idpsync_test
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -15,7 +24,7 @@ import (
 // so a failure here points at the rewriter alone. The findings agree with what
 // the validators' vectors say for the same kind of input.
 //
-// Every vector uses the never-reject fixture policy from
+// Every vector is planned with the never-reject fixture action function from
 // `group_policy_test.go`: rewritable findings are rewritten and the others are
 // kept, so no vector is rejected. Rejection is the policy's concern, tested
 // with the policy's vectors.
@@ -80,8 +89,8 @@ type rewriteWarning struct {
 
 // Outcomes the rewriter reports: what it did with the settings as a whole.
 const (
-	// outcomeValid: the input had no findings; the rewriter returned it in
-	// canonical form.
+	// outcomeValid: the input had no findings; the rewriter returned it
+	// unchanged, whether or not it was in canonical form.
 	outcomeValid = "valid"
 	// outcomeRewritten: the rewriter brought the input into valid canonical
 	// form.
@@ -94,10 +103,8 @@ const (
 // unchanged, or an explicit canonical text.
 type rewriteWant interface{ isRewriteWant() }
 
-// sameAsInput expects the rewriter to return its input unchanged. The input
-// of such a vector must be written as the encoder writes it, so that the
-// returned settings, once encoded, compare equal to the input as written; a
-// test checks this of every such vector before using it.
+// sameAsInput expects the rewriter to return its input unchanged: the
+// settings it returns are equal, as a Go value, to the input as decoded.
 type sameAsInput struct{}
 
 // rewrittenTo expects the rewriter to return Text, which is in canonical form.
@@ -111,24 +118,26 @@ func (rewrittenTo) isRewriteWant() {}
 // The vectors fall into three groups, named by the first segment of each
 // vector's name:
 //
-//  1. fixed_point: valid input in canonical form. The rewriter returns it
-//     unchanged, with outcome valid and no warnings.
-//  2. rewritable: input the rewriter brings into valid canonical form. With
-//     no findings, the input was valid and only its form changes, so the
-//     outcome is valid with no warnings. With findings, the outcome is
-//     rewritten, with one warning per finding.
+//  1. valid: valid input, with no findings. The rewriter returns it
+//     unchanged, whether or not it is in canonical form, with outcome valid
+//     and no warnings. Settings are rewritten only when they need a rewrite
+//     rule.
+//  2. rewritable: input whose findings all have rewrite rules. The rewriter
+//     brings it into valid canonical form, with outcome rewritten and one
+//     warning per finding.
 //  3. not_rewritten: input with at least one finding the rewriter cannot
 //     rewrite. It is returned unchanged, even when other findings could be
 //     rewritten, with outcome not rewritten and one warning per finding.
 //
 // A test checks the table itself before the rewriter runs: that sameAsInput
 // appears only with outcomes valid and not rewritten, that rewrittenTo
-// appears only with outcomes valid and rewritten, that a valid outcome has no
-// findings, and that there is one warning per finding, in the same order.
+// appears only with outcome rewritten, that a valid outcome has no findings,
+// and that there is one warning per finding, in the same order.
 var rewriteVectors = []rewriteVector{
-	// Group 1: fixed points.
+	// Group 1: valid. The input is returned unchanged, in canonical form or
+	// not.
 	{
-		name:         "fixed_point/canonical_empty",
+		name:         "valid/canonical_empty",
 		why:          "The canonical empty form of every member.",
 		input:        `{"field":"","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`,
 		findings:     []rewriteFinding{},
@@ -137,7 +146,7 @@ var rewriteVectors = []rewriteVector{
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name: "fixed_point/typical",
+		name: "valid/typical",
 		why:  "A configured organization, with members in canonical order and `mapping` keys sorted.",
 		input: `{
 			"field": "groups",
@@ -154,7 +163,7 @@ var rewriteVectors = []rewriteVector{
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name: "fixed_point/empty_array_and_filter",
+		name: "valid/empty_array_and_filter",
 		why:  "An empty array, kept because it suppresses that IdP group, and a filter every key matches.",
 		input: `{
 			"field": "groups",
@@ -171,8 +180,8 @@ var rewriteVectors = []rewriteVector{
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name: "fixed_point/array_order_kept",
-		why:  "Canonical form keeps array elements in their original order, so H before G is not reordered.",
+		name: "valid/array_order_kept",
+		why:  "Array elements keep their order, so H before G is not reordered.",
 		input: `{
 			"field": "groups",
 			"mapping": {
@@ -189,57 +198,54 @@ var rewriteVectors = []rewriteVector{
 		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
-
-	// Group 2, first part: valid input in a form that is not canonical. Only
-	// the form changes, so there are no warnings.
 	{
-		name:         "rewritable/empty_object",
-		why:          "Absent members become their canonical empty forms; `legacy_group_name_mapping` stays absent.",
+		name:         "valid/empty_object",
+		why:          "Absent members are empty forms, not violations, so the input is not rewritten into canonical form.",
 		input:        `{}`,
 		findings:     []rewriteFinding{},
 		wantOutcome:  outcomeValid,
-		want:         rewrittenTo{`{"field":"","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
+		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name:         "rewritable/field_only",
-		why:          "The other members are absent and become their canonical empty forms.",
+		name:         "valid/field_only",
+		why:          "The other members are absent, which is an empty form of each.",
 		input:        `{"field":"groups"}`,
 		findings:     []rewriteFinding{},
 		wantOutcome:  outcomeValid,
-		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
+		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name:         "rewritable/mapping_null",
-		why:          "`null` is an empty form of `mapping`; the canonical one is `{}`.",
+		name:         "valid/mapping_null",
+		why:          "`null` is an empty form of `mapping`, though not the canonical one; it is kept.",
 		input:        `{"field":"groups","mapping":null,"regex_filter":null,"auto_create_missing_groups":false}`,
 		findings:     []rewriteFinding{},
 		wantOutcome:  outcomeValid,
-		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
+		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name:         "rewritable/regex_filter_empty_string",
-		why:          "The empty string is an empty form of `regex_filter`; the canonical one is `null`. This is what the UI sends when no filter is set.",
+		name:         "valid/regex_filter_empty_string",
+		why:          "The empty string is an empty form of `regex_filter`, though not the canonical one; it is kept. This is what the UI sends when no filter is set.",
 		input:        `{"field":"groups","mapping":{},"regex_filter":"","auto_create_missing_groups":false}`,
 		findings:     []rewriteFinding{},
 		wantOutcome:  outcomeValid,
-		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
+		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name:         "rewritable/legacy_empty",
-		why:          "An empty legacy mapping is permissible, and its canonical form is an absent member.",
+		name:         "valid/legacy_empty",
+		why:          "An empty legacy mapping is permissible; it is kept, though its canonical form is an absent member.",
 		input:        `{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false,"legacy_group_name_mapping":{}}`,
 		findings:     []rewriteFinding{},
 		wantOutcome:  outcomeValid,
-		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
+		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 	{
-		name: "rewritable/member_and_key_order",
-		why:  "Members are put in canonical order and `mapping` keys are sorted by code point.",
+		name: "valid/member_and_key_order",
+		why:  "Members out of canonical order and `mapping` keys unsorted. The order of members carries no meaning once decoded, so the input is returned unchanged.",
 		input: `{
 			"auto_create_missing_groups": true,
 			"mapping": {
@@ -248,21 +254,13 @@ var rewriteVectors = []rewriteVector{
 			},
 			"field": "groups"
 		}`,
-		findings:    []rewriteFinding{},
-		wantOutcome: outcomeValid,
-		want: rewrittenTo{`{
-			"field": "groups",
-			"mapping": {
-				"eng": ["11111111-1111-4111-8111-111111111111"],
-				"ops": ["22222222-2222-4222-8222-222222222222"]
-			},
-			"regex_filter": null,
-			"auto_create_missing_groups": true
-		}`},
+		findings:     []rewriteFinding{},
+		wantOutcome:  outcomeValid,
+		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 
-	// Group 2, second part: rewrite rules R1 through R7, one at a time, then
+	// Group 2: rewritable. Rewrite rules R1 through R7, one at a time, then
 	// together.
 	{
 		name: "rewritable/r1_nil_uuid",
@@ -439,7 +437,7 @@ var rewriteVectors = []rewriteVector{
 	},
 	{
 		name: "rewritable/r6_missing_group",
-		why:  "R6 removes M, which names no group. With the never-reject policy it applies on any route.",
+		why:  "R6 removes M, which names no group. With the never-reject action function it applies on any route.",
 		input: `{
 			"field": "groups",
 			"mapping": {
@@ -626,4 +624,254 @@ var rewriteVectors = []rewriteVector{
 			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: `"00000000-0000-0000-0000-000000000000"`},
 		},
 	},
+}
+
+// jsonTokens returns the JSON token sequence of text, with numbers kept as
+// text. Two texts are textually equal, in the sense of `SYNC_SETTINGS.md`,
+// when their token sequences are equal: whitespace and the way strings are
+// escaped do not appear in the sequence, and member order does.
+func jsonTokens(t *testing.T, text string) []json.Token {
+	t.Helper()
+	dec := json.NewDecoder(strings.NewReader(text))
+	dec.UseNumber()
+	var tokens []json.Token
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return tokens
+		}
+		require.NoError(t, err, "text is not JSON: %s", text)
+		tokens = append(tokens, tok)
+	}
+}
+
+// requireTextuallyEqual fails unless want and got are textually equal.
+func requireTextuallyEqual(t *testing.T, want, got string, msgAndArgs ...any) {
+	t.Helper()
+	require.Equal(t, jsonTokens(t, want), jsonTokens(t, got), msgAndArgs...)
+}
+
+// encodeSettings encodes settings with Go's encoder, which writes the
+// members in the order the canonical form requires.
+func encodeSettings(t *testing.T, settings codersdk.GroupSyncSettings) string {
+	t.Helper()
+	b, err := json.Marshal(settings)
+	require.NoError(t, err)
+	return string(b)
+}
+
+// elementAt returns the JSON text of the element a JSON Pointer refers to in
+// text, re-encoded so that two elements compare by value. The empty pointer
+// refers to the whole text.
+func elementAt(t *testing.T, text, pointer string) string {
+	t.Helper()
+	var v any
+	require.NoError(t, json.Unmarshal([]byte(text), &v))
+	if pointer != "" {
+		for _, token := range strings.Split(strings.TrimPrefix(pointer, "/"), "/") {
+			token = codersdk.UnescapeJSONPointerToken(token)
+			switch node := v.(type) {
+			case map[string]any:
+				v = node[token]
+			case []any:
+				i, err := strconv.Atoi(token)
+				require.NoError(t, err, "pointer %q indexes an array with %q", pointer, token)
+				v = node[i]
+			default:
+				require.Failf(t, "bad pointer", "pointer %q goes through a scalar", pointer)
+			}
+		}
+	}
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return string(b)
+}
+
+// normalizedJSON re-encodes text so that two texts compare by value.
+func normalizedJSON(t *testing.T, text string) string {
+	t.Helper()
+	var v any
+	require.NoError(t, json.Unmarshal([]byte(text), &v), "not JSON: %s", text)
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return string(b)
+}
+
+// rewriteFindings converts a vector's findings to the validators' type.
+func rewriteFindings(v rewriteVector) []codersdk.GroupSyncFinding {
+	out := make([]codersdk.GroupSyncFinding, 0, len(v.findings))
+	for _, f := range v.findings {
+		out = append(out, codersdk.GroupSyncFinding{Code: f.code, Path: f.path})
+	}
+	return out
+}
+
+// snapshotForTypical builds a snapshot of the typical deployment described in
+// `group_validity_test.go`, read for exactly the UUIDs in settings.
+func snapshotForTypical(settings codersdk.GroupSyncSettings) idpsync.GroupSnapshot {
+	requested := []string{}
+	for _, id := range settings.CanonicalMappingUUIDs() {
+		requested = append(requested, id.String())
+	}
+	return buildSnapshot(fullVector{requested: requested, snapshot: snapshotTypical})
+}
+
+// TestRewriteResultTable checks the table of vectors itself: names are
+// unique and begin with their group, expected settings and outcomes go
+// together as documented, there is one warning per finding with the same
+// code and path, each warning's received value is the element at its path in
+// the input, a not-rewritten warning accepts what it received, and every
+// expected text is in canonical form. A defect found here is in the table,
+// not in the code under test.
+func TestRewriteResultTable(t *testing.T) {
+	t.Parallel()
+
+	groups := map[string]string{
+		outcomeValid:        "valid/",
+		outcomeRewritten:    "rewritable/",
+		outcomeNotRewritten: "not_rewritten/",
+	}
+
+	names := make(map[string]bool, len(rewriteVectors))
+	for _, v := range rewriteVectors {
+		require.False(t, names[v.name], "vector name %q is not unique", v.name)
+		names[v.name] = true
+		require.NotEmpty(t, v.why, "vector %q has no why", v.name)
+
+		prefix, ok := groups[v.wantOutcome]
+		require.True(t, ok, "vector %q: unknown outcome %q", v.name, v.wantOutcome)
+		require.True(t, strings.HasPrefix(v.name, prefix), "vector %q: outcome %q belongs to group %q", v.name, v.wantOutcome, prefix)
+
+		_, err := decodeFullInput(v.input)
+		require.NoError(t, err, "vector %q: input must decode", v.name)
+
+		switch want := v.want.(type) {
+		case sameAsInput:
+			require.NotEqual(t, outcomeRewritten, v.wantOutcome, "vector %q: sameAsInput with outcome rewritten", v.name)
+		case rewrittenTo:
+			require.Equal(t, outcomeRewritten, v.wantOutcome, "vector %q: rewrittenTo needs outcome rewritten", v.name)
+			decoded, err := decodeFullInput(want.Text)
+			require.NoError(t, err, "vector %q: expected text must decode", v.name)
+			requireTextuallyEqual(t, encodeSettings(t, decoded), want.Text, "vector %q: expected text is not in canonical form", v.name)
+		default:
+			require.Failf(t, "malformed vector", "vector %q: want must be sameAsInput or rewrittenTo, got %T", v.name, v.want)
+		}
+
+		require.Equal(t, v.wantOutcome == outcomeValid, len(v.findings) == 0,
+			"vector %q: the outcome is valid exactly when there are no findings", v.name)
+		require.Len(t, v.wantWarnings, len(v.findings), "vector %q: one warning per finding", v.name)
+		for i, f := range v.findings {
+			w := v.wantWarnings[i]
+			require.Equal(t, f.code, w.code, "vector %q: warning %d has the wrong code", v.name, i)
+			require.Equal(t, f.path, w.path, "vector %q: warning %d has the wrong path", v.name, i)
+			require.Equal(t, elementAt(t, v.input, f.path), normalizedJSON(t, w.received),
+				"vector %q: warning %d received a value that is not in the input", v.name, i)
+			if v.wantOutcome == outcomeNotRewritten {
+				require.Equal(t, w.received, w.accepted, "vector %q: warning %d must accept what it received", v.name, i)
+			}
+		}
+	}
+}
+
+// TestRewriteResult plans every vector with the never-reject fixture action
+// function and carries the plan out. The outcome, settings, and warnings must
+// be exactly those the vector expects. A rewritten result must also be valid:
+// it has no syntax findings, and no validity findings against the typical
+// deployment, which the vectors' UUIDs are drawn from.
+func TestRewriteResult(t *testing.T) {
+	t.Parallel()
+
+	for _, v := range rewriteVectors {
+		t.Run(v.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings, err := decodeFullInput(v.input)
+			require.NoError(t, err)
+			findings := rewriteFindings(v)
+			plan := idpsync.RewritePlan(fixtureActions(t, actionsNeverReject), idpsync.GroupSyncRouteFetch, findings)
+
+			result, err := idpsync.RewriteResult(settings, findings, plan)
+			require.NoError(t, err, v.why)
+			require.Equal(t, idpsync.GroupSyncRewriteOutcome(v.wantOutcome), result.Outcome, v.why)
+
+			switch want := v.want.(type) {
+			case sameAsInput:
+				require.Equal(t, settings, result.Settings, "the settings must be returned unchanged: %s", v.why)
+			case rewrittenTo:
+				requireTextuallyEqual(t, want.Text, encodeSettings(t, result.Settings), v.why)
+			default:
+				require.Failf(t, "malformed vector", "want must be sameAsInput or rewrittenTo, got %T", v.want)
+			}
+
+			require.Len(t, result.Warnings, len(v.wantWarnings), v.why)
+			for i, want := range v.wantWarnings {
+				got := result.Warnings[i]
+				require.Equal(t, want.code, got.Code, "warning %d: %s", i, v.why)
+				require.Equal(t, want.path, got.Path, "warning %d: %s", i, v.why)
+				requireTextuallyEqual(t, want.received, string(got.Received), "warning %d received: %s", i, v.why)
+				if want.accepted == "" {
+					require.Empty(t, got.Accepted, "warning %d: the element was removed, so nothing is accepted: %s", i, v.why)
+				} else {
+					requireTextuallyEqual(t, want.accepted, string(got.Accepted), "warning %d accepted: %s", i, v.why)
+				}
+			}
+
+			if result.Outcome == idpsync.GroupSyncRewriteOutcomeRewritten {
+				require.Empty(t, result.Settings.WellFormedFindings(), "a rewrite must be well-formed")
+				validity, err := idpsync.ValidityFindings(result.Settings, snapshotForTypical(result.Settings))
+				require.NoError(t, err)
+				require.Empty(t, validity, "a rewrite must be valid")
+			}
+		})
+	}
+}
+
+// TestRewriteResultCallerErrors checks the two plans RewriteResult refuses to
+// carry out: one that says reject, and one whose actions do not match the
+// findings one for one. Each is a mistake by the caller, so each returns an
+// error.
+func TestRewriteResultCallerErrors(t *testing.T) {
+	t.Parallel()
+
+	settings, err := decodeFullInput(`{"field":"groups","mapping":{"eng":["00000000-0000-0000-0000-000000000000"]}}`)
+	require.NoError(t, err)
+	findings := []codersdk.GroupSyncFinding{{Code: codersdk.GroupSyncFindingNilUUID, Path: "/mapping/eng/0"}}
+
+	cases := []struct {
+		name string
+		why  string
+		plan idpsync.GroupSyncRewritePlan
+	}{
+		{
+			name: "reject",
+			why:  "A plan that says reject leaves nothing to carry out.",
+			plan: idpsync.GroupSyncRewritePlan{
+				Instruction: idpsync.GroupSyncInstructionReject,
+				Actions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionReject},
+			},
+		},
+		{
+			name: "too_few_actions",
+			why:  "One finding but no actions: the plan was not made for these findings.",
+			plan: idpsync.GroupSyncRewritePlan{
+				Instruction: idpsync.GroupSyncInstructionRewrite,
+				Actions:     []idpsync.GroupSyncAction{},
+			},
+		},
+		{
+			name: "too_many_actions",
+			why:  "One finding but two actions: the plan was not made for these findings.",
+			plan: idpsync.GroupSyncRewritePlan{
+				Instruction: idpsync.GroupSyncInstructionRewrite,
+				Actions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionRewrite, idpsync.GroupSyncActionRewrite},
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := idpsync.RewriteResult(settings, findings, c.plan)
+			require.Error(t, err, c.why)
+		})
+	}
 }

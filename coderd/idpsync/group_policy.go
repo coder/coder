@@ -45,8 +45,8 @@ const (
 type GroupSyncInstruction string
 
 const (
-	// GroupSyncInstructionAccept: accept the settings, in canonical form.
-	// Given when there are no findings.
+	// GroupSyncInstructionAccept: accept the settings as received. Given when
+	// there are no findings.
 	GroupSyncInstructionAccept GroupSyncInstruction = "accept"
 	// GroupSyncInstructionRewrite: rewrite the settings into valid canonical
 	// form. Given when every action is rewrite.

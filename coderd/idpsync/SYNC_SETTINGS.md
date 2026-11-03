@@ -128,8 +128,8 @@ carry the same guarantees.
 
 - **A request.** The text is decoded into `codersdk.GroupSyncSettings` and
   passed through the rewriter; see [Request routes](#request-routes). The result
-  is converted to the Go value and stored: in canonical form when it is valid
-  or rewritten, and as received when it is not rewritten.
+  is converted to the Go value and stored: in canonical form when it is
+  rewritten, and as received when it is valid or not rewritten.
 - **A stored row.** The Go value is decoded from the row keyed
   `<org-uuid>:group-sync-settings`, with no checks beyond JSON decoding. A row
   may fail W1 through W8, either because it was written before the current
@@ -445,8 +445,9 @@ at the moment it runs. It does not depend on sync, so it can run wherever
 settings are read or written. It returns one of three outcomes, together with
 settings and a list of warnings.
 
-- **Valid.** The input is valid. The settings returned are its canonical form,
-  and there are no warnings.
+- **Valid.** The input is valid. The settings returned are the input
+  unchanged, whether or not it is in canonical form, and there are no
+  warnings. Settings are rewritten only when they need a rewrite rule.
 - **Rewritten.** The input is not valid, and the rewrite rules make it valid.
   The settings returned are in canonical form, with one warning for each rule
   applied.
@@ -530,7 +531,7 @@ On the three PATCH endpoints, the rewriter runs on the settings the endpoint
 would store: the request body for the full-replace endpoint, and the merged
 result for the config and mapping-diff endpoints.
 
-- **Valid** settings are saved in canonical form.
+- **Valid** settings are saved as received.
 - **Rewritten** settings are saved as rewritten.
 - **Not rewritten** settings are saved as received, with their warning, where
   the current code accepts them, and rejected otherwise.
@@ -545,17 +546,17 @@ same as one written anew.
 Two behaviors of the current UI interact with these rules. The UI never sends
 `legacy_group_name_mapping`, so a save from the UI through the full-replace
 endpoint removes a stored legacy mapping, as it does today. The UI sends
-`"regex_filter": ""` when no filter is set. That is well-formed, and saving
-it in canonical form stores `null`.
+`"regex_filter": ""` when no filter is set. That is valid, so it is saved as
+received.
 
 #### Fetch route
 
 On GET, the stored row is passed through the rewriter inside `ReadModifyUpdate`.
 When the outcome is rewritten, the row is replaced with the rewrite, and the
 write is attributed to a system actor, not to the user who made the request.
-Otherwise the row is left unchanged. GET returns the canonical form of the row
-as stored at the moment of return; a row that is only non-canonical is not
-rewritten. The outcome never makes GET fail.
+Otherwise the row is left unchanged. GET returns the row as stored at the
+moment of return, so a row that is valid but not in canonical form is returned
+as it is. The outcome never makes GET fail.
 
 The PATCH endpoints read the existing row through the same path before merging,
 so the config and mapping-diff endpoints merge into rewritten settings. A value
