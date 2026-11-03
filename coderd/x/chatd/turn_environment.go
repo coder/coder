@@ -234,10 +234,10 @@ func (p *Server) buildTurnEnvironment(
 			)
 		}
 		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
-			// The model alone picks the version, on every Anthropic platform.
-			// Live requests show that Claude Platform on AWS and Amazon
-			// Bedrock accept the same versions as the Claude API, although
-			// Anthropic's docs say that they do not offer the toolset.
+			// The model alone picks the version on every Anthropic platform.
+			// Anthropic's docs say that Claude Platform on AWS and Amazon
+			// Bedrock do not offer the toolset, but both accept it for
+			// Claude 5.5 models.
 			computerUseToolVersion = anthropic.ComputerUseToolVersionForModel(modelConfig.Model)
 		}
 	}
