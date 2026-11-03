@@ -313,3 +313,123 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 		AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 	}
 }
+
+// FirstScopeNotCovered returns the first requested scope the allowed set does
+// not confer, or "" when it confers all of them. It compares expanded
+// permissions, not names, so `coder:workspaces.access` covers `workspace:read`
+// and `coder:all` covers everything. Only a wildcard grant covers a wildcard
+// request.
+//
+// Both sides must already be canonical: the `all` and `application_connect`
+// aliases are not expandable names. Coverage models site-level grants only, so
+// anything it cannot fully compare is an error rather than a false. When a
+// comparison cannot be decided, the returned scope is the one that failed,
+// alongside the error.
+func FirstScopeNotCovered(canonicalAllowed, canonicalRequested []ScopeName) (ScopeName, error) {
+	grants := make([]namedScope, 0, len(canonicalAllowed))
+	for _, name := range canonicalAllowed {
+		expanded, err := ExpandScope(name)
+		if err != nil {
+			return name, xerrors.Errorf("expand allowed scope: %w", err)
+		}
+		grants = append(grants, namedScope{name: name, scope: expanded})
+	}
+
+	for _, name := range canonicalRequested {
+		want, err := ExpandScope(name)
+		if err != nil {
+			return name, xerrors.Errorf("expand requested scope: %w", err)
+		}
+		covered, err := scopesCoverExpanded(grants, namedScope{name: name, scope: want})
+		if err != nil {
+			return name, err
+		}
+		if !covered {
+			return name, nil
+		}
+	}
+	return "", nil
+}
+
+// namedScope pairs an expanded scope with the name the caller spelled, so a
+// guard error can name the scope as it was requested rather than as it expanded.
+type namedScope struct {
+	name  ScopeName
+	scope Scope
+}
+
+// scopesCoverExpanded is the comparison FirstScopeNotCovered runs once both
+// sides are expanded. It is separate because every Scope ExpandScope builds satisfies
+// the guards below, so driving synthetic Scope values through this function is
+// the only way to reach them. Testing checkCoverable alone would leave
+// unverified the part that matters most: that both sides are actually checked.
+func scopesCoverExpanded(allowed []namedScope, requested namedScope) (bool, error) {
+	if err := checkCoverable(requested.scope, coverageSideRequested, requested.name); err != nil {
+		return false, err
+	}
+
+	granted := make([]Permission, 0, len(allowed)*4)
+	for _, entry := range allowed {
+		if err := checkCoverable(entry.scope, coverageSideAllowed, entry.name); err != nil {
+			return false, err
+		}
+		granted = append(granted, entry.scope.Site...)
+	}
+
+	for _, needed := range requested.scope.Site {
+		if !permissionCovered(needed, granted) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// Which side of a coverage comparison a scope sits on. Both sides are held to
+// the same invariant, so the side only distinguishes the error messages.
+const (
+	coverageSideRequested = "requested"
+	coverageSideAllowed   = "allowed"
+)
+
+// checkCoverable reports an error when scope carries authority that coverage
+// cannot compare, rather than letting the comparison run on the part that is
+// modeled. Each guard names authority coverage would not otherwise read: an org
+// or user grant may itself carry a negative permission, a negative site
+// permission would read as a grant on a matching resource and action (see
+// permissionCovered), and an allow list makes the Site permissions
+// conditional, so reading them as unconditional would overstate what the scope
+// grants.
+func checkCoverable(scope Scope, side string, name ScopeName) error {
+	if len(scope.User) > 0 || len(scope.ByOrgID) > 0 {
+		return xerrors.Errorf("%s scope %q grants org or user permissions, which coverage does not model", side, name)
+	}
+	for _, perm := range scope.Site {
+		if perm.Negate {
+			return xerrors.Errorf("%s scope %q carries a negative permission, which coverage does not model", side, name)
+		}
+	}
+	if !allowListContainsAll(scope.AllowIDList) {
+		return xerrors.Errorf("%s scope %q carries a resource allow list, which coverage does not model", side, name)
+	}
+	return nil
+}
+
+// permissionCovered reports whether any granted permission subsumes needed,
+// treating the wildcard resource type and action as covering every value.
+//
+// granted must carry no negative permissions; checkCoverable refuses a scope
+// holding one before FirstScopeNotCovered gets here. Skipping a negative leaves any
+// wildcard beside it free to match, so an "everything except delete" scope
+// would read as covering delete.
+func permissionCovered(needed Permission, granted []Permission) bool {
+	for _, perm := range granted {
+		if perm.ResourceType != needed.ResourceType && perm.ResourceType != policy.WildcardSymbol {
+			continue
+		}
+		if perm.Action != needed.Action && perm.Action != policy.WildcardSymbol {
+			continue
+		}
+		return true
+	}
+	return false
+}
