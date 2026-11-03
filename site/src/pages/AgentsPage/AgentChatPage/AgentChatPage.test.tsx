@@ -417,7 +417,9 @@ describe("AgentChatPage", () => {
 					MockChat.id,
 					row.id,
 					expect.objectContaining({
-						content: [{ type: "text", text: `${answerPrefix}queued text edit` }],
+						content: [
+							{ type: "text", text: `${answerPrefix}queued text edit` },
+						],
 					}),
 				),
 			);
