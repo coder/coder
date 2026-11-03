@@ -4,34 +4,48 @@
 # stops the review workspace.
 #
 # Environment:
-#   CODER_URL      Coder deployment URL.
-#   CODER_TOKEN    Session token of the bot that owns the review chats.
-#   PR_URL         Pull request URL, in its /pull/ or /issues/ form.
-#   WORKFLOW_NAME  Workflow name. coder/agents-chat-action labels its chats
-#                  with it, along with the pull request.
+#   CODER_URL             Coder deployment URL.
+#   CODER_TOKEN           Session token of the bot that owns the review chats.
+#   PR_URL                Pull request URL, in its /pull/ or /issues/ form.
+#   WORKFLOW_NAME         Workflow name. coder/agents-chat-action labels its
+#                         chats with it, along with the pull request.
+#   GITHUB_REPOSITORY     The repository whose review workspaces are named
+#                         doc-check-pr-<number>. GitHub Actions sets it.
+#   STOP_BUDGET_SECONDS   Optional. The most time the script takes, 270 by
+#                         default. A third of it goes to the chats, and the
+#                         rest to the workspaces.
 #
 # A failure prints a warning and exits 0, and the review keeps running.
 # Tested by doc-check-stop-review.test.sh.
 
 set -uo pipefail
 
-# The bounds keep a run under the 5 minutes GitHub gives an always() step
-# after a cancel: 90 seconds for the chats and 3 minutes for a workspace
-# build, polling every 5 seconds.
+# The default budget leaves 30 seconds of the 5 minutes GitHub gives an
+# always() step after a cancel.
+readonly BUDGET_SECONDS="${STOP_BUDGET_SECONDS:-270}"
+readonly CHAT_BUDGET_SECONDS=$((BUDGET_SECONDS / 3))
 readonly POLL_SECONDS=5
-readonly CHAT_POLLS=18
-readonly WORKSPACE_POLLS=36
-readonly INTERRUPTS_PER_CHAT=3
 readonly REQUEST_SECONDS=30
+readonly INTERRUPTS_PER_CHAT=3
+readonly QUEUE_DELETES=20
+readonly STARTED_AT="${SECONDS}"
 
 warn() {
 	echo "::warning::$*"
 }
 
+# Reports whether the script has used the given number of seconds.
+spent() {
+	((SECONDS - STARTED_AT >= $1))
+}
+
 api() {
-	local method="$1" path="$2"
+	local method="$1" path="$2" left
 	shift 2
-	curl -sS --fail-with-body --max-time "${REQUEST_SECONDS}" -X "${method}" \
+	left=$((BUDGET_SECONDS - (SECONDS - STARTED_AT)))
+	((left > REQUEST_SECONDS)) && left="${REQUEST_SECONDS}"
+	((left < 1)) && left=1
+	curl -sS --fail-with-body --max-time "${left}" -X "${method}" \
 		-H "Coder-Session-Token: ${CODER_TOKEN}" \
 		"$@" "${CODER_URL%/}${path}"
 }
@@ -44,22 +58,28 @@ chat_tree() {
 }
 
 # Drops every queued message, because finishing an interruption promotes
-# the next one and starts the chat again.
+# the next one and starts the chat again. Deleting one can promote the
+# next, so this reads the queue again after each delete.
 clear_queue() {
-	local id="$1" messages qid
-	# queued_messages holds the whole queue on any read without a cursor;
-	# limit=1 only keeps the message page small.
-	messages=$(api GET "/api/v2/chats/${id}/messages?limit=1") || {
-		warn "Could not read the queue of chat ${id}."
-		return 0
-	}
-	for qid in $(jq -r '.queued_messages[]?.id' <<<"${messages}"); do
-		if api DELETE "/api/v2/chats/${id}/queue/${qid}" >/dev/null; then
-			echo "Dropped queued message ${qid} on chat ${id}."
-		else
-			warn "Could not drop queued message ${qid} on chat ${id}."
+	local id="$1" messages qid n
+	for ((n = 0; n < QUEUE_DELETES; n++)); do
+		# queued_messages holds the whole queue on any read without a
+		# cursor; limit=1 only keeps the message page small.
+		messages=$(api GET "/api/v2/chats/${id}/messages?limit=1") || {
+			warn "Could not read the queue of chat ${id}."
+			return 0
+		}
+		qid=$(jq -r '.queued_messages[0].id // empty' <<<"${messages}")
+		if [[ -z "${qid}" ]]; then
+			return 0
 		fi
+		if ! api DELETE "/api/v2/chats/${id}/queue/${qid}" >/dev/null; then
+			warn "Could not drop queued message ${qid} on chat ${id}."
+			return 0
+		fi
+		echo "Dropped queued message ${qid} on chat ${id}."
 	done
+	warn "Chat ${id} still has queued messages after ${QUEUE_DELETES} deletes."
 }
 
 # Reports whether any chat in a chat_tree listing is running, waiting on a
@@ -69,11 +89,11 @@ any_active() {
 }
 
 # Interrupts the chat and its sub-agents until none is active. An
-# interrupted chat in requires_action returns to running, and deleting a
+# interrupted chat in requires_action returns to running, and dropping a
 # paused chat's queue can start it, so every poll interrupts whatever is
 # running again, up to INTERRUPTS_PER_CHAT times per chat.
 stop_chat() {
-	local root="$1" tree id status poll sent
+	local root="$1" tree id status sent
 	local -A interrupts=()
 	tree=$(chat_tree "${root}") || {
 		warn "Could not read review chat ${root}."
@@ -83,13 +103,19 @@ stop_chat() {
 		clear_queue "${id}"
 	done 3<<<"${tree}"
 
-	for ((poll = 0; poll <= CHAT_POLLS; poll++)); do
+	# Sleeping alone reaches the poll limit when the chat budget runs out;
+	# slow requests reach the budget first.
+	local poll polls=$((CHAT_BUDGET_SECONDS / POLL_SECONDS))
+	for ((poll = 0; poll <= polls; poll++)); do
 		if ((poll > 0)); then
+			if spent "${CHAT_BUDGET_SECONDS}"; then
+				break
+			fi
 			sleep "${POLL_SECONDS}"
 		fi
 		tree=$(chat_tree "${root}") || continue
 		if ! any_active "${tree}"; then
-			((poll > 0 || ${#interrupts[@]} > 0)) &&
+			((${#interrupts[@]} > 0)) &&
 				echo "Review chat ${root} and its sub-agents are stopped."
 			return 0
 		fi
@@ -118,10 +144,14 @@ stop_chat() {
 # Stops the workspace and waits for the stop to finish, so the next run can
 # start it fresh. A build in progress finishes first.
 stop_workspace() {
-	local id="$1" name="$1" workspace transition status poll stop_sent=false
-	for ((poll = 0; poll < WORKSPACE_POLLS; poll++)); do
+	local id="$1" name="" workspace transition status stop_sent=false
+	local poll polls=$((BUDGET_SECONDS / POLL_SECONDS))
+	for ((poll = 0; poll < polls; poll++)); do
+		if spent "${BUDGET_SECONDS}"; then
+			break
+		fi
 		workspace=$(api GET "/api/v2/workspaces/${id}") || {
-			warn "Could not read workspace ${name}."
+			warn "Could not read workspace ${name:-${id}}."
 			return 0
 		}
 		name=$(jq -r '.name' <<<"${workspace}")
@@ -136,20 +166,20 @@ stop_workspace() {
 			[[ "${stop_sent}" == "true" ]] && echo "Stopped workspace ${name}."
 			return 0
 			;;
-		start/*)
-			# A start that failed or was canceled can leave resources up,
-			# so it gets a stop too.
+		*)
+			# A build that failed or was canceled can leave the workspace
+			# up, so it gets a stop. The stop this run sent gets one try.
+			if [[ "${stop_sent}" == "true" && "${transition}" == "start" ]]; then
+				warn "Workspace ${name} is ${status} again after the stop. The next review may run on it with an expired GitHub token."
+				return 0
+			fi
 			if [[ "${stop_sent}" == "true" ]]; then
-				warn "Workspace ${name} is ${status} again after the stop."
+				warn "The ${transition} build of workspace ${name} ended with status ${status}. The next review may run on this workspace with an expired GitHub token."
 				return 0
 			fi
 			;;
-		*)
-			warn "Workspace ${name} ended its ${transition} build ${status}."
-			return 0
-			;;
 		esac
-		echo "Stopping workspace ${name}."
+		echo "Stopping workspace ${name} (${transition} build ${status})."
 		api POST "/api/v2/workspaces/${id}/builds" \
 			-H "Content-Type: application/json" \
 			-d '{"transition":"stop"}' >/dev/null || {
@@ -159,7 +189,7 @@ stop_workspace() {
 		stop_sent=true
 		sleep "${POLL_SECONDS}"
 	done
-	warn "Workspace ${name} did not finish its build within $((WORKSPACE_POLLS * POLL_SECONDS)) seconds."
+	warn "Workspace ${name:-${id}} did not finish its build within the ${BUDGET_SECONDS}-second budget."
 	return 0
 }
 
@@ -171,7 +201,8 @@ main() {
 		echo "No pull request URL. Nothing to stop."
 		return 0
 	fi
-	local gh_target="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}#${BASH_REMATCH[4]}"
+	local repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+	local gh_target="${repo}#${BASH_REMATCH[4]}"
 	local ws_name="doc-check-pr-${BASH_REMATCH[4]}"
 	local chats workspaces workspace_ids id
 
@@ -190,12 +221,18 @@ main() {
 	done
 
 	# The chats' own workspaces, plus the one named for the pull request.
-	# The name filter matches substrings, so keep only the exact name.
-	workspaces=$(api GET /api/v2/workspaces -G \
-		--data-urlencode "q=owner:me name:${ws_name}") || {
-		warn "Could not look up workspace ${ws_name}."
-		workspaces='{}'
-	}
+	# That name has only the number, so look it up only for this
+	# repository's pull requests. The name filter matches substrings, so keep
+	# only the exact name.
+	local this_repo="${GITHUB_REPOSITORY:-}"
+	workspaces='{}'
+	if [[ "${repo,,}" == "${this_repo,,}" ]]; then
+		workspaces=$(api GET /api/v2/workspaces -G \
+			--data-urlencode "q=owner:me name:${ws_name}") || {
+			warn "Could not look up workspace ${ws_name}."
+			workspaces='{}'
+		}
+	fi
 	workspace_ids=$(
 		{
 			jq -r '.[].workspace_id // empty' <<<"${chats}"

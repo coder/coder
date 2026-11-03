@@ -24,6 +24,7 @@ EOF
 #               takes the next status and keeps the last, and a stop
 #               applies after_stop when it is set
 #   fail        paths that answer with an HTTP error
+#   slow        seconds each request takes
 # An interrupted chat reads as interrupting twice, and a stopping
 # workspace reads as stopping twice, so a case shows whether the script
 # waits for them.
@@ -43,7 +44,7 @@ while (($#)); do
 done
 path="${url#"${CODER_URL%/}"}"
 path="${path%%\?*}"
-flag=""
+flag=" max=${max_time}"
 [[ -z "${max_time}" ]] && flag=" NO-MAX-TIME"
 echo "${method} ${path}${query[*]:+ ${query[*]}}${data:+ ${data}}${flag}" >>"${STATE}/calls"
 
@@ -57,6 +58,10 @@ fail() {
 }
 if jq -e --arg p "${path}" '.fail | index($p)' "${st}" >/dev/null; then
 	fail
+fi
+slow=$(jq -r '.slow // 0' "${st}")
+if [[ "${slow}" != 0 ]]; then
+	/bin/sleep "${slow}"
 fi
 
 case "${method} ${path}" in
@@ -74,8 +79,14 @@ DELETE\ /api/v2/chats/*/queue/*)
 	qid="${rest##*/}"
 	jq -e --arg id "${id}" --argjson q "${qid}" '.chats[$id].queued | index($q)' "${st}" >/dev/null || fail
 	update --arg id "${id}" --argjson q "${qid}" '.chats[$id].queued -= [$q]'
-	# Leaving a pause starts the chat, as in chatstate.
-	update --arg id "${id}" 'if .chats[$id].status == "paused" then .chats[$id].status = "running" else . end'
+	# Leaving a pause promotes the next queued message and runs it, or
+	# returns to waiting when none is left, as in chatstate.
+	update --arg id "${id}" '
+		if .chats[$id].status == "paused" then
+			if (.chats[$id].queued | length) > 0 then
+				.chats[$id].queued |= .[1:] | .chats[$id].status = "running"
+			else .chats[$id].status = "waiting" end
+		else . end'
 	;;
 POST\ /api/v2/chats/*/interrupt)
 	id="${path#/api/v2/chats/}"
@@ -134,8 +145,9 @@ case_name=""
 OUT=""
 CALLS=""
 
-# run_case NAME PR_URL STATE_JQ runs the script against a fresh state.
-# STATE_JQ is a jq expression, so cases can leave keys unquoted.
+# run_case NAME PR_URL STATE_JQ [VAR=VALUE...] runs the script against a
+# fresh state, with any extra environment. STATE_JQ is a jq expression, so
+# cases can leave keys unquoted.
 run_case() {
 	case_name="$1"
 	export STATE="${WORK}/${case_name}"
@@ -143,8 +155,9 @@ run_case() {
 	: >"${STATE}/calls"
 	jq -n "{chats: {}, list: [], stuck: [], workspaces: {}, fail: []} + ($3)" >"${STATE}/state.json"
 	local code=0
-	OUT=$(PATH="${WORK}/bin:${PATH}" CODER_URL="https://coder.example.com/" CODER_TOKEN="token" \
-		PR_URL="$2" WORKFLOW_NAME="AI Documentation Check" bash "${SCRIPT}" 2>&1) || code=$?
+	OUT=$(env PATH="${WORK}/bin:${PATH}" CODER_URL="https://coder.example.com/" CODER_TOKEN="token" \
+		PR_URL="$2" WORKFLOW_NAME="AI Documentation Check" GITHUB_REPOSITORY="coder/coder" \
+		"${@:4}" bash "${SCRIPT}" 2>&1) || code=$?
 	CALLS=$(cat "${STATE}/calls")
 	if [[ "${code}" != 0 ]]; then
 		fail_case "exited ${code}"
@@ -240,20 +253,33 @@ run_case requires-action "https://github.com/coder/coder/pull/12" '{
 	}
 }'
 expect_calls 2 "POST /api/v2/chats/c1/interrupt"
-# The second interrupt follows the next poll, not the end of a wait.
-second=$(grep -nF "POST /api/v2/chats/c1/interrupt" <<<"${CALLS}" | sed -n 2p | cut -d: -f1)
-first=$(grep -nF "POST /api/v2/chats/c1/interrupt" <<<"${CALLS}" | sed -n 1p | cut -d: -f1)
-[[ "$(sed -n "${first},${second}p" <<<"${CALLS}" | grep -c SLEEP)" == 1 ]] || fail_case "want one poll between the two interrupts"
+# The second interrupt comes one poll after the first.
+second=$(grep -nF "POST /api/v2/chats/c1/interrupt" <<<"${CALLS}" | sed -n 2p | cut -d: -f1 || true)
+first=$(grep -nF "POST /api/v2/chats/c1/interrupt" <<<"${CALLS}" | sed -n 1p | cut -d: -f1 || true)
+if [[ -n "${first}" && -n "${second}" ]]; then
+	[[ "$(sed -n "${first},${second}p" <<<"${CALLS}" | grep -c SLEEP)" == 1 ]] || fail_case "want one poll between the two interrupts"
+fi
 expect_output "Review chat r1 and its sub-agents are stopped."
 expect_no_output "::warning::"
 
+# Dropping the message under edit promotes the next one, which runs.
 run_case paused-chat "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	chats: {r1: {status: "paused", workspace_id: null, children: [], queued: [31, 32]}}
+}'
+expect_before "DELETE /api/v2/chats/r1/queue/31" "POST /api/v2/chats/r1/interrupt"
+expect_calls 0 "DELETE /api/v2/chats/r1/queue/32"
+expect_calls 1 "POST /api/v2/chats/r1/interrupt"
+expect_no_output "::warning::"
+[[ "$(state_of '.chats.r1.status')" == "waiting" ]] || fail_case "paused chat kept running after its queue was dropped"
+
+run_case paused-chat-last-message "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
 	chats: {r1: {status: "paused", workspace_id: null, children: [], queued: [31]}}
 }'
-expect_before "DELETE /api/v2/chats/r1/queue/31" "POST /api/v2/chats/r1/interrupt"
-expect_calls 1 "POST /api/v2/chats/r1/interrupt"
-[[ "$(state_of '.chats.r1.status')" == "waiting" ]] || fail_case "paused chat kept running after its queue was dropped"
+expect_calls 1 "DELETE /api/v2/chats/r1/queue/31"
+expect_calls 0 "/interrupt"
+[[ "$(state_of '.chats.r1.status')" == "waiting" ]] || fail_case "paused chat did not return to waiting"
 
 run_case stuck-chat "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
@@ -265,6 +291,17 @@ expect_calls 3 "POST /api/v2/chats/r1/interrupt"
 expect_output "::warning::Review chat r1 did not stop."
 # The workspace still stops, which ends the stuck chat's tool calls.
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+
+# Slow requests end the chat polls at the chat share of the budget, which
+# leaves the rest for the workspaces.
+run_case chat-budget "https://github.com/coder/coder/pull/12" '{
+	slow: 1,
+	list: ["r1"],
+	stuck: ["r1"],
+	chats: {r1: {status: "running", workspace_id: null, children: [], queued: []}}
+}' STOP_BUDGET_SECONDS=15
+expect_calls 1 "POST /api/v2/chats/r1/interrupt"
+expect_output "::warning::Review chat r1 did not stop."
 
 run_case chat-read-fails "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
@@ -284,12 +321,33 @@ expect_output "Stopped workspace doc-check-pr-12."
 run_case build-never-ends "https://github.com/coder/coder/pull/12" '{
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting"]}}
 }'
-expect_calls 36 "GET /api/v2/workspaces/w1"
+expect_calls 54 "GET /api/v2/workspaces/w1"
 expect_calls 0 "POST /api/v2/workspaces/w1/builds"
-expect_output "::warning::Workspace doc-check-pr-12 did not finish its build within 180 seconds."
+expect_output "::warning::Workspace doc-check-pr-12 did not finish its build within the 270-second budget."
+
+# Each request's time limit shrinks to what is left of the budget, and once
+# the slow lookups spend the budget, the workspace is not polled.
+run_case budget-caps-requests "https://github.com/coder/coder/pull/12" '{
+	slow: 3,
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting"]}}
+}' STOP_BUDGET_SECONDS=5
+first_max=$(grep -F "GET /api/v2/chats label=" <<<"${CALLS}" | grep -oE 'max=[0-9]+' | cut -d= -f2 || true)
+later_max=$(grep -F "GET /api/v2/workspaces q=" <<<"${CALLS}" | grep -oE 'max=[0-9]+' | cut -d= -f2 || true)
+if [[ -z "${first_max}" || -z "${later_max}" ]] || ((first_max > 5 || later_max >= first_max)); then
+	fail_case "want request limits within the budget and shrinking, got ${first_max:-none} then ${later_max:-none}"
+fi
+expect_calls 0 "GET /api/v2/workspaces/w1"
+expect_output "did not finish its build within the 5-second budget."
 
 run_case failed-start "https://github.com/coder/coder/pull/12" '{
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["failed"]}}
+}'
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+expect_output "Stopped workspace doc-check-pr-12."
+
+# A stop that failed in an earlier run gets another try.
+run_case earlier-failed-stop "https://github.com/coder/coder/pull/12" '{
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "stop", statuses: ["failed"]}}
 }'
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 expect_output "Stopped workspace doc-check-pr-12."
@@ -298,7 +356,8 @@ run_case failed-stop "https://github.com/coder/coder/pull/12" '{
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"],
 		after_stop: {statuses: ["stopping", "failed"]}}}
 }'
-expect_output "::warning::Workspace doc-check-pr-12 ended its stop build failed."
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+expect_output "::warning::The stop build of workspace doc-check-pr-12 ended with status failed."
 expect_no_output "Stopped workspace"
 
 run_case running-after-stop "https://github.com/coder/coder/pull/12" '{
@@ -307,6 +366,15 @@ run_case running-after-stop "https://github.com/coder/coder/pull/12" '{
 }'
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 expect_output "::warning::Workspace doc-check-pr-12 is running again after the stop."
+
+# The workspace name has only the PR number, so a PR in another
+# repository must not stop this repository's workspace.
+run_case other-repository "https://github.com/coder/other/pull/12" '{
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
+}'
+expect_calls 1 "label=gh-target:coder/other#12"
+expect_calls 0 "GET /api/v2/workspaces"
+expect_calls 0 "/builds"
 
 run_case exact-workspace-name "https://github.com/coder/coder/pull/12" '{
 	workspaces: {

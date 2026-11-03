@@ -5,7 +5,8 @@
 # Triggers:
 #   - New PR opened: Initial documentation review
 #   - PR updated (synchronize): Re-review after changes
-#   - Label "doc-check" added: Manual trigger for review
+#   - Label "doc-check" added: Review now, and on every later push until
+#     the label is removed
 #   - PR marked ready for review: Review when draft is promoted
 #   - PR merged (closed with merged == true): Delete the review workspace
 #   - Workflow dispatch: Manual run with PR URL
@@ -53,16 +54,20 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    # Runs for one PR share its review chat and workspace. A new run cancels
-    # the one in progress, because the new commit makes its review stale, and
-    # the cancelled run's last step stops that review before the new run
-    # starts. The key is the PR URL, so a manual run and a pull request run
-    # for one PR share the group; workflow_dispatch validates pr_url to the
-    # same https://github.com/<owner>/<repo>/pull/<number> form.
+    # Runs for one PR share its review chat and workspace, so any new run in
+    # the group cancels the one in progress, and the cancelled run's last
+    # step stops that review before the new run starts. The key is the PR
+    # URL, so a manual run and a pull request run for one PR share the group;
+    # workflow_dispatch validates pr_url to the same
+    # https://github.com/<owner>/<repo>/pull/<number> form. A push therefore
+    # cancels a manual run too, and on a PR whose changed files all skip
+    # review, the push run then skips; dispatch again after the push, or add
+    # the doc-check label.
     concurrency:
       group: doc-check-${{ github.event.pull_request.html_url || inputs.pr_url }}
       cancel-in-progress: true
-    # Covers the 25-minute wait, setup, and both cleanup steps.
+    # Covers the wait set by wait-timeout-seconds, setup, and both cleanup
+    # steps.
     timeout-minutes: 45
     permissions:
       contents: read
@@ -195,7 +200,7 @@ jobs:
               echo ""
               echo "All ${ALL_COUNT} changed file(s) are in path classes with no documentation surface, so no review ran."
               echo ""
-              echo "Add the \`doc-check\` label to review anyway."
+              echo "Add the \`doc-check\` label to review this push and every later push until the label is removed."
             } >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "skip=false" >> "${GITHUB_OUTPUT}"
@@ -272,6 +277,9 @@ jobs:
       # starts the workspace fresh.
       - name: Stop the previous review and its workspace
         if: steps.checkout-scripts.outcome == 'success'
+        # The script ends within its STOP_BUDGET_SECONDS (270 by default),
+        # inside the 5 minutes GitHub gives an always() step after a cancel.
+        # This limit only catches a script that hangs past that budget.
         timeout-minutes: 6
         env:
           CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -492,7 +500,8 @@ jobs:
           wait: complete
           # A review that runs past this stops in the last step and fails the
           # job. On the local model, a review whose steps are not slowed by
-          # load takes a median of about 13 minutes.
+          # load is estimated at a median of about 13 minutes, at 15 seconds
+          # a step plus its measured tool time.
           wait-timeout-seconds: "1500"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
@@ -504,6 +513,8 @@ jobs:
       # every run. The next run starts the workspace again.
       - name: Stop the review and its workspace
         if: always() && steps.checkout-scripts.outcome == 'success'
+        # Sized like the timeout on "Stop the previous review and its
+        # workspace" above.
         timeout-minutes: 6
         env:
           CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -517,7 +528,7 @@ jobs:
             {
               echo "### Documentation check stopped"
               echo ""
-              echo "The review did not finish within 25 minutes, so this job stopped it before it finished."
+              echo "The review did not finish in time, so this job tried to stop it. A warning from this step means the review or its workspace may still be running in Coder."
               echo ""
               echo "Re-run this job or push a commit to start a new review."
             } >> "${GITHUB_STEP_SUMMARY}"
