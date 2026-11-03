@@ -78,6 +78,18 @@ type rewriteWarning struct {
 	accepted string
 }
 
+// Outcomes the rewriter reports: what it did with the settings as a whole.
+const (
+	// outcomeStrictlyValid: the input had no findings; the rewriter returned
+	// it in canonical form.
+	outcomeStrictlyValid = "strictly_valid"
+	// outcomeRewritten: the rewriter brought the input into canonical strict
+	// form.
+	outcomeRewritten = "rewritten"
+	// outcomeNotRewritten: the rewriter returned the input unchanged.
+	outcomeNotRewritten = "not_rewritten"
+)
+
 // rewriteWant is the settings a rewriter vector expects: either its input
 // unchanged, or an explicit canonical text.
 type rewriteWant interface{ isRewriteWant() }
