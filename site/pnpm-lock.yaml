@@ -14,7 +14,7 @@ overrides:
 
 patchedDependencies:
   frimousse@0.4.0:
-    hash: 209120411ff24074796d632e34f33b362da337f0ea8a4e843747524141d89c73
+    hash: 98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665
     path: patches/frimousse@0.4.0.patch
 
 importers:
@@ -134,7 +134,7 @@ importers:
         version: 2.4.9(@types/react@19.2.18)(react@19.2.8)
       frimousse:
         specifier: 0.4.0
-        version: 0.4.0(patch_hash=209120411ff24074796d632e34f33b362da337f0ea8a4e843747524141d89c73)(react@19.2.8)(typescript@6.0.2)
+        version: 0.4.0(patch_hash=98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665)(react@19.2.8)(typescript@6.0.2)
       front-matter:
         specifier: 4.0.2
         version: 4.0.2
@@ -10747,7 +10747,7 @@ snapshots:
 
   fresh@0.5.2: {}
 
-  frimousse@0.4.0(patch_hash=209120411ff24074796d632e34f33b362da337f0ea8a4e843747524141d89c73)(react@19.2.8)(typescript@6.0.2):
+  frimousse@0.4.0(patch_hash=98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665)(react@19.2.8)(typescript@6.0.2):
     dependencies:
       react: 19.2.8
     optionalDependencies:

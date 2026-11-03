@@ -1,3 +1,6 @@
+# Upstream fix: https://github.com/liveblocks/frimousse/pull/39
+# Remove after upgrading Frimousse to a release containing this fix.
+
 diff --git a/dist/index.cjs b/dist/index.cjs
 index f83495eb38e1e3f1c2a490903af3be94b8b3289e..3dc3a6a4cf2b0771e92896733dad59df0735a1c6 100644
 --- a/dist/index.cjs
