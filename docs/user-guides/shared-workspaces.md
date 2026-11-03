@@ -138,3 +138,67 @@ The **Disabled** policy applies to every workspace in the organization.
 It overrides the sharing permission of any role held by a member of that organization, including Organization Admin.
 
 The **Disabled** policy can also be applied to the entire deployment by [setting the `CODER_DISABLE_WORKSPACE_SHARING` environment variable, or by using the corresponding command argument or config value](https://coder.com/docs/reference/cli/server#--disable-workspace-sharing).
+
+## Git identity and credentials
+
+Git in a shared workspace uses the workspace owner's identity and credentials for every user who connects, including users with only the `use` role.
+Coder resolves each of the following from the workspace owner, not from the user who runs the command:
+
+| What                        | Where it comes from                                                                                                                                                 | Result for shared users                                                  |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| Commit author and committer | The `GIT_AUTHOR_*` and `GIT_COMMITTER_*` environment variables, if the template sets them from `data.coder_workspace_owner.me` at build time                        | Commits are attributed to the owner                                      |
+| Git over SSH                | The owner's [Coder Git SSH key](../admin/external-auth.md#ssh-authentication), which `coder gitssh` injects through `GIT_SSH_COMMAND`                               | Pushes and pulls authenticate as the owner                               |
+| Git over HTTPS              | The owner's [external auth](../admin/external-auth.md#oauth-external-auth) token, which Coder supplies through `GIT_ASKPASS` and `coder external-auth access-token` | Git, and any tool that uses the token, acts with the owner's permissions |
+| User secrets                | The owner's [user secrets](./user-secrets.md)                                                                                                                       | Shared users can read the owner's injected secret values                 |
+
+### Security implications
+
+The `use` role grants SSH and terminal access, which is enough to run Git with the owner's credentials.
+
+> [!WARNING]
+> Share a personally owned workspace only with users you trust to act with your source control permissions.
+> Any shared user can push code, open pull requests, or call your Git provider's API as you, and the Git provider attributes that activity to your account.
+
+### Use a service account for shared or long-lived workspaces
+
+To keep personal credentials out of a shared workspace, have a [service account](../admin/users/headless-auth.md) own the workspace instead of a person.
+Git in the workspace then uses the service account's identity and credentials instead of a person's.
+Creating service accounts requires a Premium license.
+
+Service accounts have no email address and can't sign in to the Coder dashboard.
+If the template sets the commit identity from the workspace owner, commits show the service account's name with an empty email address.
+To give the workspace access to repositories, run `coder publickey` as the service account, then add the key to a dedicated machine account on your Git provider.
+Grant that account only the repository access the shared work needs.
+
+For a complete setup, refer to [Persistent shared workspaces with service accounts](../tutorials/persistent-shared-workspaces.md).
+
+### Commit and push as yourself
+
+A shared user can override the owner's identity and credentials for their own session.
+
+> [!WARNING]
+> Every user of a workspace connects as the same operating system user and shares the same home directory.
+> Credentials that you store in the workspace, such as a GitHub CLI token or an SSH private key, are readable by every other user of the workspace.
+
+To set your commit identity for the current shell session, export the Git identity variables:
+
+```sh
+export GIT_AUTHOR_NAME="Alice Example"
+export GIT_AUTHOR_EMAIL="alice@example.com"
+export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+```
+
+Git gives these environment variables precedence over Git configuration.
+If the template sets them, `git config user.name` and `git -c user.name=...` don't change the commit identity.
+To change only the author of a single commit, run `git commit --author="Alice Example <alice@example.com>"`.
+The committer stays the owner.
+
+To authenticate with your own Git provider account instead of the owner's, use one of the following:
+
+- **SSH agent forwarding**: connect with `coder ssh --forward-agent <owner>/<workspace>`, then run `export GIT_SSH_COMMAND=ssh`.
+  Git uses the keys in your local SSH agent instead of the owner's Coder Git SSH key, and no private key is written to the workspace.
+  While you're connected, other users of the workspace can use the forwarded agent socket.
+- **GitHub CLI**: run `gh auth login` to sign in, then `gh auth setup-git` to make Git use that token over HTTPS.
+  The GitHub CLI stores the token in the workspace, and `gh auth setup-git` updates the shared `~/.gitconfig`, so the change affects every user of the workspace.
+  Run `gh auth logout` when you finish.

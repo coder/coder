@@ -443,6 +443,8 @@ export const CreateWorkspacePageView: React.FC<
 								<Link
 									size="sm"
 									href={docs("/admin/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
 								>
 									View docs
 								</Link>
@@ -649,6 +651,8 @@ export const CreateWorkspacePageView: React.FC<
 										href={docs(
 											"/admin/templates/extending-templates/parameters",
 										)}
+										target="_blank"
+										rel="noreferrer"
 									>
 										View docs
 									</Link>

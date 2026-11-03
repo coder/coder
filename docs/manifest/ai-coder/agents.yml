@@ -12,6 +12,9 @@ children:
   - title: Extending agents
     description: Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.
     path: ./ai-coder/agents/extending-agents.md
+  - title: Bring your own MCP servers
+    description: Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.
+    path: ./ai-coder/agents/bring-your-own-mcp-servers.md
   - title: ACP subagents
     description: Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.
     path: ./ai-coder/agents/acp-subagents.md
