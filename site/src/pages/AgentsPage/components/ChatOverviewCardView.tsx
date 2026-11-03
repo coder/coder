@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useId, useState } from "react";
 import type { ChatCost, ChatDiffStatus } from "#/api/typesGenerated";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -75,6 +76,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	return (
 		<aside
 			aria-labelledby={headingId}
+			aria-busy={isLoading}
 			className={cn(
 				"flex max-h-[min(32rem,calc(100vh-10rem))] w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
 				className,
@@ -87,13 +89,23 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				Overview
 			</h2>
 
-			{isEmpty && (
-				<p className="m-0 py-2 text-xs text-content-secondary">
-					{isLoading
-						? "Loading…"
-						: "Nothing to show yet. Cost, changes, pull requests, and attachments show up here as the agent works."}
-				</p>
-			)}
+			{isEmpty &&
+				(isLoading ? (
+					<div role="status" className="flex flex-col gap-2 py-2">
+						<span className="sr-only">Loading overview</span>
+						{[0, 1, 2].map((row) => (
+							<div key={row} aria-hidden className="flex items-center gap-2">
+								<Skeleton variant="circular" className="size-4 shrink-0" />
+								<Skeleton variant="text" className="flex-1" />
+							</div>
+						))}
+					</div>
+				) : (
+					<p className="m-0 py-2 text-xs text-content-secondary">
+						Nothing to show yet. Cost, changes, pull requests, and attachments
+						show up here as the agent works.
+					</p>
+				))}
 
 			{cost && (
 				<div className="flex flex-col py-2">
@@ -230,7 +242,11 @@ type OverviewListSectionProps<T> = {
 	render: (item: T) => React.ReactNode;
 };
 
-/** The toggle stays rendered in both states, so keyboard focus stays on it. */
+/**
+ * The toggle stays rendered in both states, so keyboard focus stays on it.
+ * Its label names the section, so a screen reader's list of buttons tells
+ * the toggles apart.
+ */
 const OverviewListSection = <T,>({
 	title,
 	items,
@@ -247,11 +263,12 @@ const OverviewListSection = <T,>({
 			{hiddenCount > 0 && (
 				<button
 					type="button"
-					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
 					className="-mx-1.5 rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
-					{expanded ? "Show less" : `Show ${hiddenCount} more`}
+					{expanded
+						? `Show fewer ${title.toLowerCase()}`
+						: `Show ${hiddenCount} more ${title.toLowerCase()}`}
 				</button>
 			)}
 		</OverviewSection>
@@ -268,7 +285,12 @@ type OverviewRowProps = {
 	onClick?: () => void;
 };
 
-/** Labels truncate, so a tooltip shows them in full on hover and focus. */
+/**
+ * A button with `onClick`, or plain text without it. A button's label and
+ * subtitle truncate, and a tooltip shows them in full only when they are cut
+ * off, so a screen reader does not hear the full text twice. Plain text
+ * wraps instead and takes no tab stop.
+ */
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
 	iconClassName,
@@ -278,6 +300,25 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 	detail,
 	onClick,
 }) => {
+	const [isTruncated, setIsTruncated] = useState(false);
+	// ResizeObserver fires once on observe, which doubles as the first check.
+	// The key below remounts the text, and so observes it again, when it
+	// changes.
+	const observeText = (element: HTMLSpanElement | null) => {
+		if (!element) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			setIsTruncated(
+				[...element.children].some(
+					(child) => child.scrollWidth > child.clientWidth,
+				),
+			);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	};
+	const textClassName = onClick ? "truncate" : "break-words";
 	const content = (
 		<>
 			<Icon
@@ -286,10 +327,14 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 					? { role: "img", "aria-label": iconLabel }
 					: { "aria-hidden": true })}
 			/>
-			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="truncate">{label}</span>
+			<span
+				key={`${label}\n${subtitle ?? ""}`}
+				ref={onClick ? observeText : undefined}
+				className="flex min-w-0 flex-1 flex-col"
+			>
+				<span className={textClassName}>{label}</span>
 				{subtitle && (
-					<span className="truncate text-xs text-content-secondary">
+					<span className={cn(textClassName, "text-xs text-content-secondary")}>
 						{subtitle}
 					</span>
 				)}
@@ -298,24 +343,23 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 		</>
 	);
 	const className =
-		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
+		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
+	if (!onClick) {
+		return <div className={className}>{content}</div>;
+	}
 	return (
-		<Tooltip>
+		<Tooltip open={isTruncated ? undefined : false}>
 			<TooltipTrigger asChild>
-				{onClick ? (
-					<button
-						type="button"
-						onClick={onClick}
-						className={cn(className, "hover:bg-surface-secondary")}
-					>
-						{content}
-					</button>
-				) : (
-					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the plain-text row takes focus only so the keyboard can open its tooltip.
-					<div tabIndex={0} className={className}>
-						{content}
-					</div>
-				)}
+				<button
+					type="button"
+					onClick={onClick}
+					className={cn(
+						className,
+						"hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+					)}
+				>
+					{content}
+				</button>
 			</TooltipTrigger>
 			<TooltipContent side="left" className="max-w-xs">
 				<p className="m-0 break-words">{label}</p>
