@@ -18,8 +18,17 @@ func TestPermissionsAndCallbacks(t *testing.T) {
 		canceled bool
 		want     string
 	}{
-		{options: []acp.PermissionOption{{OptionId: "once", Kind: acp.PermissionOptionKindAllowOnce}, {OptionId: "always", Kind: acp.PermissionOptionKindAllowAlways}}, want: "always"},
+		{options: []acp.PermissionOption{{OptionId: "once", Kind: acp.PermissionOptionKindAllowOnce}, {OptionId: "always", Kind: acp.PermissionOptionKindAllowAlways}}, want: "once"},
+		// Claude Code's plan exit lists mode escalations as "always" options
+		// ahead of the one-time approval that keeps the default mode.
+		{options: []acp.PermissionOption{
+			{OptionId: "clear-context-auto", Kind: acp.PermissionOptionKindAllowAlways},
+			{OptionId: "bypass", Kind: acp.PermissionOptionKindAllowAlways},
+			{OptionId: "default", Kind: acp.PermissionOptionKindAllowOnce},
+			{OptionId: "keep-planning", Kind: acp.PermissionOptionKindRejectOnce},
+		}, want: "default"},
 		{options: []acp.PermissionOption{{OptionId: "once", Kind: acp.PermissionOptionKindAllowOnce}}, want: "once"},
+		{options: []acp.PermissionOption{{OptionId: "always", Kind: acp.PermissionOptionKindAllowAlways}, {OptionId: "deny", Kind: acp.PermissionOptionKindRejectOnce}}, want: "always"},
 		{options: []acp.PermissionOption{{OptionId: "deny", Kind: acp.PermissionOptionKindRejectAlways}}},
 		{options: []acp.PermissionOption{{OptionId: "always", Kind: acp.PermissionOptionKindAllowAlways}}, canceled: true},
 	} {
