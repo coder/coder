@@ -9,6 +9,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// GroupSyncFindingCode names a condition that group sync settings violate.
+// The syntax codes are declared in idpsync_wellformed.go and the validity
+// codes in idpsync_validity.go. The codes are stable: they appear in API
+// responses and may later be stored as part of a policy.
+type GroupSyncFindingCode string
+
 // GroupSyncWarning reports one finding in group sync settings that the server
 // accepted, and what it did about it. Warnings accompany the settings in API
 // responses, so that a client can compare what it sent with what was saved.

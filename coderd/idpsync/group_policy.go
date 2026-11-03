@@ -86,12 +86,12 @@ var relaxedGroupSyncActions = map[codersdk.GroupSyncFindingCode]map[GroupSyncRou
 	codersdk.GroupSyncFindingRepeatedUUID:      everyRoute(GroupSyncActionRewrite),
 	codersdk.GroupSyncFindingNullArray:         everyRoute(GroupSyncActionRewrite),
 	codersdk.GroupSyncFindingFilterExcludedKey: everyRoute(GroupSyncActionRewrite),
-	GroupSyncFindingEveryoneGroup:              everyRoute(GroupSyncActionRewrite),
+	codersdk.GroupSyncFindingEveryoneGroup:     everyRoute(GroupSyncActionRewrite),
 
 	// R6 and R7: rejected on the request routes as a deliberate change; a
 	// stored row cannot be rejected, so it is rewritten.
-	GroupSyncFindingMissingGroup: requestOrFetch(GroupSyncActionReject, GroupSyncActionRewrite),
-	GroupSyncFindingOutsideGroup: requestOrFetch(GroupSyncActionReject, GroupSyncActionRewrite),
+	codersdk.GroupSyncFindingMissingGroup: requestOrFetch(GroupSyncActionReject, GroupSyncActionRewrite),
+	codersdk.GroupSyncFindingOutsideGroup: requestOrFetch(GroupSyncActionReject, GroupSyncActionRewrite),
 
 	// Accepted today and not rewritable, so kept as received.
 	codersdk.GroupSyncFindingFieldEmpty:      everyRoute(GroupSyncActionKeep),
@@ -107,8 +107,8 @@ var relaxedGroupSyncActions = map[codersdk.GroupSyncFindingCode]map[GroupSyncRou
 
 	// V2: rejected on the request routes as a deliberate change; a stored row
 	// cannot be rejected or repaired, so it is kept.
-	GroupSyncFindingOrganizationDeleted: requestOrFetch(GroupSyncActionReject, GroupSyncActionKeep),
-	GroupSyncFindingOrganizationAbsent:  requestOrFetch(GroupSyncActionReject, GroupSyncActionKeep),
+	codersdk.GroupSyncFindingOrganizationDeleted: requestOrFetch(GroupSyncActionReject, GroupSyncActionKeep),
+	codersdk.GroupSyncFindingOrganizationAbsent:  requestOrFetch(GroupSyncActionReject, GroupSyncActionKeep),
 }
 
 // everyRoute gives the same action on every route.
@@ -137,9 +137,9 @@ func GroupSyncRewritable(code codersdk.GroupSyncFindingCode) bool {
 		codersdk.GroupSyncFindingRepeatedUUID,      // R2
 		codersdk.GroupSyncFindingNullArray,         // R3
 		codersdk.GroupSyncFindingFilterExcludedKey, // R4
-		GroupSyncFindingEveryoneGroup,              // R5
-		GroupSyncFindingMissingGroup,               // R6
-		GroupSyncFindingOutsideGroup:               // R7
+		codersdk.GroupSyncFindingEveryoneGroup,     // R5
+		codersdk.GroupSyncFindingMissingGroup,      // R6
+		codersdk.GroupSyncFindingOutsideGroup:      // R7
 		return true
 	default:
 		return false

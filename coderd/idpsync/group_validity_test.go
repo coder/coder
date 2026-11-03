@@ -221,7 +221,7 @@ var fullVectors = []fullVector{
 		input:     `{"field":"groups"}`,
 		snapshot:  snapshotDeleted,
 		requested: []string{},
-		want:      fullFindings{{code: idpsync.GroupSyncFindingOrganizationDeleted, path: ""}},
+		want:      fullFindings{{code: codersdk.GroupSyncFindingOrganizationDeleted, path: ""}},
 	},
 	{
 		name:      "v2/organization_absent",
@@ -229,7 +229,7 @@ var fullVectors = []fullVector{
 		input:     `{"field":"groups"}`,
 		snapshot:  snapshotAbsent,
 		requested: []string{},
-		want:      fullFindings{{code: idpsync.GroupSyncFindingOrganizationAbsent, path: ""}},
+		want:      fullFindings{{code: codersdk.GroupSyncFindingOrganizationAbsent, path: ""}},
 	},
 	{
 		name: "v2/organization_deleted_with_groups",
@@ -243,8 +243,8 @@ var fullVectors = []fullVector{
 		snapshot:  snapshotDeleted,
 		requested: []string{"11111111-1111-4111-8111-111111111111"},
 		want: fullFindings{
-			{code: idpsync.GroupSyncFindingOrganizationDeleted, path: ""},
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingOrganizationDeleted, path: ""},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
 		},
 	},
 
@@ -260,7 +260,7 @@ var fullVectors = []fullVector{
 		}`,
 		snapshot:  snapshotTypical,
 		requested: []string{"44444444-4444-4444-8444-444444444444"},
-		want:      fullFindings{{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"}},
+		want:      fullFindings{{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"}},
 	},
 	{
 		name: "v3/missing_group_after_valid",
@@ -279,7 +279,7 @@ var fullVectors = []fullVector{
 			"11111111-1111-4111-8111-111111111111",
 			"44444444-4444-4444-8444-444444444444",
 		},
-		want: fullFindings{{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/1"}},
+		want: fullFindings{{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/1"}},
 	},
 	{
 		name: "v3/missing_group_under_two_keys",
@@ -294,8 +294,8 @@ var fullVectors = []fullVector{
 		snapshot:  snapshotTypical,
 		requested: []string{"44444444-4444-4444-8444-444444444444"},
 		want: fullFindings{
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/ops/0"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/ops/0"},
 		},
 	},
 
@@ -311,7 +311,7 @@ var fullVectors = []fullVector{
 		}`,
 		snapshot:  snapshotTypical,
 		requested: []string{"33333333-3333-4333-8333-333333333333"},
-		want:      fullFindings{{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"}},
+		want:      fullFindings{{code: codersdk.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"}},
 	},
 	{
 		name: "v4/other_organizations_everyone_group",
@@ -328,7 +328,7 @@ var fullVectors = []fullVector{
 			outside: []string{"88888888-8888-4888-8888-888888888888"},
 		},
 		requested: []string{"88888888-8888-4888-8888-888888888888"},
-		want:      fullFindings{{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"}},
+		want:      fullFindings{{code: codersdk.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"}},
 	},
 
 	// Group 5: violations of V5. O's ID is also the ID of O's Everyone group.
@@ -343,7 +343,7 @@ var fullVectors = []fullVector{
 		}`,
 		snapshot:  snapshotTypical,
 		requested: []string{orgO},
-		want:      fullFindings{{code: idpsync.GroupSyncFindingEveryoneGroup, path: "/mapping/all/0"}},
+		want:      fullFindings{{code: codersdk.GroupSyncFindingEveryoneGroup, path: "/mapping/all/0"}},
 	},
 	{
 		name: "v5/everyone_group_of_deleted_organization",
@@ -357,8 +357,8 @@ var fullVectors = []fullVector{
 		snapshot:  snapshotDeleted,
 		requested: []string{orgO},
 		want: fullFindings{
-			{code: idpsync.GroupSyncFindingOrganizationDeleted, path: ""},
-			{code: idpsync.GroupSyncFindingEveryoneGroup, path: "/mapping/all/0"},
+			{code: codersdk.GroupSyncFindingOrganizationDeleted, path: ""},
+			{code: codersdk.GroupSyncFindingEveryoneGroup, path: "/mapping/all/0"},
 		},
 	},
 
@@ -407,7 +407,7 @@ var fullVectors = []fullVector{
 		snapshot:  snapshotTypical,
 		requested: []string{"44444444-4444-4444-8444-444444444444"},
 		want: fullFindings{
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
 			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/1"},
 		},
 	},
@@ -425,7 +425,7 @@ var fullVectors = []fullVector{
 		requested: []string{"33333333-3333-4333-8333-333333333333"},
 		want: fullFindings{
 			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops"},
-			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/ops/0"},
+			{code: codersdk.GroupSyncFindingOutsideGroup, path: "/mapping/ops/0"},
 		},
 	},
 	{
@@ -441,7 +441,7 @@ var fullVectors = []fullVector{
 		requested: []string{"44444444-4444-4444-8444-444444444444"},
 		want: fullFindings{
 			{code: codersdk.GroupSyncFindingEmptyMappingKey, path: "/mapping/"},
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping//0"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping//0"},
 		},
 	},
 	{
@@ -457,7 +457,7 @@ var fullVectors = []fullVector{
 		requested: []string{"44444444-4444-4444-8444-444444444444"},
 		want: fullFindings{
 			{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"},
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
 		},
 	},
 
@@ -543,9 +543,9 @@ var fullVectors = []fullVector{
 			orgO,
 		},
 		want: fullFindings{
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
-			{code: idpsync.GroupSyncFindingEveryoneGroup, path: "/mapping/eng/2"},
-			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/ops/0"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingEveryoneGroup, path: "/mapping/eng/2"},
+			{code: codersdk.GroupSyncFindingOutsideGroup, path: "/mapping/ops/0"},
 		},
 	},
 	{
@@ -568,9 +568,9 @@ var fullVectors = []fullVector{
 			"44444444-4444-4444-8444-444444444444",
 		},
 		want: fullFindings{
-			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"},
 			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/1"},
-			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/2"},
+			{code: codersdk.GroupSyncFindingMissingGroup, path: "/mapping/eng/2"},
 			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/3"},
 		},
 	},
@@ -580,11 +580,11 @@ var fullVectors = []fullVector{
 // cannot enumerate a type's constants, so this list is kept by hand;
 // TestValidityFindingsCodes checks that every code in it is exercised.
 var allValidityCodes = []codersdk.GroupSyncFindingCode{
-	idpsync.GroupSyncFindingOrganizationDeleted,
-	idpsync.GroupSyncFindingOrganizationAbsent,
-	idpsync.GroupSyncFindingMissingGroup,
-	idpsync.GroupSyncFindingOutsideGroup,
-	idpsync.GroupSyncFindingEveryoneGroup,
+	codersdk.GroupSyncFindingOrganizationDeleted,
+	codersdk.GroupSyncFindingOrganizationAbsent,
+	codersdk.GroupSyncFindingMissingGroup,
+	codersdk.GroupSyncFindingOutsideGroup,
+	codersdk.GroupSyncFindingEveryoneGroup,
 }
 
 // syntaxCodesPassedThrough lists the syntax validator's codes. The full

@@ -104,8 +104,8 @@ func TestGetGroupSyncSettings(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, map[string][]uuid.UUID{"eng": {s.inside}}, got.Mapping)
 		requireWarnings(t, got, map[string]codersdk.GroupSyncFindingCode{
-			"/mapping/eng/1": idpsync.GroupSyncFindingOutsideGroup,
-			"/mapping/eng/2": idpsync.GroupSyncFindingMissingGroup,
+			"/mapping/eng/1": codersdk.GroupSyncFindingOutsideGroup,
+			"/mapping/eng/2": codersdk.GroupSyncFindingMissingGroup,
 		})
 		require.Equal(t, map[string][]uuid.UUID{"eng": {s.inside}}, storedGroupSyncSettings(t, s).Mapping,
 			"the stored row must be replaced with the rewrite")
@@ -172,7 +172,7 @@ func TestGetGroupSyncSettings(t *testing.T) {
 		require.Equal(t, stored.Mapping, got.Mapping, "a legacy mapping cannot be rewritten, so nothing is")
 		requireWarnings(t, got, map[string]codersdk.GroupSyncFindingCode{
 			"/legacy_group_name_mapping": codersdk.GroupSyncFindingLegacyMapping,
-			"/mapping/eng/1":             idpsync.GroupSyncFindingOutsideGroup,
+			"/mapping/eng/1":             codersdk.GroupSyncFindingOutsideGroup,
 		})
 		for _, w := range got.Warnings {
 			require.JSONEq(t, string(w.Received), string(w.Accepted), "nothing was rewritten, so each warning accepts what it received")
@@ -252,7 +252,7 @@ func TestPatchGroupSyncSettings(t *testing.T) {
 			Field:   "groups",
 			Mapping: map[string][]uuid.UUID{"eng": {s.outside}},
 		})
-		requireGroupSyncRejected(t, err, "/mapping/eng/0", idpsync.GroupSyncFindingOutsideGroup)
+		requireGroupSyncRejected(t, err, "/mapping/eng/0", codersdk.GroupSyncFindingOutsideGroup)
 
 		fetched, err := s.orgAdmin.GroupIDPSyncSettingsWithWarnings(ctx, s.orgID.String())
 		require.NoError(t, err)
@@ -268,7 +268,7 @@ func TestPatchGroupSyncSettings(t *testing.T) {
 			Field:   "groups",
 			Mapping: map[string][]uuid.UUID{"eng": {s.inside, uuid.New()}},
 		})
-		requireGroupSyncRejected(t, err, "/mapping/eng/1", idpsync.GroupSyncFindingMissingGroup)
+		requireGroupSyncRejected(t, err, "/mapping/eng/1", codersdk.GroupSyncFindingMissingGroup)
 	})
 
 	t.Run("RejectsLegacyMappingAsBefore", func(t *testing.T) {
@@ -302,7 +302,7 @@ func TestPatchGroupSyncSettings(t *testing.T) {
 		require.Equal(t, map[string][]uuid.UUID{"eng": {s.inside}}, got.Mapping)
 		requireWarnings(t, got, map[string]codersdk.GroupSyncFindingCode{
 			"/mapping/eng/0": codersdk.GroupSyncFindingNilUUID,
-			"/mapping/eng/1": idpsync.GroupSyncFindingEveryoneGroup,
+			"/mapping/eng/1": codersdk.GroupSyncFindingEveryoneGroup,
 		})
 
 		fetched, err := s.orgAdmin.GroupIDPSyncSettingsWithWarnings(ctx, s.orgID.String())
@@ -551,7 +551,7 @@ func TestPatchGroupSyncMapping(t *testing.T) {
 		_, err := s.orgAdmin.PatchGroupIDPSyncMappingWithWarnings(ctx, s.orgID.String(), codersdk.PatchGroupIDPSyncMappingRequest{
 			Add: []codersdk.IDPSyncMapping[uuid.UUID]{{Given: "eng", Gets: s.outside}},
 		})
-		requireGroupSyncRejected(t, err, "/mapping/eng/0", idpsync.GroupSyncFindingOutsideGroup)
+		requireGroupSyncRejected(t, err, "/mapping/eng/0", codersdk.GroupSyncFindingOutsideGroup)
 	})
 
 	t.Run("RejectsMissingGroupInAdd", func(t *testing.T) {
@@ -562,7 +562,7 @@ func TestPatchGroupSyncMapping(t *testing.T) {
 		_, err := s.orgAdmin.PatchGroupIDPSyncMappingWithWarnings(ctx, s.orgID.String(), codersdk.PatchGroupIDPSyncMappingRequest{
 			Add: []codersdk.IDPSyncMapping[uuid.UUID]{{Given: "eng", Gets: uuid.New()}},
 		})
-		requireGroupSyncRejected(t, err, "/mapping/eng/0", idpsync.GroupSyncFindingMissingGroup)
+		requireGroupSyncRejected(t, err, "/mapping/eng/0", codersdk.GroupSyncFindingMissingGroup)
 	})
 
 	t.Run("MissingGetsIsDropped", func(t *testing.T) {

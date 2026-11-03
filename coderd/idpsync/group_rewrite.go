@@ -125,10 +125,10 @@ func rewriteSettings(settings codersdk.GroupSyncSettings, findings []codersdk.Gr
 
 		switch f.Code {
 		case codersdk.GroupSyncFindingNilUUID, // R1
-			codersdk.GroupSyncFindingRepeatedUUID, // R2
-			GroupSyncFindingEveryoneGroup,         // R5
-			GroupSyncFindingMissingGroup,          // R6
-			GroupSyncFindingOutsideGroup:          // R7
+			codersdk.GroupSyncFindingRepeatedUUID,  // R2
+			codersdk.GroupSyncFindingEveryoneGroup, // R5
+			codersdk.GroupSyncFindingMissingGroup,  // R6
+			codersdk.GroupSyncFindingOutsideGroup:  // R7
 			if !ok || !hasIndex {
 				return GroupSyncRewriteResult{}, xerrors.Errorf("finding %q has path %q, which is not a mapping element", f.Code, f.Path)
 			}

@@ -11,11 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// GroupSyncFindingCode names a condition that group sync settings violate.
-// The codes are stable: they appear in API responses and may later be stored
-// as part of a policy.
-type GroupSyncFindingCode string
-
 // Finding codes reported by the syntax validator. Each names a violation of
 // one of the well-formedness conditions W1 through W8 in
 // `coderd/idpsync/SYNC_SETTINGS.md`.
@@ -188,9 +183,12 @@ func parseFindingPath(f GroupSyncFinding) syntaxFinding {
 		parsed.key, parsed.hasKey = UnescapeJSONPointerToken(tokens[1]), true
 	}
 	if len(tokens) > 2 {
-		// A path this package produced always has a numeric index here.
-		parsed.index, _ = strconv.Atoi(tokens[2])
-		parsed.hasIndex = true
+		// A path a validator produced always has a numeric index here. A
+		// path with any other token sorts as if it had no index, so the
+		// order stays deterministic for any input.
+		if index, err := strconv.Atoi(tokens[2]); err == nil {
+			parsed.index, parsed.hasIndex = index, true
+		}
 	}
 	return parsed
 }

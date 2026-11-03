@@ -53,14 +53,14 @@ var rewritableVectors = []rewritableVector{
 	{code: codersdk.GroupSyncFindingRepeatedUUID, rewritable: true, why: "R2 keeps one copy of the UUID."},
 	{code: codersdk.GroupSyncFindingNullArray, rewritable: true, why: "R3 replaces `null` with `[]`."},
 	{code: codersdk.GroupSyncFindingFilterExcludedKey, rewritable: true, why: "R4 removes the member."},
-	{code: idpsync.GroupSyncFindingEveryoneGroup, rewritable: true, why: "R5 removes the Everyone group."},
-	{code: idpsync.GroupSyncFindingMissingGroup, rewritable: true, why: "R6 removes the UUID."},
-	{code: idpsync.GroupSyncFindingOutsideGroup, rewritable: true, why: "R7 removes the UUID."},
+	{code: codersdk.GroupSyncFindingEveryoneGroup, rewritable: true, why: "R5 removes the Everyone group."},
+	{code: codersdk.GroupSyncFindingMissingGroup, rewritable: true, why: "R6 removes the UUID."},
+	{code: codersdk.GroupSyncFindingOutsideGroup, rewritable: true, why: "R7 removes the UUID."},
 	{code: codersdk.GroupSyncFindingFieldEmpty, rewritable: false, why: "No rule is defined. The settings are kept as received by policy."},
 	{code: codersdk.GroupSyncFindingLegacyMapping, rewritable: false, why: "A rewrite that makes the settings valid is not feasible in general."},
 	{code: codersdk.GroupSyncFindingEmptyMappingKey, rewritable: false, why: "An IdP claim can contain the empty string, so removing the key could change behavior."},
-	{code: idpsync.GroupSyncFindingOrganizationDeleted, rewritable: false, why: "No omission makes a deleted organization's settings valid."},
-	{code: idpsync.GroupSyncFindingOrganizationAbsent, rewritable: false, why: "No omission makes settings for an absent organization valid."},
+	{code: codersdk.GroupSyncFindingOrganizationDeleted, rewritable: false, why: "No omission makes a deleted organization's settings valid."},
+	{code: codersdk.GroupSyncFindingOrganizationAbsent, rewritable: false, why: "No omission makes settings for an absent organization valid."},
 	{code: codeUnknown, rewritable: false, why: "An unknown code has no rule, so it is never rewritten."},
 }
 
@@ -109,22 +109,22 @@ var relaxedActionVectors = []relaxedActionVector{
 	{code: codersdk.GroupSyncFindingFilterExcludedKey, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "Stored rows can hold it; R4 applies."},
 
 	// R5: the Everyone group. Accepted today, and T always contains it.
-	{code: idpsync.GroupSyncFindingEveryoneGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
-	{code: idpsync.GroupSyncFindingEveryoneGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
-	{code: idpsync.GroupSyncFindingEveryoneGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "Stored rows can hold it; R5 applies."},
+	{code: codersdk.GroupSyncFindingEveryoneGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
+	{code: codersdk.GroupSyncFindingEveryoneGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
+	{code: codersdk.GroupSyncFindingEveryoneGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "Stored rows can hold it; R5 applies."},
 
 	// R6: a UUID that names no group. Rejected on requests as a deliberate
 	// change; removed from stored rows.
-	{code: idpsync.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V3."},
-	{code: idpsync.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V3. Stale entries in the stored row were already removed on the read before merging."},
-	{code: idpsync.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "A stored row cannot be rejected; R6 applies."},
+	{code: codersdk.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V3."},
+	{code: codersdk.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V3. Stale entries in the stored row were already removed on the read before merging."},
+	{code: codersdk.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "A stored row cannot be rejected; R6 applies."},
 
 	// R7: a group in another organization. Rejected on requests as a
 	// deliberate change, which is the fix for SEC-183; removed from stored
 	// rows.
-	{code: idpsync.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V4."},
-	{code: idpsync.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V4."},
-	{code: idpsync.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "A stored row cannot be rejected; R7 applies."},
+	{code: codersdk.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V4."},
+	{code: codersdk.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V4."},
+	{code: codersdk.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "A stored row cannot be rejected; R7 applies."},
 
 	// An empty `field` with other nonempty members. Accepted today; kept as
 	// received by policy.
@@ -145,15 +145,15 @@ var relaxedActionVectors = []relaxedActionVector{
 
 	// A deleted organization. Rejected on requests as a deliberate change;
 	// a stored row is kept.
-	{code: idpsync.GroupSyncFindingOrganizationDeleted, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
-	{code: idpsync.GroupSyncFindingOrganizationDeleted, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
-	{code: idpsync.GroupSyncFindingOrganizationDeleted, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
+	{code: codersdk.GroupSyncFindingOrganizationDeleted, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
+	{code: codersdk.GroupSyncFindingOrganizationDeleted, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
+	{code: codersdk.GroupSyncFindingOrganizationDeleted, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
 
 	// An absent organization. Rejected on requests as a deliberate change;
 	// a stored row is kept.
-	{code: idpsync.GroupSyncFindingOrganizationAbsent, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
-	{code: idpsync.GroupSyncFindingOrganizationAbsent, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
-	{code: idpsync.GroupSyncFindingOrganizationAbsent, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
+	{code: codersdk.GroupSyncFindingOrganizationAbsent, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
+	{code: codersdk.GroupSyncFindingOrganizationAbsent, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V2."},
+	{code: codersdk.GroupSyncFindingOrganizationAbsent, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
 
 	// An unknown code. Rejected on every route, so a code added without an
 	// entry here fails closed.
@@ -258,7 +258,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "One finding the action function rejects gives the instruction reject.",
 		actions:         actionsRelaxed,
 		route:           idpsync.GroupSyncRouteFullReplace,
-		codes:           []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingOutsideGroup},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingOutsideGroup},
 		wantInstruction: idpsync.GroupSyncInstructionReject,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionReject},
 	},
@@ -279,7 +279,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "A single rejection rejects the settings, whatever else could be rewritten.",
 		actions:         actionsRelaxed,
 		route:           idpsync.GroupSyncRouteFullReplace,
-		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingRepeatedUUID, idpsync.GroupSyncFindingMissingGroup},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingRepeatedUUID, codersdk.GroupSyncFindingMissingGroup},
 		wantInstruction: idpsync.GroupSyncInstructionReject,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionRewrite, idpsync.GroupSyncActionReject},
 	},
@@ -288,7 +288,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "A rejection outranks a finding that would keep the settings as received.",
 		actions:         actionsRelaxed,
 		route:           idpsync.GroupSyncRouteFullReplace,
-		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingFieldEmpty, idpsync.GroupSyncFindingOrganizationDeleted},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingFieldEmpty, codersdk.GroupSyncFindingOrganizationDeleted},
 		wantInstruction: idpsync.GroupSyncInstructionReject,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionKeep, idpsync.GroupSyncActionReject},
 	},
@@ -297,7 +297,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "Rewrite, keep, and reject together: reject wins.",
 		actions:         actionsRelaxed,
 		route:           idpsync.GroupSyncRouteFullReplace,
-		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNullArray, codersdk.GroupSyncFindingEmptyMappingKey, idpsync.GroupSyncFindingOutsideGroup},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNullArray, codersdk.GroupSyncFindingEmptyMappingKey, codersdk.GroupSyncFindingOutsideGroup},
 		wantInstruction: idpsync.GroupSyncInstructionReject,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionRewrite, idpsync.GroupSyncActionKeep, idpsync.GroupSyncActionReject},
 	},
@@ -326,7 +326,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "A missing group in a merged request is rejected.",
 		actions:         actionsRelaxed,
 		route:           idpsync.GroupSyncRouteMerge,
-		codes:           []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingMissingGroup},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingMissingGroup},
 		wantInstruction: idpsync.GroupSyncInstructionReject,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionReject},
 	},
@@ -335,7 +335,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "A missing group in a stored row is removed.",
 		actions:         actionsRelaxed,
 		route:           idpsync.GroupSyncRouteFetch,
-		codes:           []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingMissingGroup},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingMissingGroup},
 		wantInstruction: idpsync.GroupSyncInstructionRewrite,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionRewrite},
 	},
@@ -376,7 +376,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		why:             "A request with a missing group: the never-reject fixture rewrites it, which is what the rewriter's tests need.",
 		actions:         actionsNeverReject,
 		route:           idpsync.GroupSyncRouteFullReplace,
-		codes:           []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingMissingGroup},
+		codes:           []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingMissingGroup},
 		wantInstruction: idpsync.GroupSyncInstructionRewrite,
 		wantActions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionRewrite},
 	},
@@ -408,7 +408,7 @@ var rewritePlanVectors = []rewritePlanVector{
 		route:   idpsync.GroupSyncRouteMerge,
 		codes: []codersdk.GroupSyncFindingCode{
 			codersdk.GroupSyncFindingLegacyMapping,
-			idpsync.GroupSyncFindingEveryoneGroup,
+			codersdk.GroupSyncFindingEveryoneGroup,
 			codersdk.GroupSyncFindingFieldEmpty,
 			codersdk.GroupSyncFindingRepeatedUUID,
 		},

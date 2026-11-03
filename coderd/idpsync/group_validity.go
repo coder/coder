@@ -11,29 +11,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Finding codes reported by the full validator of group sync settings, in
-// addition to the syntax validator's codes in codersdk. Each names a
-// violation of one of the validity conditions V2 through V5 in
-// `SYNC_SETTINGS.md` in this directory. Validity depends on the state of the
-// deployment, so only the server reports these codes.
-const (
-	// GroupSyncFindingOrganizationDeleted: the target organization is
-	// soft-deleted (V2).
-	GroupSyncFindingOrganizationDeleted codersdk.GroupSyncFindingCode = "organization_deleted"
-	// GroupSyncFindingOrganizationAbsent: no organization has the target ID
-	// (V2).
-	GroupSyncFindingOrganizationAbsent codersdk.GroupSyncFindingCode = "organization_absent"
-	// GroupSyncFindingMissingGroup: a `mapping` array contains a UUID that
-	// names no group (V3).
-	GroupSyncFindingMissingGroup codersdk.GroupSyncFindingCode = "missing_group"
-	// GroupSyncFindingOutsideGroup: a `mapping` array contains a UUID that
-	// names a group in another organization (V4).
-	GroupSyncFindingOutsideGroup codersdk.GroupSyncFindingCode = "outside_group"
-	// GroupSyncFindingEveryoneGroup: a `mapping` array contains the target
-	// organization's Everyone group (V5).
-	GroupSyncFindingEveryoneGroup codersdk.GroupSyncFindingCode = "everyone_group"
-)
-
 // OrganizationStatus is the state of an organization in a GroupSnapshot.
 type OrganizationStatus string
 
@@ -103,9 +80,9 @@ func ValidityFindings(settings codersdk.GroupSyncSettings, snapshot GroupSnapsho
 	switch snapshot.Organization {
 	case OrganizationActive:
 	case OrganizationDeleted:
-		found = append(found, codersdk.GroupSyncFinding{Code: GroupSyncFindingOrganizationDeleted, Path: ""})
+		found = append(found, codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingOrganizationDeleted, Path: ""})
 	case OrganizationAbsent:
-		found = append(found, codersdk.GroupSyncFinding{Code: GroupSyncFindingOrganizationAbsent, Path: ""})
+		found = append(found, codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingOrganizationAbsent, Path: ""})
 	default:
 		return nil, xerrors.Errorf("snapshot has unknown organization status %q", snapshot.Organization)
 	}
@@ -124,14 +101,14 @@ func ValidityFindings(settings codersdk.GroupSyncSettings, snapshot GroupSnapsho
 			var code codersdk.GroupSyncFindingCode
 			switch status := snapshot.Groups[id]; status {
 			case GroupDoesNotExist:
-				code = GroupSyncFindingMissingGroup
+				code = codersdk.GroupSyncFindingMissingGroup
 			case GroupOutsideOrganization:
-				code = GroupSyncFindingOutsideGroup
+				code = codersdk.GroupSyncFindingOutsideGroup
 			case GroupInsideOrganization:
 				// The Everyone group's ID is its organization's ID, and an
 				// ID inside the organization that equals it is that group.
 				if id == snapshot.OrganizationID {
-					code = GroupSyncFindingEveryoneGroup
+					code = codersdk.GroupSyncFindingEveryoneGroup
 				}
 			default:
 				return nil, xerrors.Errorf("snapshot has unknown status %q for group %s", status, id)
