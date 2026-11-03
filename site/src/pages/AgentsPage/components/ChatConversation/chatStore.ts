@@ -794,5 +794,3 @@ export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 		return message ? [message] : [];
 	});
 };
-
-export { useChatStore } from "./useChatStore";

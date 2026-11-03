@@ -51,10 +51,10 @@ import {
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
-	useChatStore,
 } from "./chatStore";
 import { deriveLiveStatus } from "./liveStatusModel";
 import { buildStreamTools } from "./streamState";
+import { useChatStore } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),

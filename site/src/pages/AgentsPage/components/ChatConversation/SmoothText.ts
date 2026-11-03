@@ -236,18 +236,6 @@ export class SmoothTextEngine {
 	};
 
 	/**
-	 * Reset all engine state, typically when a new stream starts.
-	 */
-	reset(): void {
-		this.stopLoop();
-		this.fullLength = 0;
-		this.visibleLengthValue = 0;
-		this.charBudget = 0;
-		this.isStreaming = false;
-		this.bypassSmoothing = false;
-	}
-
-	/**
 	 * Stop the animation loop and release resources. Call when the
 	 * engine instance is being discarded.
 	 */

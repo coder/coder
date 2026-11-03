@@ -40,6 +40,7 @@
 		"#/*": "./src/*"
 	},
 	"dependencies": {
+		"@coder/pixel-storybook": "0.3.0",
 		"@dnd-kit/abstract": "0.5.1",
 		"@dnd-kit/collision": "0.5.1",
 		"@dnd-kit/dom": "0.5.1",
@@ -120,7 +121,6 @@
 		"@babel/core": "7.29.7",
 		"@babel/plugin-syntax-typescript": "7.29.7",
 		"@biomejs/biome": "2.5.10",
-		"@coder/pixel-storybook": "0.3.0",
 		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.63.0",
 		"@rolldown/plugin-babel": "0.2.3",
