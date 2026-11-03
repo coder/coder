@@ -27,13 +27,12 @@ const (
 )
 
 // unbilledSubagentToolNames excludes parent-side orchestration because
-// child chats bill their own runtime. Include deprecated aliases.
+// child chats bill their own runtime.
 var unbilledSubagentToolNames = map[string]bool{
 	spawnAgentToolName:         true,
 	"wait_agent":               true,
 	"message_agent":            true,
 	"interrupt_agent":          true,
-	"close_agent":              true,
 	"list_agents":              true,
 	listSubagentModelsToolName: true,
 }
@@ -276,21 +275,14 @@ func subagentTypeFromChat(chat database.Chat) string {
 	}
 }
 
-func withSubagentType(result map[string]any, chat database.Chat) map[string]any {
-	if result == nil {
-		result = map[string]any{}
-	}
-	result["type"] = subagentTypeFromChat(chat)
-	return result
-}
-
 func subagentErrorResponse(err error, chat *database.Chat) fantasy.ToolResponse {
 	if chat == nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return toolJSONErrorResponse(withSubagentType(map[string]any{
+	return toolJSONErrorResponse(map[string]any{
 		"error": err.Error(),
-	}, *chat))
+		"type":  subagentTypeFromChat(*chat),
+	})
 }
 
 func buildSpawnAgentDescription(

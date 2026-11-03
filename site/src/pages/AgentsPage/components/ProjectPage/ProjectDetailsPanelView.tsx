@@ -149,16 +149,22 @@ export const ProjectDetailsPanelView: React.FC<
 					) : (
 						<>
 							{instructions.instructions === "" ? (
-								<div className="flex justify-center rounded-lg border border-dashed border-border px-4 py-6">
+								<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-5 text-center">
 									{onEditInstructions ? (
-										<Button
-											size="sm"
-											variant="outline"
-											aria-label="Create instructions"
-											onClick={onEditInstructions}
-										>
-											Create
-										</Button>
+										<>
+											<p className="m-0 text-sm text-content-secondary">
+												Set preferences for every chat, like project background,
+												audience, or goals.
+											</p>
+											<Button
+												size="xs"
+												variant="outline"
+												aria-label="Add instructions"
+												onClick={onEditInstructions}
+											>
+												Add
+											</Button>
+										</>
 									) : (
 										<p className="m-0 text-sm text-content-secondary">
 											No instructions

@@ -14,6 +14,7 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	MockChatAttachment,
+	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -33,8 +34,10 @@ import {
 	attachmentStepMessages,
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
+	MockMixedAttachmentMessages,
 	MockTextBeforeSecondStepMessage,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
@@ -146,6 +149,18 @@ const mockLinkBeforeSecondStep: ChatMessage = {
 	],
 };
 
+const mockMarkdownAnswerMessages: ChatMessage[] =
+	MockClearedAttachmentMessages.map((message) =>
+		message.id === 23
+			? {
+					...message,
+					content: [
+						{ type: "text", text: "The dashboard **matches** the spec." },
+					],
+				}
+			: message,
+	);
+
 const focusCopyCommand = (messageId: number) => {
 	const button = within(
 		screen.getByTestId(`chat-message-message:${messageId}`),
@@ -173,6 +188,25 @@ describe("ConversationTimeline working blocks", () => {
 
 		expect(writeText).toHaveBeenCalledWith(
 			"Looking up the release notes.The workspace runs the latest Coder release.",
+		);
+	});
+
+	it("copies an answer's Markdown source from the row with its pill", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({ messages: mockMarkdownAnswerMessages });
+
+		await user.click(
+			within(screen.getByTestId("chat-message-message:23")).getByRole(
+				"button",
+				{ name: "Copy message" },
+			),
+		);
+
+		expect(writeText).toHaveBeenCalledWith(
+			"The dashboard **matches** the spec.",
 		);
 	});
 
@@ -788,6 +822,20 @@ const mockStoredTextMessage: ChatMessage = {
 	content: [MockChatAttachment.file],
 };
 
+const mockNewerUploadMessages: ChatMessage[] = [
+	...MockMixedAttachmentMessages,
+	{
+		...MockChatMessage,
+		id: 30,
+		content: [{ type: "file", media_type: "image/png", file_id: "newer-file" }],
+	},
+];
+
+const mockLinkedSpecAndNewerFiles = ["spec-file", "newer-file"].map((id) => ({
+	...MockChatFileMetadata,
+	id,
+}));
+
 describe("ConversationTimeline attachment previews", () => {
 	it.each([
 		["an image", mockImageMessage, "View Attached image"],
@@ -807,6 +855,62 @@ describe("ConversationTimeline attachment previews", () => {
 			await waitFor(() => expect(attachment).toHaveFocus());
 		},
 	);
+
+	it("marks a text file expired for the timeline once the turn pill's view finds it deleted", async () => {
+		const user = userEvent.setup();
+		const requestedFileIds: string[] = [];
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", ({ params }) => {
+				requestedFileIds.push(String(params.fileId));
+				return new HttpResponse(null, { status: 404 });
+			}),
+		);
+		renderTimeline({ messages: MockMixedAttachmentMessages });
+
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		await user.click(
+			screen.getByRole("button", { name: "findings.md View file" }),
+		);
+
+		expect(
+			await screen.findByRole("button", {
+				name: "findings.md Attachment expired",
+			}),
+		).toHaveFocus();
+
+		await user.keyboard("{Escape}");
+		const blocks = screen.getAllByRole("button", { name: /^Worked for/ });
+		await user.click(blocks[blocks.length - 1]);
+
+		// A view the timeline's copy still offers would request the file again.
+		for (const view of screen.queryAllByRole("button", {
+			name: "View findings.md",
+		})) {
+			await user.click(view);
+		}
+		expect(requestedFileIds).toEqual(["findings-file"]);
+	});
+
+	it("keeps focus on a download card in the turn pill when its file expires", async () => {
+		const user = userEvent.setup();
+		const { rerenderStage } = renderTimeline({
+			messages: mockNewerUploadMessages,
+			chatFiles: mockLinkedSpecAndNewerFiles,
+		});
+		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
+		screen.getByRole("link", { name: /spec\.pdf/ }).focus();
+
+		rerenderStage({
+			messages: mockNewerUploadMessages,
+			chatFiles: mockLinkedSpecAndNewerFiles.slice(1),
+		});
+
+		expect(
+			await screen.findByRole("button", {
+				name: "spec.pdf Attachment expired",
+			}),
+		).toHaveFocus();
+	});
 
 	it("returns keyboard focus to a text file that loads after focus moves on", async () => {
 		const user = userEvent.setup();

@@ -146,7 +146,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 								type="button"
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 									// Heights match the model selector trigger.
 									"h-7 w-full px-2 py-0.5 md:h-auto",
 								)}

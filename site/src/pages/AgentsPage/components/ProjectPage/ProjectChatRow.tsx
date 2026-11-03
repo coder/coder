@@ -26,7 +26,7 @@ import { clearPersistedSidebarTabId } from "../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";
@@ -131,7 +131,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		chat,
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
-		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
 		onPinAgent: () => pinMutation.mutate(chat.id),
 		onUnpinAgent: () => unpinMutation.mutate(chat.id),
 		onArchiveAgent: () => archiveMutation.mutate(chat.id),

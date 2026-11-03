@@ -8,11 +8,6 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Screenshots",
-					"description": "See screenshots of the Coder platform, including browser-based workspace access and the admin dashboard.",
-					"path": "./about/screenshots.md"
-				},
-				{
 					"title": "Support",
 					"description": "Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.",
 					"path": "./support/index.md",
@@ -62,12 +57,6 @@
 			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
-				{
-					"title": "Coder CLI",
-					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.",
-					"path": "./install/cli.md",
-					"icon_path": "./images/icons/terminal.svg"
-				},
 				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
@@ -1152,7 +1141,7 @@
 									"title": "Advisor",
 									"description": "Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.",
 									"path": "./ai-coder/agents/platform-controls/advisor.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Virtual desktop",

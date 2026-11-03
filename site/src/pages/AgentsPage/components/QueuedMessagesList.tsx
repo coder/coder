@@ -4,7 +4,9 @@ import {
 	CornerDownLeftIcon,
 	InfoIcon,
 	PaperclipIcon,
+	PencilIcon,
 	Trash2Icon,
+	XIcon,
 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import type {
@@ -12,6 +14,7 @@ import type {
 	ChatSkillInvocationPart,
 	ChatTextPart,
 } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -25,6 +28,14 @@ type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
+	onEdit?: (id: number) => void;
+	onEndEdit?: (id: number) => Promise<void> | void;
+	isChatPaused?: boolean;
+	queuedMessageUnderEditID: number | null;
+	// The queued row this composer edits, or null. It gets no Edit action; a
+	// row under edit elsewhere keeps Edit so this client can take it over.
+	composerQueuedMessageID: number | null;
+	showEnterToSendHint?: boolean;
 	className?: string;
 };
 
@@ -111,22 +122,111 @@ const QueuedMessagePreview: React.FC<{
 	);
 };
 
+type QueuedMessageAction = "delete" | "promote" | "end_edit";
+
+type QueuedMessageActionButtonProps = {
+	label: string;
+	// Defaults to label.
+	tooltip?: string;
+	icon: React.ReactNode;
+	busy: boolean;
+	disabled: boolean;
+	// Makes the button unavailable and replaces the tooltip with the reason.
+	disabledReason?: string;
+	destructive?: boolean;
+	onClick: () => void;
+};
+
+const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
+	label,
+	tooltip,
+	icon,
+	busy,
+	disabled,
+	disabledReason,
+	destructive = false,
+	onClick,
+}) => {
+	const unavailable = disabledReason !== undefined;
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label={label}
+					disabled={disabled}
+					// aria-disabled leaves the button focusable and hoverable, so the
+					// tooltip can show the reason.
+					aria-disabled={unavailable}
+					onClick={unavailable ? undefined : onClick}
+					className={cn(
+						"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
+						destructive
+							? "hover:text-content-destructive"
+							: "hover:text-content-primary",
+						unavailable &&
+							"cursor-not-allowed text-content-disabled hover:bg-transparent hover:text-content-disabled",
+					)}
+				>
+					<Spinner className="h-3.5 w-3.5" loading={busy}>
+						{icon}
+					</Spinner>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				{disabledReason ?? tooltip ?? label}
+			</TooltipContent>
+		</Tooltip>
+	);
+};
+
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,
+	onEdit,
+	onEndEdit,
+	isChatPaused = false,
+	queuedMessageUnderEditID,
+	composerQueuedMessageID,
+	showEnterToSendHint,
 	className,
 }) => {
-	const items = messages.map((message) => ({
-		id: message.id,
-		...getQueuedMessageInfo(message),
-	}));
+	const underEditIndex = messages.findIndex(
+		(message) => message.id === queuedMessageUnderEditID,
+	);
+	const items = messages.map((message, index) => {
+		const isUnderEdit = message.id === queuedMessageUnderEditID;
+		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+
+		let badge: { label: string; tooltip: string } | undefined;
+		if (isUnderEdit) {
+			badge = {
+				label: "Editing",
+				tooltip: "Not sent until you finish editing.",
+			};
+		} else if (isWaitingBehindEdit) {
+			badge = {
+				label: "Waiting",
+				tooltip: "Waits for the edit above to finish.",
+			};
+		}
+
+		return {
+			id: message.id,
+			...getQueuedMessageInfo(message),
+			isUnderEdit,
+			isWaitingBehindEdit,
+			badge,
+		};
+	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
-	const [busyItem, setBusyItem] = useState<{
+	const [pendingAction, setPendingAction] = useState<{
 		id: number;
-		action: "delete" | "promote";
+		action: QueuedMessageAction;
 	} | null>(null);
 	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
 		ReadonlySet<number>
@@ -173,28 +273,24 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const handleDelete = async (id: number) => {
-		setBusyItem({ id, action: "delete" });
-		hideItemOptimistically(id);
-		try {
-			await onDelete(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
-		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+	const runAction = async (
+		id: number,
+		action: QueuedMessageAction,
+		run: (id: number) => Promise<void> | void,
+	) => {
+		const hidesRow = action === "delete" || action === "promote";
+		setPendingAction({ id, action });
+		if (hidesRow) {
+			hideItemOptimistically(id);
 		}
-	};
-
-	const handlePromote = async (id: number) => {
-		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
 		try {
-			await onPromote(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			await run(id);
 		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			if (hidesRow) {
+				restoreHiddenItem(id);
+			}
 		}
+		setPendingAction((current) => (current?.id === id ? null : current));
 	};
 
 	const visibleItems = items.filter(
@@ -205,7 +301,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		return null;
 	}
 
-	const isBusy = busyItem !== null;
+	const isBusy = pendingAction !== null;
 
 	return (
 		<div
@@ -216,14 +312,19 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		>
 			{visibleItems.map((item, index) => {
 				const isFirst = index === 0;
-				const isItemBusy = busyItem !== null && busyItem.id === item.id;
+				const isRowPending =
+					pendingAction !== null && pendingAction.id === item.id;
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
-
 				return (
 					<div
 						key={item.id}
-						className="my-1 opacity-40 transition-opacity hover:opacity-80"
+						className={cn(
+							"my-1 transition-opacity",
+							item.isWaitingBehindEdit
+								? "opacity-25 hover:opacity-60"
+								: "opacity-40 hover:opacity-80",
+						)}
 						onMouseEnter={() => setHoveredID(item.id)}
 						onMouseLeave={() =>
 							setHoveredID((current) => (current === item.id ? null : current))
@@ -233,6 +334,23 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 							<span className="min-w-0 flex-1 truncate">
 								<QueuedMessagePreview parts={item.previewParts} />
 							</span>
+							{item.badge && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge
+											asChild
+											variant={item.isUnderEdit ? "warning" : "default"}
+											size="sm"
+											className="shrink-0 cursor-default"
+										>
+											<button type="button">{item.badge.label}</button>
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										{item.badge.tooltip}
+									</TooltipContent>
+								</Tooltip>
+							)}
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
@@ -259,7 +377,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && (
+							{isFirst && showEnterToSendHint && (
 								<span
 									className={cn(
 										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
@@ -273,48 +391,56 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 							)}
 							<div
 								className={cn(
-									"flex shrink-0 items-center gap-0.5 transition-opacity",
+									"flex shrink-0 items-center gap-0.5 transition-opacity focus-within:opacity-100",
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Send now"
-											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-										>
-											{isItemBusy && busyItem.action === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Send now</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Remove from queue"
-											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-										>
-											{isItemBusy && busyItem.action === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Remove</TooltipContent>
-								</Tooltip>
+								{item.isUnderEdit && onEndEdit && (
+									<QueuedMessageActionButton
+										label="Cancel edit"
+										tooltip={
+											isChatPaused
+												? "Cancel edit and send unchanged"
+												: "Cancel edit"
+										}
+										icon={<XIcon className="size-3.5" />}
+										busy={isRowPending && pendingAction.action === "end_edit"}
+										disabled={isBusy}
+										onClick={() =>
+											void runAction(item.id, "end_edit", onEndEdit)
+										}
+									/>
+								)}
+								{onEdit && item.id !== composerQueuedMessageID && (
+									<QueuedMessageActionButton
+										label="Edit"
+										icon={<PencilIcon className="size-3.5" />}
+										busy={false}
+										disabled={isBusy}
+										disabledReason={
+											isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
+												? "Finish the current edit first."
+												: undefined
+										}
+										onClick={() => onEdit(item.id)}
+									/>
+								)}
+								<QueuedMessageActionButton
+									label="Send now"
+									icon={<ArrowUpIcon className="size-3.5" />}
+									busy={isRowPending && pendingAction.action === "promote"}
+									disabled={isBusy}
+									onClick={() => void runAction(item.id, "promote", onPromote)}
+								/>
+								<QueuedMessageActionButton
+									label="Remove from queue"
+									tooltip="Remove"
+									icon={<Trash2Icon className="size-3.5" />}
+									busy={isRowPending && pendingAction.action === "delete"}
+									disabled={isBusy}
+									destructive
+									onClick={() => void runAction(item.id, "delete", onDelete)}
+								/>
 							</div>
 						</div>
 					</div>

@@ -47,7 +47,7 @@ Or create a new long-lived token with a name and lifetime:
 coder tokens create --lifetime 30d -n my-ai-token
 ```
 
-Use short lifetimes for automation and CI to limit the blast radius if a token leaks.
+Use short lifetimes for automation and continuous integration (CI) to limit the blast radius if a token leaks.
 
 ### Retrieve your session token
 
@@ -67,7 +67,7 @@ The Coder token is supplied in the proxy URL:
 export HTTPS_PROXY="https://coder:$(coder login token)@<proxy-host>:8888"
 ```
 
-The client machine also needs to trust the proxy's CA certificate.
+The client machine also needs to trust the proxy's certificate authority (CA) certificate.
 For full setup, refer to [AI Gateway Proxy setup](./ai-gateway-proxy/setup.md).
 
 ## Authenticate standalone gateway replicas
@@ -146,7 +146,7 @@ For provider setup and credential failover, refer to [Provider configuration](./
 ## Bring Your Own Key (BYOK)
 
 In addition to centralized key management, AI Gateway supports Bring Your Own Key (BYOK) mode.
-Users can provide their own LLM API keys or provider subscriptions, such as Claude Pro or Max and ChatGPT Plus or Pro, while AI Gateway continues to provide observability and governance.
+Users can provide their own large language model (LLM) API keys or provider subscriptions, such as Claude Pro or Max and ChatGPT Plus or Pro, while AI Gateway continues to provide observability and governance.
 
 ![BYOK authentication flow](../../images/aibridge/clients/byok_auth_flow.png)
 

@@ -123,8 +123,16 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    parts with a blank line, also before the first part, so each
 //    part's bold title renders on its own line. Upstream as
 //    charmbracelet/fantasy#436.
-// See: https://github.com/coder/fantasy/commits/2e8e2cbf4aea
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027133624-2e8e2cbf4aea
+// 17) coder/fantasy#78, replay OpenAI web searches inline from their
+//    result metadata unless they go back as an item reference, which
+//    needs a stored request, a stored source response and the reasoning
+//    item right before the search. Each search replays at most once.
+// 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
+//    the toolset tool definition, ComputerUseToolVersionForModel, and
+//    mapping of toolset member calls to and from the computer tool.
+//    Since coder/fantasy#82, unknown model IDs take computer_20251124.
+// See: https://github.com/coder/fantasy/commits/647b1ef66f42
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103005632-647b1ef66f42
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -177,7 +185,7 @@ require (
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.15.0
-	github.com/coder/terraform-provider-coder/v2 v2.19.0
+	github.com/coder/terraform-provider-coder/v2 v2.20.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -205,7 +213,7 @@ require (
 	github.com/gohugoio/hugo v0.163.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
-	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
+	github.com/gomarkdown/markdown v0.0.0-20260724235538-61af6e1e6971
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/go-github/v61 v61.0.0
@@ -256,7 +264,7 @@ require (
 	github.com/tidwall/gjson v1.19.0
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
-	github.com/valyala/fasthttp v1.75.0
+	github.com/valyala/fasthttp v1.77.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.2.0
 	go.nhat.io/otelsql v0.16.0

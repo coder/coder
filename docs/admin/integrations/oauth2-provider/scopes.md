@@ -38,7 +38,7 @@ A name it holds that this deployment does not offer fails at authorization, as d
 
 Use caution when narrowing the scope allowlist of a self-registered application.
 Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes.
-MCP clients that rely on discovery commonly work this way.
+Model Context Protocol (MCP) clients that rely on discovery commonly work this way.
 The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
 Coder rejects requests that exceed the allowlist rather than trimming their scopes, so every new authorization attempt fails with `invalid_scope`.
 Previously issued tokens retain their scopes.

@@ -8,7 +8,7 @@ The control plane must have an inbound address reachable by users and workspaces
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connections are relayed through the control plane.
+When Network Address Translation (NAT) traversal fails, connections are relayed through the control plane.
 All user-workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS networking logic.
@@ -38,11 +38,11 @@ In order for clients to be able to establish direct connections:
 - Either the client or workspace agent are able to discover a reachable `ip:port` of their counterpart.
   If the agent and client are able to communicate with each other using their locally assigned IP addresses, then a direct connection can be established immediately.
   Otherwise, the client and agent will contact [the configured STUN servers](../../reference/cli/server/index.md#--derp-server-stun-addresses) to try and determine which `ip:port` can be used to communicate with their counterpart.
-  See [STUN and NAT](./stun.md) for more details on how this process works.
+  See [Session Traversal Utilities for Network Address Translation (STUN) and NAT](./stun.md) for more details on how this process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN.
     This involves sending UDP packets outbound on `udp/3478` to the configured [STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses).
-    If either the agent or the client are unable to send and receive UDP packets to a STUN server, then direct connections will not be possible.
+    If either the agent or the client are unable to send and receive User Datagram Protocol (UDP) packets to a STUN server, then direct connections will not be possible.
   - Both agents and clients will then establish a [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on ephemeral (high) ports.
     If a firewall between the client and the agent blocks this UDP traffic, direct connections will not be possible.
 
@@ -86,7 +86,7 @@ By default, [Coder uses Google's public STUN server](../../reference/cli/server/
 
 ### Relayed connections
 
-By default, your control plane also runs a built-in DERP relay which can be used for both public and [Air-gapped deployments](../../install/prepare/airgap.md).
+By default, your control plane also runs a built-in Designated Encrypted Relay for Packets (DERP) relay which can be used for both public and [Air-gapped deployments](../../install/prepare/airgap.md).
 
 However, Tailscale maintains a global fleet of [DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers) intended for their product, and has allowed Coder to access and use them.
 You can launch `coder server` with Tailscale's DERPs like so:
@@ -169,7 +169,7 @@ There are three main types of latency metrics for your Coder deployment:
 
   The latency shown on the workspace dashboard measures the round-trip time between the workspace agent and its DERP relay server.
 
-  This metric is displayed in milliseconds on the workspace dashboard and specifically shows the agent-to-relay latency, not direct P2P connections.
+  This metric is displayed in milliseconds on the workspace dashboard and specifically shows the agent-to-relay latency, not direct peer-to-peer (P2P) connections.
 
   To estimate the total end-to-end latency experienced by a user, add the dashboard-to-server latency to this agent-to-relay latency.
 

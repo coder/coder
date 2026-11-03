@@ -385,6 +385,19 @@ const toMessageAttachments = (
 	return href ? [{ key: `${messageId}:${partIndex}`, role, file, href }] : [];
 };
 
+/** The message's downloadable files, in part order. */
+export const getMessageFileAttachments = ({
+	id,
+	role,
+	content = [],
+}: TypesGen.ChatMessage): MessageAttachment[] =>
+	content.flatMap((part, partIndex) => {
+		if (part.type !== "file") {
+			return [];
+		}
+		return toMessageAttachments(id, partIndex, role, part);
+	});
+
 /**
  * Downloadable files the user uploaded and the agent attached, newest first.
  */
@@ -395,13 +408,7 @@ export const getMessageAttachments = (
 		.filter(
 			(message) => message.role === "user" || message.role === "assistant",
 		)
-		.flatMap((message) =>
-			(message.content ?? []).flatMap((part, partIndex) =>
-				part.type === "file"
-					? toMessageAttachments(message.id, partIndex, message.role, part)
-					: [],
-			),
-		)
+		.flatMap(getMessageFileAttachments)
 		.reverse();
 
 /**
