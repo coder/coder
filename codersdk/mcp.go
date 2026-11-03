@@ -53,6 +53,20 @@ func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id u
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
+// MCPServerOAuth2ClientRegistration is how Coder got the OAuth2 client of
+// an MCP server config.
+type MCPServerOAuth2ClientRegistration string
+
+const (
+	// MCPServerOAuth2ClientRegistrationManual means an admin registered the
+	// client and entered its credentials and endpoints.
+	MCPServerOAuth2ClientRegistrationManual MCPServerOAuth2ClientRegistration = "manual"
+	// MCPServerOAuth2ClientRegistrationDynamic means Coder discovered the
+	// endpoints and registered the client with RFC 7591 Dynamic Client
+	// Registration.
+	MCPServerOAuth2ClientRegistrationDynamic MCPServerOAuth2ClientRegistration = "dynamic"
+)
+
 // MCPServerConfig represents an admin-configured MCP server.
 type MCPServerConfig struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`
@@ -75,6 +89,8 @@ type MCPServerConfig struct {
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
 	OAuth2Resource      string `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
+
+	OAuth2ClientRegistration MCPServerOAuth2ClientRegistration `json:"oauth2_client_registration,omitempty"`
 
 	// API key fields (only populated for admins).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
