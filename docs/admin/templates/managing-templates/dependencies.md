@@ -80,7 +80,7 @@ This will create a new file named `.terraform.lock.hcl` in the current directory
 When you next run [`coder templates push`](../../../reference/cli/templates/push.md), the lock file will be stored alongside with the other template source code.
 
 > [!NOTE]
-> Terraform best practices also recommend checking in your `.terraform.lock.hcl` into Git or other VCS.
+> Terraform best practices also recommend checking in your `.terraform.lock.hcl` into Git or other version control system (VCS).
 
 The next time a workspace is built from that template, Coder will make sure to use the same versions of those providers as specified in the lock file.
 

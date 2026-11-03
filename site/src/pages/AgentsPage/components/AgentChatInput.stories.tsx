@@ -134,13 +134,29 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	},
 };
 
+export const EditingQueuedMessage: Story = {
+	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
+		editingKind: "queued",
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
+	},
+};
+
 export const ChatPaused: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		isChatPaused: true,
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
 			{ ...MockChatQueuedMessage, id: 2 },
 		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -156,6 +172,7 @@ export const ChatPaused: Story = {
 // one in error.
 export const QueueHeadUnderEdit: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
 			{ ...MockChatQueuedMessage, id: 2 },
@@ -721,6 +738,18 @@ export const WithTwoMCPServers: Story = {
 		...mcpDefaults,
 		mcpServers: [linearMCP, githubMCPConnected],
 		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+const mockImageMCP = { ...sentryMCP, icon_url: "/icon/image.svg" };
+const mockLinearMCPWithIcon = { ...linearMCP, icon_url: "/icon/linear.svg" };
+
+/** Thin glyphs at the overlap boundary must be fully covered. */
+export const MCPOverlappingTransparentIcons: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [mockImageMCP, mockLinearMCPWithIcon],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id],
 	},
 };
 

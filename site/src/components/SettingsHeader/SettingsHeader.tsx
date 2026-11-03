@@ -41,7 +41,6 @@ export const SettingsHeaderDocsLink: React.FC<SettingsHeaderDocsLinkProps> = ({
 		<Link href={href} target="_blank" rel="noreferrer">
 			{children}
 			{context && <span className="sr-only"> {context}</span>}
-			<span className="sr-only"> (opens in new tab)</span>
 		</Link>
 	);
 };

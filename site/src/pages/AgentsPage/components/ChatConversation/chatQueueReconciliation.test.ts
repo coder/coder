@@ -3,16 +3,20 @@ import type {
 	ChatMessage,
 	ChatMessagesResponse,
 	ChatQueuedMessage,
+	EditChatQueuedMessageRequest,
 } from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 } from "#/testHelpers/chatEntities";
+import { mockApiError } from "#/testHelpers/entities";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runDeleteQueuedMessage,
+	runEditQueuedMessage,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
@@ -124,6 +128,125 @@ describe("runDeleteQueuedMessage", () => {
 		).rejects.toBe(apiError);
 
 		expect(store.getSnapshot().queuedMessages).toEqual(updated);
+	});
+});
+
+describe("runEditQueuedMessage", () => {
+	const row5: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 5 };
+	const row6: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 6 };
+	const row6Marked: ChatQueuedMessage = {
+		...MockChatQueuedMessageUnderEdit,
+		id: 6,
+	};
+	const row5Marked: ChatQueuedMessage = {
+		...MockChatQueuedMessageUnderEdit,
+		id: 5,
+	};
+
+	const run = (
+		queue: readonly ChatQueuedMessage[],
+		req: EditChatQueuedMessageRequest,
+		editQueuedMessage: () => Promise<unknown>,
+	) => {
+		const store = createChatStore();
+		store.setQueuedMessages(queue);
+		const onError = vi.fn();
+		const promise = runEditQueuedMessage({
+			id: 5,
+			req,
+			store,
+			editQueuedMessage,
+			failureMessage: "Failed to edit.",
+			onError,
+		});
+		return { store, onError, promise };
+	};
+	const markers = (store: ReturnType<typeof createChatStore>) =>
+		store
+			.getSnapshot()
+			.queuedMessages.map((row) => [row.id, Boolean(row.editing_since)]);
+
+	it.each([
+		{
+			name: "a begin marks the row and clears another marked row",
+			queue: [row5, row6Marked],
+			req: { editing: true },
+			want: [
+				[5, true],
+				[6, false],
+			],
+		},
+		{
+			name: "an end clears the row",
+			queue: [row5Marked, row6],
+			req: { editing: false },
+			want: [
+				[5, false],
+				[6, false],
+			],
+		},
+		{
+			name: "a save clears the row's marker",
+			queue: [row5Marked, row6],
+			req: { content: [{ type: "text", text: "new" }], editing: false },
+			want: [
+				[5, false],
+				[6, false],
+			],
+		},
+		{
+			name: "a request without editing leaves the markers",
+			queue: [row5Marked, row6],
+			req: { content: [{ type: "text", text: "new" }] },
+			want: [
+				[5, true],
+				[6, false],
+			],
+		},
+	] satisfies Array<{
+		name: string;
+		queue: ChatQueuedMessage[];
+		req: EditChatQueuedMessageRequest;
+		want: [number, boolean][];
+	}>)("$name", async ({ queue, req, want }) => {
+		const { store, onError, promise } = run(queue, req, () =>
+			Promise.resolve(),
+		);
+		await promise;
+		expect(markers(store)).toEqual(want);
+		expect(onError).not.toHaveBeenCalled();
+	});
+
+	it("drops the row on a 404, reports it and rethrows", async () => {
+		const notFound = {
+			...mockApiError({ message: "Not found." }),
+			status: 404,
+		};
+		const { store, onError, promise } = run(
+			[row5, row6],
+			{ editing: true },
+			() => Promise.reject(notFound),
+		);
+		await expect(promise).rejects.toBe(notFound);
+		expect(store.getSnapshot().queuedMessages).toEqual([row6]);
+		expect(onError).toHaveBeenCalledWith(
+			"Queued message was already sent or removed.",
+		);
+	});
+
+	it("keeps the queue on another error, reports the server message and rethrows", async () => {
+		const conflict = {
+			...mockApiError({ message: "The chat is paused." }),
+			status: 409,
+		};
+		const { store, onError, promise } = run(
+			[row5, row6],
+			{ editing: true },
+			() => Promise.reject(conflict),
+		);
+		await expect(promise).rejects.toBe(conflict);
+		expect(store.getSnapshot().queuedMessages).toEqual([row5, row6]);
+		expect(onError).toHaveBeenCalledWith("The chat is paused.");
 	});
 });
 

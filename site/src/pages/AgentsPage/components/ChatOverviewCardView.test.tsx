@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { render } from "#/testHelpers/renderHelpers";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
@@ -35,6 +36,33 @@ const mockChatOverview: ChatOverview = {
 			href: "/files/plan.html",
 		},
 	],
+};
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
+});
+
+/**
+ * jsdom has no layout, so the test sets the text widths each row measures,
+ * then reports a resize to every row.
+ */
+const stubTextWidths = () => {
+	MockResizeObserver.reset();
+	vi.stubGlobal("ResizeObserver", MockResizeObserver);
+	return (widths: { scrollWidth: number; clientWidth: number }) => {
+		vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(
+			widths.scrollWidth,
+		);
+		vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(
+			widths.clientWidth,
+		);
+		act(() => {
+			for (const observer of MockResizeObserver.instances) {
+				observer.simulateResize(widths.clientWidth);
+			}
+		});
+	};
 };
 
 const renderCard = (overview = mockChatOverview) => {
@@ -123,9 +151,11 @@ describe("ChatOverviewCardView", () => {
 		).toHaveAccessibleName();
 	});
 
-	it("shows a row's full label in a tooltip on hover", async () => {
+	it("shows a truncated row's full label in a tooltip on hover", async () => {
 		const user = userEvent.setup();
+		const measureText = stubTextWidths();
 		renderCard();
+		measureText({ scrollWidth: 200, clientWidth: 100 });
 
 		const row = screen.getByRole("button", { name: /#123 Queue jobs/ });
 		await user.hover(row);
@@ -135,7 +165,18 @@ describe("ChatOverviewCardView", () => {
 		);
 	});
 
-	it("opens the tooltip of a repository without changes from the keyboard", async () => {
+	it("adds no tooltip to a row whose label fits", () => {
+		const measureText = stubTextWidths();
+		renderCard();
+		measureText({ scrollWidth: 100, clientWidth: 100 });
+
+		const row = screen.getByRole("button", { name: /#123 Queue jobs/ });
+		act(() => row.focus());
+
+		expect(row).not.toHaveAccessibleDescription();
+	});
+
+	it("skips a repository without changes in the tab order", async () => {
 		const user = userEvent.setup();
 		renderCard({
 			...mockChatOverview,
@@ -145,13 +186,13 @@ describe("ChatOverviewCardView", () => {
 
 		await user.tab();
 
-		await waitFor(() =>
-			expect(document.activeElement).toHaveAccessibleDescription("main"),
-		);
+		expect(document.activeElement?.textContent ?? "").not.toContain("main");
 	});
 
-	it("opens a subagent row's tooltip from the keyboard", async () => {
+	it("opens a truncated subagent row's tooltip from the keyboard", async () => {
+		const measureText = stubTextWidths();
 		renderCard({ ...mockChatOverview, cost: undefined, repos: [] });
+		measureText({ scrollWidth: 200, clientWidth: 100 });
 
 		const row = screen.getByRole("link", { name: /Find the flake/ });
 		act(() => row.focus());

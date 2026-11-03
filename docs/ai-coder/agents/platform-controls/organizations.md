@@ -21,7 +21,7 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Admin model overrides                    | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
 | Personal model overrides                 | User, per organization | **Agents** > **Settings** > **Agents**                                     |
 | Personal override toggle                 | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| MCP servers                              | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| Model Context Protocol (MCP) servers     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
 | MCP server connections                   | User, per organization | **Agents** > **Settings** > **MCP connections**                            |
 | Organization skills                      | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
 | Members can turn off organization skills | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
