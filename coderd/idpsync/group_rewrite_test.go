@@ -1,5 +1,10 @@
 package idpsync_test
 
+import (
+	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/codersdk"
+)
+
 // This file holds the test vectors for the rewriter of group sync settings;
 // see the relaxed-mode section of `SYNC_SETTINGS.md` in this directory. The
 // tests that use these vectors follow them in this file.
@@ -53,7 +58,7 @@ type rewriteVector struct {
 // rewriteFinding is one finding given to the rewriter.
 type rewriteFinding struct {
 	// code names the condition violated.
-	code string
+	code codersdk.GroupSyncFindingCode
 	// path is a JSON Pointer (RFC 6901) into the input. Array indexes refer to
 	// positions in the input, not in the rewritten settings.
 	path string
@@ -62,7 +67,7 @@ type rewriteFinding struct {
 // rewriteWarning is one warning the rewriter returns.
 type rewriteWarning struct {
 	// code is the finding's code.
-	code string
+	code codersdk.GroupSyncFindingCode
 	// path is the finding's path, into the input.
 	path string
 	// received is the JSON text of the element at path in the input.
@@ -262,7 +267,7 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeNilUUID, path: "/mapping/eng/0"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0"}},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
 			"field": "groups",
@@ -273,7 +278,7 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: ""},
 		},
 	},
 	{
@@ -287,11 +292,11 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeNilUUID, path: "/mapping/eng/0"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0"}},
 		wantOutcome: outcomeRewritten,
 		want:        rewrittenTo{`{"field":"groups","mapping":{"eng":[]},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: ""},
 		},
 	},
 	{
@@ -309,7 +314,7 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeRepeatedUUID, path: "/mapping/eng/2"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/2"}},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
 			"field": "groups",
@@ -323,18 +328,18 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeRepeatedUUID, path: "/mapping/eng/2", received: `"11111111-1111-4111-8111-111111111111"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/2", received: `"11111111-1111-4111-8111-111111111111"`, accepted: ""},
 		},
 	},
 	{
 		name:        "rewritable/r3_null_array",
 		why:         "R3 replaces `null` with `[]`. The element is modified, not removed, so accepted is `[]`.",
 		input:       `{"field":"groups","mapping":{"eng":null},"regex_filter":null,"auto_create_missing_groups":false}`,
-		findings:    []rewriteFinding{{code: syntaxCodeNullArray, path: "/mapping/eng"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/eng"}},
 		wantOutcome: outcomeRewritten,
 		want:        rewrittenTo{`{"field":"groups","mapping":{"eng":[]},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeNullArray, path: "/mapping/eng", received: `null`, accepted: `[]`},
+			{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/eng", received: `null`, accepted: `[]`},
 		},
 	},
 	{
@@ -349,7 +354,7 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": "^eng-",
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeFilterExcludedKey, path: "/mapping/ops"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops"}},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
 			"field": "groups",
@@ -360,7 +365,7 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeFilterExcludedKey, path: "/mapping/ops", received: `["22222222-2222-4222-8222-222222222222"]`, accepted: ""},
+			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops", received: `["22222222-2222-4222-8222-222222222222"]`, accepted: ""},
 		},
 	},
 	{
@@ -376,8 +381,8 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`,
 		findings: []rewriteFinding{
-			{code: syntaxCodeFilterExcludedKey, path: "/mapping/ops"},
-			{code: codeOutsideGroup, path: "/mapping/ops/0"},
+			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops"},
+			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/ops/0"},
 		},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
@@ -389,8 +394,8 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeFilterExcludedKey, path: "/mapping/ops", received: `["33333333-3333-4333-8333-333333333333"]`, accepted: ""},
-			{code: codeOutsideGroup, path: "/mapping/ops/0", received: `"33333333-3333-4333-8333-333333333333"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingFilterExcludedKey, path: "/mapping/ops", received: `["33333333-3333-4333-8333-333333333333"]`, accepted: ""},
+			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/ops/0", received: `"33333333-3333-4333-8333-333333333333"`, accepted: ""},
 		},
 	},
 	{
@@ -407,7 +412,7 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: codeEveryoneGroup, path: "/mapping/all/0"}},
+		findings:    []rewriteFinding{{code: idpsync.GroupSyncFindingEveryoneGroup, path: "/mapping/all/0"}},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
 			"field": "groups",
@@ -418,7 +423,7 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: codeEveryoneGroup, path: "/mapping/all/0", received: `"99999999-9999-4999-8999-999999999999"`, accepted: ""},
+			{code: idpsync.GroupSyncFindingEveryoneGroup, path: "/mapping/all/0", received: `"99999999-9999-4999-8999-999999999999"`, accepted: ""},
 		},
 	},
 	{
@@ -435,7 +440,7 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: codeMissingGroup, path: "/mapping/eng/1"}},
+		findings:    []rewriteFinding{{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/1"}},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
 			"field": "groups",
@@ -446,7 +451,7 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: codeMissingGroup, path: "/mapping/eng/1", received: `"44444444-4444-4444-8444-444444444444"`, accepted: ""},
+			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/1", received: `"44444444-4444-4444-8444-444444444444"`, accepted: ""},
 		},
 	},
 	{
@@ -460,11 +465,11 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: codeOutsideGroup, path: "/mapping/eng/0"}},
+		findings:    []rewriteFinding{{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"}},
 		wantOutcome: outcomeRewritten,
 		want:        rewrittenTo{`{"field":"groups","mapping":{"eng":[]},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{
-			{code: codeOutsideGroup, path: "/mapping/eng/0", received: `"33333333-3333-4333-8333-333333333333"`, accepted: ""},
+			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0", received: `"33333333-3333-4333-8333-333333333333"`, accepted: ""},
 		},
 	},
 	{
@@ -485,11 +490,11 @@ var rewriteVectors = []rewriteVector{
 			"field": "groups"
 		}`,
 		findings: []rewriteFinding{
-			{code: codeOutsideGroup, path: "/mapping/eng/0"},
-			{code: syntaxCodeNilUUID, path: "/mapping/eng/1"},
-			{code: codeMissingGroup, path: "/mapping/eng/3"},
-			{code: syntaxCodeRepeatedUUID, path: "/mapping/eng/4"},
-			{code: syntaxCodeNullArray, path: "/mapping/ops"},
+			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/1"},
+			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/3"},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/4"},
+			{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/ops"},
 		},
 		wantOutcome: outcomeRewritten,
 		want: rewrittenTo{`{
@@ -502,11 +507,11 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`},
 		wantWarnings: []rewriteWarning{
-			{code: codeOutsideGroup, path: "/mapping/eng/0", received: `"33333333-3333-4333-8333-333333333333"`, accepted: ""},
-			{code: syntaxCodeNilUUID, path: "/mapping/eng/1", received: `"00000000-0000-0000-0000-000000000000"`, accepted: ""},
-			{code: codeMissingGroup, path: "/mapping/eng/3", received: `"44444444-4444-4444-8444-444444444444"`, accepted: ""},
-			{code: syntaxCodeRepeatedUUID, path: "/mapping/eng/4", received: `"11111111-1111-4111-8111-111111111111"`, accepted: ""},
-			{code: syntaxCodeNullArray, path: "/mapping/ops", received: `null`, accepted: `[]`},
+			{code: idpsync.GroupSyncFindingOutsideGroup, path: "/mapping/eng/0", received: `"33333333-3333-4333-8333-333333333333"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/1", received: `"00000000-0000-0000-0000-000000000000"`, accepted: ""},
+			{code: idpsync.GroupSyncFindingMissingGroup, path: "/mapping/eng/3", received: `"44444444-4444-4444-8444-444444444444"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingRepeatedUUID, path: "/mapping/eng/4", received: `"11111111-1111-4111-8111-111111111111"`, accepted: ""},
+			{code: codersdk.GroupSyncFindingNullArray, path: "/mapping/ops", received: `null`, accepted: `[]`},
 		},
 	},
 
@@ -525,11 +530,11 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false,
 			"legacy_group_name_mapping": {"idp-eng": "eng"}
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeLegacyMappingFound, path: "/legacy_group_name_mapping"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingLegacyMapping, path: "/legacy_group_name_mapping"}},
 		wantOutcome: outcomeNotRewritten,
 		want:        sameAsInput{},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeLegacyMappingFound, path: "/legacy_group_name_mapping", received: `{"idp-eng":"eng"}`, accepted: `{"idp-eng":"eng"}`},
+			{code: codersdk.GroupSyncFindingLegacyMapping, path: "/legacy_group_name_mapping", received: `{"idp-eng":"eng"}`, accepted: `{"idp-eng":"eng"}`},
 		},
 	},
 	{
@@ -543,11 +548,11 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeFieldEmpty, path: "/field"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field"}},
 		wantOutcome: outcomeNotRewritten,
 		want:        sameAsInput{},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeFieldEmpty, path: "/field", received: `""`, accepted: `""`},
+			{code: codersdk.GroupSyncFindingFieldEmpty, path: "/field", received: `""`, accepted: `""`},
 		},
 	},
 	{
@@ -561,23 +566,23 @@ var rewriteVectors = []rewriteVector{
 			"regex_filter": null,
 			"auto_create_missing_groups": false
 		}`,
-		findings:    []rewriteFinding{{code: syntaxCodeEmptyMappingKey, path: "/mapping/"}},
+		findings:    []rewriteFinding{{code: codersdk.GroupSyncFindingEmptyMappingKey, path: "/mapping/"}},
 		wantOutcome: outcomeNotRewritten,
 		want:        sameAsInput{},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeEmptyMappingKey, path: "/mapping/", received: `["11111111-1111-4111-8111-111111111111"]`, accepted: `["11111111-1111-4111-8111-111111111111"]`},
+			{code: codersdk.GroupSyncFindingEmptyMappingKey, path: "/mapping/", received: `["11111111-1111-4111-8111-111111111111"]`, accepted: `["11111111-1111-4111-8111-111111111111"]`},
 		},
 	},
 	{
 		name:        "not_rewritten/organization_deleted",
 		why:         "A deleted organization's stored settings have no repair. The finding's path is empty, so received is the whole text.",
 		input:       `{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`,
-		findings:    []rewriteFinding{{code: codeOrganizationDeleted, path: ""}},
+		findings:    []rewriteFinding{{code: idpsync.GroupSyncFindingOrganizationDeleted, path: ""}},
 		wantOutcome: outcomeNotRewritten,
 		want:        sameAsInput{},
 		wantWarnings: []rewriteWarning{
 			{
-				code:     codeOrganizationDeleted,
+				code:     idpsync.GroupSyncFindingOrganizationDeleted,
 				path:     "",
 				received: `{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`,
 				accepted: `{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`,
@@ -600,14 +605,14 @@ var rewriteVectors = []rewriteVector{
 			"legacy_group_name_mapping": {"idp-eng": "eng"}
 		}`,
 		findings: []rewriteFinding{
-			{code: syntaxCodeLegacyMappingFound, path: "/legacy_group_name_mapping"},
-			{code: syntaxCodeNilUUID, path: "/mapping/eng/0"},
+			{code: codersdk.GroupSyncFindingLegacyMapping, path: "/legacy_group_name_mapping"},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0"},
 		},
 		wantOutcome: outcomeNotRewritten,
 		want:        sameAsInput{},
 		wantWarnings: []rewriteWarning{
-			{code: syntaxCodeLegacyMappingFound, path: "/legacy_group_name_mapping", received: `{"idp-eng":"eng"}`, accepted: `{"idp-eng":"eng"}`},
-			{code: syntaxCodeNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: `"00000000-0000-0000-0000-000000000000"`},
+			{code: codersdk.GroupSyncFindingLegacyMapping, path: "/legacy_group_name_mapping", received: `{"idp-eng":"eng"}`, accepted: `{"idp-eng":"eng"}`},
+			{code: codersdk.GroupSyncFindingNilUUID, path: "/mapping/eng/0", received: `"00000000-0000-0000-0000-000000000000"`, accepted: `"00000000-0000-0000-0000-000000000000"`},
 		},
 	},
 }

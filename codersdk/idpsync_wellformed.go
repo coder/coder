@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"bytes"
 	"cmp"
 	"maps"
 	"slices"
@@ -131,6 +132,69 @@ func (s GroupSyncSettings) WellFormedFindings() []GroupSyncFinding {
 	return out
 }
 
+// CanonicalMappingUUIDs returns the UUIDs that appear in the arrays of
+// `mapping`, as a canonical list: each UUID once, the nil UUID left out, in
+// ascending order. It returns an empty slice when there are none.
+//
+// Nothing here establishes that the UUIDs name groups. The server reads the
+// state of exactly these UUIDs to check the settings' validity, and the
+// canonical form gives that read a stable input.
+func (s GroupSyncSettings) CanonicalMappingUUIDs() []uuid.UUID {
+	distinct := make(map[uuid.UUID]struct{})
+	for _, ids := range s.Mapping {
+		for _, id := range ids {
+			if id != uuid.Nil {
+				distinct[id] = struct{}{}
+			}
+		}
+	}
+	// Byte order of a UUID is the order of its canonical text, which is
+	// lowercase hexadecimal.
+	out := slices.SortedFunc(maps.Keys(distinct), func(a, b uuid.UUID) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	if out == nil {
+		out = []uuid.UUID{}
+	}
+	return out
+}
+
+// CompareGroupSyncFindings orders two findings the way WellFormedFindings
+// orders its result: by path, then by code. Member names compare by code
+// point and array indexes as numbers, and a finding about a `mapping` member
+// comes before the findings about its array elements. The empty path, which
+// refers to the whole text, comes first.
+//
+// It is the one definition of that order. The server's full validator merges
+// its own findings into the syntax validator's and sorts the result with this
+// function, so the merged list is ordered exactly as WellFormedFindings
+// orders its own. A comparison written out again at the point of use could
+// drift from this one, and the two validators would then disagree on order.
+func CompareGroupSyncFindings(a, b GroupSyncFinding) int {
+	return compareSyntaxFinding(parseFindingPath(a), parseFindingPath(b))
+}
+
+// parseFindingPath recovers the parts of a finding's path. The paths a
+// validator produces are the empty path, `/member`, `/mapping/key`, and
+// `/mapping/key/index`, with the key escaped as in a JSON Pointer.
+func parseFindingPath(f GroupSyncFinding) syntaxFinding {
+	parsed := syntaxFinding{code: f.Code}
+	if f.Path == "" {
+		return parsed
+	}
+	tokens := strings.Split(strings.TrimPrefix(f.Path, "/"), "/")
+	parsed.member = UnescapeJSONPointerToken(tokens[0])
+	if len(tokens) > 1 {
+		parsed.key, parsed.hasKey = UnescapeJSONPointerToken(tokens[1]), true
+	}
+	if len(tokens) > 2 {
+		// A path this package produced always has a numeric index here.
+		parsed.index, _ = strconv.Atoi(tokens[2])
+		parsed.hasIndex = true
+	}
+	return parsed
+}
+
 // syntaxFinding is a finding before its path is rendered. It keeps the parts
 // of the path separately, so findings sort by the documented order without
 // parsing JSON Pointers back apart.
@@ -150,7 +214,7 @@ type syntaxFinding struct {
 func (f syntaxFinding) path() string {
 	p := "/" + f.member
 	if f.hasKey {
-		p += "/" + escapePointerToken(f.key)
+		p += "/" + EscapeJSONPointerToken(f.key)
 	}
 	if f.hasIndex {
 		p += "/" + strconv.Itoa(f.index)
@@ -184,8 +248,14 @@ func compareBool(a, b bool) int {
 	}
 }
 
-// escapePointerToken escapes a reference token for a JSON Pointer: `~`
+// EscapeJSONPointerToken escapes a reference token for a JSON Pointer: `~`
 // becomes `~0` and `/` becomes `~1`, in that order (RFC 6901, section 3).
-func escapePointerToken(token string) string {
+func EscapeJSONPointerToken(token string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(token, "~", "~0"), "/", "~1")
+}
+
+// UnescapeJSONPointerToken reverses EscapeJSONPointerToken: `~1` becomes `/`
+// and `~0` becomes `~`, in that order (RFC 6901, section 4).
+func UnescapeJSONPointerToken(token string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
 }

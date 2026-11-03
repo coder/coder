@@ -1,5 +1,10 @@
 package idpsync_test
 
+import (
+	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/codersdk"
+)
+
 // This file holds the test vectors for the policy that sits between the
 // validators and the rewriter of group sync settings. The policy decides, for
 // each finding, whether the settings are rewritten, kept as received, or
@@ -20,11 +25,8 @@ package idpsync_test
 // Routes, actions, and outcomes have stable string names, so that a policy
 // can later be stored, sent over the API, and chosen per deployment.
 //
-// The finding codes are the ones defined with the full validator's vectors in
-// `group_validity_test.go`, plus syntaxCodeNullArray below.
-
-// syntaxCodeNullArray: a member of `mapping` has the value `null` (W5).
-const syntaxCodeNullArray = "null_array"
+// The finding codes are the exported constants: the syntax validator's in
+// codersdk, and the full validator's in this package.
 
 // Routes by which settings reach the rewriter.
 const (
@@ -59,13 +61,13 @@ const (
 
 // codeUnknown is a finding code that no validator produces. It stands for a
 // code added to a validator without a policy entry or a rewritability entry.
-const codeUnknown = "unknown_code"
+const codeUnknown codersdk.GroupSyncFindingCode = "unknown_code"
 
 // rewritableVector is one test vector for the rewritability of a finding
 // code.
 type rewritableVector struct {
 	// code is the finding code.
-	code string
+	code codersdk.GroupSyncFindingCode
 	// rewritable is true when the rewriter has a rewrite rule for the code.
 	rewritable bool
 	// why names the rewrite rule, or says why there is none.
@@ -76,25 +78,25 @@ type rewritableVector struct {
 // rewrite it. A test also checks that every code the validators define
 // appears here exactly once.
 var rewritableVectors = []rewritableVector{
-	{code: syntaxCodeNilUUID, rewritable: true, why: "R1 removes the nil UUID."},
-	{code: syntaxCodeRepeatedUUID, rewritable: true, why: "R2 keeps one copy of the UUID."},
-	{code: syntaxCodeNullArray, rewritable: true, why: "R3 replaces `null` with `[]`."},
-	{code: syntaxCodeFilterExcludedKey, rewritable: true, why: "R4 removes the member."},
-	{code: codeEveryoneGroup, rewritable: true, why: "R5 removes the Everyone group."},
-	{code: codeMissingGroup, rewritable: true, why: "R6 removes the UUID."},
-	{code: codeOutsideGroup, rewritable: true, why: "R7 removes the UUID."},
-	{code: syntaxCodeFieldEmpty, rewritable: false, why: "No rule is defined. The settings are kept as received by policy."},
-	{code: syntaxCodeLegacyMappingFound, rewritable: false, why: "A rewrite into strict form is not feasible in general."},
-	{code: syntaxCodeEmptyMappingKey, rewritable: false, why: "An IdP claim can contain the empty string, so removing the key could change behavior."},
-	{code: codeOrganizationDeleted, rewritable: false, why: "No omission makes a deleted organization's settings valid."},
-	{code: codeOrganizationAbsent, rewritable: false, why: "No omission makes settings for an absent organization valid."},
+	{code: codersdk.GroupSyncFindingNilUUID, rewritable: true, why: "R1 removes the nil UUID."},
+	{code: codersdk.GroupSyncFindingRepeatedUUID, rewritable: true, why: "R2 keeps one copy of the UUID."},
+	{code: codersdk.GroupSyncFindingNullArray, rewritable: true, why: "R3 replaces `null` with `[]`."},
+	{code: codersdk.GroupSyncFindingFilterExcludedKey, rewritable: true, why: "R4 removes the member."},
+	{code: idpsync.GroupSyncFindingEveryoneGroup, rewritable: true, why: "R5 removes the Everyone group."},
+	{code: idpsync.GroupSyncFindingMissingGroup, rewritable: true, why: "R6 removes the UUID."},
+	{code: idpsync.GroupSyncFindingOutsideGroup, rewritable: true, why: "R7 removes the UUID."},
+	{code: codersdk.GroupSyncFindingFieldEmpty, rewritable: false, why: "No rule is defined. The settings are kept as received by policy."},
+	{code: codersdk.GroupSyncFindingLegacyMapping, rewritable: false, why: "A rewrite into strict form is not feasible in general."},
+	{code: codersdk.GroupSyncFindingEmptyMappingKey, rewritable: false, why: "An IdP claim can contain the empty string, so removing the key could change behavior."},
+	{code: idpsync.GroupSyncFindingOrganizationDeleted, rewritable: false, why: "No omission makes a deleted organization's settings valid."},
+	{code: idpsync.GroupSyncFindingOrganizationAbsent, rewritable: false, why: "No omission makes settings for an absent organization valid."},
 	{code: codeUnknown, rewritable: false, why: "An unknown code has no rule, so it is never rewritten."},
 }
 
 // relaxedPolicyVector is one test vector for RelaxedPolicy.
 type relaxedPolicyVector struct {
 	// code is the finding code.
-	code string
+	code codersdk.GroupSyncFindingCode
 	// route is the route the finding arrives by.
 	route string
 	// want is the action RelaxedPolicy must return.
@@ -115,72 +117,72 @@ type relaxedPolicyVector struct {
 // V3, and V4 violations are rejected on the request routes.
 var relaxedPolicyVectors = []relaxedPolicyVector{
 	// R1: the nil UUID. Accepted today, and removing it changes nothing.
-	{code: syntaxCodeNilUUID, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R1 applies."},
-	{code: syntaxCodeNilUUID, route: routeMerge, want: actionRewrite, why: "Accepted today, including a mapping-diff pair with no `Gets`; R1 applies."},
-	{code: syntaxCodeNilUUID, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R1 applies."},
+	{code: codersdk.GroupSyncFindingNilUUID, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R1 applies."},
+	{code: codersdk.GroupSyncFindingNilUUID, route: routeMerge, want: actionRewrite, why: "Accepted today, including a mapping-diff pair with no `Gets`; R1 applies."},
+	{code: codersdk.GroupSyncFindingNilUUID, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R1 applies."},
 
 	// R2: a repeated UUID. Accepted today, and T is a set.
-	{code: syntaxCodeRepeatedUUID, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R2 applies."},
-	{code: syntaxCodeRepeatedUUID, route: routeMerge, want: actionRewrite, why: "Accepted today; R2 applies."},
-	{code: syntaxCodeRepeatedUUID, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R2 applies."},
+	{code: codersdk.GroupSyncFindingRepeatedUUID, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R2 applies."},
+	{code: codersdk.GroupSyncFindingRepeatedUUID, route: routeMerge, want: actionRewrite, why: "Accepted today; R2 applies."},
+	{code: codersdk.GroupSyncFindingRepeatedUUID, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R2 applies."},
 
 	// R3: a `null` array. Accepted today, and it acts as an empty array.
-	{code: syntaxCodeNullArray, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R3 applies."},
-	{code: syntaxCodeNullArray, route: routeMerge, want: actionRewrite, why: "Accepted today; R3 applies."},
-	{code: syntaxCodeNullArray, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R3 applies."},
+	{code: codersdk.GroupSyncFindingNullArray, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R3 applies."},
+	{code: codersdk.GroupSyncFindingNullArray, route: routeMerge, want: actionRewrite, why: "Accepted today; R3 applies."},
+	{code: codersdk.GroupSyncFindingNullArray, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R3 applies."},
 
 	// R4: a key the filter excludes. Accepted today, and the member never
 	// applies.
-	{code: syntaxCodeFilterExcludedKey, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R4 applies."},
-	{code: syntaxCodeFilterExcludedKey, route: routeMerge, want: actionRewrite, why: "Accepted today, including a filter changed by the config endpoint; R4 applies."},
-	{code: syntaxCodeFilterExcludedKey, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R4 applies."},
+	{code: codersdk.GroupSyncFindingFilterExcludedKey, route: routeFullReplace, want: actionRewrite, why: "Accepted today; R4 applies."},
+	{code: codersdk.GroupSyncFindingFilterExcludedKey, route: routeMerge, want: actionRewrite, why: "Accepted today, including a filter changed by the config endpoint; R4 applies."},
+	{code: codersdk.GroupSyncFindingFilterExcludedKey, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R4 applies."},
 
 	// R5: the Everyone group. Accepted today, and T always contains it.
-	{code: codeEveryoneGroup, route: routeFullReplace, want: actionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
-	{code: codeEveryoneGroup, route: routeMerge, want: actionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
-	{code: codeEveryoneGroup, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R5 applies."},
+	{code: idpsync.GroupSyncFindingEveryoneGroup, route: routeFullReplace, want: actionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
+	{code: idpsync.GroupSyncFindingEveryoneGroup, route: routeMerge, want: actionRewrite, why: "Accepted today, and harmless; R5 applies rather than a new rejection."},
+	{code: idpsync.GroupSyncFindingEveryoneGroup, route: routeFetch, want: actionRewrite, why: "Stored rows can hold it; R5 applies."},
 
 	// R6: a UUID that names no group. Rejected on requests as a deliberate
 	// change; removed from stored rows.
-	{code: codeMissingGroup, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V3."},
-	{code: codeMissingGroup, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V3. Stale entries in the stored row were already removed on the read before merging."},
-	{code: codeMissingGroup, route: routeFetch, want: actionRewrite, why: "A stored row cannot be rejected; R6 applies."},
+	{code: idpsync.GroupSyncFindingMissingGroup, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V3."},
+	{code: idpsync.GroupSyncFindingMissingGroup, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V3. Stale entries in the stored row were already removed on the read before merging."},
+	{code: idpsync.GroupSyncFindingMissingGroup, route: routeFetch, want: actionRewrite, why: "A stored row cannot be rejected; R6 applies."},
 
 	// R7: a group in another organization. Rejected on requests as a
 	// deliberate change, which is the fix for SEC-183; removed from stored
 	// rows.
-	{code: codeOutsideGroup, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V4."},
-	{code: codeOutsideGroup, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V4."},
-	{code: codeOutsideGroup, route: routeFetch, want: actionRewrite, why: "A stored row cannot be rejected; R7 applies."},
+	{code: idpsync.GroupSyncFindingOutsideGroup, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V4."},
+	{code: idpsync.GroupSyncFindingOutsideGroup, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V4."},
+	{code: idpsync.GroupSyncFindingOutsideGroup, route: routeFetch, want: actionRewrite, why: "A stored row cannot be rejected; R7 applies."},
 
 	// An empty `field` with other nonempty members. Accepted today; kept as
 	// received by policy.
-	{code: syntaxCodeFieldEmpty, route: routeFullReplace, want: actionKeep, why: "Accepted today, and kept as received by policy."},
-	{code: syntaxCodeFieldEmpty, route: routeMerge, want: actionKeep, why: "Accepted today, including `field` cleared by the config endpoint; kept as received."},
-	{code: syntaxCodeFieldEmpty, route: routeFetch, want: actionKeep, why: "Stored rows can hold it; kept as stored."},
+	{code: codersdk.GroupSyncFindingFieldEmpty, route: routeFullReplace, want: actionKeep, why: "Accepted today, and kept as received by policy."},
+	{code: codersdk.GroupSyncFindingFieldEmpty, route: routeMerge, want: actionKeep, why: "Accepted today, including `field` cleared by the config endpoint; kept as received."},
+	{code: codersdk.GroupSyncFindingFieldEmpty, route: routeFetch, want: actionKeep, why: "Stored rows can hold it; kept as stored."},
 
 	// A legacy mapping. Rejected today by the full-replace endpoint, and
 	// copied through today by the merging endpoints.
-	{code: syntaxCodeLegacyMappingFound, route: routeFullReplace, want: actionReject, why: "Rejected today; relaxed mode is never less strict."},
-	{code: syntaxCodeLegacyMappingFound, route: routeMerge, want: actionKeep, why: "The merging endpoints copy the stored legacy mapping through today; kept as received."},
-	{code: syntaxCodeLegacyMappingFound, route: routeFetch, want: actionKeep, why: "Stored rows can hold it; kept as stored."},
+	{code: codersdk.GroupSyncFindingLegacyMapping, route: routeFullReplace, want: actionReject, why: "Rejected today; relaxed mode is never less strict."},
+	{code: codersdk.GroupSyncFindingLegacyMapping, route: routeMerge, want: actionKeep, why: "The merging endpoints copy the stored legacy mapping through today; kept as received."},
+	{code: codersdk.GroupSyncFindingLegacyMapping, route: routeFetch, want: actionKeep, why: "Stored rows can hold it; kept as stored."},
 
 	// An empty mapping key. Accepted today, and not safely removable.
-	{code: syntaxCodeEmptyMappingKey, route: routeFullReplace, want: actionKeep, why: "Accepted today; kept as received."},
-	{code: syntaxCodeEmptyMappingKey, route: routeMerge, want: actionKeep, why: "Accepted today; kept as received."},
-	{code: syntaxCodeEmptyMappingKey, route: routeFetch, want: actionKeep, why: "Stored rows can hold it; kept as stored."},
+	{code: codersdk.GroupSyncFindingEmptyMappingKey, route: routeFullReplace, want: actionKeep, why: "Accepted today; kept as received."},
+	{code: codersdk.GroupSyncFindingEmptyMappingKey, route: routeMerge, want: actionKeep, why: "Accepted today; kept as received."},
+	{code: codersdk.GroupSyncFindingEmptyMappingKey, route: routeFetch, want: actionKeep, why: "Stored rows can hold it; kept as stored."},
 
 	// A deleted organization. Rejected on requests as a deliberate change;
 	// a stored row is kept.
-	{code: codeOrganizationDeleted, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V2."},
-	{code: codeOrganizationDeleted, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V2."},
-	{code: codeOrganizationDeleted, route: routeFetch, want: actionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
+	{code: idpsync.GroupSyncFindingOrganizationDeleted, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V2."},
+	{code: idpsync.GroupSyncFindingOrganizationDeleted, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V2."},
+	{code: idpsync.GroupSyncFindingOrganizationDeleted, route: routeFetch, want: actionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
 
 	// An absent organization. Rejected on requests as a deliberate change;
 	// a stored row is kept.
-	{code: codeOrganizationAbsent, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V2."},
-	{code: codeOrganizationAbsent, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V2."},
-	{code: codeOrganizationAbsent, route: routeFetch, want: actionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
+	{code: idpsync.GroupSyncFindingOrganizationAbsent, route: routeFullReplace, want: actionReject, why: "A deliberate new rejection: V2."},
+	{code: idpsync.GroupSyncFindingOrganizationAbsent, route: routeMerge, want: actionReject, why: "A deliberate new rejection: V2."},
+	{code: idpsync.GroupSyncFindingOrganizationAbsent, route: routeFetch, want: actionKeep, why: "A stored row cannot be rejected, and no rule repairs it; kept as stored."},
 
 	// An unknown code. Rejected on every route, so a code added without a
 	// policy entry fails closed.
@@ -219,7 +221,7 @@ type decideVector struct {
 	route string
 	// codes are the codes of the findings, in the order the validator reports
 	// them. Decide does not look at paths, so the vectors give codes only.
-	codes []string
+	codes []codersdk.GroupSyncFindingCode
 	// wantOutcome is the outcome Decide must return.
 	wantOutcome string
 	// wantActions is the action Decide must return for each finding, in the
@@ -245,7 +247,7 @@ var decideVectors = []decideVector{
 		why:         "With no findings the settings are strictly valid.",
 		policy:      policyRelaxed,
 		route:       routeFullReplace,
-		codes:       []string{},
+		codes:       []codersdk.GroupSyncFindingCode{},
 		wantOutcome: outcomeStrictlyValid,
 		wantActions: []string{},
 	},
@@ -254,7 +256,7 @@ var decideVectors = []decideVector{
 		why:         "The strict policy rejects every finding, so with no findings it rejects nothing: strict form passes strict mode.",
 		policy:      policyStrict,
 		route:       routeFetch,
-		codes:       []string{},
+		codes:       []codersdk.GroupSyncFindingCode{},
 		wantOutcome: outcomeStrictlyValid,
 		wantActions: []string{},
 	},
@@ -265,7 +267,7 @@ var decideVectors = []decideVector{
 		why:         "One rewritable finding the policy rewrites gives a rewritten outcome.",
 		policy:      policyRelaxed,
 		route:       routeFetch,
-		codes:       []string{syntaxCodeNilUUID},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNilUUID},
 		wantOutcome: outcomeRewritten,
 		wantActions: []string{actionRewrite},
 	},
@@ -274,7 +276,7 @@ var decideVectors = []decideVector{
 		why:         "One finding the policy keeps gives a not-rewritten outcome.",
 		policy:      policyRelaxed,
 		route:       routeFetch,
-		codes:       []string{syntaxCodeLegacyMappingFound},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingLegacyMapping},
 		wantOutcome: outcomeNotRewritten,
 		wantActions: []string{actionKeep},
 	},
@@ -283,7 +285,7 @@ var decideVectors = []decideVector{
 		why:         "One finding the policy rejects gives a rejected outcome.",
 		policy:      policyRelaxed,
 		route:       routeFullReplace,
-		codes:       []string{codeOutsideGroup},
+		codes:       []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingOutsideGroup},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionReject},
 	},
@@ -295,7 +297,7 @@ var decideVectors = []decideVector{
 		why:         "A rewritable finding and a kept one: there is no partial rewrite, so the outcome is not rewritten. The rewritable finding still reports its action.",
 		policy:      policyRelaxed,
 		route:       routeFetch,
-		codes:       []string{syntaxCodeNilUUID, syntaxCodeLegacyMappingFound},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNilUUID, codersdk.GroupSyncFindingLegacyMapping},
 		wantOutcome: outcomeNotRewritten,
 		wantActions: []string{actionRewrite, actionKeep},
 	},
@@ -304,7 +306,7 @@ var decideVectors = []decideVector{
 		why:         "A single rejection rejects the settings, whatever else could be rewritten.",
 		policy:      policyRelaxed,
 		route:       routeFullReplace,
-		codes:       []string{syntaxCodeRepeatedUUID, codeMissingGroup},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingRepeatedUUID, idpsync.GroupSyncFindingMissingGroup},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionRewrite, actionReject},
 	},
@@ -313,7 +315,7 @@ var decideVectors = []decideVector{
 		why:         "A rejection outranks a finding that would keep the settings as received.",
 		policy:      policyRelaxed,
 		route:       routeFullReplace,
-		codes:       []string{syntaxCodeFieldEmpty, codeOrganizationDeleted},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingFieldEmpty, idpsync.GroupSyncFindingOrganizationDeleted},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionKeep, actionReject},
 	},
@@ -322,7 +324,7 @@ var decideVectors = []decideVector{
 		why:         "Rewrite, keep, and reject together: reject wins.",
 		policy:      policyRelaxed,
 		route:       routeFullReplace,
-		codes:       []string{syntaxCodeNullArray, syntaxCodeEmptyMappingKey, codeOutsideGroup},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNullArray, codersdk.GroupSyncFindingEmptyMappingKey, idpsync.GroupSyncFindingOutsideGroup},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionRewrite, actionKeep, actionReject},
 	},
@@ -333,7 +335,7 @@ var decideVectors = []decideVector{
 		why:         "The full-replace endpoint rejects a legacy mapping today.",
 		policy:      policyRelaxed,
 		route:       routeFullReplace,
-		codes:       []string{syntaxCodeLegacyMappingFound},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingLegacyMapping},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionReject},
 	},
@@ -342,7 +344,7 @@ var decideVectors = []decideVector{
 		why:         "The merging endpoints copy a stored legacy mapping through today.",
 		policy:      policyRelaxed,
 		route:       routeMerge,
-		codes:       []string{syntaxCodeLegacyMappingFound},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingLegacyMapping},
 		wantOutcome: outcomeNotRewritten,
 		wantActions: []string{actionKeep},
 	},
@@ -351,7 +353,7 @@ var decideVectors = []decideVector{
 		why:         "A missing group in a merged request is rejected.",
 		policy:      policyRelaxed,
 		route:       routeMerge,
-		codes:       []string{codeMissingGroup},
+		codes:       []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingMissingGroup},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionReject},
 	},
@@ -360,7 +362,7 @@ var decideVectors = []decideVector{
 		why:         "A missing group in a stored row is removed.",
 		policy:      policyRelaxed,
 		route:       routeFetch,
-		codes:       []string{codeMissingGroup},
+		codes:       []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingMissingGroup},
 		wantOutcome: outcomeRewritten,
 		wantActions: []string{actionRewrite},
 	},
@@ -372,7 +374,7 @@ var decideVectors = []decideVector{
 		why:         "No rule rewrites a legacy mapping, so the defective policy's request is turned into a rejection.",
 		policy:      policyRewriteAll,
 		route:       routeFetch,
-		codes:       []string{syntaxCodeLegacyMappingFound},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingLegacyMapping},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionReject},
 	},
@@ -381,7 +383,7 @@ var decideVectors = []decideVector{
 		why:         "Only the finding without a rule is turned into a rejection; the rewritable one keeps its action, and the outcome is rejected.",
 		policy:      policyRewriteAll,
 		route:       routeFetch,
-		codes:       []string{syntaxCodeNilUUID, syntaxCodeEmptyMappingKey},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNilUUID, codersdk.GroupSyncFindingEmptyMappingKey},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionRewrite, actionReject},
 	},
@@ -390,7 +392,7 @@ var decideVectors = []decideVector{
 		why:         "An unknown code has no rule, so even a policy that asks to rewrite it gets a rejection.",
 		policy:      policyRewriteAll,
 		route:       routeFetch,
-		codes:       []string{codeUnknown},
+		codes:       []codersdk.GroupSyncFindingCode{codeUnknown},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionReject},
 	},
@@ -401,7 +403,7 @@ var decideVectors = []decideVector{
 		why:         "A request with a missing group: the never-reject fixture rewrites it, which is what the rewriter's tests need.",
 		policy:      policyNeverReject,
 		route:       routeFullReplace,
-		codes:       []string{codeMissingGroup},
+		codes:       []codersdk.GroupSyncFindingCode{idpsync.GroupSyncFindingMissingGroup},
 		wantOutcome: outcomeRewritten,
 		wantActions: []string{actionRewrite},
 	},
@@ -410,7 +412,7 @@ var decideVectors = []decideVector{
 		why:         "The never-reject fixture keeps a code that has no rule, so it never trips the rejection in group 5.",
 		policy:      policyNeverReject,
 		route:       routeFullReplace,
-		codes:       []string{syntaxCodeLegacyMappingFound},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingLegacyMapping},
 		wantOutcome: outcomeNotRewritten,
 		wantActions: []string{actionKeep},
 	},
@@ -419,7 +421,7 @@ var decideVectors = []decideVector{
 		why:         "The strict fixture rejects even a finding relaxed mode would rewrite.",
 		policy:      policyStrict,
 		route:       routeFetch,
-		codes:       []string{syntaxCodeNullArray},
+		codes:       []codersdk.GroupSyncFindingCode{codersdk.GroupSyncFindingNullArray},
 		wantOutcome: outcomeRejected,
 		wantActions: []string{actionReject},
 	},
@@ -431,11 +433,11 @@ var decideVectors = []decideVector{
 		why:    "Findings in an order unrelated to their codes or actions; each action stays at its finding's position.",
 		policy: policyRelaxed,
 		route:  routeMerge,
-		codes: []string{
-			syntaxCodeLegacyMappingFound,
-			codeEveryoneGroup,
-			syntaxCodeFieldEmpty,
-			syntaxCodeRepeatedUUID,
+		codes: []codersdk.GroupSyncFindingCode{
+			codersdk.GroupSyncFindingLegacyMapping,
+			idpsync.GroupSyncFindingEveryoneGroup,
+			codersdk.GroupSyncFindingFieldEmpty,
+			codersdk.GroupSyncFindingRepeatedUUID,
 		},
 		wantOutcome: outcomeNotRewritten,
 		wantActions: []string{actionKeep, actionRewrite, actionKeep, actionRewrite},
