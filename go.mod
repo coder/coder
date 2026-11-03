@@ -594,7 +594,7 @@ require (
 )
 
 require (
-	cel.dev/cel-go v0.32.0
+	cel.dev/cel-go v0.33.0
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 )
 
