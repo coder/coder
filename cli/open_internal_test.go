@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -8,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_resolveAgentAbsPath(t *testing.T) {
@@ -292,4 +296,40 @@ func Test_urlOrigin(t *testing.T) {
 			assert.Equal(t, tc.want, urlOrigin(u))
 		})
 	}
+}
+
+func Test_sessionTokenOrigins(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncludesDashboardURL", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(codersdk.BuildInfoResponse{
+				DashboardURL: "https://Access.example.com:443/",
+			})
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		origins := sessionTokenOrigins(testutil.Context(t, testutil.WaitShort), codersdk.New(u))
+		assert.Equal(t, []string{urlOrigin(u), "https://access.example.com"}, origins)
+	})
+
+	// Without build info, only the URL the CLI is logged in to is trusted.
+	t.Run("BuildInfoError", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		origins := sessionTokenOrigins(testutil.Context(t, testutil.WaitShort), codersdk.New(u))
+		assert.Equal(t, []string{urlOrigin(u)}, origins)
+	})
 }
