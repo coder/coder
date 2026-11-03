@@ -24,6 +24,7 @@ import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockUserPreferenceSettings,
 	mockApiError,
@@ -34,8 +35,10 @@ import {
 	createMockWebSocket,
 	type MockWebSocketServer,
 } from "#/testHelpers/websockets";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { MockAsyncQuestionMessages } from "../components/ChatConversation/storyFixtures";
 import { parseStoredDraft } from "../utils/draftStorage";
 import AgentChatPage from "./AgentChatPage";
 
@@ -50,6 +53,7 @@ const outletContext: Partial<AgentsPageOutletContext> = {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 	localStorage.clear();
 });
 
@@ -469,6 +473,87 @@ describe("AgentChatPage", () => {
 				expect(page.composer().textContent).toBe("draft");
 			},
 		);
+	});
+
+	const answerFromDockOnNarrowScreen = async () => {
+		const originalMatchMedia = window.matchMedia;
+		vi.stubGlobal("matchMedia", (query: string) => {
+			const result = originalMatchMedia(query);
+			return query === mobileViewportMediaQuery
+				? { ...result, matches: true }
+				: result;
+		});
+		const user = userEvent.setup();
+		renderChatPage();
+		const dock = await screen.findByRole("region", { name: "Open question" });
+		const composer = screen.getByRole("textbox", { name: "Chat message" });
+		// jsdom focuses the editor only while the DOM selection is in it, and a
+		// click on the form would move the selection out, so answer by keyboard.
+		await user.click(composer);
+		act(() =>
+			within(dock)
+				.getByRole("radio", { name: /^Frontend/ })
+				.focus(),
+		);
+		await user.keyboard(" ");
+		act(() => within(dock).getByRole("button", { name: "Submit" }).focus());
+		await user.keyboard("{Enter}");
+		return { dock, composer };
+	};
+
+	it("focuses the chat input after an answer sends on a narrow screen", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		vi.spyOn(API.experimental, "createChatMessage").mockResolvedValue({
+			queued: true,
+		});
+
+		const { composer } = await answerFromDockOnNarrowScreen();
+
+		await waitFor(() => expect(composer).toHaveFocus());
+	});
+
+	it("leaves focus out of the chat input when an answer fails to send", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		vi.spyOn(API.experimental, "createChatMessage").mockRejectedValue(
+			new Error("The answer failed."),
+		);
+
+		const { dock, composer } = await answerFromDockOnNarrowScreen();
+
+		await within(dock).findByText("The answer failed.");
+		// jsdom keeps the focus on the Submit button that the send disabled, and
+		// browsers move it to the page body, so only the chat input is checked.
+		expect(composer).not.toHaveFocus();
+	});
+
+	const answerWithPendingSend = async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		const pendingSend = createDeferred<TypesGen.CreateChatMessageResponse>();
+		vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+			pendingSend.promise,
+		);
+		const { composer } = await answerFromDockOnNarrowScreen();
+		return { composer, pendingSend };
+	};
+
+	it("leaves focus that the user moved to another control while an answer was sending", async () => {
+		const { composer, pendingSend } = await answerWithPendingSend();
+		const editButton = screen.getByRole("button", { name: "Edit message" });
+		act(() => editButton.focus());
+		await act(async () => pendingSend.resolve({ queued: true }));
+
+		expect(editButton).toHaveFocus();
+		expect(composer).not.toHaveFocus();
+	});
+
+	it("leaves the chat input alone after a click on the page background while an answer was sending", async () => {
+		const { composer, pendingSend } = await answerWithPendingSend();
+		await userEvent.click(document.body);
+		await act(async () => pendingSend.resolve({ queued: true }));
+
+		// jsdom keeps the focus on the Submit button that the send disabled, and
+		// browsers move it to the page body, so only the chat input is checked.
+		expect(composer).not.toHaveFocus();
 	});
 
 	it("keeps the call line when an async answer that starts with a skill chip is edited", async () => {

@@ -39,6 +39,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
+import { AskUserQuestionDock } from "./AskUserQuestionDock";
 import { deriveAskUserQuestionState } from "./ChatConversation/askUserQuestionState";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
@@ -132,6 +133,8 @@ type ChatPageTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	/** The viewer cannot act on this chat: it is archived, or another user's. */
+	isReadOnly: boolean;
 	urlTransform: UrlTransform;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
@@ -152,6 +155,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	isReadOnly,
 	urlTransform,
 	mcpServers,
 	footer,
@@ -209,6 +213,12 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		showsStreamOutput(liveStatus) ? streamTools : [],
 		undeliveredQueuedMessages,
 	);
+	const dockedQuestion = isReadOnly
+		? undefined
+		: askUserQuestionState.openAsyncQuestion;
+	const queuedAnswerText =
+		dockedQuestion &&
+		askUserQuestionState.responseTextByTool.get(dockedQuestion);
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -250,6 +260,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						urlTransform={urlTransform}
 						mcpServers={mcpServers}
 						showDesktopPreviews={false}
+						dockedAskUserQuestion={
+							queuedAnswerText === undefined ? dockedQuestion : undefined
+						}
 					/>
 					<TerminalStatusRow liveStatus={liveStatus} />
 				</ChatMessageScroller>
@@ -264,6 +277,20 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					/>
 					{footer}
 				</div>
+				{dockedQuestion && (
+					<AskUserQuestionDock
+						question={dockedQuestion}
+						queuedAnswerText={queuedAnswerText}
+						// Saving a history edit clears the queue and deletes every
+						// message after the edited one, so an answer sent meanwhile
+						// would be lost.
+						onSubmitAnswer={
+							editingMessageId == null
+								? onSendAskUserQuestionResponse
+								: undefined
+						}
+					/>
+				)}
 			</Profiler>
 		</ACPContext>
 	);
