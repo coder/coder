@@ -28,10 +28,12 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A pointer keeps Values addressable, so encoding/json uses the
+	// pointer-receiver MarshalJSON methods of its serpent fields.
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
-		codersdk.DeploymentConfig{
-			Values:  values,
+		&codersdk.DeploymentConfig{
+			Values:  *values,
 			Options: api.DeploymentOptions,
 		},
 	)

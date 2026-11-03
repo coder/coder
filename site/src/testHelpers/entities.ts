@@ -1,9 +1,5 @@
 import range from "lodash/range";
-import {
-	type DeploymentConfig,
-	type GetLicensesResponse,
-	withDefaultFeatures,
-} from "#/api/api";
+import { type GetLicensesResponse, withDefaultFeatures } from "#/api/api";
 import type { FieldError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
@@ -3642,7 +3638,7 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	shareChatModelConfigs: false,
 };
 
-export const MockDeploymentConfig: DeploymentConfig = {
+export const MockDeploymentConfig: TypesGen.DeploymentConfig = {
 	config: {
 		enable_terraform_debug_mode: true,
 	},

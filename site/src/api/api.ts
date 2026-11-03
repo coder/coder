@@ -326,11 +326,6 @@ export type DeleteWorkspaceOptions = Pick<
 	"log_level" | "orphan"
 >;
 
-export type DeploymentConfig = Readonly<{
-	config: TypesGen.DeploymentValues;
-	options: TypesGen.SerpentOption[];
-}>;
-
 /**
  * Fetches `items` in concurrent batches of at most `batchSize`, resolving
  * with one response per batch, in input order.
@@ -2518,7 +2513,7 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getDeploymentConfig = async (): Promise<DeploymentConfig> => {
+	getDeploymentConfig = async (): Promise<TypesGen.DeploymentConfig> => {
 		const response = await this.axios.get("/api/v2/deployment/config");
 		return response.data;
 	};

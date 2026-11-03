@@ -16,7 +16,7 @@ import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type SecuritySettingsPageViewProps = {
-	options: SerpentOption[];
+	options: readonly SerpentOption[];
 	/** True when the license covers browser-only connections. */
 	isBrowserOnlyEntitled: boolean;
 	/** True when the deployment has browser-only connections turned on. */

@@ -17,7 +17,7 @@ import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 
 type OverviewPageViewProps = {
-	deploymentOptions: SerpentOption[];
+	deploymentOptions: readonly SerpentOption[];
 	dailyActiveUsers: DAUsResponse | undefined;
 	readonly invalidExperiments: readonly string[];
 	readonly safeExperiments: readonly Experiment[];

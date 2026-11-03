@@ -11,7 +11,7 @@ import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type ObservabilitySettingsPageViewProps = {
-	options: SerpentOption[];
+	options: readonly SerpentOption[];
 	featureAuditLogEnabled: boolean;
 	canViewPremium: boolean;
 };
