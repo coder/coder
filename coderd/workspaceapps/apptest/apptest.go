@@ -2501,6 +2501,9 @@ var echoAppAuthHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Re
 func assertSessionTokenStripped(t *testing.T, client *codersdk.Client, appURL *url.URL, sessionToken string) {
 	t.Helper()
 
+	// Only the token each case sets may authenticate the request.
+	client.SetSessionToken("")
+
 	// The app's own Authorization header must reach the backend.
 	const appAuthorization = "Bearer app-owned-token"
 	// Unsorted and with a literal comma, which url.Values.Encode would
@@ -2538,7 +2541,6 @@ func assertSessionTokenStripped(t *testing.T, client *codersdk.Client, appURL *u
 			req.Header.Set("Authorization", appAuthorization)
 			c.setAuth(req)
 
-			// HTTPClient.Do does not attach the client's session token.
 			resp, err := doWithRetries(t, client, req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
