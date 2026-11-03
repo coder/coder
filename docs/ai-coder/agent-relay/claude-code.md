@@ -352,7 +352,7 @@ Problems that only affect Claude Code are under [Claude Code sessions](./trouble
 
 - [Set up Agent Relay](./setup.md)
 - [Configure Slack for Agent Relay](./slack.md)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)
 - [Troubleshoot Agent Relay](./troubleshooting.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Anthropic self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments)

@@ -15,9 +15,7 @@ children:
   - title: Slack
     description: Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.
     path: ./ai-coder/agent-relay/slack.md
-  - title: Monitor
-    description: Trace sessions and failures with Agent Relay logs and Prometheus metrics.
-    path: ./ai-coder/agent-relay/monitoring.md
+  - include: ai-coder/agent-relay/monitoring.yml
   - title: Troubleshoot
     description: Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.
     path: ./ai-coder/agent-relay/troubleshooting.md

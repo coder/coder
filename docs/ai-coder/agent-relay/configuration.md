@@ -214,7 +214,7 @@ The base URL of Cursor's fleet management API.
 
 ## Logging
 
-For log fields and examples, refer to [Monitor Agent Relay](./monitoring.md#logs).
+For log fields and examples, refer to [Monitor Agent Relay](./monitoring/index.md#logs).
 
 ### `--log-level`
 
@@ -243,7 +243,7 @@ Use `json` for log aggregation.
 
 ## Prometheus metrics
 
-For the metrics that Agent Relay exports, refer to [Monitor Agent Relay](./monitoring.md#prometheus-metrics).
+For the metrics that Agent Relay exports, refer to [Monitor Agent Relay](./monitoring/index.md#prometheus-metrics).
 
 ### `--prometheus-enable`
 
@@ -370,4 +370,4 @@ Two relays that serve the same pools both claim sessions and compete over the sa
 - [Set up Agent Relay](./setup.md)
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)

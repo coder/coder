@@ -106,7 +106,7 @@ For the full list, refer to [Before you begin](./setup.md#before-you-begin).
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
 - [Configure Slack for Agent Relay](./slack.md)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)
 - [Troubleshoot Agent Relay](./troubleshooting.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Coder Agents](../agents/index.md)

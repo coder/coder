@@ -19,7 +19,7 @@ You need:
 - A Coder deployment with a Premium license, on version 2.39 or later.
 - Agent Relay v0.14.0 or later.
 - Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
-- The [Coder CLI](../../install/cli.md), signed in as an `owner`.
+- The [Coder CLI](https://coder.com/downloads), signed in as an `owner`.
 - An account with the provider you want to serve.
   Refer to the requirements on the [Claude Code](./claude-code.md#requirements) or [Cursor](./cursor.md#requirements) page.
 
@@ -378,7 +378,7 @@ An invalid token, an unlicensed deployment, an unsupported Coder version, or a m
 
 1. End the session and confirm that Agent Relay deletes the workspace.
 
-For logs, metrics, and troubleshooting, refer to [Monitor Agent Relay](./monitoring.md).
+For logs, metrics, and troubleshooting, refer to [Monitor Agent Relay](./monitoring/index.md).
 
 ## Workspace lifecycle
 
@@ -456,7 +456,7 @@ To roll back Coder or Agent Relay, pin templates back to their early access modu
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
 - [Configure Slack for Agent Relay](./slack.md)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)
 - [Troubleshoot Agent Relay](./troubleshooting.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [External provisioners](../../install/operate/provisioners/index.md)

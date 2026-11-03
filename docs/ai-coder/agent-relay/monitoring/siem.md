@@ -1,100 +1,17 @@
 ---
-title: Monitor Agent Relay
+title: Send Agent Relay logs to a SIEM
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../../reference/feature-stages.md#beta).
-> Metric names, labels, and log fields can change between beta releases.
+> Agent Relay is in [beta](../../../reference/feature-stages.md#beta).
+> Log messages and fields can change between beta releases.
 
-This page is for operators who run Agent Relay and need to answer how many sessions ran, who ran them, and which failed and why.
-Use Agent Relay's logs and Prometheus metrics, ingested into your own observability stack:
-
-- **Logs** answer "what happened, in order?"
-- **Prometheus metrics** answer "how often, and how long?"
-
-## Logs
-
-Agent Relay writes structured logs to stderr and doesn't write log files.
-Your container runtime or log shipper controls retention.
-
-```shell
-# Kubernetes
-kubectl logs -n coder deploy/coder-agent-relay --since=30m
-
-# Docker
-docker logs --since=30m <container>
-```
-
-Use JSON logs in production.
-The Helm chart defaults to `logFormat: json`.
-For Docker, set `logFormat: json` in `config.yaml`.
-For a short diagnostic window, set `logLevel: debug`.
-
-A startup failure that occurs before the logger is ready prints as a plain `agent-relay: ...` line, not JSON.
-When you parse logs, skip lines that aren't JSON instead of failing on them, as the `jq` example below does.
-
-### Correlation fields
-
-Each JSON log line has `ts`, `level`, `msg`, and a `fields` object.
-The correlation fields are inside `fields`, so a log query reads them as `fields.session_id`, for example.
-
-These fields mean the same thing for both providers, so one query works across Claude Code and Cursor:
-
-| Field            | Meaning                                    | Available                                        |
-|------------------|--------------------------------------------|--------------------------------------------------|
-| `provider`       | `claude_code` or `cursor`                  | On pool-scoped logs                              |
-| `pool`           | The Agent Relay pool name                  | On pool-scoped logs                              |
-| `session_id`     | The provider's session or request ID       | Once Agent Relay handles the session             |
-| `delivery_id`    | The ID of this delivery or worker attempt  | Once the provider assigns it                     |
-| `owner`          | The Coder username of the workspace owner  | After identity resolution                        |
-| `owner_id`       | The Coder user UUID of the workspace owner | After identity resolution                        |
-| `workspace_id`   | The Coder workspace UUID                   | After Agent Relay creates or finds the workspace |
-| `workspace_name` | The Coder workspace name                   | After Agent Relay creates or finds the workspace |
-
-For Claude Code, some log lines carry the session ID only as `session_uuid`, such as the lines that the reaper writes when it fails a session.
-To trace a Claude Code session, match both `session_id` and `session_uuid`.
-
-For Claude Code, `client_platform` records where the session started: `web_claude_ai`, `desktop_app`, `ios`, `android`, `claude_code_cli`, `claude_in_slack`, or `unknown`.
-Cursor doesn't report a client platform.
-
-To trace a session, start with `provider`, `pool`, and `session_id`.
-After Agent Relay creates the workspace, use `workspace_id` to find the matching build in Coder and the workspace's entry in the [audit log](../../admin/security/audit-logs.md).
-
-For example, to follow one session with `jq`:
-
-```shell
-kubectl logs -n coder deploy/coder-agent-relay --since=1h \
-  | jq -Rc --arg id '<session-id>' '
-      fromjson?
-      | select(.fields.session_id == $id or .fields.session_uuid == $id)'
-```
-
-The `-R` flag and `fromjson?` skip lines that aren't JSON, such as startup failures.
-
-### What Agent Relay logs don't include
-
-Agent Relay logs its own control plane: queue handling, identity resolution, dispatch, build state, and cleanup.
-It doesn't collect conversation transcripts, model output, or the provider CLI's output from inside the workspace.
-At the default log level, it doesn't log secrets or work order credentials.
-
-For a failed session, also check:
-
-1. **The `job_error` field** on the log line that starts with `workspace build failed`, for the build's error message.
-   Agent Relay deletes a workspace whose build fails, so start here.
-1. **Coder workspace build logs** for Terraform, provisioner, image, parameter, and startup failures.
-1. **Workspace agent and module logs** for provider runner or worker failures after the workspace starts.
-   Agent Relay deletes the workspace, and these logs with it, when the session ends.
-   To keep them, ship them from the workspace to an external log service.
-1. **The provider's admin views** for queue state that the provider doesn't return to Agent Relay.
-
-## Send logs to a SIEM
-
-This section is for teams that ingest Agent Relay logs into a security information and event management (SIEM) system or another log platform that reads JSON lines.
+This page is for teams that ingest Agent Relay logs into a security information and event management (SIEM) system or another log platform that reads JSON lines.
 Agent Relay doesn't emit a separate event ID, so build searches and alerts on `msg`, `level`, `logger_names`, and values inside `fields`.
 
-Set `logFormat: json` and ship the container's stderr to your SIEM with your usual log collector, as you would for [Coder service logs](../../admin/monitoring/connection-logs.md#service-logs).
+Set `logFormat: json` and ship the container's stderr to your SIEM with your usual log collector, as you would for [Coder service logs](../../../admin/monitoring/connection-logs.md#service-logs).
 
-### Log levels
+## Log levels
 
 Each `logLevel` setting includes every more severe level:
 
@@ -109,7 +26,7 @@ Use `info` for SIEM ingestion.
 `debug` adds routine retries, poll backpressure, and license checks without adding alerting value.
 For Claude Code, `debug` also writes `work order payload` records that contain the decoded work order, including emails and repository URLs.
 
-### Record shape
+## Record shape
 
 Each JSON record has these top-level keys:
 
@@ -121,14 +38,14 @@ Each JSON record has these top-level keys:
 | `caller`       | Source file and line of the log statement. Changes between builds.                                                                |
 | `func`         | Go function that wrote the record. Changes between builds.                                                                        |
 | `logger_names` | The Agent Relay service that wrote the record, such as `claude-code-runners`, `cursor-workers`, `reaper`, or `coderd` for startup |
-| `fields`       | Event data, including the [correlation fields](#correlation-fields) and the fields below                                          |
+| `fields`       | Event data, including the [correlation fields](./index.md#correlation-fields) and the fields below                                |
 
 The reaper deletes finished and failed workspaces for both providers.
 Its records carry `workspace_id` and `workspace_name`, but no `provider`, `pool`, or session ID.
 
-### Provider-specific fields
+## Provider-specific fields
 
-Both providers log the [correlation fields](#correlation-fields).
+Both providers log the [correlation fields](./index.md#correlation-fields).
 Each provider also logs identity fields and aliases that use its own API's names.
 An alias always carries the same value as the field it mirrors.
 
@@ -155,7 +72,7 @@ Because `user_id` means different things for each provider, use `owner_id` for t
 Startup records also echo pool configuration, such as `organization`, `organization_id`, and `template`.
 Claude Code adds `claude_tag_channel_user`, and Cursor adds `cursor_pool`, `relist_interval`, and `relist_jitter`.
 
-### Failure and rebuild fields
+## Failure and rebuild fields
 
 | Field            | Meaning                                                                                                                                             |
 |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -176,7 +93,7 @@ Claude Code adds `claude_tag_channel_user`, and Cursor adds `cursor_pool`, `reli
 Claude Code nack records don't repeat the failure reason.
 Find it in the `error` or `reason` field of the `WARN` record written just before the nack.
 
-### Example records
+## Example records
 
 A Claude Code workspace build starting:
 
@@ -253,7 +170,7 @@ ID prefixes show where a value comes from:
 | `cagt_`      | Claude Tag agent ID, on sessions started by Claude Tag in Slack                                |
 | `anthropic:` | Anthropic service name. Values that start with `anthropic:slack` mark Claude Tag sessions.     |
 
-### Parse records
+## Parse records
 
 - Ingest stderr as one JSON object per line.
   Route lines that aren't JSON to a fallback index instead of dropping them, because a plain `agent-relay: ...` startup failure might be the only sign that the service never started.
@@ -271,7 +188,7 @@ ID prefixes show where a value comes from:
   Records written after Agent Relay creates a workspace can contain `owner` twice, and Claude Code nack records can contain `attempt` twice.
   Correlate users on `owner_id`, not `owner`.
 
-### Scope records to a provider
+## Scope records to a provider
 
 - Select a provider's records by `logger_names`: `claude-code-runners` or `cursor-workers`.
   Some records carry no `provider` field, such as `no claude code runner pools configured, claude provider disabled`, so a filter on `fields.provider` alone misses them.
@@ -282,7 +199,7 @@ ID prefixes show where a value comes from:
 To measure user impact, count distinct session IDs, not records: `session_uuid` for Claude Code and `session_id` for Cursor.
 A retried session gets a new `delivery_id` under the same session ID, so one session can fail more than once.
 
-### Match rules
+## Match rules
 
 - Match on `msg` and `level`.
   Do not match on `caller` or `func`, because file paths, line numbers, and function names change between builds.
@@ -291,9 +208,9 @@ A retried session gets a new `delivery_id` under the same session ID, so one ses
 - Alert on specific `msg` values, not on every `WARN` record.
   Several `WARN` messages describe automatic recovery, such as `poll failed, retrying next interval`, `identity resolution failed, nacking retryable`, and `claim failed, retrying next pass`.
 
-### Log-based alerts
+## Log-based alerts
 
-These alerts complement the [suggested Prometheus alerts](#suggested-alerts).
+These alerts complement the [suggested Prometheus alerts](./index.md#suggested-alerts).
 Some conditions, such as a stranded Cursor claim, appear only in logs.
 
 | Priority            | `msg`                                                                                                                                      | Provider    | Group by                     | Why                                                                                                                                                          |
@@ -315,7 +232,7 @@ Some conditions, such as a stranded Cursor claim, appear only in logs.
 | Ticket              | `delete workspace failed, leaving for reconciliation` or `delete workspace failed, retrying next sweep`                                    | Both        | `workspace_id`               | A workspace might still be running and using resources.                                                                                                      |
 | Dashboard           | `resolved session owner`, `claimed pending request`, `workspace build created`, `workspace ready, runner handoff`, or `deleting workspace` | Both        | `pool`, `client_platform`    | The normal session lifecycle, for volume and funnel views.                                                                                                   |
 
-### Retention and privacy
+## Retention and privacy
 
 - Keep logs for as long as your audit requirements need.
   Agent Relay doesn't keep session history, so your log platform is the record of who ran which session and why it failed.
@@ -325,65 +242,8 @@ Some conditions, such as a stranded Cursor claim, appear only in logs.
 - Emails also appear inside `error`, `detail`, and `job_error` strings, such as identity warnings.
   Mask these fields, or restrict them with role-based access, along with the other user-identifying fields.
 
-## Prometheus metrics
-
-The Helm chart turns metrics on by default on port 2112 and adds the `prometheus.io/scrape`, `prometheus.io/port`, and `prometheus.io/path` pod annotations.
-The metrics listener is plain HTTP and also serves `/readyz`, which the Helm chart uses as the readiness probe.
-`/readyz` returns `200` once at least one pool has passed verification, and lists any pool that is still verifying or has failed.
-For Docker, set `CODER_AGENT_RELAY_PROMETHEUS_ENABLE=true` and `CODER_AGENT_RELAY_PROMETHEUS_ADDRESS=0.0.0.0:2112`.
-
-Metrics are named `agent_relay_<subsystem>_<name>` and labeled by `pool`.
-Shared dispatcher, reaper, and pool health metrics also carry a `provider` label.
-
-### Shared metrics
-
-| Metric                                                    | What it tells you                                                                                                                                            |
-|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_relay_dispatcher_dispatches_total{result}`         | Dispatch outcomes: `created`, `rebuilt`, `skipped_serving`, `skipped_deleting`, `expired`, or `failed`.                                                      |
-| `agent_relay_dispatcher_claim_to_workspace_built_seconds` | Time from claim to a successful build. Compare it with the pool's build budget or deadline.                                                                  |
-| `agent_relay_reaper_workspaces{status}`                   | Workspaces by worker status, updated each sweep. Active sessions are `working` plus `serving`.                                                               |
-| `agent_relay_reaper_verdicts_total{verdict}`              | Reaper decisions, such as `keep`, `delete`, `failed`, and `stuck`. `stuck` means three delete builds failed in a row and the workspace needs manual cleanup. |
-| `agent_relay_pool_healthy`                                | `1` if the pool's last verification passed, `0` if it failed or hasn't run yet.                                                                              |
-
-### Claude Code metrics
-
-| Metric                                                                        | What it tells you                                                                                                                    |
-|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_relay_claude_code_work_orders_claimed_total`                           | Work orders Agent Relay claimed from Anthropic. If it stays flat while developers start sessions, sessions aren't reaching the pool. |
-| `agent_relay_claude_code_work_orders_rejected_total{reason, client_platform}` | Work orders Agent Relay rejected, by reason and origin.                                                                              |
-
-### Cursor metrics
-
-| Metric                                                     | What it tells you                                                                                                                             |
-|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_relay_cursor_pending_requests`                      | Requests waiting in the pool's queue. A sustained rise means requests aren't being claimed.                                                   |
-| `agent_relay_cursor_claims_total`                          | Requests Agent Relay claimed from Cursor.                                                                                                     |
-| `agent_relay_cursor_skips_total{reason}`                   | Requests left unclaimed: `throttle`, or `degraded` when the pool's template failed validation.                                                |
-| `agent_relay_cursor_claim_fails_total{retryable, applied}` | Claims that Agent Relay failed in Cursor. `applied="error"` means the call itself failed, so the chat waits until Cursor expires the request. |
-| `agent_relay_cursor_requests_rejected_total{reason}`       | Requests that no active Coder user can own: `no_email`, `no_match`, `inactive`, or `dormant`.                                                 |
-| `agent_relay_cursor_stream_reconnects_total`               | Reconnects of the event stream to Cursor. A steady climb usually points to a proxy or network problem.                                        |
-
-Agent Relay doesn't expose a metric for successful Cursor polls yet.
-Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconnects_total` to confirm that a Cursor pool is live.
-
-### Suggested alerts
-
-- `agent_relay_pool_healthy` at `0` for more than a few minutes.
-  A Claude Code pool that stops because Anthropic rejected its environment key stays down until Agent Relay restarts.
-- Any increase in `agent_relay_dispatcher_dispatches_total{result="failed"}`.
-- Any increase in `agent_relay_reaper_verdicts_total{verdict="stuck"}`, which leaves a workspace for you to clean up.
-- Any increase in `agent_relay_cursor_claim_fails_total{applied="error"}`, which leaves chats waiting.
-- A sustained rise in rejected requests, which usually means developer emails don't match Coder accounts.
-- `agent_relay_cursor_pending_requests` above zero for longer than the pool's `dispatch_deadline`.
-- `agent_relay_dispatcher_claim_to_workspace_built_seconds` approaching the pool's build budget or deadline.
-
-## Troubleshoot by symptom
-
-To find where a failure happened and how to fix it, refer to [Troubleshoot Agent Relay](./troubleshooting.md).
-
 ## Learn more
 
-- [Set up Agent Relay](./setup.md)
-- [Agent Relay configuration reference](./configuration.md)
-- [Audit logs](../../admin/security/audit-logs.md)
-- [Coder Prometheus metrics](../../admin/integrations/prometheus.md)
+- [Monitor Agent Relay](./index.md)
+- [Troubleshoot Agent Relay](../troubleshooting.md)
+- [Agent Relay configuration reference](../configuration.md)

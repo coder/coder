@@ -362,7 +362,7 @@ Problems that only affect Cursor are under [Cursor sessions](./troubleshooting.m
 
 - [Set up Agent Relay](./setup.md)
 - [Configure Slack for Agent Relay](./slack.md#cursor-in-slack)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)
 - [Troubleshoot Agent Relay](./troubleshooting.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Cursor self-hosted machines](https://cursor.com/docs/cloud-agent/self-hosted)

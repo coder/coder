@@ -216,5 +216,5 @@ Refer to the [Slack section of Troubleshoot Agent Relay](./troubleshooting.md#sl
 
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)
 - [Troubleshoot Agent Relay](./troubleshooting.md)

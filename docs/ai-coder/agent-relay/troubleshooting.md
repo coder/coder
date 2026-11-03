@@ -7,7 +7,7 @@ title: Troubleshoot Agent Relay
 
 This page is for Coder administrators who diagnose Agent Relay problems for Claude Code, Cursor, and Slack.
 Entries that apply to one provider say so.
-To read logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
+To read logs and metrics, refer to [Monitor Agent Relay](./monitoring/index.md).
 
 ## Find where a failure happened
 
@@ -165,4 +165,4 @@ Add a `sessionStart` hook that checks out the requested ref.
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
 - [Configure Slack for Agent Relay](./slack.md)
-- [Monitor Agent Relay](./monitoring.md)
+- [Monitor Agent Relay](./monitoring/index.md)
