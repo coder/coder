@@ -143,8 +143,8 @@ importers:
         specifier: 3.10.2
         version: 3.10.2
       lexical:
-        specifier: 0.44.0
-        version: 0.44.0
+        specifier: 0.52.0
+        version: 0.52.0(typescript@6.0.2)
       lodash:
         specifier: 4.18.1
         version: 4.18.1
@@ -1009,6 +1009,14 @@ packages:
 
   '@lexical/internal@0.49.0':
     resolution: {integrity: sha512-s+XjPC7Qb39A/Xx9ahcz1s69CPix4ultaqyW+MDG0AXYW2quDr7m0USqReKIAiuoLIWtGN5HW8BwV2Y6t4qr6Q==, tarball: https://registry.npmjs.org/@lexical/internal/-/internal-0.49.0.tgz}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@lexical/internal@0.52.0':
+    resolution: {integrity: sha512-Y7jKqeh4Irf/FwNmAqHIk3b05HpMsHv2RyWPQ8+M7FAdEbT9N2mksjc8ZUZ3tHqDMi7FNiLkjZN/DwbdekUb1g==, tarball: https://registry.npmjs.org/@lexical/internal/-/internal-0.52.0.tgz}
     peerDependencies:
       typescript: '>=5.2'
     peerDependenciesMeta:
@@ -4926,6 +4934,14 @@ packages:
       typescript:
         optional: true
 
+  lexical@0.52.0:
+    resolution: {integrity: sha512-mePejqwCDaW0GR89IoofJTTlk/EiwwlGhbs1D8qOx/Iw6ieG5D3nh7PSPLv0Csia0UC58HpuV91DilJjqeAWSw==, tarball: https://registry.npmjs.org/lexical/-/lexical-0.52.0.tgz}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   lib0@0.2.119:
     resolution: {integrity: sha512-vh+TiejVy8Xm+hCdnRfn9BthGNvNUZdEXltNjVZL3TzRIKP3s1lnQh8pWd/Q0wCgY0FPAGVVjFF4ZiHUV3LFgA==, tarball: https://registry.npmjs.org/lib0/-/lib0-0.2.119.tgz}
     engines: {node: '>=16'}
@@ -7462,6 +7478,10 @@ snapshots:
       lexical: 0.44.0
 
   '@lexical/internal@0.49.0(typescript@6.0.2)':
+    optionalDependencies:
+      typescript: 6.0.2
+
+  '@lexical/internal@0.52.0(typescript@6.0.2)':
     optionalDependencies:
       typescript: 6.0.2
 
@@ -11275,6 +11295,12 @@ snapshots:
   lexical@0.49.0(typescript@6.0.2):
     dependencies:
       '@lexical/internal': 0.49.0(typescript@6.0.2)
+    optionalDependencies:
+      typescript: 6.0.2
+
+  lexical@0.52.0(typescript@6.0.2):
+    dependencies:
+      '@lexical/internal': 0.52.0(typescript@6.0.2)
     optionalDependencies:
       typescript: 6.0.2
 
