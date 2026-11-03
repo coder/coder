@@ -345,8 +345,8 @@ importers:
         specifier: 7.8.0
         version: 7.8.0
       '@types/ssh2':
-        specifier: 1.15.5
-        version: 1.15.5
+        specifier: 1.15.6
+        version: 1.15.6
       '@types/ua-parser-js':
         specifier: 0.7.36
         version: 0.7.36
@@ -3412,8 +3412,8 @@ packages:
   '@types/serve-static@1.15.2':
     resolution: {integrity: sha512-J2LqtvFYCzaj8pVYKw8klQXrLLk7TBZmQ4ShlcdkELFKGwGMfevMLneMMRkMgZxotOD9wg497LpC7O8PcvAmfw==, tarball: https://registry.npmjs.org/@types/serve-static/-/serve-static-1.15.2.tgz}
 
-  '@types/ssh2@1.15.5':
-    resolution: {integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==, tarball: https://registry.npmjs.org/@types/ssh2/-/ssh2-1.15.5.tgz}
+  '@types/ssh2@1.15.6':
+    resolution: {integrity: sha512-oGdxhBqcRTwSTKFm+9EiKzkNVYRLEFkcW44lhguvBalGJbWfGnDt/ezwSUZc+SF9m9bMc3VyklNAtp7zICjS5w==, tarball: https://registry.npmjs.org/@types/ssh2/-/ssh2-1.15.6.tgz}
 
   '@types/statuses@2.0.6':
     resolution: {integrity: sha512-xMAgYwceFhRA2zY+XbEA7mxYbA093wdiW8Vu6gZPGWy9cmOyU9XesH1tNcEWsKFd5Vzrqx5T3D38PWx1FIIXkA==, tarball: https://registry.npmjs.org/@types/statuses/-/statuses-2.0.6.tgz}
@@ -9631,7 +9631,7 @@ snapshots:
       '@types/mime': 3.0.1
       '@types/node': 20.19.41
 
-  '@types/ssh2@1.15.5':
+  '@types/ssh2@1.15.6':
     dependencies:
       '@types/node': 18.19.130
 
