@@ -109,7 +109,12 @@ const TemplateHelpPopover: React.FC = () => {
 				With templates you can create a common configuration for your workspaces
 				using Terraform.
 				<br />
-				<Link size="sm" href={docs("/admin/templates")}>
+				<Link
+					size="sm"
+					href={docs("/admin/templates")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Manage templates
 				</Link>
 			</TooltipMessage>
