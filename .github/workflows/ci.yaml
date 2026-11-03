@@ -1350,7 +1350,7 @@ jobs:
     # to main branch.
     needs:
       - changes
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     environment: ci-signing
     permissions:
@@ -1484,8 +1484,10 @@ jobs:
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
           # Enable React profiling build and discoverable source maps
-          # for the dogfood deployment (dogfood.cdr.dev). Release images
-          # are built by release.yaml (no profiling).
+          # for the dogfood deployment (dogfood.cdr.dev). This also
+          # applies to release/* branch builds, but those still
+          # produce coder-preview images, not release images.
+          # Release images are built by release.yaml (no profiling).
           CODER_REACT_PROFILING: "true"
 
       # Free up disk space before building Docker images. The preceding
@@ -1522,15 +1524,20 @@ jobs:
           # note: omitting the -j argument to avoid race conditions when pushing
           make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
-          # only push if we are on main branch
-          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+          # only push if we are on main branch or release branch
+          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == refs/heads/release/* ]]; then
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
             # note: omitting the -j argument to avoid race conditions when pushing
             make push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
             # Define specific tags
-            tags=("$tag" "main" "latest")
+            tags=("$tag")
+            if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+              tags+=("main" "latest")
+            elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
+              tags+=("release-${GITHUB_REF#refs/heads/release/}")
+            fi
 
             # Create and push a multi-arch manifest for each tag
             # we are adding `latest` tag and keeping `main` for backward
@@ -1712,7 +1719,7 @@ jobs:
       - changes
       - build
     if: |
-      github.ref == 'refs/heads/main'
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))
       && needs.changes.outputs.docs-only == 'false'
       && !github.event.pull_request.head.repo.fork
     uses: ./.github/workflows/deploy.yaml
