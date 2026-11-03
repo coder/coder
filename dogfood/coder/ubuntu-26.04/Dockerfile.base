@@ -182,7 +182,7 @@ RUN userdel -r ubuntu && \
 # Install mise. Binary at /opt/mise/bin so it survives the home
 # volume mount; data dir under ~/.local/share/mise so installs ride
 # along on the per-workspace home volume, matching Homebrew's pattern
-# (see /home/linuxbrew volume in main.tf).
+# (see how the coder/dogfood templates persist /home/linuxbrew).
 ARG MISE_VERSION=v2026.10.25 \
 	MISE_SHA256=5d362ecc578dc7c146679b841dda949d6472cbf86ff5635db7afdca1b6b3fd87 \
 	MISE_INSTALL_DIR=/opt/mise/bin \
