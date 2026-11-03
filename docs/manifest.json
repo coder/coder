@@ -1218,37 +1218,37 @@
 					"state": ["premium", "beta"],
 					"children": [
 						{
-							"title": "Set up Agent Relay",
+							"title": "Set up",
 							"description": "Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.",
 							"path": "./ai-coder/agent-relay/setup.md"
 						},
 						{
-							"title": "Agent Relay for Claude Code",
+							"title": "Claude Code",
 							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
 							"path": "./ai-coder/agent-relay/claude-code.md"
 						},
 						{
-							"title": "Agent Relay for Cursor",
+							"title": "Cursor",
 							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
 							"path": "./ai-coder/agent-relay/cursor.md"
 						},
 						{
-							"title": "Configure Slack for Agent Relay",
+							"title": "Slack",
 							"description": "Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.",
 							"path": "./ai-coder/agent-relay/slack.md"
 						},
 						{
-							"title": "Monitor Agent Relay",
+							"title": "Monitor",
 							"description": "Trace sessions and failures with Agent Relay logs and Prometheus metrics.",
 							"path": "./ai-coder/agent-relay/monitoring.md"
 						},
 						{
-							"title": "Troubleshoot Agent Relay",
+							"title": "Troubleshoot",
 							"description": "Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.",
 							"path": "./ai-coder/agent-relay/troubleshooting.md"
 						},
 						{
-							"title": "Agent Relay configuration reference",
+							"title": "Configuration reference",
 							"description": "Every Agent Relay option, pool field, and Helm chart value for the beta.",
 							"path": "./ai-coder/agent-relay/configuration.md"
 						}
