@@ -11,6 +11,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// The rewriter is the beginning of dealing with legacy settings: settings
+// that are not valid, whether saved before the current checks existed or
+// gone stale since. It runs when settings are saved or fetched, and brings
+// them into valid form where a rewrite rule allows, so that what is stored
+// and returned becomes valid over time.
+//
+// Its rules R6 and R7 remove UUIDs that name no group or a group in another
+// organization. partitionOutInvalidSettings, which SyncGroups calls, drops
+// the same UUIDs at sync time. The duplication is intentional, because the
+// two serve different purposes. The partition guards sync against decay in
+// validity: settings that were valid can become invalid between one fetch and
+// the next login, when other data changes, and the partition is what keeps
+// sync from acting on them. It must remain unaltered. The rewriter repairs
+// settings it is given, and makes no promise about what happens to them
+// afterward.
+
 // GroupSyncRewriteOutcome is what the rewriter did with the settings as a
 // whole.
 type GroupSyncRewriteOutcome string
