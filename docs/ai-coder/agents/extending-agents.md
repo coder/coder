@@ -2,7 +2,7 @@
 title: Extending agents
 ---
 
-Workspace templates can extend the agent with custom skills, MCP tools, and [ACP subagents](./acp-subagents.md).
+Workspace templates can extend the agent with custom skills, Model Context Protocol (MCP) tools, and [Agent Client Protocol (ACP) subagents](./acp-subagents.md).
 These mechanisms let platform teams provide repository-specific instructions, domain expertise, and external tool integrations without modifying the agent itself.
 
 ## How the workspace shares context with chats
@@ -280,7 +280,7 @@ An administrator role that can view every project does not count.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
 
 **Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
-Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or an action button.
+Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu, by typing its alias, or with an action button.
 
 The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
 It is experimental and might change.
@@ -404,6 +404,7 @@ The footer of the list counts the OAuth2 servers that you haven't connected.
 Workspace templates can expose custom [MCP](https://modelcontextprotocol.io/introduction) tools by placing a `.mcp.json` file in the workspace working directory.
 The agent connects to these servers, reports their tools in the context snapshot it pushes, and chats register those tools alongside their built-in tools.
 To declare an MCP server inline on one chat through the API instead, refer to [Inline MCP servers](./platform-controls/mcp-servers.md#inline-mcp-servers-experimental).
+To set up your own servers from dotfiles or a startup script, refer to [Bring your own MCP servers](./bring-your-own-mcp-servers.md).
 
 ### Configuration
 

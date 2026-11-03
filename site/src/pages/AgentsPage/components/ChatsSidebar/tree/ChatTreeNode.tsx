@@ -21,6 +21,7 @@ import {
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { shortRelativeTime } from "#/utils/time";
@@ -252,7 +253,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 				<div
 					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
-						"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
+						"group relative -mx-2 flex min-w-0 select-none items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
 						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
 						// pl-[11px] is pl-3 minus the active border, so content does not shift.
 						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
@@ -401,22 +402,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										isActiveChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}
-									onContextMenuCapture={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-									}}
-									onMouseDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
-									onPointerDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
+									{...preventRowContextMenuProps}
 								>
 									<EllipsisVerticalIcon className="size-3.5" />
 								</Button>

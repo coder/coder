@@ -196,7 +196,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							key={workspace.id}
 							checked={checked}
 						>
-							<TableCell>
+							<TableHead scope="row">
 								<div className="flex items-center gap-5">
 									<Checkbox
 										data-testid={`checkbox-${workspace.id}`}
@@ -270,7 +270,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 										}
 									/>
 								</div>
-							</TableCell>
+							</TableHead>
 
 							<TableCell>
 								<AvatarData

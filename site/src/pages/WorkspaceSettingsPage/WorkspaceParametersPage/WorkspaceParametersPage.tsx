@@ -309,6 +309,8 @@ const WorkspaceParametersPage: React.FC = () => {
 								<Link
 									size="sm"
 									href={docs("/admin/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
 								>
 									View docs
 								</Link>
@@ -352,6 +354,8 @@ const WorkspaceParametersPage: React.FC = () => {
 					cta={
 						<Link
 							href={docs("/admin/templates/extending-templates/parameters")}
+							target="_blank"
+							rel="noreferrer"
 						>
 							Learn more about parameters
 						</Link>

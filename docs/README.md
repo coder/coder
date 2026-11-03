@@ -13,7 +13,7 @@ markdown_url: /docs.md
 Agents and developers share the same workspace infrastructure.
 
 - **Defined in Terraform**:
-  Templates describe the infrastructure for each workspace, from EC2 VMs and Kubernetes Pods to Docker containers.
+  Templates describe the infrastructure for each workspace, from Amazon Elastic Compute Cloud (EC2) VMs and Kubernetes Pods to Docker containers.
 - **Any architecture and OS**:
   Support ARM and x86-64 across Windows, Linux, and macOS from a single deployment.
 - **Managed by admins**:
@@ -27,13 +27,13 @@ Agents and developers share the same workspace infrastructure.
 
 [Coder Agents](./ai-coder/agents/index.md) is a native AI coding agent built into Coder.
 The agent loop runs in the Coder control plane on your infrastructure, not in the workspace and not in a vendor's cloud.
-Developers interact with agents through the web UI or the REST API for programmatic and CI-driven workflows.
+Developers interact with agents through the web UI or the Representational State Transfer (REST) API for programmatic and continuous integration (CI)-driven workflows.
 
 - **Self-hosted agent loop**:
   The control plane handles planning, model calls, and tool dispatch.
   Workspaces have zero AI awareness.
 - **No API keys in workspaces**:
-  LLM credentials stay in the control plane.
+  large language model (LLM) credentials stay in the control plane.
 - **Any model**:
   Anthropic, OpenAI, Google, Bedrock, or self-hosted endpoints.
   Switching is a configuration change.
@@ -84,7 +84,7 @@ This approach provides:
   Infrastructure tools such as Terraform, nix, Docker, and Dev Containers produce identical environments for every developer.
 - **Security**:
   Source code stays on private servers.
-  Users and groups are managed through [SSO](./admin/users/oidc-auth/index.md) and [RBAC](./admin/users/groups-roles.md#roles).
+  Users and groups are managed through [single sign-on (SSO)](./admin/users/oidc-auth/index.md) and [role-based access control (RBAC)](./admin/users/groups-roles.md#roles).
 - **Compatibility**:
   Workspaces share infrastructure configurations with staging and production, reducing configuration drift.
 - **Accessibility**:
@@ -99,7 +99,7 @@ The key difference between Coder and other platforms is that the entire system, 
 For agents, this means platform teams can:
 
 - Run the entire agent loop on their infrastructure, with no SaaS dependency for orchestration.
-- Define MCP servers, skills, and system prompts centrally so every agent session starts with the same tools, policies, and context.
+- Define Model Context Protocol (MCP) servers, skills, and system prompts centrally so every agent session starts with the same tools, policies, and context.
 - Keep LLM credentials out of workspaces entirely.
 - Tie every agent action to an authenticated user identity.
 - Support air-gapped and restricted-network deployments with self-hosted models.

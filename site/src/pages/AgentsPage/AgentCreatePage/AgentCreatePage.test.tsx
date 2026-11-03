@@ -47,6 +47,7 @@ import {
 	emptyInputStorageKey,
 } from "../components/AgentCreateForm";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
+import { highlightComposerState } from "../utils/composerHighlight";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildPrompt,
@@ -66,6 +67,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 			| undefined,
 		createError: undefined as unknown,
 		prefill: undefined as AgentCreateFormProps["prefill"],
+		highlightKey: undefined as string | undefined,
 	},
 }));
 
@@ -107,6 +109,7 @@ vi.mock("../components/AgentCreateForm", async (importOriginal) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
 			formProps.prefill = props.prefill;
+			formProps.highlightKey = props.highlightKey;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -229,6 +232,7 @@ afterEach(() => {
 	renderedProjects.length = 0;
 	realForm.enabled = false;
 	formProps.prefill = undefined;
+	formProps.highlightKey = undefined;
 	vi.restoreAllMocks();
 	localStorage.clear();
 });
@@ -713,6 +717,55 @@ describe("AgentCreatePage project frame", () => {
 
 		await screen.findByRole("button", { name: "Project actions" });
 		expect(getUser).not.toHaveBeenCalled();
+	});
+});
+
+describe("AgentCreatePage composer highlight", () => {
+	// Mirrors the sidebar's New chat link, which replaces the current entry
+	// when it already points at the project.
+	const pickNewChat = (
+		router: ReturnType<typeof renderAgentsRoutes>["router"],
+	) =>
+		act(() =>
+			router.navigate(projectPath(MockChatProject.id), {
+				replace: true,
+				state: highlightComposerState,
+			}),
+		);
+
+	it("highlights the composer again for each New chat picked on the page", async () => {
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		expect(formProps.highlightKey).toBeUndefined();
+
+		await pickNewChat(router);
+		const firstKey = formProps.highlightKey;
+		expect(firstKey).toBeDefined();
+		await pickNewChat(router);
+		expect(formProps.highlightKey).toBeDefined();
+		expect(formProps.highlightKey).not.toBe(firstKey);
+	});
+
+	it("does not replay the highlight when returning to its history entry", async () => {
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await pickNewChat(router);
+		expect(formProps.highlightKey).toBeDefined();
+		await act(() => router.navigate("/agents"));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("heading", { name: MockChatProject.name }),
+			).toBeNull(),
+		);
+		await act(() => router.navigate(-1));
+
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		expect(router.state.location.state).toEqual(highlightComposerState);
+		expect(formProps.highlightKey).toBeUndefined();
 	});
 });
 

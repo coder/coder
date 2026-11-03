@@ -11,7 +11,7 @@ OOM alerts are reported per-agent.
 
 ## Prerequisites
 
-Notifications are sent through SMTP.
+Notifications are sent through Simple Mail Transfer Protocol (SMTP).
 Configure Coder to [use an SMTP server](../../monitoring/notifications/index.md#smtp-email).
 
 ## Example

@@ -19,7 +19,7 @@ In addition to the required `name` and `parameters` fields, you can enhance your
   This helps users understand what the preset is for and when to use it.
 - **icon**:
   A visual icon displayed alongside the preset name in the UI.
-  Use emoji icons with the format `/emojis/{code}.png` (for example, `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+  Use emoji icons with the format `/emojis/{code}.png` (for example, `/emojis/1f1fa-1f1f8.png` for the flag emoji of the United States (US) 🇺🇸).
 
 For a complete list of all available fields, visit the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
 
