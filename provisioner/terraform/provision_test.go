@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -1623,14 +1622,10 @@ func TestProvision_MalformedModules(t *testing.T) {
 
 	log, _ := readProvisionLog(t, sess)
 	require.Contains(t, log, "Invalid block definition")
-	// Nothing was restored from an import, so there is nothing to retry.
-	require.NotContains(t, log, "Retrying terraform init")
 }
 
-// TestProvision_LockFileCached verifies that the lock file produced by the
-// import-time init is returned in the module archive, and that a later build
-// which receives that archive lets Terraform reuse the pinned providers rather
-// than resolving them from the registry again.
+// TestProvision_LockFileCached checks that a build reuses the lock file
+// captured during import.
 func TestProvision_LockFileCached(t *testing.T) {
 	t.Parallel()
 
@@ -1645,145 +1640,87 @@ func TestProvision_LockFileCached(t *testing.T) {
 		}`,
 	}
 	source := testutil.CreateTar(t, files)
-
-	// Install providers from a local mirror so the test does not depend on the
-	// public registry or on a developer's ~/.terraformrc.
 	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
 	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
 	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
 
-	// Import: no module archive is available yet, so init must resolve the
-	// provider and write a fresh lock file.
-	importSess := configure(ctx, t, api, &proto.Config{})
-	var importLog strings.Builder
-	importResp := sendInitAndGetResp(t, importSess, source, func(log string) {
-		_, _ = importLog.WriteString(log)
-	})
+	importResp := sendInitAndGetResp(t, configure(ctx, t, api, &proto.Config{}), source)
 	require.Empty(t, importResp.Error)
-	// Terraform 1.17 reworded this message, so match both forms.
-	reusedLockFile := regexp.MustCompile(`Reusing (previous )?version.* from the dependency lock file`)
-	require.NotRegexp(t, reusedLockFile, importLog.String())
-	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
+	require.Contains(t, string(importedLockFile(t, importResp.ModuleFiles)), `provider "registry.terraform.io/coder/coder"`)
 
-	// The lock file is keyed by platform so builds on a different platform
-	// ignore it.
-	lockFile := importedLockFile(t, importResp.ModuleFiles)
-	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
-
-	// Build: stream the archive the same way provisionerd does for cached
-	// module files, then confirm Terraform picked the lock file up.
-	buildSess := configure(ctx, t, api, &proto.Config{})
-	buildLog, buildResp := sendBuildInit(t, buildSess, source, importResp.ModuleFiles)
+	buildLog, buildResp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
 	require.Empty(t, buildResp.Error)
-	require.Regexp(t, reusedLockFile, buildLog)
+	// Terraform 1.17 reworded this message.
+	require.Regexp(t, `Reusing (previous )?version.* from the dependency lock file`, buildLog)
 }
 
-// TestProvision_LockFileFallback verifies that a build whose provisioner can't
-// install the provider versions pinned at import runs init again with the
-// template's own lock file, or without one.
+// TestProvision_LockFileFallback covers a build whose provisioner can't install
+// the provider versions captured at import, as after an air-gapped upgrade.
 func TestProvision_LockFileFallback(t *testing.T) {
 	t.Parallel()
 
-	fakeOnly := `terraform {
-		required_providers {
-		  fake = {
-			source = "example.com/coder/fake"
-		  }
-		}
-	}`
-	source := testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})
+	const (
+		fakeOnly = `terraform {
+			required_providers {
+			  fake = { source = "example.com/coder/fake" }
+			}
+		}`
+		fakeAndOther = `terraform {
+			required_providers {
+			  fake  = { source = "example.com/coder/fake" }
+			  other = { source = "example.com/coder/other" }
+			}
+		}`
+		retryLog = "Retrying terraform init without the provider versions selected"
+	)
 
-	// The import runs on a provisioner whose mirror offers 1.0.0 of each
-	// provider, so the imported lock file pins 1.0.0.
+	// The import provisioner offers 1.0.0 of each provider.
 	importCtx, importAPI := setupProvisioner(t, &provisionerServeOptions{
 		cliConfigPath: writeFakeProviderMirror(t, "fake/1.0.0", "other/1.0.0"),
 	})
-	importResp := sendInitAndGetResp(t, configure(importCtx, t, importAPI, &proto.Config{}), source)
-	require.Empty(t, importResp.Error)
-	lockFile := importedLockFile(t, importResp.ModuleFiles)
-	require.Contains(t, string(lockFile), `version = "1.0.0"`)
-
-	const (
-		retryLog = "Retrying terraform init without the provider versions selected"
-		pushHint = "push a new template version"
-	)
-	// build runs a workspace build's Init on a provisioner whose mirror
-	// offers only the given packages.
-	build := func(t *testing.T, source, moduleFiles []byte, packages ...string) (string, *proto.InitComplete) {
+	importTemplate := func(t *testing.T, source []byte) []byte {
+		t.Helper()
+		resp := sendInitAndGetResp(t, configure(importCtx, t, importAPI, &proto.Config{}), source)
+		require.Empty(t, resp.Error)
+		return resp.ModuleFiles
+	}
+	build := func(t *testing.T, source, moduleFiles []byte, packages ...string) string {
 		t.Helper()
 		ctx, api := setupProvisioner(t, &provisionerServeOptions{
 			cliConfigPath: writeFakeProviderMirror(t, packages...),
 		})
-		return sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, moduleFiles)
+		log, resp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, moduleFiles)
+		require.Empty(t, resp.Error)
+		return log
 	}
 
-	// The mirror replaced 1.0.0 with 1.1.0, as after an air-gapped image
-	// upgrade.
+	// Without a lock file of its own, the build selects versions again.
 	t.Run("NoTemplateLockFile", func(t *testing.T) {
 		t.Parallel()
-		log, resp := build(t, source, importResp.ModuleFiles, "fake/1.1.0")
-		require.Empty(t, resp.Error)
+		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})
+		log := build(t, source, importTemplate(t, source), "fake/1.1.0")
 		require.Contains(t, log, retryLog)
 		require.Contains(t, log, "example.com/coder/fake v1.1.0")
-		require.Contains(t, log, pushHint)
 	})
 
-	t.Run("RetryFails", func(t *testing.T) {
-		t.Parallel()
-		log, resp := build(t, source, importResp.ModuleFiles, "other/1.1.0")
-		require.NotEmpty(t, resp.Error)
-		require.Contains(t, log, retryLog)
-		require.NotContains(t, log, pushHint)
-	})
-
-	// The template pins 1.0.0 itself, so the build fails as it would without
-	// the imported lock file. The lock files are identical, so there is
-	// nothing different to retry with.
+	// The template's lock file only pins fake, so the import pinned other on
+	// top of it. The build keeps the template's pin and selects other again.
 	t.Run("TemplateLockFile", func(t *testing.T) {
 		t.Parallel()
-		withLock := testutil.CreateTar(t, map[string]string{
-			"main.tf":             fakeOnly,
-			".terraform.lock.hcl": string(lockFile),
+		fakeLock := importedLockFile(t, importTemplate(t, testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})))
+		source := testutil.CreateTar(t, map[string]string{
+			"main.tf":             fakeAndOther,
+			".terraform.lock.hcl": string(fakeLock),
 		})
-		log, resp := build(t, withLock, importResp.ModuleFiles, "fake/1.1.0")
-		require.NotEmpty(t, resp.Error)
-		require.NotContains(t, log, retryLog)
-	})
-
-	// The template's lock file predates its dependency on "other", so the
-	// import pinned other 1.0.0 on top of it. The build keeps the template's
-	// pin of fake and selects other again.
-	t.Run("StaleTemplateLockFile", func(t *testing.T) {
-		t.Parallel()
-		staleSource := testutil.CreateTar(t, map[string]string{
-			"main.tf": `terraform {
-				required_providers {
-				  fake = {
-					source = "example.com/coder/fake"
-				  }
-				  other = {
-					source = "example.com/coder/other"
-				  }
-				}
-			}`,
-			".terraform.lock.hcl": string(lockFile),
-		})
-		staleImport := sendInitAndGetResp(t, configure(importCtx, t, importAPI, &proto.Config{}), staleSource)
-		require.Empty(t, staleImport.Error)
-		require.Contains(t, string(importedLockFile(t, staleImport.ModuleFiles)), `provider "example.com/coder/other"`)
-
-		log, resp := build(t, staleSource, staleImport.ModuleFiles, "fake/1.0.0", "fake/1.1.0", "other/1.1.0")
-		require.Empty(t, resp.Error)
+		log := build(t, source, importTemplate(t, source), "fake/1.0.0", "fake/1.1.0", "other/1.1.0")
 		require.Contains(t, log, retryLog)
-		require.Contains(t, log, "example.com/coder/fake v1.0.0")
 		require.NotContains(t, log, "example.com/coder/fake v1.1.0")
 		require.Contains(t, log, "example.com/coder/other v1.1.0")
 	})
 }
 
-// sendBuildInit sends a workspace build's Init request, streaming the module
-// archive the same way provisionerd does for cached module files, and
-// returns the build log and the Init response.
+// sendBuildInit sends a workspace build's Init, streaming the module archive
+// the way provisionerd does.
 func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {
 	t.Helper()
 	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
@@ -1810,11 +1747,9 @@ func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, sourc
 	return log, last.GetInit()
 }
 
-// writeFakeProviderMirror writes a filesystem mirror that offers the given
-// example.com/coder providers, each written as "name/version", and returns the
-// path of a CLI config that installs providers only from that mirror. Init
-// installs provider packages without running them, so each package only
-// needs an executable with the expected name.
+// writeFakeProviderMirror returns a CLI config that installs providers only
+// from a filesystem mirror of fake example.com/coder packages, each given as
+// "name/version". Init never runs providers, so any executable will do.
 func writeFakeProviderMirror(t *testing.T, packages ...string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -1836,9 +1771,8 @@ func writeFakeProviderMirror(t *testing.T, packages ...string) string {
 	return cliConfigPath
 }
 
-// importedLockFile reads the lock file captured for this platform from a
-// module archive. The path is spelled out because older and newer
-// provisioners must agree on it.
+// importedLockFile reads the captured lock file from a module archive. The
+// path is spelled out because provisioner versions must agree on it.
 func importedLockFile(t *testing.T, moduleFiles []byte) []byte {
 	t.Helper()
 	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)),

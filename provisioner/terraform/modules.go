@@ -24,19 +24,14 @@ import (
 )
 
 const (
-	// terraformLockFileName is the dependency lock file Terraform writes to the
-	// root of a working directory during `terraform init`.
 	terraformLockFileName = ".terraform.lock.hcl"
 
-	// importedLockFileDir holds the lock files captured during template import,
-	// one per platform. It lives under .terraform, which template source
-	// archives do not normally contain, and provisioners that predate it
-	// extract it without using it.
+	// importedLockFileDir holds the lock files captured during template
+	// import, one per platform. Older provisioners extract it and ignore it.
 	importedLockFileDir = ".terraform/coder/lockfiles"
 
-	// templateLockFileBackupPath is where restoreImportedLockFile sets aside
-	// the template's own lock file, so restoreTemplateLockFile can put it
-	// back if init fails with the captured one.
+	// templateLockFileBackupPath holds the template's own lock file while the
+	// captured one is in place.
 	templateLockFileBackupPath = ".terraform/coder/template.lock.hcl"
 
 	// MaximumModuleArchiveSize limits the total size of a module archive.
@@ -109,13 +104,8 @@ func GetModulesArchive(root fs.FS) ([]byte, []string, error) {
 }
 
 // GetModulesArchiveWithLimit returns the tar archive, the skipped modules, and an error if any.
-//
-// Besides the remote modules fetched by `terraform init`, the archive carries
-// the `.terraform.lock.hcl` that init produced, stored under
-// importedLockFileDir and keyed by this provisioner's platform. Workspace
-// builds on the same platform restore it with restoreImportedLockFile so
-// Terraform can verify cached providers against it instead of fetching
-// provider checksums and signatures on each init.
+// The archive also carries the lock file init produced, so builds can reuse
+// the provider versions selected at import.
 func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []string, error) {
 	lockFileContent, err := fs.ReadFile(root, terraformLockFileName)
 	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
@@ -132,25 +122,20 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 	case !xerrors.Is(err, fs.ErrNotExist):
 		return nil, []string{}, xerrors.Errorf("failed to read modules.json: %w", err)
 	case len(lockFileContent) == 0:
-		// modules.json does not exist and there is no lock file, so there is
-		// nothing to archive.
+		// No modules and no lock file: nothing to archive.
 		return []byte{}, []string{}, nil
 	}
 
-	// archivedModuleFiles tracks whether any remote module made it into the
-	// archive. modules.json is only useful alongside the modules it describes.
 	archivedModuleFiles := false
 	var b bytes.Buffer
 
 	lw := xio.NewLimitWriter(&b, maxArchiveSize)
 	w := tar.NewWriter(lw)
 
-	// The lock file is written first so it always fits; modules are packed
-	// into whatever budget remains.
+	// Write the lock file first so modules can't crowd it out.
 	if len(lockFileContent) > 0 {
 		lockFilePath := importedLockFilePath(terraformPlatform())
-		// Extraction does not create parent directories for regular files,
-		// so the directory entry must precede the file.
+		// Extraction doesn't create parent directories for files.
 		err = w.WriteHeader(defaultDirHeader(importedLockFileDir))
 		if err != nil {
 			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", importedLockFileDir, err)
@@ -163,9 +148,7 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", terraformLockFileName, err)
 		}
 	}
-	// modules.json is written after the modules, so reserve room for it.
-	// Otherwise a module that fills the budget makes the whole archive,
-	// including the lock file, fail to write.
+	// Reserve room for modules.json, which is written after the modules.
 	modulesFileSize := tarEntrySize(len(modulesFileContent))
 
 	sized := make([]*moduleWithEstimatedSize, 0, len(m.Modules))
@@ -194,8 +177,7 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 			continue
 		}
 
-		// The tar writer pads the previous entry lazily; flush it so
-		// Remaining reflects everything written so far.
+		// Flush the previous entry's padding so Remaining is accurate.
 		if err := w.Flush(); err != nil {
 			return nil, []string{}, xerrors.Errorf("failed to write module files archive: %w", err)
 		}
@@ -253,8 +235,7 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 		}
 	}
 
-	// The directory entries of the archived modules create .terraform/modules
-	// on extraction; without them modules.json would have no parent directory.
+	// modules.json needs the module directories as its parent on extraction.
 	if archivedModuleFiles {
 		err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
 		if err != nil {
@@ -358,61 +339,36 @@ func defaultDirHeader(dirPath string) *tar.Header {
 	}
 }
 
-// terraformPlatform returns the os_arch pair Terraform uses to pick provider
-// packages, which determines the provider hashes it writes to a lock file.
-// Coder installs Terraform for the provisioner's own platform, so the runtime
-// values match the Terraform binary.
+// terraformPlatform returns the platform whose provider hashes init writes
+// to the lock file.
 func terraformPlatform() string {
 	return runtime.GOOS + "_" + runtime.GOARCH
 }
 
-// importedLockFilePath returns the slash-separated path, relative to the
-// working directory, of the lock file captured on platform during import.
+// importedLockFilePath returns the archive path of the lock file captured on
+// platform.
 func importedLockFilePath(platform string) string {
 	return path.Join(importedLockFileDir, platform+".lock.hcl")
 }
 
-// restoreImportedLockFile moves the lock file captured during template import
-// over the working directory's lock file when it was produced on this
-// platform, and reports whether it did. The template's own lock file, if any,
-// is set aside so restoreTemplateLockFile can put it back.
-//
-// A lock file from another platform is ignored: depending on how providers
-// were installed, it may only contain hashes for the import platform, and
-// Terraform refuses cached or mirrored provider packages whose hashes are
-// missing from the lock file. A captured lock file identical to the
-// template's is ignored too, since restoring it changes nothing. Otherwise the
-// import ran `terraform init` on top of the template's lock file, so the
-// captured file pins the same versions and adds hashes for this platform,
-// plus versions for any provider the template's lock file is missing.
-//
-// Renames move the files even when the template's copy is read-only, and a
-// failure leaves the template's lock file in place.
+// restoreImportedLockFile replaces the template's lock file with the one
+// captured during import, and reports whether it did. Lock files captured on
+// another platform are ignored, because they may lack this platform's hashes.
 func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
 	src := filepath.Join(files.WorkDirectory(), filepath.FromSlash(importedLockFilePath(terraformPlatform())))
-	imported, err := os.ReadFile(src)
-	if xerrors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, xerrors.Errorf("read imported lock file: %w", err)
-	}
-
-	dst := files.TerraformLockFile()
-	template, err := os.ReadFile(dst)
-	switch {
-	case err == nil && bytes.Equal(template, imported):
-		return false, nil
-	case err == nil:
-		err = os.Rename(dst, filepath.Join(files.WorkDirectory(), filepath.FromSlash(templateLockFileBackupPath)))
-		if err != nil {
-			return false, xerrors.Errorf("set aside template lock file: %w", err)
+	if _, err := os.Stat(src); err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			return false, nil
 		}
-	case !xerrors.Is(err, fs.ErrNotExist):
-		return false, xerrors.Errorf("read template lock file: %w", err)
+		return false, xerrors.Errorf("stat imported lock file: %w", err)
 	}
 
-	err = os.Rename(src, dst)
+	backup := filepath.Join(files.WorkDirectory(), filepath.FromSlash(templateLockFileBackupPath))
+	err := os.Rename(files.TerraformLockFile(), backup)
+	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
+		return false, xerrors.Errorf("set aside template lock file: %w", err)
+	}
+	err = os.Rename(src, files.TerraformLockFile())
 	if err != nil {
 		err = xerrors.Errorf("move imported lock file into place: %w", err)
 		return false, errors.Join(err, restoreTemplateLockFile(files))
@@ -420,9 +376,7 @@ func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
 	return true, nil
 }
 
-// restoreTemplateLockFile undoes restoreImportedLockFile. It moves the
-// template's own lock file back into place, or removes the working
-// directory's lock file when the template had none.
+// restoreTemplateLockFile undoes restoreImportedLockFile.
 func restoreTemplateLockFile(files tfpath.Layout) error {
 	dst := files.TerraformLockFile()
 	err := os.Rename(filepath.Join(files.WorkDirectory(), filepath.FromSlash(templateLockFileBackupPath)), dst)
@@ -439,8 +393,7 @@ func restoreTemplateLockFile(files tfpath.Layout) error {
 	return nil
 }
 
-// tarEntrySize returns the bytes a regular file of the given length takes up
-// in a tar archive: one header block plus the content padded to whole blocks.
+// tarEntrySize returns the archive size of a file of the given length.
 func tarEntrySize(length int) int64 {
 	return 512 + (int64(length)+511)/512*512
 }

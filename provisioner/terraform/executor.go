@@ -201,7 +201,6 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 }
 
 // version doesn't need e.mut because it doesn't touch the working directory.
-// The server caches the result under its own lock.
 func (e *executor) version(ctx context.Context) (*version.Version, error) {
 	return e.server.terraformVersion(ctx)
 }

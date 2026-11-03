@@ -94,12 +94,10 @@ Without caching, Terraform will download each provider on each build, and this c
 `terraform init` generates a `.terraform.lock.hcl` which instructs Coder provisioners to cache specific versions of your providers.
 
 When Coder imports a template version, it keeps the lock file that `terraform init` produced.
-Workspace builds of that template version reuse the lock file when they run on a provisioner with the same operating system and architecture as the provisioner that imported the version.
-Those builds install the provider versions selected at import, and when those providers are already cached, Terraform verifies them against the lock file instead of fetching checksums and signatures for each provider.
-Terraform still queries the provider registry for the list of available versions.
-If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those provider versions, the build runs `terraform init` again with the template's own lock file, or without one.
-That build keeps the versions the template's own lock file pins, selects the latest available versions of other providers, and shows a warning in its build log.
-If the warning appears on every build, push a new template version and update workspaces to it so that builds reuse provider versions again.
+Builds on a provisioner with the same operating system and architecture as the importing one reuse it: they install the provider versions selected at import and verify cached providers against the lock file instead of fetching checksums and signatures.
+Terraform still asks the provider registry which versions are available.
+If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those versions, the build retries with the template's own lock file, or without one, and logs a warning.
+If the warning appears on every build, push a new template version and update workspaces to it.
 Coder doesn't reuse the lock file when [module caching](../../admin/templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
 Committing your own lock file also pins provider versions across template pushes.
 
