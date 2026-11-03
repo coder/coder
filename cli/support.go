@@ -280,6 +280,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 
 			summarizeBundle(inv, bun)
+			if agtID != uuid.Nil && bun.Agent.PeerDiagnostics == nil {
+				cliLog.Warn(inv.Context(), "could not connect to workspace agent, agent-connected sections were skipped", slog.F("agent_id", agtID))
+				cliui.Warn(inv.Stdout, "Could not connect to the workspace agent. Agent-connected sections were skipped; see logs.txt in the bundle for details.")
+			}
 			bun.CLILogs = cliLogBuf.Bytes()
 
 			if err := writeBundle(bun, zwr); err != nil {
