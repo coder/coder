@@ -160,11 +160,11 @@ Root plan-mode chats may also receive administrator-approved external MCP tools.
 Workspace MCP tools remain unavailable in plan mode, and plan-mode sub-agents still do not receive any MCP tools.
 Dynamic, provider-native, and computer-use tools are not available.
 
-In plan mode, `ask_user_question` ends the turn so the user can answer before planning continues.
-In chats created from the Coder dashboard, `ask_user_question` is also exposed outside plan mode.
-There it returns at once, the agent keeps working, and the answer arrives later as a user message that names the tool call.
-Coder also sends the chat owner a web push notification when such a question opens.
-Chats created through the API expose `ask_user_question` only in plan mode.
+In plan mode, asking a question ends the agent's turn so the user can answer before planning continues.
+In chats created from the Coder dashboard, the agent can also ask a question outside plan mode.
+There the agent keeps working, and the answer arrives later as a chat message.
+Coder sends the chat owner a web push notification when such a question opens.
+In chats created through the API, the agent can ask questions only in plan mode.
 
 ### Orchestration tools
 
