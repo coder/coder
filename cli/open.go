@@ -795,7 +795,10 @@ func sessionTokenDestinationTrusted(appURL string, origins []string) bool {
 // hasTrustedSessionTokenParams reports whether every name in rawQuery appears
 // once, `token` is the placeholder, and `url` is one of origins.
 func hasTrustedSessionTokenParams(rawQuery string, origins []string) bool {
-	values, err := url.ParseQuery(rawQuery)
+	// URLSearchParams, which IDEs use, drops one leading `?`. Without this,
+	// `??url=a&url=b` would parse as two different names and hide the
+	// duplicate `url`.
+	values, err := url.ParseQuery(strings.TrimPrefix(rawQuery, "?"))
 	if err != nil {
 		return false
 	}
@@ -821,14 +824,20 @@ func isTrustedBareOrigin(rawURL string, origins []string) bool {
 	if err != nil {
 		return false
 	}
+	// Browsers map non-ASCII hosts through IDNA, which this comparison doesn't
+	// model, so only ASCII hosts are trusted.
+	if strings.IndexFunc(u.Hostname(), func(r rune) bool { return r > unicode.MaxASCII }) != -1 {
+		return false
+	}
 	return slices.Contains(origins, urlOrigin(u))
 }
 
-// urlOrigin returns the scheme, host, and non-default port of u, lowercased
-// like a browser origin.
+// urlOrigin returns the scheme, host, and non-default port of u, with ASCII
+// letters lowercased like a browser origin. Unicode case folding would turn
+// hosts such as `codİng.com` into a different, trusted host.
 func urlOrigin(u *url.URL) string {
-	scheme := strings.ToLower(u.Scheme)
-	host := strings.ToLower(u.Hostname())
+	scheme := asciiLower(u.Scheme)
+	host := asciiLower(u.Hostname())
 	port := u.Port()
 	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
 		port = ""

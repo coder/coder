@@ -234,6 +234,8 @@ func Test_sessionTokenDestinationTrusted(t *testing.T) {
 		{"TabInParamName", "jetbrains-gateway://connect#type=coder&url=" + origin + "&ur\tl=https://attacker.example&token=" + token},
 		{"NewlineInParamName", "jetbrains-gateway://connect#type=coder&url=" + origin + "&ur\nl=https://attacker.example&token=" + token},
 		{"CarriageReturnInParamName", "jetbrains-gateway://connect#type=coder&url=" + origin + "&ur\rl=https://attacker.example&token=" + token},
+		{"LeadingQuestionMarkHidesDuplicateURL", "vscode://coder.coder-remote/open??url=https://attacker.example&url=" + origin + "&token=" + token},
+		{"EncodedLeadingQuestionMarkHidesDuplicateURL", "vscode://coder.coder-remote/open?%3Furl=https://attacker.example&url=" + origin + "&token=" + token},
 		{"HTTPSLink", "https://attacker.example/?token=" + token},
 		{"TruncatedHandler", "vscode://coder"},
 	}
@@ -243,6 +245,18 @@ func Test_sessionTokenDestinationTrusted(t *testing.T) {
 			assert.False(t, sessionTokenDestinationTrusted(tc.url, origins))
 		})
 	}
+
+	// Unicode case folding maps U+0130 to "i", but browsers send this host to
+	// a different, IDNA-encoded domain.
+	t.Run("NonASCIIHostFoldingToTrustedHost", func(t *testing.T) {
+		t.Parallel()
+
+		trustedOrigins := []string{"https://coding.com"}
+		for _, host := range []string{"cod\u0130ng.com", "COD\u0130NG.com", "cod%C4%B0ng.com"} {
+			u := "vscode://coder.coder-remote/open?url=https://" + host + "&token=" + token
+			assert.False(t, sessionTokenDestinationTrusted(u, trustedOrigins), host)
+		}
+	})
 
 	t.Run("AccessURLOnAnotherHost", func(t *testing.T) {
 		t.Parallel()
@@ -267,6 +281,7 @@ func Test_urlOrigin(t *testing.T) {
 		{"https://coder.example.com:80", "https://coder.example.com:80"},
 		{"http://[::1]:3000", "http://[::1]:3000"},
 		{"http://[::1]", "http://[::1]"},
+		{"https://COD\u0130NG.com", "https://cod\u0130ng.com"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
