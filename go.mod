@@ -131,8 +131,13 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    the toolset tool definition, ComputerUseToolVersionForModel, and
 //    mapping of toolset member calls to and from the computer tool.
 //    Since coder/fantasy#82, unknown model IDs take computer_20251124.
-// See: https://github.com/coder/fantasy/commits/647b1ef66f42
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103005632-647b1ef66f42
+// 19) coder/fantasy#73 and coder/fantasy#74, convert tool result media
+//    through each provider's file part converter (Anthropic documents,
+//    Chat Completions user file parts, native Responses outputs) and add
+//    a filename. Chat Completions file parts refuse text files, as
+//    Responses does.
+// See: https://github.com/coder/fantasy/commits/f153e3842fa7
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103055225-f153e3842fa7
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
