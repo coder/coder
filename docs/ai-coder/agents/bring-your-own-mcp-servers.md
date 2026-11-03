@@ -4,7 +4,7 @@ title: Bring your own MCP servers
 
 This page is for developers who want their own MCP servers in Coder Agents chats without asking an administrator to register each one.
 If you use `claude mcp add` in Claude Code, a `.mcp.json` file in your workspace is the closest equivalent.
-You write the file once, from your dotfiles or a startup script, and new chats in that workspace get its tools.
+You write the file once, from your dotfiles or a startup script, and chats in that workspace get its tools.
 
 ## Choose an approach
 
@@ -12,9 +12,9 @@ Coder Agents can get MCP tools from three places:
 
 | Approach                                                                                 | Who sets it up                                       | Lasts across chats                             | Authentication                                  |
 |------------------------------------------------------------------------------------------|------------------------------------------------------|------------------------------------------------|-------------------------------------------------|
-| Workspace `.mcp.json`                                                                    | You                                                  | Yes, for every new chat in the workspace       | Environment variables (stdio) or headers (HTTP) |
+| Workspace `.mcp.json`                                                                    | You                                                  | Yes, for every chat in the workspace           | Environment variables (stdio) or headers (HTTP) |
 | [Organization MCP servers](./extending-agents.md#connect-to-mcp-servers)                 | An organization admin registers it, then you connect | Yes, based on the server's availability policy | OAuth2, API key, custom headers, or OIDC        |
-| [Inline MCP servers](./platform-controls/mcp-servers.md#inline-mcp-servers-experimental) | You, through the chats API                           | No, you declare it on each chat                | Headers only                                    |
+| [Inline MCP servers](./platform-controls/mcp-servers.md#inline-mcp-servers-experimental) | You, through the chats API, once an admin enables it | No, you declare it on each chat                | Headers only                                    |
 
 Use an organization MCP server when the provider needs a browser sign-in.
 A workspace `.mcp.json` file has no OAuth2 flow.
@@ -63,18 +63,20 @@ To choose the transport explicitly, set `type` to `stdio`, `http`, or `sse`.
 
 Store each token as a [user secret](../../user-guides/user-secrets.md) with an environment variable target.
 Coder injects user secrets into every workspace you own, and stdio servers inherit them from the agent.
+If the workspace is already running when you create the secret, restart the workspace so its servers get the new variable.
 
 For example, the GitHub MCP server reads `GITHUB_PERSONAL_ACCESS_TOKEN`.
-A user secret with that name needs no entry in `.mcp.json`:
+A user secret that targets that variable needs no entry in `.mcp.json`:
 
 ```sh
 echo -n "$TOKEN" | coder secret create github-mcp-token \
   --env GITHUB_PERSONAL_ACCESS_TOKEN
 ```
 
-Name the secret after the variable your server expects.
+Set the secret's `--env` target to the variable your server expects.
 The `env` block in `.mcp.json` can't map one name to another here.
 Coder expands `${VAR}` in `env` values from the agent's own process environment, which doesn't include user secrets.
+An `env` entry that references a user secret, such as `"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"`, expands to an empty string and replaces the secret's value, so remove it.
 Coder doesn't expand variables in `command`, `args`, `url`, or `headers`.
 
 HTTP servers take credentials in `headers`, which Coder reads literally.
@@ -87,7 +89,9 @@ A script that writes `.mcp.json` at startup gives every workspace you create the
 User secrets are available to startup scripts, so the script can fill in header tokens.
 
 This script writes both servers from the earlier example.
-Set `WORKDIR` to your agent's working directory, and replace `EXAMPLE_API_TOKEN` with the name of your user secret.
+Set `WORKDIR` to your agent's working directory, and replace `EXAMPLE_API_TOKEN` with your user secret's environment variable.
+The script waits for the template to clone a repository into the working directory, because a clone skips a directory that isn't empty.
+If your template doesn't clone into the working directory, remove the wait loop.
 
 ```sh
 #!/usr/bin/env bash
@@ -95,7 +99,14 @@ set -euo pipefail
 
 WORKDIR="$HOME/project"
 
-mkdir -p "$WORKDIR"
+# Wait for the template to clone the repository into the working directory.
+# Writing first makes the directory non-empty, which stops the clone.
+for _ in $(seq 60); do
+  [ -d "$WORKDIR/.git" ] && break
+  sleep 5
+done
+[ -d "$WORKDIR" ] || exit 0
+
 umask 077
 cat > "$WORKDIR/.mcp.json" <<JSON
 {
@@ -118,8 +129,9 @@ chmod 600 "$WORKDIR/.mcp.json"
 Run the script from one of these places:
 
 - **Dotfiles**: save it as `install.sh` in your [dotfiles repository](../../user-guides/workspace-dotfiles.md), or call it from your existing install script.
+  Run `chmod +x install.sh` before you commit it, because `coder dotfiles` runs only an executable script.
   The template must run `coder dotfiles`, usually through the [dotfiles module](https://registry.coder.com/modules/dotfiles).
-- **Personalize script**: save it as `~/personalize`.
+- **Personalize script**: save it as `~/personalize`, then run `chmod +x ~/personalize`.
   The template must include the [personalize module](https://registry.coder.com/modules/personalize).
 
 The agent connects to the servers after startup scripts finish.
@@ -130,7 +142,7 @@ It also watches the file, so a `.mcp.json` that appears later still loads withou
 The script writes into your project, so keep the file out of commits:
 
 ```sh
-echo ".mcp.json" >> "$WORKDIR/.git/info/exclude"
+grep -qxF ".mcp.json" "$WORKDIR/.git/info/exclude" || echo ".mcp.json" >> "$WORKDIR/.git/info/exclude"
 ```
 
 If the repository already commits a `.mcp.json`, do not overwrite it.
@@ -147,33 +159,36 @@ In this example, `~/my-mcp.json` holds your own `mcpServers` entries.
 
 ## Reuse a Claude Code setup
 
-`claude mcp add` writes to `~/.claude.json` by default, which Coder doesn't read.
+By default, [`claude mcp add`](https://code.claude.com/docs/en/mcp) writes to `~/.claude.json`, which Coder doesn't read.
 To write `.mcp.json` instead, run it with `--scope project` from the working directory:
 
 ```sh
-cd "$WORKDIR"
+cd ~/project
 claude mcp add --scope project --transport http example https://mcp.example.com/mcp
 ```
 
 A file from Claude Code works in Coder with three differences:
 
 - Coder accepts `type` values of `stdio`, `http`, and `sse`.
-  Change `streamable-http` to `http`.
+  If a file uses `streamable-http`, change it to `http`.
 - Coder expands variables only in `env` values, as [Keep tokens out of the file](#keep-tokens-out-of-the-file) describes.
 - Coder doesn't ask you to approve the servers in `.mcp.json`.
-  It starts every server the file lists, so review a `.mcp.json` from a repository before the agent runs it.
+  The agent starts every server the file lists as soon as it finds the file, so a repository in the working directory runs the commands in its `.mcp.json`.
+  Review a repository's `.mcp.json` before you clone it into the working directory.
 
 ## Check that your servers loaded
 
-Start a new chat in the workspace and ask the agent which tools it has.
+Start a new chat in the workspace and, outside plan mode, ask the agent which tools it has.
 Tools from your file have names like `github__<tool>`.
 
 If a server is missing:
 
 1. Confirm that `.mcp.json` sits at the top level of the working directory.
+1. Run `jq . .mcp.json` in the working directory to confirm that the file is valid JSON.
 1. Run the server's `command` in a workspace terminal to confirm that it starts.
-1. Read the workspace agent logs for the connection error.
+1. Read the workspace agent log, `/tmp/coder-agent.log` by default on Linux and macOS, for the connection error.
 
+One invalid entry, such as a server name that breaks the naming rules, makes the agent skip every server in the file.
 The agent skips a server that doesn't connect within 30&nbsp;seconds, and the other servers still load.
 Each tool call has a 60&nbsp;second timeout and needs a running workspace.
 
@@ -182,9 +197,9 @@ Each tool call has a 60&nbsp;second timeout and needs a running workspace.
 Edit `.mcp.json` at any time.
 The agent reloads its servers without a workspace restart, and new chats get the new tools right away.
 
-An existing chat keeps the tools it started with.
-An edit to `.mcp.json` alone doesn't mark that chat out of date, so start a new chat to use the new tools.
-For the full lifecycle, refer to [How the workspace shares context with chats](./extending-agents.md#how-the-workspace-shares-context-with-chats).
+Existing chats in the workspace get the change too.
+After the agent reloads, each chat that uses the workspace gets the new tools from its next message.
+An MCP-only change doesn't mark a chat out of date, so you don't need to refresh its context.
 
 > [!NOTE]
 > Template administrators can point the agent at other files with the experimental `CODER_AGENT_EXP_MCP_CONFIG_FILES` variable, set in the agent's process environment.
