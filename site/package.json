@@ -164,7 +164,7 @@
 		"knip": "5.71.0",
 		"msw": "2.4.8",
 		"oxlint": "1.80.0",
-		"protobufjs": "7.6.5",
+		"protobufjs": "7.6.6",
 		"resize-observer-polyfill": "1.5.1",
 		"rollup-plugin-visualizer": "7.1.1",
 		"rxjs": "7.8.2",
