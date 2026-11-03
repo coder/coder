@@ -174,7 +174,7 @@ export const ManyRowsExpanded: Story = {
 			name: "Changes",
 		});
 		await userEvent.click(
-			within(changes).getByRole("button", { name: "Show 2 more changes" }),
+			within(changes).getByRole("button", { name: "Show all 5 changes" }),
 		);
 	},
 };
