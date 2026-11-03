@@ -58,13 +58,14 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 			<div className="w-12 flex flex-col items-end shrink-0">
 				{notification.read_at === null && (
 					<>
-						<div className="group-focus:hidden group-hover:hidden size-2.5 rounded-full bg-highlight-sky">
+						<div className="group-focus-within:hidden group-hover:hidden size-2.5 rounded-full bg-highlight-sky">
 							<span className="sr-only">Unread</span>
 						</div>
 
+						{/* Visually hidden instead of display: none so it stays in the tab order. */}
 						<Button
 							onClick={() => onMarkNotificationAsRead(notification.id)}
-							className="hidden group-focus:flex group-hover:flex bg-surface-primary"
+							className="not-group-hover:not-group-focus-within:sr-only bg-surface-primary"
 							variant="outline"
 							size="sm"
 						>
