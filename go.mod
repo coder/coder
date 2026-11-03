@@ -123,10 +123,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    parts with a blank line, also before the first part, so each
 //    part's bold title renders on its own line. Upstream as
 //    charmbracelet/fantasy#436.
-// 17) coder/fantasy#78, replay OpenAI web searches inline from their
-//    result metadata unless they go back as an item reference, which
-//    needs a stored request, a stored source response and the reasoning
-//    item right before the search. Each search replays at most once.
+// 17) coder/fantasy#78 and coder/fantasy#77, replay OpenAI web searches
+//    inline from their result metadata, without item IDs and never as
+//    item references. Each search replays at most once. Replayed
+//    computer calls also drop their item IDs.
 // 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
 //    the toolset tool definition, ComputerUseToolVersionForModel, and
 //    mapping of toolset member calls to and from the computer tool.
@@ -136,8 +136,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    Chat Completions user file parts, native Responses outputs) and add
 //    a filename. Chat Completions file parts refuse text files, as
 //    Responses does.
-// See: https://github.com/coder/fantasy/commits/f153e3842fa7
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103055225-f153e3842fa7
+// See: https://github.com/coder/fantasy/commits/04dc16d83662
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103061125-04dc16d83662
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
