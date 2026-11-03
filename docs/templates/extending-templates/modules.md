@@ -44,6 +44,25 @@ Some of the modules we publish are,
 
 For a full list of available modules, check [Coder module registry](https://registry.coder.com/modules).
 
+## AI agent modules
+
+A template can install a terminal-based coding agent, such as Claude Code or Codex, in every workspace it creates.
+In the [template builder](../creating-templates.md#template-builder), filter the **Select modules** step by the **AI Agent** category and select the agent.
+To add an agent to a template you edit by hand, add the agent's module to the template's Terraform:
+
+```tf
+module "claude-code" {
+  source   = "registry.coder.com/coder/claude-code/coder"
+  version  = "~> 5.2"
+  agent_id = coder_agent.main.id
+}
+```
+
+Each agent module accepts its own authentication and configuration variables.
+Visit the module's page in the [Coder Registry](https://registry.coder.com/modules) for the full list.
+
+To delegate work to an agent that runs in the Coder control plane instead of in the workspace, use [Coder Agents](../../coder-agents/index.md).
+
 ## Module caching
 
 Module caching is enabled by default for all templates.
