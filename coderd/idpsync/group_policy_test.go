@@ -57,7 +57,7 @@ var rewritableVectors = []rewritableVector{
 	{code: idpsync.GroupSyncFindingMissingGroup, rewritable: true, why: "R6 removes the UUID."},
 	{code: idpsync.GroupSyncFindingOutsideGroup, rewritable: true, why: "R7 removes the UUID."},
 	{code: codersdk.GroupSyncFindingFieldEmpty, rewritable: false, why: "No rule is defined. The settings are kept as received by policy."},
-	{code: codersdk.GroupSyncFindingLegacyMapping, rewritable: false, why: "A rewrite into strict form is not feasible in general."},
+	{code: codersdk.GroupSyncFindingLegacyMapping, rewritable: false, why: "A rewrite that makes the settings valid is not feasible in general."},
 	{code: codersdk.GroupSyncFindingEmptyMappingKey, rewritable: false, why: "An IdP claim can contain the empty string, so removing the key could change behavior."},
 	{code: idpsync.GroupSyncFindingOrganizationDeleted, rewritable: false, why: "No omission makes a deleted organization's settings valid."},
 	{code: idpsync.GroupSyncFindingOrganizationAbsent, rewritable: false, why: "No omission makes settings for an absent organization valid."},
@@ -226,7 +226,7 @@ var rewritePlanVectors = []rewritePlanVector{
 	},
 	{
 		name:            "none/strict",
-		why:             "The strict action function rejects every finding, so with no findings it rejects nothing: strict form passes strict mode.",
+		why:             "The strict action function rejects every finding, so with no findings it rejects nothing: valid settings pass strict mode.",
 		actions:         actionsStrict,
 		route:           idpsync.GroupSyncRouteFetch,
 		codes:           []codersdk.GroupSyncFindingCode{},

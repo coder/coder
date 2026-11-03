@@ -48,7 +48,7 @@ const (
 	// GroupSyncInstructionAccept: accept the settings, in canonical form.
 	// Given when there are no findings.
 	GroupSyncInstructionAccept GroupSyncInstruction = "accept"
-	// GroupSyncInstructionRewrite: rewrite the settings into canonical strict
+	// GroupSyncInstructionRewrite: rewrite the settings into valid canonical
 	// form. Given when every action is rewrite.
 	GroupSyncInstructionRewrite GroupSyncInstruction = "rewrite"
 	// GroupSyncInstructionKeep: keep the settings as received. Given when

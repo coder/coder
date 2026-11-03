@@ -80,10 +80,10 @@ type rewriteWarning struct {
 
 // Outcomes the rewriter reports: what it did with the settings as a whole.
 const (
-	// outcomeStrictlyValid: the input had no findings; the rewriter returned
-	// it in canonical form.
-	outcomeStrictlyValid = "strictly_valid"
-	// outcomeRewritten: the rewriter brought the input into canonical strict
+	// outcomeValid: the input had no findings; the rewriter returned it in
+	// canonical form.
+	outcomeValid = "valid"
+	// outcomeRewritten: the rewriter brought the input into valid canonical
 	// form.
 	outcomeRewritten = "rewritten"
 	// outcomeNotRewritten: the rewriter returned the input unchanged.
@@ -111,21 +111,20 @@ func (rewrittenTo) isRewriteWant() {}
 // The vectors fall into three groups, named by the first segment of each
 // vector's name:
 //
-//  1. fixed_point: input in strict form and in canonical form. The rewriter
-//     returns it unchanged, with outcome strictly valid and no warnings.
-//  2. rewritable: input the rewriter brings into canonical strict form. With
-//     no findings, the input was strictly valid and only its form changes, so
-//     the outcome is strictly valid with no warnings. With findings, the
-//     outcome is rewritten, with one warning per finding.
+//  1. fixed_point: valid input in canonical form. The rewriter returns it
+//     unchanged, with outcome valid and no warnings.
+//  2. rewritable: input the rewriter brings into valid canonical form. With
+//     no findings, the input was valid and only its form changes, so the
+//     outcome is valid with no warnings. With findings, the outcome is
+//     rewritten, with one warning per finding.
 //  3. not_rewritten: input with at least one finding the rewriter cannot
 //     rewrite. It is returned unchanged, even when other findings could be
 //     rewritten, with outcome not rewritten and one warning per finding.
 //
 // A test checks the table itself before the rewriter runs: that sameAsInput
-// appears only with outcomes strictly valid and not rewritten, that
-// rewrittenTo appears only with outcomes strictly valid and rewritten, that a
-// strictly valid outcome has no findings, and that there is one warning per
-// finding, in the same order.
+// appears only with outcomes valid and not rewritten, that rewrittenTo
+// appears only with outcomes valid and rewritten, that a valid outcome has no
+// findings, and that there is one warning per finding, in the same order.
 var rewriteVectors = []rewriteVector{
 	// Group 1: fixed points.
 	{
@@ -133,7 +132,7 @@ var rewriteVectors = []rewriteVector{
 		why:          "The canonical empty form of every member.",
 		input:        `{"field":"","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -150,7 +149,7 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": true
 		}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -167,7 +166,7 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -186,19 +185,19 @@ var rewriteVectors = []rewriteVector{
 			"auto_create_missing_groups": false
 		}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         sameAsInput{},
 		wantWarnings: []rewriteWarning{},
 	},
 
-	// Group 2, first part: strictly valid input in a form that is not
-	// canonical. Only the form changes, so there are no warnings.
+	// Group 2, first part: valid input in a form that is not canonical. Only
+	// the form changes, so there are no warnings.
 	{
 		name:         "rewritable/empty_object",
 		why:          "Absent members become their canonical empty forms; `legacy_group_name_mapping` stays absent.",
 		input:        `{}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         rewrittenTo{`{"field":"","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -207,7 +206,7 @@ var rewriteVectors = []rewriteVector{
 		why:          "The other members are absent and become their canonical empty forms.",
 		input:        `{"field":"groups"}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -216,7 +215,7 @@ var rewriteVectors = []rewriteVector{
 		why:          "`null` is an empty form of `mapping`; the canonical one is `{}`.",
 		input:        `{"field":"groups","mapping":null,"regex_filter":null,"auto_create_missing_groups":false}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -225,7 +224,7 @@ var rewriteVectors = []rewriteVector{
 		why:          "The empty string is an empty form of `regex_filter`; the canonical one is `null`. This is what the UI sends when no filter is set.",
 		input:        `{"field":"groups","mapping":{},"regex_filter":"","auto_create_missing_groups":false}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -234,7 +233,7 @@ var rewriteVectors = []rewriteVector{
 		why:          "An empty legacy mapping is permissible, and its canonical form is an absent member.",
 		input:        `{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false,"legacy_group_name_mapping":{}}`,
 		findings:     []rewriteFinding{},
-		wantOutcome:  outcomeStrictlyValid,
+		wantOutcome:  outcomeValid,
 		want:         rewrittenTo{`{"field":"groups","mapping":{},"regex_filter":null,"auto_create_missing_groups":false}`},
 		wantWarnings: []rewriteWarning{},
 	},
@@ -250,7 +249,7 @@ var rewriteVectors = []rewriteVector{
 			"field": "groups"
 		}`,
 		findings:    []rewriteFinding{},
-		wantOutcome: outcomeStrictlyValid,
+		wantOutcome: outcomeValid,
 		want: rewrittenTo{`{
 			"field": "groups",
 			"mapping": {

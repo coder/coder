@@ -128,8 +128,8 @@ carry the same guarantees.
 
 - **A request.** The text is decoded into `codersdk.GroupSyncSettings` and
   passed through the rewriter; see [Request routes](#request-routes). The result
-  is converted to the Go value and stored: in canonical form when it is strictly
-  valid or rewritten, and as received when it is not rewritten.
+  is converted to the Go value and stored: in canonical form when it is valid
+  or rewritten, and as received when it is not rewritten.
 - **A stored row.** The Go value is decoded from the row keyed
   `<org-uuid>:group-sync-settings`, with no checks beyond JSON decoding. A row
   may fail W1 through W8, either because it was written before the current
@@ -423,20 +423,20 @@ control and because we have some fundamental ignorance about it. What we can do,
 however, is to ensure that no behavior inside Coder ever makes the sync settings
 invalid.
 
-#### Strict form
+#### Valid and legacy settings
 
-A group sync settings text is in strict form for an organization when it is
-well-formed (W1 through W8) and valid for that organization at the moment of the
-check (V1 through V5). Strict form does not require canonical form. In
-particular, strict form has no legacy rename, since W8 allows
+Validity, as defined above, includes well-formedness (V1) and holds for an
+organization at the moment of the check. It does not require canonical form.
+In particular, valid settings have no legacy rename, since W8 allows
 `legacy_group_name_mapping` only to be absent, `null`, or an empty object. The
 legacy mapping is partway through being removed entirely.
 
-Legacy settings are any that are not in strict form. This is not only a
-syntactic requirement but also a semantic one, since validity demands coherence
-with the database.
+Legacy settings are any that are not valid. This is not only a syntactic
+requirement but also a semantic one, since validity demands coherence with the
+database.
 
-Strict mode will accept only strict form, both in protocol and in the database.
+Strict mode will accept only valid settings, both in protocol and in the
+database.
 
 #### The rewriter
 
@@ -445,12 +445,12 @@ at the moment it runs. It does not depend on sync, so it can run wherever
 settings are read or written. It returns one of three outcomes, together with
 settings and a list of warnings.
 
-- **Strictly valid.** The input is in strict form. The settings returned are
-  its canonical form, and there are no warnings.
-- **Rewritten.** The input is not in strict form, and the rewrite rules bring
-  it into strict form. The settings returned are in canonical form, with one
-  warning for each rule applied.
-- **Not rewritten.** The input is not in strict form and is not rewritten; see
+- **Valid.** The input is valid. The settings returned are its canonical form,
+  and there are no warnings.
+- **Rewritten.** The input is not valid, and the rewrite rules make it valid.
+  The settings returned are in canonical form, with one warning for each rule
+  applied.
+- **Not rewritten.** The input is not valid and is not rewritten; see
   [Settings that are not rewritten](#settings-that-are-not-rewritten). The
   settings returned are the input unchanged, with a warning saying why.
 
@@ -505,8 +505,8 @@ Violations of W2 and W3 are resolved by JSON decoding and are not reported.
 #### Settings that are not rewritten
 
 The rewriter checks all of these. If any holds, it does not apply any rewrite
-rule. There is no such thing as a partial rewrite; either the rewrite reaches
-strict form or there is no rewrite at all.
+rule. There is no such thing as a partial rewrite; either the rewrite makes the
+settings valid or there is no rewrite at all.
 
 - **Empty `field`** (`field_empty`). When `field` is empty and another member is
   not, the settings violate W4. Sync ignores the other members (P1), but the
@@ -514,9 +514,9 @@ strict form or there is no rewrite at all.
   Strict mode will reject settings with an empty `field` and other nonempty
   members.
 - **Legacy mapping** (`legacy_mapping`). A nonempty
-  `legacy_group_name_mapping` violates W8. A rewrite into strict form is not
-  feasible in general, because the legacy rename runs before the filter and
-  its target is a group name, not a UUID.
+  `legacy_group_name_mapping` violates W8. A rewrite that makes the settings
+  valid is not feasible in general, because the legacy rename runs before the
+  filter and its target is a group name, not a UUID.
 - **Empty mapping key** (`empty_mapping_key`). A `mapping` key that is the
   empty string violates W5. An IdP claim that is an array can contain the
   empty string, so the key may apply, and removing it could change behavior.
@@ -530,7 +530,7 @@ On the three PATCH endpoints, the rewriter runs on the settings the endpoint
 would store: the request body for the full-replace endpoint, and the merged
 result for the config and mapping-diff endpoints.
 
-- **Strictly valid** settings are saved in canonical form.
+- **Valid** settings are saved in canonical form.
 - **Rewritten** settings are saved as rewritten.
 - **Not rewritten** settings are saved as received, with their warning, where
   the current code accepts them, and rejected otherwise.
@@ -564,7 +564,7 @@ built from deployment flags, when no row exists, is not rewritten.
 Sync reads rows as they are and does not rewrite them. Rewriting at sync would
 be safe, since a rewrite does not change behavior, but it would defeat
 reporting. Warnings arise only when a rewrite happens; once a row has been
-rewritten, every later fetch finds it strictly valid and reports nothing. Sync
+rewritten, every later fetch finds it valid and reports nothing. Sync
 runs at login, where there is no channel to an administrator, so its warnings
 would reach only the server log. The administrator would next see corrected
 settings with no account of what changed, beyond the audit record of a system
