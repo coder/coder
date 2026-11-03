@@ -776,7 +776,7 @@ func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, erro
 	return ts, &timingSpan{
 		kind:        typ,
 		messageCode: log.MessageCode,
-		action:      log.Hook.Action,
+		action:      string(log.Hook.Action),
 		provider:    log.Hook.Resource.Provider,
 		resource:    log.Hook.Resource.Addr,
 	}, nil
@@ -814,8 +814,30 @@ type terraformProvisionLog struct {
 }
 
 type terraformProvisionLogHook struct {
-	Action   string                            `json:"action"`
+	Action   terraformHookAction               `json:"action"`
 	Resource terraformProvisionLogHookResource `json:"resource"`
+}
+
+// terraformHookAction is the "action" of a hook message. Resource hooks use a
+// string (e.g. "create"), but Terraform 1.14+ action hooks (action_start,
+// action_progress, ...) use an object describing the action. Accept both so
+// that those lines still decode and their @message is logged.
+type terraformHookAction string
+
+func (a *terraformHookAction) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		*a = terraformHookAction(s)
+		return nil
+	}
+	var obj struct {
+		Addr string `json:"addr"`
+	}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return err
+	}
+	*a = terraformHookAction(obj.Addr)
+	return nil
 }
 
 type terraformProvisionLogHookResource struct {

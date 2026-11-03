@@ -303,3 +303,50 @@ func TestChecksumFileCRC32(t *testing.T) {
 		require.Zero(t, checksum)
 	})
 }
+
+func TestParseTerraformLogLineHookAction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		line        string
+		wantMessage string
+		wantAction  terraformHookAction
+	}{
+		{
+			name:        "ResourceHook",
+			line:        `{"@level":"info","@message":"coder_agent.main: Creating...","hook":{"action":"create","resource":{"addr":"coder_agent.main","implied_provider":"coder"}},"type":"apply_start"}`,
+			wantMessage: "coder_agent.main: Creating...",
+			wantAction:  "create",
+		},
+		{
+			// Terraform 1.14+ actions describe the action as an object.
+			name:        "ActionProgress",
+			line:        `{"@level":"info","@message":"kubernetes_deployment_v1.main[0] (0): action.example_wait.workspace - pod is Ready","hook":{"action":{"addr":"action.example_wait.workspace","module":"","action":"action.example_wait.workspace","implied_provider":"example","action_type":"example_wait","action_name":"workspace","action_key":null},"message":"pod is Ready","lifecycle":{"resource":{"addr":"kubernetes_deployment_v1.main[0]"},"trigger_index":0,"actions_index":0,"trigger_event":"AfterCreate","on_failure":"ActionOnFailureHalt"}},"type":"action_progress"}`,
+			wantMessage: "kubernetes_deployment_v1.main[0] (0): action.example_wait.workspace - pod is Ready",
+			wantAction:  "action.example_wait.workspace",
+		},
+		{
+			name:        "ActionStart",
+			line:        `{"@level":"info","@message":"kubernetes_deployment_v1.main[0].trigger[0]: Action started: action.example_wait.workspace","hook":{"action":{"addr":"action.example_wait.workspace"},"lifecycle":{"resource":{"addr":"kubernetes_deployment_v1.main[0]"}}},"type":"action_start"}`,
+			wantMessage: "kubernetes_deployment_v1.main[0].trigger[0]: Action started: action.example_wait.workspace",
+			wantAction:  "action.example_wait.workspace",
+		},
+		{
+			// Anything else still falls back to logging the raw line.
+			name:        "UnknownShape",
+			line:        `{"@level":"info","@message":"x","hook":{"action":42},"type":"apply_start"}`,
+			wantMessage: `{"@level":"info","@message":"x","hook":{"action":42},"type":"apply_start"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			log := parseTerraformLogLine([]byte(tt.line))
+			require.NotNil(t, log)
+			require.Equal(t, "info", log.Level)
+			require.Equal(t, tt.wantMessage, log.Message)
+			require.Equal(t, tt.wantAction, log.Hook.Action)
+		})
+	}
+}
