@@ -80,7 +80,8 @@ Instructions for the skill go here...
 
 `read_skill_file` rejects absolute paths, paths containing `..`, and
 references to hidden files. All paths are resolved relative to the skill
-directory.
+directory. It also rejects a path that leaves the skill directory at any
+step, including through a symlink.
 
 ## Personal skills
 
