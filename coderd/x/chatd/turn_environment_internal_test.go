@@ -298,7 +298,8 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 }
 
 // Computer use chats run on their own model config; the tool flavor follows
-// that model's AI provider type.
+// that model's AI provider type, and the Anthropic tool version follows the
+// model on every platform.
 func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
@@ -328,25 +329,31 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			wantToolVersion: fantasyanthropic.ComputerUse20251124,
 		},
 		{
-			// Claude Platform on AWS has no toolset.
+			name:            "AnthropicUnknownModel",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "company-default-model",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			// The platform does not change the version.
 			name:         "ClaudePlatformAWS",
 			providerType: database.AIProviderTypeAnthropic,
 			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
 				Region:      "us-east-2",
 				WorkspaceID: "wrkspc_test",
 			}},
-			model:           "claude-opus-5",
+			model:           "claude-opus-5-5",
 			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
-			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
 		},
 		{
-			// Amazon Bedrock has no toolset.
 			name:            "AnthropicBedrock",
 			providerType:    database.AIProviderTypeAnthropic,
 			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
-			model:           "claude-opus-5-5",
+			model:           "us.anthropic.claude-opus-5-5",
 			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
-			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
 		},
 		{
 			// The model is absent from the SDK's known Responses models, so

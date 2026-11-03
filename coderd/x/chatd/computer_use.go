@@ -148,18 +148,6 @@ func (p *Server) resolveComputerUseModel(
 	return model, "", nil
 }
 
-// anthropicComputerUseToolVersion picks the Anthropic computer use tool version
-// for a model of an Anthropic AI provider. Claude Platform on AWS and Amazon
-// Bedrock offer computer use only through the earlier tool versions, so a
-// model that takes the toolset on the Claude API takes computer_20251124 there.
-func anthropicComputerUseToolVersion(modelID string, settings codersdk.AIProviderSettings) fantasyanthropic.ComputerUseToolVersion {
-	version := fantasyanthropic.ComputerUseToolVersionForModel(modelID)
-	if version == fantasyanthropic.ComputerUseToolset20260801 && (settings.ClaudePlatformAWS != nil || settings.Bedrock != nil) {
-		return fantasyanthropic.ComputerUse20251124
-	}
-	return version
-}
-
 type computerUseProviderToolOptions struct {
 	provider         codersdk.ChatComputerUseProvider
 	toolVersion      fantasyanthropic.ComputerUseToolVersion

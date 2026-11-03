@@ -24,7 +24,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
@@ -235,11 +234,11 @@ func (p *Server) buildTurnEnvironment(
 			)
 		}
 		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
-			settings, err := db2sdk.AIProviderSettings(resolved.route.Provider.Settings)
-			if err != nil {
-				return turnEnvironment{}, xerrors.Errorf("decode settings of AI provider %q: %w", resolved.route.Provider.Name, err)
-			}
-			computerUseToolVersion = anthropicComputerUseToolVersion(modelConfig.Model, settings)
+			// The model alone picks the version, on every Anthropic platform.
+			// Live requests show that Claude Platform on AWS and Amazon
+			// Bedrock accept the same versions as the Claude API, although
+			// Anthropic's docs say that they do not offer the toolset.
+			computerUseToolVersion = anthropic.ComputerUseToolVersionForModel(modelConfig.Model)
 		}
 	}
 	model := resolved.model
