@@ -334,6 +334,7 @@ The `read_skill` result returns the skill body without the frontmatter, so it do
 Workspace templates can expose custom [MCP](https://modelcontextprotocol.io/introduction) tools by placing a `.mcp.json` file in the workspace working directory.
 The agent connects to these servers, reports their tools in the context snapshot it pushes, and chats register those tools alongside their built-in tools.
 To declare an MCP server inline on one chat through the API instead, refer to [Inline MCP servers](./platform-controls/mcp-servers.md#inline-mcp-servers-experimental).
+To set up your own servers from dotfiles or a startup script, refer to [Bring your own MCP servers](./bring-your-own-mcp-servers.md).
 
 ### Configuration
 
