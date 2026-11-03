@@ -1861,21 +1861,18 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	return &proto.Empty{}, nil
 }
 
-// insertModuleFiles stores a template import's module archive and returns
+// ensureModuleFiles stores a template import's module archive and returns
 // the ID of its files row. Archives are deduplicated by hash, so an
 // identical archive from an earlier or concurrent import is reused.
-func (s *server) insertModuleFiles(ctx context.Context, data []byte) (uuid.UUID, error) {
+func (s *server) ensureModuleFiles(ctx context.Context, data []byte) (uuid.UUID, error) {
 	hashBytes := sha256.Sum256(data)
 	hash := hex.EncodeToString(hashBytes[:])
-	getFile := func() (database.File, error) {
-		//nolint:gocritic // Acting as provisionerd
-		return s.Database.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{
-			Hash:      hash,
-			CreatedBy: uuid.Nil,
-		})
-	}
 
-	file, err := getFile()
+	//nolint:gocritic // Acting as provisionerd
+	file, err := s.Database.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{
+		Hash:      hash,
+		CreatedBy: uuid.Nil,
+	})
 	if err == nil {
 		return file.ID, nil
 	}
@@ -1900,7 +1897,11 @@ func (s *server) insertModuleFiles(ctx context.Context, data []byte) (uuid.UUID,
 	}
 
 	// A concurrent import stored the same archive after the lookup above.
-	file, err = getFile()
+	//nolint:gocritic // Acting as provisionerd
+	file, err = s.Database.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{
+		Hash:      hash,
+		CreatedBy: uuid.Nil,
+	})
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("get concurrently inserted modules: %w", err)
 	}
@@ -1932,7 +1933,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 	// transaction would be aborted.
 	var moduleFilesID uuid.NullUUID
 	if moduleFiles := jobType.TemplateImport.ModuleFiles; len(moduleFiles) > 0 {
-		id, err := s.insertModuleFiles(ctx, moduleFiles)
+		id, err := s.ensureModuleFiles(ctx, moduleFiles)
 		if err != nil {
 			return err
 		}
