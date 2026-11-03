@@ -326,6 +326,13 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		nextTerminal.open(mountNode);
 		refit();
 
+		// The canvas and WebGL renderers keep reusing the fallback glyph drawn
+		// before a lazily loaded font arrives, so rebuild their glyph cache.
+		const redrawWithLoadedFonts = () => {
+			nextTerminal.clearTextureAtlas();
+		};
+		document.fonts.addEventListener("loadingdone", redrawWithLoadedFonts);
+
 		window.addEventListener("resize", refit);
 
 		const resizeObserver = new ResizeObserver(() => {
@@ -336,6 +343,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		setTerminal(nextTerminal);
 
 		return () => {
+			document.fonts.removeEventListener("loadingdone", redrawWithLoadedFonts);
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;

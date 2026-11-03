@@ -3,6 +3,7 @@
  *
  * Nerd Font glyphs subset from Symbols Nerd Font Mono v3.4.0.
  * Source: https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.4.0
+ * Licenses: terminal-symbols-LICENSE.txt
  */
 
 @font-face {
@@ -20,8 +21,7 @@
 	font-display: swap;
 	font-weight: 400 700;
 	src: url("./terminal-symbols-misc.woff2?no-inline") format("woff2");
-	unicode-range:
-		U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58, U+E000-E00A;
+	unicode-range: U+23FB-23FE, U+2630, U+276C-2771, U+2B58, U+E000-E00A;
 }
 
 @font-face {
