@@ -7994,6 +7994,94 @@ export interface OrganizationAISpendFilter {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendOverview is the AI spend of an organization over the
+ * applied period, read from the daily spend aggregate. Count, Totals, and
+ * Intervals cover every user with spend.
+ */
+export interface OrganizationAISpendOverview extends AISpendPeriodWindow {
+	/**
+	 * Count is the number of users with spend in the period.
+	 */
+	readonly count: number;
+	readonly totals: OrganizationAISpendOverviewTotals;
+	/**
+	 * Intervals holds the daily spend, one interval per UTC day in the period
+	 * (omitting days after the current day). Days without spend are zero.
+	 */
+	readonly intervals: readonly OrganizationAISpendOverviewInterval[];
+	/**
+	 * Users is the requested page, most spend first.
+	 */
+	readonly users: readonly OrganizationAISpendOverviewUser[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewGroup is a group that a user's spend was
+ * attributed to in the period, and the amount attributed to it.
+ */
+export interface OrganizationAISpendOverviewGroup {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	/**
+	 * SpendMicros is the user's spend attributed to this group in the period.
+	 */
+	readonly spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewInterval is the spend of an organization over the
+ * [StartTime, EndTime) interval.
+ */
+export interface OrganizationAISpendOverviewInterval {
+	readonly start_time: string;
+	readonly end_time: string;
+	readonly spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewTotals summarizes the organization's spend in
+ * the period.
+ */
+export interface OrganizationAISpendOverviewTotals {
+	/**
+	 * SpendMicros is the total spend of all users in the period.
+	 */
+	readonly spend_micros: number;
+	/**
+	 * MedianSpendMicros is the median spend across users with spend in the
+	 * period. It is zero when no user has spend.
+	 */
+	readonly median_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendOverviewUser is one user's spend within an organization
+ * overview.
+ */
+export interface OrganizationAISpendOverviewUser {
+	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	/**
+	 * SpendMicros is the user's total spend in the period, across all of
+	 * their groups.
+	 */
+	readonly spend_micros: number;
+	/**
+	 * Groups are the groups the user's spend was attributed to, most spend
+	 * first.
+	 */
+	readonly groups: readonly OrganizationAISpendOverviewGroup[];
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendPage selects one page of the per-user report, which
  * pages by offset only. A zero Limit uses the server default.
  */
