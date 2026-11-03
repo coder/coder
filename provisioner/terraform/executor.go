@@ -79,7 +79,8 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 			// the command exits on its own, and it would then cut off output
 			// that is not read yet.
 			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
-				_ = cmd.Process.Kill()
+				err := cmd.Process.Kill()
+				e.logger.Debug(killCtx, "killed command", slog.F("args", cmd.Args), slog.Error(err))
 			})
 			return cmd.Process.Signal(os.Interrupt)
 		}
@@ -138,7 +139,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	e.logger.Debug(ctx, "command done", slog.F("args", args), slog.Error(err))
 	return err
 }
@@ -170,7 +171,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	if err != nil {
 		errString, _ := io.ReadAll(stdErr)
 		return xerrors.Errorf("%s: %w", errString, err)
@@ -532,7 +533,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	if err != nil {
 		return "", xerrors.Errorf("graph: %w", err)
 	}
@@ -617,6 +618,14 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, 
 			logger.Debug(ctx, "kill context ended", slog.F("args", cmd.Args))
 		}
 	}()
+}
+
+func waitCommand(killCtx context.Context, cmd *exec.Cmd) error {
+	err := cmd.Wait()
+	if err != nil && killCtx.Err() != nil {
+		return xerrors.Errorf("did not exit within the exit timeout after an interrupt: %w", err)
+	}
+	return err
 }
 
 type logSink interface {

@@ -698,6 +698,7 @@ func TestProvision_CancelTimeout(t *testing.T) {
 				require.NoError(t, err)
 
 				if c := msg.GetPlan(); c != nil {
+					require.Contains(t, c.Error, "did not exit within the exit timeout")
 					require.Contains(t, c.Error, tt.wantError)
 					break
 				}
