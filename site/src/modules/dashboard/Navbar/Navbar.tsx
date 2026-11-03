@@ -12,7 +12,6 @@ import {
 } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
-import { isHalloweenEnabled } from "#/utils/halloween";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -90,7 +89,6 @@ export const Navbar: React.FC = () => {
 			canCreateChat={canCreateChat}
 			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
-			halloween={isHalloweenEnabled()}
 		/>
 	);
 };

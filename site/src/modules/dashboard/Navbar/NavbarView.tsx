@@ -28,7 +28,6 @@ type NavbarViewProps = {
 	canCreateChat: boolean;
 	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
-	halloween?: boolean;
 };
 
 const linkStyles = {
@@ -47,7 +46,6 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 	canCreateChat,
 	canViewLicenses,
 	proxyContextValue,
-	halloween = false,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
 
@@ -72,7 +70,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 			}}
 		>
 			<NavLink to="/workspaces">
-				<ProductLogo className="h-7" halloween={halloween} />
+				<ProductLogo className="h-7" ghost />
 			</NavLink>
 
 			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />

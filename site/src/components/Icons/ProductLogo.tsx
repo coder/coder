@@ -6,19 +6,19 @@ import { GhostLogo } from "./GhostLogo";
 
 type ProductLogoProps = {
 	className?: string;
-	halloween?: boolean;
+	ghost?: boolean;
 };
 
 /**
  * Enterprise customers can set a custom logo for their Coder application. Use
  * the custom logo wherever the Coder logo is used, if a custom one is provided.
  *
- * `halloween` swaps the Coder logo for the GhostLogo easter egg. A custom logo
+ * `ghost` swaps the Coder logo for the GhostLogo hover easter egg. A custom logo
  * always wins: it's never animated.
  */
 export const ProductLogo: React.FC<ProductLogoProps> = ({
 	className,
-	halloween = false,
+	ghost = false,
 }) => {
 	const applicationName = getApplicationName();
 	const logoURL = getLogoURL();
@@ -40,7 +40,7 @@ export const ProductLogo: React.FC<ProductLogoProps> = ({
 			/>
 		);
 	}
-	if (halloween) {
+	if (ghost) {
 		return <GhostLogo className={cn("h-12", className)} />;
 	}
 	return <CoderLogo className={cn("h-12", className)} />;

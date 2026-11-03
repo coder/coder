@@ -1,4 +1,3 @@
-import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { cn } from "cn";
 import { useEffect, useId, useRef } from "react";
 import { CODER_LOGO_PATH } from "./coderLogoPath";
@@ -14,9 +13,9 @@ type GhostLogoProps = {
 };
 
 /**
- * The Coder logo with the Halloween "Ghost in the shell" easter egg. It renders
- * like the plain logo except while the effect plays, and stays plain for
- * reduced motion and in pixel snapshots.
+ * The Coder logo with a hover easter egg: it glitches into a backlit
+ * silhouette with blinking eyes, and glitches back when the pointer leaves.
+ * It stays plain for reduced motion.
  */
 export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 	// SVG url(#…) references need an id without React's punctuation.
@@ -31,14 +30,12 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 	const turbulence = useRef<SVGFETurbulenceElement>(null);
 	const displacement = useRef<SVGFEDisplacementMapElement>(null);
 	const ghost = useRef<SVGGElement>(null);
-	const backlight = useRef<SVGGElement>(null);
 	const eyes = useRef<SVGGElement>(null);
 	const scanlines = useRef<SVGGElement>(null);
-	const bar = useRef<SVGRectElement>(null);
 
 	useEffect(() => {
 		// jsdom has no matchMedia.
-		if (window.matchMedia?.(REDUCED_MOTION).matches || isPixel()) {
+		if (window.matchMedia?.(REDUCED_MOTION).matches) {
 			return;
 		}
 		const parts = {
@@ -47,10 +44,8 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 			turbulence: turbulence.current,
 			displacement: displacement.current,
 			ghost: ghost.current,
-			backlight: backlight.current,
 			eyes: eyes.current,
 			scanlines: scanlines.current,
-			bar: bar.current,
 		};
 		if (
 			!parts.svg ||
@@ -58,10 +53,8 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 			!parts.turbulence ||
 			!parts.displacement ||
 			!parts.ghost ||
-			!parts.backlight ||
 			!parts.eyes ||
-			!parts.scanlines ||
-			!parts.bar
+			!parts.scanlines
 		) {
 			return;
 		}
@@ -71,14 +64,11 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 			turbulence: parts.turbulence,
 			displacement: parts.displacement,
 			ghost: parts.ghost,
-			backlight: parts.backlight,
 			eyes: parts.eyes,
 			scanlines: parts.scanlines,
-			bar: parts.bar,
 			glitchFilterId,
 		});
 		controller.current = ghostLogoController;
-		ghostLogoController.start();
 		return () => {
 			ghostLogoController.destroy();
 			controller.current = null;
@@ -167,18 +157,13 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 			<g ref={screen}>
 				<path d={CODER_LOGO_PATH} />
 				<g ref={ghost} style={{ opacity: 0 }}>
-					<g
-						ref={backlight}
-						className="[transform-box:fill-box] origin-center"
-						style={{ opacity: 0 }}
-					>
-						<path
-							d={CODER_LOGO_PATH}
-							stroke="currentColor"
-							strokeWidth={4}
-							filter={`url(#${backlightFilterId})`}
-						/>
-					</g>
+					<path
+						d={CODER_LOGO_PATH}
+						stroke="currentColor"
+						strokeWidth={4}
+						opacity={0.9}
+						filter={`url(#${backlightFilterId})`}
+					/>
 					{/* The stroke grows the silhouette by 2 units on each side, under half
 					    a pixel in the navbar, so the dark logo doesn't read thinner. */}
 					<path
@@ -204,7 +189,6 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({ className }) => {
 						height="64"
 						fill={`url(#${scanlinesId})`}
 					/>
-					<rect ref={bar} x="-4" y="0" width="128" height="4" opacity={0.45} />
 				</g>
 			</g>
 		</svg>

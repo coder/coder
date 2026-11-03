@@ -17,5 +17,5 @@ const meta: Meta<typeof GhostLogo> = {
 export default meta;
 type Story = StoryObj<typeof GhostLogo>;
 
-/** Plays the cycle on its own; hover holds it dark. Pixel snapshots render the plain logo. */
+/** Hover the logo to see the easter egg. */
 export const Default: Story = {};

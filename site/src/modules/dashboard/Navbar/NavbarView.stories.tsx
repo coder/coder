@@ -400,8 +400,3 @@ export const RcDevelBuild: Story = {
 		},
 	},
 };
-
-export const Halloween: Story = {
-	args: { halloween: true },
-	parameters: { pixel: { matrix: pixelWithDesktop } },
-};
