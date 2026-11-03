@@ -469,10 +469,10 @@ jobs:
           # the run holds the PR's concurrency group, so the next run cannot
           # send the chat another message yet. Many reviews take longer, and
           # "Fail unless the review is still running" passes those. A longer
-          # wait would not cover them, because some reviews run for hours, and
-          # it would hold the concurrency group longer. Keep this below
-          # timeout-minutes with room for setup, or GitHub cancels the job
-          # instead.
+          # wait would not cover all of them, because some reviews run for
+          # hours, and it would hold the concurrency group longer. Keep this
+          # below timeout-minutes with room for setup, or GitHub cancels the
+          # job instead.
           wait-timeout-seconds: "2400"
           # The doc-check agent posts its own sticky comment when there are
           # findings. A failure within the wait fails the job; a later failure
