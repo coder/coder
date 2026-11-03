@@ -28,7 +28,7 @@ Once communication succeeds in one direction, we can inspect the source address 
 At a high level, STUN works like this:
 
 - **Discovery:**
-  Both the client and agent will send UDP traffic to one or more configured STUN servers.
+  Both the client and agent will send User Datagram Protocol (UDP) traffic to one or more configured STUN servers.
   These STUN servers are generally located on the public internet, and respond with the public IP address and port from which the request came.
 - **Coordination:**
   The client and agent then exchange this information through the control plane.
@@ -64,7 +64,7 @@ They then exchange this information through the control plane, and can then comm
 
 ### 3. Direct connections with VPN and NAT hairpinning
 
-In this example, the client workstation must use a VPN to connect to the corporate network.
+In this example, the client workstation must use a virtual private network (VPN) to connect to the corporate network.
 All traffic from the client will enter through the VPN entry node and exit at the VPN exit node inside the corporate network.
 Traffic from the client inside the corporate network will appear to be coming from the IP address of the VPN exit node `172.16.1.2`.
 Traffic from the client to the public internet will appear to have the public IP address of the corporate router `12.34.56.7`.
@@ -97,7 +97,7 @@ Tailscale refers to this as "hard" NAT in [How NAT traversal works (tailscale.co
 If both peers are behind a "hard" NAT, direct connections may take longer to establish or will not be established at all.
 If one peer is behind a "hard" NAT and the other is running a firewall (including Windows Defender Firewall), the firewall may block direct connections.
 
-In both cases, peers fallback to DERP connections if they cannot establish a direct connection.
+In both cases, peers fallback to Designated Encrypted Relay for Packets (DERP) connections if they cannot establish a direct connection.
 
 If your workspaces are behind a "hard" NAT, you can:
 
@@ -119,7 +119,7 @@ Linux `MASQUERADE` rules work well for this.
 
 ### AWS Elastic Kubernetes Service (EKS)
 
-The default configuration of AWS Elastic Kubernetes Service (EKS) includes the [Amazon VPC CNI Driver](https://github.com/aws/amazon-vpc-cni-k8s), which by default randomizes the public port for different outgoing UDP connections.
+The default configuration of AWS Elastic Kubernetes Service (EKS) includes the [Amazon Virtual Private Cloud (VPC) Container Network Interface (CNI) Driver](https://github.com/aws/amazon-vpc-cni-k8s), which by default randomizes the public port for different outgoing UDP connections.
 This makes it act as a "hard" NAT, even if the EKS nodes are on a public subnet (and thus do not need to use the AWS NAT Gateway to reach the Internet).
 
 This behavior can be disabled by setting the environment variable `AWS_VPC_K8S_CNI_RANDOMIZESNAT=none` in the `aws-node` DaemonSet.

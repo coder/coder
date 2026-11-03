@@ -63,7 +63,7 @@ To configure Cline to use AI Gateway, follow these steps: ![Cline Settings](../.
 1. **Custom Headers**:
    Add `X-Coder-AI-Governance-Token` with your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
-![Cline BYOK OpenAI Settings](../../../images/aibridge/clients/cline-byok-openai.png)
+![Cline Bring Your Own Key (BYOK) OpenAI Settings](../../../images/aibridge/clients/cline-byok-openai.png)
 
 </div>
 

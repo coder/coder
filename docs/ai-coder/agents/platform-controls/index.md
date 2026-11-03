@@ -12,7 +12,7 @@ This means:
   Providers, models, system prompts, and tool permissions are set by administrators from the control plane.
   These are not user preferences.
   Deployment administrators own the deployment-wide policies.
-  Users with organization configuration access own the models and the MCP servers of their organization.
+  Users with organization configuration access own the models and the Model Context Protocol (MCP) servers of their organization.
   Refer to [Organization scope](./organizations.md) for the split between the 2 scopes.
 - **Developers never need to configure anything by default.**
   A developer just describes the work they want done.
@@ -32,7 +32,7 @@ The control plane is the single source of truth for how agents behave.
 
 ### Providers and models
 
-Administrators configure which LLM providers and models are available from the Coder dashboard.
+Administrators configure which large language model (LLM) providers and models are available from the Coder dashboard.
 This includes API keys, base URLs (for enterprise proxies or self-hosted models), and per-model parameters like context limits, thinking budgets, and reasoning effort.
 
 Providers are deployment-wide.

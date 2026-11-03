@@ -147,6 +147,7 @@ const renderChatPageInput = (
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={vi.fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 			{...overrides}
 		/>,
 	);

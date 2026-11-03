@@ -20,7 +20,7 @@ The [template builder](../creating-templates.md#template-builder) is the recomme
 It guides you through selecting a base infrastructure template, adding modules (IDEs, tools, integrations), and configuring template settings without writing Terraform.
 
 Starter templates for common cloud providers (AWS, Azure) and orchestrators (Kubernetes, Docker) are available as base templates within the builder.
-You can modify the generated template to use your own images, VPC, cloud credentials, and so on.
+You can modify the generated template to use your own images, Amazon Virtual Private Cloud (VPC), cloud credentials, and so on.
 Coder supports all Terraform resources and properties.
 
 If you prefer to use Coder on the [command line](../../../reference/cli/index.md), use `coder templates init` to pull a starter template, then `coder templates push` to upload it.

@@ -131,7 +131,7 @@ For GitHub Enterprise support, also set `CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
 > For production deployments, prefer environment variables so the configuration lives with the container, Helm chart, or service unit that manages Coder.
 > See the [configuration reference](../setup/configuration-reference.md) for the full mapping between environment variables and flags.
 
-We recommend requiring and auditing MFA usage for all users in your GitHub organizations.
+We recommend requiring and auditing multi-factor authentication (MFA) usage for all users in your GitHub organizations.
 This can be enforced from the organization settings page in the **Authentication security** sidebar tab.
 
 ## Device Flow
