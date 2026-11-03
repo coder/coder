@@ -143,6 +143,15 @@ export const TruncatedRowTooltip: Story = {
 	},
 };
 
+export const TruncatedRowKeyboardFocus: Story = {
+	args: { overview: mockLongChatOverview },
+	play: async () => {
+		// The Cost row comes first, then the truncated branch row.
+		await userEvent.tab();
+		await userEvent.tab();
+	},
+};
+
 export const ManyRows: Story = {
 	args: { overview: mockLongChatOverview },
 };
