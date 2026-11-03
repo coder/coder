@@ -184,7 +184,7 @@ export const PublishDialogActiveVersionHelp: Story = {
 		await userEvent.hover(trigger);
 		await expect(await body.findByText("Active versions")).toBeInTheDocument();
 		await expect(
-			body.getByRole("link", { name: "Review the documentation" }),
+			body.getByRole("link", { name: /Review the documentation/ }),
 		).toBeInTheDocument();
 	},
 };
