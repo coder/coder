@@ -23,7 +23,7 @@ We do collect the administrator email.
 
 Workspace agent statistics include session counts keyed by normalized application names, which can include custom IDE names that workspace agents report.
 
-For workspace builds that Agent Relay creates, we read the `agent_relay_*` parameters that Agent Relay sets. We report the agent provider, the client platform, the attempt number, and SHA-256 hashes of the session ID and pool name. We do not collect other parameter values.
+For start builds of workspaces that Agent Relay creates, we read the `agent_relay_*` parameters that Agent Relay sets. We report the agent provider, the client platform, the attempt number, and SHA-256 hashes of the session ID and pool name. We do not collect other parameter values.
 
 ## Why we collect
 

@@ -1739,8 +1739,9 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
-	// AgentRelay is set when Agent Relay dispatched the build. Omitted for
-	// other builds and by older Coder versions.
+	// AgentRelay is set on start builds of workspaces Agent Relay created.
+	// Omitted for stop and delete builds, other workspaces, and by older
+	// Coder versions.
 	AgentRelay *WorkspaceBuildAgentRelay `json:"agent_relay,omitempty"`
 }
 

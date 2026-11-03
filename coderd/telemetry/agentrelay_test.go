@@ -139,21 +139,27 @@ func TestTelemetry_WorkspaceBuildAgentRelay(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 
-	relayBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-	}).Params(
-		database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "session-1"},
-		database.WorkspaceBuildParameter{Name: "agent_relay_pool", Value: "pool"},
-		database.WorkspaceBuildParameter{Name: "agent_relay_cursor_pool_name", Value: "pool"},
-		database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
-	).Do()
+	relayBuild := func(transition database.WorkspaceTransition) uuid.UUID {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Seed(database.WorkspaceBuild{Transition: transition}).Params(
+			database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "session-1"},
+			database.WorkspaceBuildParameter{Name: "agent_relay_pool", Value: "pool"},
+			database.WorkspaceBuildParameter{Name: "agent_relay_cursor_pool_name", Value: "pool"},
+			database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
+		).Do().Build.ID
+	}
+	startBuild := relayBuild(database.WorkspaceTransitionStart)
+	// Stop and delete builds keep the relay parameters but are not dispatches.
+	stopBuild := relayBuild(database.WorkspaceTransitionStop)
+	deleteBuild := relayBuild(database.WorkspaceTransitionDelete)
 	plainBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 	}).Params(
 		database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
-	).Do()
+	).Do().Build.ID
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)
 
@@ -161,12 +167,14 @@ func TestTelemetry_WorkspaceBuildAgentRelay(t *testing.T) {
 	for _, build := range snapshot.WorkspaceBuilds {
 		builds[build.ID] = build
 	}
-	require.Contains(t, builds, relayBuild.Build.ID)
+	require.Contains(t, builds, startBuild)
 	require.Equal(t, &telemetry.WorkspaceBuildAgentRelay{
 		Provider:      telemetry.AgentRelayProviderCursor,
 		SessionIDHash: fmt.Sprintf("%x", sha256.Sum256([]byte("session-1"))),
 		PoolHash:      fmt.Sprintf("%x", sha256.Sum256([]byte("pool"))),
-	}, builds[relayBuild.Build.ID].AgentRelay)
-	require.Contains(t, builds, plainBuild.Build.ID)
-	require.Nil(t, builds[plainBuild.Build.ID].AgentRelay)
+	}, builds[startBuild].AgentRelay)
+	for _, id := range []uuid.UUID{stopBuild, deleteBuild, plainBuild} {
+		require.Contains(t, builds, id)
+		require.Nil(t, builds[id].AgentRelay)
+	}
 }

@@ -58,15 +58,20 @@ type WorkspaceBuildAgentRelay struct {
 }
 
 // agentRelayBuildParameters returns the Agent Relay parameters of the given
-// builds, keyed by build ID and then parameter name, in a single query.
+// builds, keyed by build ID and then parameter name. Only start builds are
+// looked up: stop and delete builds of a relay workspace carry the same
+// parameters, but they are not dispatches and get no AgentRelay field.
 func agentRelayBuildParameters(ctx context.Context, db database.Store, builds []database.WorkspaceBuild) (map[uuid.UUID]map[string]string, error) {
 	paramsByBuild := make(map[uuid.UUID]map[string]string)
-	if len(builds) == 0 {
-		return paramsByBuild, nil
-	}
 	buildIDs := make([]uuid.UUID, 0, len(builds))
 	for _, build := range builds {
+		if build.Transition != database.WorkspaceTransitionStart {
+			continue
+		}
 		buildIDs = append(buildIDs, build.ID)
+	}
+	if len(buildIDs) == 0 {
+		return paramsByBuild, nil
 	}
 	params, err := db.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams{
 		WorkspaceBuildIds: buildIDs,
