@@ -375,8 +375,9 @@ type OverviewRowProps = {
 /**
  * A button with `onClick`, a link with `to`, or plain text with neither. A
  * button's or link's label and subtitle truncate, and a tooltip shows them in
- * full only when they are cut off, so a screen reader does not hear the full
- * text twice. Plain text wraps instead and takes no tab stop.
+ * full only when they are cut off, so a row that fits gets no accessible
+ * description that repeats its name. Plain text wraps instead and takes no
+ * tab stop.
  */
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
