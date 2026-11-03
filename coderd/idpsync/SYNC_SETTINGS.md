@@ -382,9 +382,6 @@ both initially and over time.
 
 - Known code defects. These are misbehaviors that are not covered by the
   categories above.
-  - **Lost update.** The full-replace endpoint reads and writes outside a
-    transaction, while the other two use `ReadModifyUpdate`. Two concurrent
-    writes can drop one admin's change without any error.
   - **Auto-created groups bypass group-name rules.** With
     `auto_create_missing_groups` on, IdP group names are inserted as Coder
     groups without the checks the API applies to a group created by hand. A name
@@ -499,9 +496,26 @@ warnings. Each warning gives:
 - the code of the rule or condition;
 - the value received and the value accepted, if any.
 
+A warning's path points into the settings it refers to, which the client
+does not always hold: the merged settings before rewriting, for the config
+and mapping-diff endpoints, or the stored settings as read, for GET. So when
+there are warnings, the response also carries those settings, as
+`received_settings`: for the full-replace endpoint, the request as decoded.
+When there are no warnings, `received_settings` is left out, since nothing
+refers to it. A PATCH response reports warnings only about the settings the
+request produced; a repair of the stored settings read before merging is not
+reported in the response, though it is audited.
+
 The existing SDK methods for the GET endpoint and the three PATCH endpoints
-keep their signatures and ignore the warnings. New SDK methods return them.
-Violations of W2 and W3 are resolved by JSON decoding and are not reported.
+keep their signatures and ignore the warnings. They are deprecated in favor
+of new SDK methods that return the warnings, which will become the ordinary
+methods over time. Violations of W2 and W3 are resolved by JSON decoding and
+are not reported.
+
+A rejection is reported as a 400 response whose validations give, for each
+rejected finding, its path and its code. Strict mode, where every finding is
+a rejection, will need rejections shaped like warnings: the code, the path,
+the value received, and the settings the path points into.
 
 #### Settings that are not rewritten
 
