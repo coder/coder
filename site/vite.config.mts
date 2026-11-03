@@ -76,7 +76,7 @@ export default defineConfig({
 					groups: [
 						{ name: "monaco", test: /monaco-editor/ },
 						{ name: "xterm", test: /@xterm/ },
-						{ name: "emoji-picker", test: /vendor\/frimousse|emojibase-data/ },
+						{ name: "emoji-picker", test: /frimousse|emojibase-data/ },
 						{ name: "radix-ui", test: /radix-ui/ },
 					],
 				},

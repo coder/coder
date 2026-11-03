@@ -1,5 +1,12 @@
 import { cn } from "cn";
 import {
+	type EmojiPickerListCategoryHeaderProps,
+	type EmojiPickerListEmojiProps,
+	type EmojiPickerListRowProps,
+	EmojiPicker as Frimousse,
+	useSkinTone,
+} from "frimousse";
+import {
 	AppleIcon,
 	BlocksIcon,
 	CarIcon,
@@ -20,13 +27,6 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
-import {
-	type EmojiPickerListCategoryHeaderProps,
-	type EmojiPickerListEmojiProps,
-	type EmojiPickerListRowProps,
-	EmojiPicker as Frimousse,
-	useSkinTone,
-} from "#/vendor/frimousse";
 import {
 	buildEmojiData,
 	emojiSheetCell,

@@ -1,9 +1,9 @@
 import type { Emoji as EmojibaseEmoji, SkinTone } from "emojibase";
 import emojibaseEmojis from "emojibase-data/en/data.json";
 import emojibaseMessages from "emojibase-data/en/messages.json";
+import type { EmojiData } from "frimousse";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
-import type { EmojiData } from "#/vendor/frimousse";
 import { EMOJI_SHEET } from "./emojiSheet";
 
 const COMPONENT_GROUP = 2;
