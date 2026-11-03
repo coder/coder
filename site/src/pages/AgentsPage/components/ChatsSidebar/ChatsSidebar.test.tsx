@@ -11,7 +11,15 @@ import { HttpResponse, http } from "msw";
 import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	onTestFinished,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -152,6 +160,33 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
+	beforeEach(() => {
+		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
+	});
+
+	it("requests an open folder's chats with the sidebar's filters", async () => {
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([]);
+			}),
+		);
+
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(requests).toHaveLength(1));
+		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
+		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+	});
+
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
 		const mockOtherProject = {
@@ -444,6 +479,53 @@ describe("ChatsSidebar projects", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
 		await waitFor(() => expect(requestCount).toBe(2));
+	});
+
+	it("moves focus to the folder toggle when a folder retry succeeds", async () => {
+		// Fake timers skip the folder query's retry backoff.
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		let isFolderLoadFailing = true;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", () =>
+				isFolderLoadFailing
+					? HttpResponse.json({ message: "Chats unavailable" }, { status: 500 })
+					: HttpResponse.json([
+							buildChat({
+								id: "retried-project-chat",
+								title: "Retried project chat",
+								project_id: MockChatProject.id,
+							}),
+						]),
+			),
+		);
+
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+		await act(() => vi.advanceTimersByTimeAsync(10_000));
+		const retryButton = await screen.findByRole("button", {
+			name: `Retry loading chats in ${MockChatProject.name}`,
+		});
+		isFolderLoadFailing = false;
+		retryButton.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", {
+					name: `Collapse ${MockChatProject.name}`,
+				}),
+			).toHaveFocus(),
+		);
 	});
 
 	it("deletes the viewed project and its drafts, then leaves its page", async () => {
