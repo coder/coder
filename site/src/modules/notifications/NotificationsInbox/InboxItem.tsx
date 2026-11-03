@@ -35,7 +35,7 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 							// absolute URLs; only other origins open a new tab.
 							const isExternal =
 								props.href?.startsWith("http") &&
-								!props.href.startsWith(location.origin);
+								URL.parse(props.href)?.origin !== location.origin;
 							return (
 								<Link
 									{...props}

@@ -35,4 +35,14 @@ describe("InboxItem", () => {
 
 		expect(await screen.findByRole("link")).toHaveAccessibleName("the build");
 	});
+
+	it("opens links to a look-alike origin in a new tab", async () => {
+		renderWithContent(
+			`See [the build](${location.origin}.example.com/builds).`,
+		);
+
+		expect(await screen.findByRole("link")).toHaveAccessibleName(
+			/^the build\s*\(opens in new tab\)$/,
+		);
+	});
 });
