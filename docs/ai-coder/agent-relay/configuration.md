@@ -38,7 +38,7 @@ An invalid value stops the daemon with an error that names the option or pool.
 
 ### `--coderd-url`
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>url</code>                           |
 | Environment | <code>$CODER_AGENT_RELAY_CODERD_URL</code> |
@@ -50,7 +50,7 @@ This flag is **required**.
 
 ### `--coderd-session-token`
 
-|             |                                                                                      |
+| Property    | Value                                                                                |
 |-------------|--------------------------------------------------------------------------------------|
 | Type        | <code>string</code>                                                                  |
 | Environment | <code>$CODER_AGENT_RELAY_CODERD_SESSION_TOKEN</code>                                 |
@@ -65,7 +65,7 @@ Refer to [Step 1: Create a service account](./setup.md#step-1-create-a-service-a
 
 ### `--config`
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>path</code>                           |
 | Environment | <code>$CODER_AGENT_RELAY_CONFIG_PATH</code> |
@@ -87,7 +87,7 @@ export CODER_AGENT_RELAY_CURSOR_WORKER_POOLS='[{"name":"example","secret_env":"C
 
 ### `--claude-code-runner-pools`
 
-|             |                                                          |
+| Property    | Value                                                    |
 |-------------|----------------------------------------------------------|
 | Type        | <code>list of pools</code>                               |
 | Environment | <code>$CODER_AGENT_RELAY_CLAUDE_CODE_RUNNER_POOLS</code> |
@@ -100,7 +100,7 @@ Refer to [Pool fields](#pool-fields) and [Agent Relay for Claude Code](./claude-
 
 ### `--cursor-worker-pools`
 
-|             |                                                     |
+| Property    | Value                                               |
 |-------------|-----------------------------------------------------|
 | Type        | <code>list of pools</code>                          |
 | Environment | <code>$CODER_AGENT_RELAY_CURSOR_WORKER_POOLS</code> |
@@ -177,7 +177,7 @@ Set them with [`extraEnv`](#helm-values).
 
 ### `--cursor-relist-interval`
 
-|             |                                                        |
+| Property    | Value                                                  |
 |-------------|--------------------------------------------------------|
 | Type        | <code>duration</code>                                  |
 | Environment | <code>$CODER_AGENT_RELAY_CURSOR_RELIST_INTERVAL</code> |
@@ -191,7 +191,7 @@ Cursor expires a stream position 5&nbsp;minutes after the list that issued it, s
 
 ### `--cursor-relist-jitter`
 
-|             |                                                      |
+| Property    | Value                                                |
 |-------------|------------------------------------------------------|
 | Type        | <code>duration</code>                                |
 | Environment | <code>$CODER_AGENT_RELAY_CURSOR_RELIST_JITTER</code> |
@@ -203,7 +203,7 @@ Set `0` to list exactly on the interval.
 
 ### `--cursor-api-url`
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>url</code>                               |
 | Environment | <code>$CODER_AGENT_RELAY_CURSOR_API_URL</code> |
@@ -218,7 +218,7 @@ For log fields and examples, refer to [Monitor Agent Relay](./monitoring/index.m
 
 ### `--log-level`
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_AGENT_RELAY_LOG_LEVEL</code> |
@@ -230,7 +230,7 @@ The minimum log level: `debug`, `info`, `warn`, or `error`.
 
 ### `--log-format`
 
-|             |                                                            |
+| Property    | Value                                                      |
 |-------------|------------------------------------------------------------|
 | Type        | <code>string</code>                                        |
 | Environment | <code>$CODER_AGENT_RELAY_LOG_FORMAT</code>                 |
@@ -247,7 +247,7 @@ For the metrics that Agent Relay exports, refer to [Monitor Agent Relay](./monit
 
 ### `--prometheus-enable`
 
-|             |                                                            |
+| Property    | Value                                                      |
 |-------------|------------------------------------------------------------|
 | Type        | <code>bool</code>                                          |
 | Environment | <code>$CODER_AGENT_RELAY_PROMETHEUS_ENABLE</code>          |
@@ -262,7 +262,7 @@ The Helm chart uses `/readyz` as the pod's readiness probe.
 
 ### `--prometheus-address`
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>host:port</code>                             |
 | Environment | <code>$CODER_AGENT_RELAY_PROMETHEUS_ADDRESS</code> |
@@ -279,7 +279,7 @@ The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 
 ### `--reap-workers`
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>int</code>                             |
 | Environment | <code>$CODER_AGENT_RELAY_REAP_WORKERS</code> |
@@ -293,7 +293,7 @@ Set it with [`extraEnv`](#helm-values).
 
 ### `--reap-keepalive-refresh-before`
 
-|             |                                                               |
+| Property    | Value                                                         |
 |-------------|---------------------------------------------------------------|
 | Type        | <code>duration</code>                                         |
 | Environment | <code>$CODER_AGENT_RELAY_REAP_KEEPALIVE_REFRESH_BEFORE</code> |
@@ -310,7 +310,7 @@ Refer to [Keep attached workspaces running](./setup.md#keep-attached-workspaces-
 
 ### `--reap-keepalive-bump-by`
 
-|             |                                                        |
+| Property    | Value                                                  |
 |-------------|--------------------------------------------------------|
 | Type        | <code>duration</code>                                  |
 | Environment | <code>$CODER_AGENT_RELAY_REAP_KEEPALIVE_BUMP_BY</code> |
