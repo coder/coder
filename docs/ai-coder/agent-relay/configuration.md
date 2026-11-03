@@ -285,7 +285,40 @@ The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 | Default     | <code>5</code>                               |
 
 How many workspaces the reaper handles at the same time during each sweep.
-Workspace statuses arrive with the workspace list, so this option limits only the delete, cancel, and nack calls that a sweep makes.
+Workspace statuses and session attachment arrive with the workspace list, so this option limits only the delete, cancel, nack, and deadline extension calls that a sweep makes.
+The Helm chart has no dedicated value for this option.
+Set it with [`extraEnv`](#helm-values).
+
+### --reap-keepalive-refresh-before
+
+|             |                                                               |
+|-------------|---------------------------------------------------------------|
+| Type        | <code>duration</code>                                         |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_KEEPALIVE_REFRESH_BEFORE</code> |
+| YAML        | <code>reapKeepaliveRefreshBefore</code>                       |
+| Default     | <code>35m0s</code>                                            |
+
+Extends an attached workspace when its autostop deadline is less than this duration away and its attachment sample is fresh.
+Must be at least `5m`.
+The sum of this option and `--reap-keepalive-bump-by` must be at least `31m`.
+This option is shared by every pool and is independent of `idle_release_timeout`.
+The Helm chart has no dedicated value for this option.
+Set it with [`extraEnv`](#helm-values).
+Refer to [Keep attached workspaces running](./setup.md#keep-attached-workspaces-running).
+
+### --reap-keepalive-bump-by
+
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>duration</code>                                  |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_KEEPALIVE_BUMP_BY</code> |
+| YAML        | <code>reapKeepaliveBumpBy</code>                       |
+| Default     | <code>10m0s</code>                                     |
+
+Extra time beyond `--reap-keepalive-refresh-before` for the new deadline.
+Agent Relay measures the new deadline from now, not from the old deadline.
+Must be positive.
+The workspace TTL takes precedence when it's longer, and the build's maximum deadline still caps the new deadline.
 The Helm chart has no dedicated value for this option.
 Set it with [`extraEnv`](#helm-values).
 

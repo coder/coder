@@ -46,17 +46,20 @@ At startup, it checks that its service account has the permissions that its pool
 
 In every organization that a pool names, the service account needs these permissions:
 
-| Resource              | Actions                             |
-|-----------------------|-------------------------------------|
-| `organization_member` | `read`                              |
-| `workspace`           | `create`, `read`, `start`, `delete` |
-| `workspace_secret`    | `create`                            |
+| Resource              | Actions                                       |
+|-----------------------|-----------------------------------------------|
+| `organization_member` | `read`                                        |
+| `workspace`           | `create`, `read`, `start`, `update`, `delete` |
+| `workspace_secret`    | `create`                                      |
 
 On every template that a pool names, the service account needs `read` and `use`.
 These can come from the template's access control list instead of a role.
 
 The `organization-admin` role in each organization covers all of these permissions.
 To grant less, create an organization-scoped [custom role](../../admin/users/groups-roles.md#custom-roles) with only the permissions above.
+
+Agent Relay needs `workspace` `update` to extend the autostop deadline of workspaces with an active session.
+It checks for this permission in every organization at startup, even if no template uses keepalive.
 
 Agent Relay delivers each session's provider credential to the workspace as an ephemeral workspace build secret, which is why it needs `workspace_secret` permissions.
 It checks the Coder version once, at startup, to decide how to deliver credentials, and logs the result as `build_secrets` on its `authenticated against coderd` line.
@@ -354,15 +357,42 @@ Agent Relay's reaper reads it on each sweep:
 
 Keep these Coder settings in mind for relay templates:
 
-- **Autostop**: Relay sessions don't extend a workspace's autostop deadline.
-  A template's autostop schedule stops relay workspaces at the deadline, even in the middle of a session.
-  Set the template's default TTL longer than your longest expected session.
+- **Autostop**: Agent Relay extends the autostop deadline of a workspace while a session is attached, if the template declares the module's `agent_relay_session_attached` metadata item.
+  Without that item, the template's autostop schedule stops relay workspaces at the deadline, even in the middle of a session.
+  Refer to [Keep attached workspaces running](#keep-attached-workspaces-running).
 - **Stopped workspaces**: Agent Relay doesn't delete stopped workspaces.
   They remain until someone deletes them or [dormancy auto-deletion](../../admin/templates/managing-templates/schedule.md) removes them.
 - **Quotas**: Relay builds count against the session owner's [quota](../../admin/users/quotas.md).
   Refer to the template recommendations above.
 - **Deleted work**: Agent Relay deletes the workspace when the session ends.
   Unpushed commits and files are lost.
+
+### Keep attached workspaces running
+
+To keep autostop from stopping a workspace in the middle of a session, add the module's `agent_relay_session_attached` metadata item next to `agent_relay_status`:
+
+```tf
+resource "coder_agent" "main" {
+  # ...
+  metadata {
+    key          = "agent_relay_session_attached"
+    display_name = "Session attached"
+    # Use module.claude_code_runner for Claude Code.
+    script       = module.cursor_worker.session_attached_metadata_script
+    interval     = 30
+    timeout      = 5
+  }
+}
+```
+
+On each sweep, Agent Relay reads this item.
+When the value is `attached` and the sample is less than two minutes old, Agent Relay extends a deadline that is less than 35&nbsp;minutes away to 45&nbsp;minutes from now.
+To change these durations, set [`--reap-keepalive-refresh-before` and `--reap-keepalive-bump-by`](./configuration.md#workspace-reaper).
+
+- Keep the metadata `interval` well under two minutes, or Agent Relay can't rely on a fresh sample.
+- The image needs `curl`, and the Cursor module also needs `awk`.
+- Agent Relay doesn't extend a workspace past its template's maximum deadline, and doesn't extend workspaces that have no autostop deadline.
+- Keepalive requires module version 1.0.0 or later and Agent Relay v0.14.0 or later.
 
 Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` for Cursor.
 

@@ -385,7 +385,8 @@ The workspace's build log in Coder has the full output.
 
 ### A Cursor chat hangs with no error
 
-The worker stopped after it started serving, for example because of autostop, or Agent Relay's call to fail the claim errored, or no relay claimed the request.
+The worker stopped after it started serving, or Agent Relay's call to fail the claim errored, or no relay claimed the request.
+If autostop stopped the workspace, add the session attachment metadata described in [Keep attached workspaces running](./setup.md#keep-attached-workspaces-running), or check the template's maximum deadline.
 
 ### Builds time out
 

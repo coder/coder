@@ -100,8 +100,8 @@ The daemon is distributed as a public container image and Helm chart:
   A developer whose provider account email differs from their Coder account email can't be served.
 - Agent Relay checks a user's account status and access when a session starts.
   If you suspend a user or remove their access later, their existing workspace isn't affected.
-- Relay sessions don't extend a template's autostop deadline.
-  Refer to [Workspace lifecycle](./setup.md#workspace-lifecycle).
+- Agent Relay extends autostop only for templates that declare the module's session attachment metadata, and never past the template's maximum deadline.
+  Refer to [Keep attached workspaces running](./setup.md#keep-attached-workspaces-running).
 - Each pool maps to one template.
   Agent Relay doesn't select templates by repository.
 - When Agent Relay rejects a Claude Code session, the reason appears in Agent Relay's logs but not in the Claude client.

@@ -113,15 +113,15 @@ For Claude Code, `debug` also writes `work order payload` records that contain t
 
 Each JSON record has these top-level keys:
 
-| Key            | Meaning                                                                                             |
-|----------------|-----------------------------------------------------------------------------------------------------|
-| `ts`           | Event time in UTC, as RFC 3339 with nanosecond precision                                            |
-| `level`        | `DEBUG`, `INFO`, `WARN`, or `ERROR`                                                                 |
-| `msg`          | The event message                                                                                   |
-| `caller`       | Source file and line of the log statement. Changes between builds.                                  |
-| `func`         | Go function that wrote the record. Changes between builds.                                          |
-| `logger_names` | The Agent Relay service that wrote the record: `claude-code-runners`, `cursor-workers`, or `reaper` |
-| `fields`       | Event data, including the [correlation fields](#correlation-fields) and the fields below            |
+| Key            | Meaning                                                                                                                           |
+|----------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `ts`           | Event time in UTC, as RFC 3339 with nanosecond precision                                                                          |
+| `level`        | `DEBUG`, `INFO`, `WARN`, or `ERROR`                                                                                               |
+| `msg`          | The event message                                                                                                                 |
+| `caller`       | Source file and line of the log statement. Changes between builds.                                                                |
+| `func`         | Go function that wrote the record. Changes between builds.                                                                        |
+| `logger_names` | The Agent Relay service that wrote the record, such as `claude-code-runners`, `cursor-workers`, `reaper`, or `coderd` for startup |
+| `fields`       | Event data, including the [correlation fields](#correlation-fields) and the fields below                                          |
 
 The reaper deletes finished and failed workspaces for both providers.
 Its records carry `workspace_id` and `workspace_name`, but no `provider`, `pool`, or session ID.

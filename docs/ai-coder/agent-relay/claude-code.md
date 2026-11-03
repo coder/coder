@@ -304,7 +304,7 @@ Pass runner options through the module's `additional_args` input, with one list 
 ```tf
 module "claude_code_runner" {
   source          = "registry.coder.com/coder/agent-relay-claude-code/coder"
-  version         = "0.5.1"
+  version         = "1.0.0"
   agent_id        = coder_agent.main.id
   additional_args = ["--configure-git", "--push-outcome-on-release"]
 }
