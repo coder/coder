@@ -18,6 +18,9 @@ children:
   - title: Monitor Agent Relay
     description: Trace sessions and failures with Agent Relay logs and Prometheus metrics.
     path: ./ai-coder/agent-relay/monitoring.md
+  - title: Troubleshoot Agent Relay
+    description: Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.
+    path: ./ai-coder/agent-relay/troubleshooting.md
   - title: Agent Relay configuration reference
     description: Every Agent Relay option, pool field, and Helm chart value for the beta.
     path: ./ai-coder/agent-relay/configuration.md

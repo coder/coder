@@ -204,24 +204,17 @@ Unless **Require Self-Hosted Machines** is on, people can send a mention to Curs
 
 ### Cursor in Slack lifecycle
 
-After each turn, the worker waits `idle_release_timeout` seconds, 600 by default, for a follow-up.
+After each turn, the worker waits for a follow-up for the pool's `idle_release_timeout`, `1h` by default.
 Then Agent Relay deletes the workspace.
 A later follow-up rebuilds the workspace on a clean disk, so unpushed work is lost.
 
 ## Troubleshoot
 
-| Symptom                                              | Likely cause                                                                                                                                                         |
-|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Claude doesn't reply, or no `cc-` workspace appears  | The channel resolves to another environment, the thread started before the change, a Slack guest is in the channel, or the Tag pool isn't serving.                   |
-| Claude Tag channel sessions are rejected             | The pool has no `claude_tag_channel_user`, the relay wasn't restarted after the change, or the value isn't `me` or the UUID of an active member of the organization. |
-| A Tag pool workspace is owned by a person            | Someone selected the Tag environment in the environment picker, or a Slack DM landed on it.                                                                          |
-| Claude can't reach a repository or service           | Claude Tag connections don't apply in self-hosted sessions, or the template's Tag user UUID doesn't match `claude_tag_channel_user`.                                 |
-| Cursor shows an `agent-relay:` account error         | The person's Cursor email doesn't match an active member of the pool's organization, or a service account started the agent.                                         |
-| A Cursor mention doesn't run on the Agent Relay pool | **Allow Self-Hosted Machines** is off, the message overrides the pool, no default pool applies, or the person's own default worker takes priority.                   |
-| An agent loses its files after a quiet period        | Idle release deleted the workspace, and the next message rebuilt it on a clean disk.                                                                                 |
+Refer to the [Slack section of Troubleshoot Agent Relay](./troubleshooting.md#slack).
 
 ## Learn more
 
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
 - [Monitor Agent Relay](./monitoring.md)
+- [Troubleshoot Agent Relay](./troubleshooting.md)

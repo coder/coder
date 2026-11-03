@@ -379,14 +379,7 @@ Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconne
 
 ## Troubleshoot by symptom
 
-| Symptom                                         | Where to look                                                                                                                                                                                                                   |
-|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| A pool isn't serving                            | `/readyz` or `agent_relay_pool_healthy`, then the startup logs for the pool. A pool logs that its template is verified when it's ready, and logs a contract check failure when the template is missing the module's parameters. |
-| A session never creates a workspace             | Logs for the `session_id`, or the `session_uuid` for Claude Code. Look for identity resolution failures, a degraded pool, a dispatch error, or `job_error` on a failed build.                                                   |
-| The workspace exists but the agent never starts | The workspace's build log, then the module logs in the workspace, then the `agent_relay_status` metadata on the workspace page in Coder.                                                                                        |
-| A session ended but its workspace remains       | Reaper decisions in the logs for the `workspace_id`. Agent Relay deletes on a sweep interval, and doesn't delete stopped workspaces.                                                                                            |
-
-For provider-specific symptoms, refer to the troubleshooting tables for [Claude Code](./claude-code.md#troubleshoot), [Cursor](./cursor.md#troubleshoot), and [Slack](./slack.md#troubleshoot).
+To find where a failure happened and how to fix it, refer to [Troubleshoot Agent Relay](./troubleshooting.md).
 
 ## Learn more
 

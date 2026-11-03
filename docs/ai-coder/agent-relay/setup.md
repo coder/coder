@@ -402,5 +402,6 @@ Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` f
 - [Agent Relay for Cursor](./cursor.md)
 - [Configure Slack for Agent Relay](./slack.md)
 - [Monitor Agent Relay](./monitoring.md)
+- [Troubleshoot Agent Relay](./troubleshooting.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [External provisioners](../../install/operate/provisioners/index.md)

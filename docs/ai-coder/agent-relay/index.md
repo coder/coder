@@ -116,5 +116,6 @@ The daemon is distributed as a public container image and Helm chart:
 - [Agent Relay for Cursor](./cursor.md)
 - [Configure Slack for Agent Relay](./slack.md)
 - [Monitor Agent Relay](./monitoring.md)
+- [Troubleshoot Agent Relay](./troubleshooting.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Coder Agents](../agents/index.md)
