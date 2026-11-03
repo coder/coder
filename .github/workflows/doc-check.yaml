@@ -468,12 +468,15 @@ jobs:
           # workspace of a review that finishes within it, and while it waits
           # the run holds the PR's concurrency group, so the next run cannot
           # send the chat another message yet. Many reviews take longer, and
-          # "Fail unless the review is still running" passes those. Keep this
-          # below timeout-minutes with room for setup, or GitHub cancels the
-          # job instead.
+          # "Fail unless the review is still running" passes those. A longer
+          # wait would not cover them, because some reviews run for hours, and
+          # it would hold the concurrency group longer. Keep this below
+          # timeout-minutes with room for setup, or GitHub cancels the job
+          # instead.
           wait-timeout-seconds: "2400"
-          # The doc-check agent posts its own sticky comment when there
-          # are findings; failures surface in the workflow run log.
+          # The doc-check agent posts its own sticky comment when there are
+          # findings. A failure within the wait fails the job; a later failure
+          # shows only in the chat.
           comment-on-issue: "false"
 
       # A review workspace left running until autostop holds its share of the
@@ -526,7 +529,7 @@ jobs:
           fi
 
           # The chat step's own error annotation carries the message.
-          echo "::error::The review chat failed (kind ${CHAT_ERROR_KIND:-unknown}, chat status ${CHAT_STATUS:-unknown}, chat ${CHAT_ID:-unknown})."
+          echo "::error::Run doc-check via Coder Agent Chat failed (error kind ${CHAT_ERROR_KIND:-unknown}, last chat status ${CHAT_STATUS:-unknown}, chat ${CHAT_ID:-unknown})."
           exit 1
 
   # Delete the review workspace once its PR merges. A PR closed without
