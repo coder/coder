@@ -147,4 +147,7 @@ The Coder agent sets these environment variables for every command it runs, incl
 Template names are unique only within an organization, and a template can be renamed.
 To identify a template reliably, use `CODER_WORKSPACE_TEMPLATE_ID`.
 
+The agent reads these values when it connects to Coder.
+If a template, workspace, or user is renamed while the workspace runs, new commands see the new name only after the agent reconnects, for example when the workspace restarts.
+
 A `coder_env` resource or the agent's `env` block that sets one of these variables overrides its value.
