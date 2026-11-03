@@ -31,7 +31,7 @@ The `id` points at a provider configured on the Coder deployment, and the local 
 > [!NOTE]
 > External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
 > A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
-> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OIDC) or replace the built-in GitHub app.
+> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OpenID Connect (OIDC)) or replace the built-in GitHub app.
 > To learn more, refer to [External authentication](../../admin/external-auth.md).
 
 ## Step 1: Require GitHub authentication

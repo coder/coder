@@ -8,7 +8,7 @@ Developers describe the work they want done, and Coder Agents handles selecting 
 Coder Agents includes its own self-hosted AI coding agent that runs the agent loop directly within the Coder control plane.
 
 No specialized software, API keys, or network access is required inside your workspace.
-The only requirement is network access between the control plane and external LLM providers.
+The only requirement is network access between the control plane and external large language model (LLM) providers.
 
 <video autoplay controls muted playsinline loop>
   <source src="https://raw.githubusercontent.com/coder/coder/refs/heads/main/docs/images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
@@ -19,15 +19,20 @@ This screencast shows the Coder Agents chat interface, where a developer describ
 
 ## What Coder Agents is and isn't
 
-It is a standalone agent written in Go.
-It implements standard agentic patterns, such as sub-agent delegation, context compaction, file editing, and shell execution.
-It works with any LLM provider you configure.
+Coder Agents is self-hosted infrastructure for AI coding workflows.
+The entire workflow runs inside your Coder deployment, whether that's a virtual private cloud (VPC), an on-premises data center, or an air-gapped network.
+Orchestration, chat history, and tool execution stay on infrastructure you control, and prompts go only to the LLM providers you approve, including self-hosted models.
 
-It is not a wrapper around third-party agent tools like Claude Code or Codex.
+Developers delegate work through chat or the API, and Coder handles the rest.
+It selects a template, provisions a workspace, runs the agent, and delivers branches and pull requests, all under the developer's own identity and permissions.
+The agent runs in the control plane as part of Coder, so there's nothing to install, license, or update in your workspaces.
 
-Coder Agents is not a replacement for your text editor or IDE.
-It is the primary interface where developers work with and orchestrate coding agents.
-Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any other editor to review, refine, and complete work that the agent produces.
+Coder Agents isn't a cloud-hosted agent service.
+There is no SaaS or managed component, and your code never passes through Coder's infrastructure.
+
+Coder Agents isn't a replacement for your IDE.
+It's where developers start, steer, and review agent work.
+Developers can still open the workspace in VS Code, Cursor, JetBrains, or another editor to refine and finish what the agent produces.
 
 ## Who Coder Agents is for
 
@@ -37,10 +42,6 @@ It is a strong fit for:
 - **Regulated industries** such as financial services, healthcare, and government, where AI tools must run on controlled infrastructure with auditable access and strict network boundaries.
 - **Platform engineering teams** that want to provide developers with a high-quality AI coding experience without managing per-workspace agent installations, API key distribution, or third-party agent licensing.
 - **Organizations with existing Coder deployments** that want to add agentic capabilities using their current templates, workspaces, and identity providers rather than adopting a separate SaaS product.
-
-Coder Agents runs entirely self-hosted.
-There is no SaaS or managed component.
-The agent loop, chat history, and all tool execution happen within your Coder deployment.
 
 ## How it works
 
@@ -68,7 +69,7 @@ It makes outbound requests to LLM providers and connects to workspaces only when
 
 Not every chat requires a workspace.
 The agent uses the conversation and available tools when they're sufficient for your request.
-If missing tools, skills, MCP integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
+If missing tools, skills, Model Context Protocol (MCP) integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
 Workspaces also support reading code, running commands, and editing files.
 Requests to fix a bug or build an app authorize the necessary workspace setup.
 You don't need to ask for a workspace separately.
@@ -98,12 +99,12 @@ Creating a workspace doesn't change the current mode's tool restrictions: worksp
 Workspace skills, MCP tools, and context can finish loading after the workspace reports ready.
 The agent can continue with available file and shell tools, but provisioning doesn't guarantee immediate access to a missing MCP tool.
 
-| No workspace needed                                  | Workspace provisioned                                    |
-|------------------------------------------------------|----------------------------------------------------------|
-| "What are the tradeoffs between REST and gRPC?"      | "Find and fix the nil pointer crash in the auth service" |
-| "Help me draft an RFC for adding a caching layer"    | "Run the test suite and fix any failures"                |
-| "What's the best way to handle retry logic in Go?"   | "Refactor the handler to use the new SDK types"          |
-| "Compare connection pooling strategies for Postgres" | "Read the config file and add the new feature flag"      |
+| No workspace needed                                                               | Workspace provisioned                                    |
+|-----------------------------------------------------------------------------------|----------------------------------------------------------|
+| "What are the tradeoffs between Representational State Transfer (REST) and gRPC?" | "Find and fix the nil pointer crash in the auth service" |
+| "Help me draft a Request for Comments (RFC) for adding a caching layer"           | "Run the test suite and fix any failures"                |
+| "What's the best way to handle retry logic in Go?"                                | "Refactor the handler to use the new SDK types"          |
+| "Compare connection pooling strategies for Postgres"                              | "Read the config file and add the new feature flag"      |
 
 ### Sub-agents
 

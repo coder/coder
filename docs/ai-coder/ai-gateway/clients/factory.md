@@ -75,4 +75,4 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
 ```
 
 **References:**
-[Factory BYOK OpenAI & Anthropic](https://docs.factory.ai/cli/byok/openai-anthropic)
+[Factory Bring Your Own Key (BYOK) OpenAI & Anthropic](https://docs.factory.ai/cli/byok/openai-anthropic)

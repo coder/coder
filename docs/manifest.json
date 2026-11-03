@@ -58,12 +58,6 @@
 			"icon_path": "./images/icons/download.svg",
 			"children": [
 				{
-					"title": "Coder CLI",
-					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.",
-					"path": "./install/cli.md",
-					"icon_path": "./images/icons/terminal.svg"
-				},
-				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
 					"path": "./install/plan/index.md",
@@ -1166,6 +1160,11 @@
 							"title": "Extending agents",
 							"description": "Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.",
 							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "Bring your own MCP servers",
+							"description": "Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.",
+							"path": "./ai-coder/agents/bring-your-own-mcp-servers.md"
 						},
 						{
 							"title": "ACP subagents",

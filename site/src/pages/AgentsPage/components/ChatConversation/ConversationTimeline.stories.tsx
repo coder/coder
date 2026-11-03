@@ -798,6 +798,40 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+/** User messages render Markdown, with chips inline even inside emphasis. */
+export const UserMessageWithMarkdown: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildTextPart("Why does `make test` fail in **"),
+			{
+				type: "file-reference",
+				file_name: "site/src/components/Button.tsx",
+				start_line: 42,
+				end_line: 42,
+				content: "export const Button = ...",
+			},
+			buildTextPart(
+				[
+					"**?",
+					"Steps so far:",
+					"- reran it",
+					"- cleared the cache",
+					"",
+					"```go",
+					"func main() {",
+					'\tfmt.Println("hello")',
+					"}",
+					"```",
+					"Thanks!",
+				].join("\n"),
+			),
+		],
+	}),
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {

@@ -122,7 +122,7 @@ If I end up working overtime and log off at 6:00 PM, the activity bump will kick
 
 #### Rely solely on activity detection
 
-If you'd like to ignore the TTL from autostop and have your workspace solely function on activity detection, you can set your autostop equal to activity bump duration.
+If you'd like to ignore the time to live (TTL) from autostop and have your workspace solely function on activity detection, you can set your autostop equal to activity bump duration.
 
 Let's say that both are set to 5&nbsp;hours.
 When either your workspace autostarts or you sign in, you will have confidence that the only condition for shutdown is 5&nbsp;hours of inactivity.

@@ -8,7 +8,7 @@ User secrets let you store secret values in Coder and make them available in eve
 
 Each user secret has:
 
-- A name, used to manage the secret with the CLI or REST API.
+- A name, used to manage the secret with the CLI or Representational State Transfer (REST) API.
 - A value, which contains the sensitive content.
 - An optional description.
 - An optional environment variable target, file target, or both.
