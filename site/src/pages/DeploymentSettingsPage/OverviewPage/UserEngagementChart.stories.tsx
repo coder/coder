@@ -45,6 +45,14 @@ export const Loaded: Story = {
 	},
 };
 
+export const DataTableOpen: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Data table" }),
+		);
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		data: [],

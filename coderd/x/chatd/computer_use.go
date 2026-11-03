@@ -150,6 +150,7 @@ func (p *Server) resolveComputerUseModel(
 
 type computerUseProviderToolOptions struct {
 	provider         codersdk.ChatComputerUseProvider
+	toolVersion      fantasyanthropic.ComputerUseToolVersion
 	isPlanModeTurn   bool
 	isComputerUse    bool
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
@@ -173,6 +174,7 @@ func appendComputerUseProviderTool(
 	desktopGeometry := chattool.DefaultComputerUseDesktopGeometry(opts.provider)
 	definition, err := chattool.ComputerUseProviderTool(
 		opts.provider,
+		opts.toolVersion,
 		desktopGeometry.DeclaredWidth,
 		desktopGeometry.DeclaredHeight,
 	)
@@ -192,6 +194,7 @@ func appendComputerUseProviderTool(
 		Definition: definition,
 		Runner: chattool.NewComputerUseTool(
 			opts.provider,
+			opts.toolVersion,
 			desktopGeometry.DeclaredWidth,
 			desktopGeometry.DeclaredHeight,
 			opts.getWorkspaceConn,

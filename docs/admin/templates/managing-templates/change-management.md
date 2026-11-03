@@ -2,7 +2,7 @@
 title: Template change management
 ---
 
-We recommend source-controlling your templates as you would other any code, and automating the creation of new versions in CI/CD pipelines.
+We recommend source-controlling your templates as you would other any code, and automating the creation of new versions in continuous integration and continuous delivery (CI/CD) pipelines.
 
 These pipelines will require tokens for your deployment.
 To cap token lifetime on creation, [configure the control plane to set a shorter max token lifetime](../../../reference/cli/server/index.md#--max-token-lifetime).
@@ -57,7 +57,7 @@ For an example, see how we push our development image [with GitHub actions](../.
 
 ## Coder CLI
 
-You can [install Coder](../../../install/cli.md) CLI to automate pushing new template versions in CI/CD pipelines.
+You can [install Coder](https://coder.com/downloads) CLI to automate pushing new template versions in CI/CD pipelines.
 For GitHub Actions, see our [setup-coder](https://github.com/coder/setup-coder) action.
 
 ```console
