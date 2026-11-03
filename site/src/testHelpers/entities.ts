@@ -4159,7 +4159,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "999b",
 							RegionID: 999,
-							HostName: "dev.coder.com",
+							HostName: "coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4200,7 +4200,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "999b",
 							RegionID: 999,
-							HostName: "dev.coder.com",
+							HostName: "coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4214,16 +4214,16 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://coder.example.com/derp",
 							],
 						],
 						client_errs: [
 							["recv derp message: derphttp.Client closed"],
 							[
-								"connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.dev.coder.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
+								"connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.coder.example.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
 								"connect to derp: derphttp.Client closed",
 								"connect to derp: derphttp.Client closed",
 								"connect to derp: derphttp.Client closed",
@@ -4259,7 +4259,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10007a",
 							RegionID: 10007,
-							HostName: "sydney.dev.coder.com",
+							HostName: "sydney.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4300,7 +4300,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10007a",
 							RegionID: 10007,
-							HostName: "sydney.dev.coder.com",
+							HostName: "sydney.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4314,10 +4314,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://sydney.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://sydney.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4349,7 +4349,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10008a",
 							RegionID: 10008,
-							HostName: "europe.dev.coder.com",
+							HostName: "europe.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4390,7 +4390,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10008a",
 							RegionID: 10008,
-							HostName: "europe.dev.coder.com",
+							HostName: "europe.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4404,10 +4404,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://europe.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://europe.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4439,7 +4439,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						{
 							Name: "10009a",
 							RegionID: 10009,
-							HostName: "brazil.dev.coder.com",
+							HostName: "brazil.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4480,7 +4480,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						node: {
 							Name: "10009a",
 							RegionID: 10009,
-							HostName: "brazil.dev.coder.com",
+							HostName: "brazil.coder.example.com",
 							STUNPort: -1,
 							DERPPort: 443,
 						},
@@ -4494,10 +4494,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						uses_websocket: false,
 						client_logs: [
 							[
-								"derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://brazil.coder.example.com/derp",
 							],
 							[
-								"derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+								"derphttp.Client.Connect: connecting to https://brazil.coder.example.com/derp",
 							],
 						],
 						client_errs: [[], []],
@@ -4558,7 +4558,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 		severity: "ok",
 		warnings: [],
 		dismissed: false,
-		access_url: "https://dev.coder.com",
+		access_url: "https://coder.example.com",
 		reachable: true,
 		status_code: 200,
 		healthz_response: "OK",
@@ -4601,8 +4601,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Council Bluffs, Iowa",
 					icon_url: "/emojis/1f3e1.png",
 					healthy: true,
-					path_app_url: "https://dev.coder.com",
-					wildcard_hostname: "*--apps.dev.coder.com",
+					path_app_url: "https://coder.example.com",
+					wildcard_hostname: "*--apps.coder.example.com",
 					derp_enabled: false,
 					derp_only: false,
 					status: {
@@ -4624,8 +4624,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Sydney GCP",
 					icon_url: "/emojis/1f1e6-1f1fa.png",
 					healthy: true,
-					path_app_url: "https://sydney.dev.coder.com",
-					wildcard_hostname: "*--apps.sydney.dev.coder.com",
+					path_app_url: "https://sydney.coder.example.com",
+					wildcard_hostname: "*--apps.sydney.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4647,8 +4647,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Europe GCP (Frankfurt)",
 					icon_url: "/emojis/1f1e9-1f1ea.png",
 					healthy: true,
-					path_app_url: "https://europe.dev.coder.com",
-					wildcard_hostname: "*--apps.europe.dev.coder.com",
+					path_app_url: "https://europe.coder.example.com",
+					wildcard_hostname: "*--apps.europe.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -4670,8 +4670,8 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					display_name: "Brazil GCP (Sao Paulo)",
 					icon_url: "/emojis/1f1e7-1f1f7.png",
 					healthy: true,
-					path_app_url: "https://brazil.dev.coder.com",
-					wildcard_hostname: "*--apps.brazil.dev.coder.com",
+					path_app_url: "https://brazil.coder.example.com",
+					wildcard_hostname: "*--apps.brazil.coder.example.com",
 					derp_enabled: true,
 					derp_only: false,
 					status: {
@@ -5371,7 +5371,7 @@ export const MockNotification: TypesGen.InboxNotification = {
 	actions: [
 		{
 			label: "View template",
-			url: "https://dev.coder.com/templates/coder/coder",
+			url: "https://coder.example.com/templates/coder/coder",
 		},
 	],
 	user_id: MockUserOwner.id,

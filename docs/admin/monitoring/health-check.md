@@ -38,7 +38,7 @@ configure an [access URL](../setup/index.md#access-url) for Coder.
 
 **Solution:**
 Ensure that the access URL is a valid URL accepted by [`url.Parse`](https://pkg.go.dev/net/url#Parse).
-Example: `https://dev.coder.com/`.
+Example: `https://coder.example.com/`.
 
 You can use [the Go playground](https://go.dev/play/p/CabcJZyTwt9) for additional testing.
 

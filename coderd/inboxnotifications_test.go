@@ -571,7 +571,7 @@ func TestInboxNotifications_List(t *testing.T) {
 				Actions: json.RawMessage("[]"),
 				Icon: func() string {
 					if i == 9 {
-						return "https://dev.coder.com/icon.png"
+						return "https://coder.example.com/icon.png"
 					}
 
 					return ""
@@ -587,7 +587,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Equal(t, 10, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 10)
 
-		require.Equal(t, "https://dev.coder.com/icon.png", notifs.Notifications[0].Icon)
+		require.Equal(t, "https://coder.example.com/icon.png", notifs.Notifications[0].Icon)
 		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[9].Icon)
 		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[8].Icon)
 		require.Equal(t, codersdk.InboxNotificationFallbackIconAccount, notifs.Notifications[7].Icon)

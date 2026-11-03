@@ -198,7 +198,7 @@ describe("regex patterns", () => {
 	});
 
 	it("HARDCODED_URL_RE matches *.coder.com subdomains", () => {
-		const src = `"https://dev.coder.com/docs/foo"`;
+		const src = `"https://coder.example.com/docs/foo"`;
 		const m = exec(HARDCODED_URL_RE, src);
 		expect(m).toHaveLength(1);
 		expect(m[0][2]).toBe("/docs/foo");
@@ -218,7 +218,7 @@ describe("regex patterns", () => {
 	});
 
 	it("MARKDOWN_LINK_RE matches full URLs in markdown links", () => {
-		const src = `[label](https://coder.com/docs/foo) and [x](https://dev.coder.com/docs/bar)`;
+		const src = `[label](https://coder.com/docs/foo) and [x](https://coder.example.com/docs/bar)`;
 		const m = exec(MARKDOWN_LINK_RE, src);
 		expect(m.map((row) => row[1])).toEqual(["/docs/foo", "/docs/bar"]);
 	});

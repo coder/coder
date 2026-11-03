@@ -93,7 +93,7 @@ export const Empty: Story = {
 
 export const Loaded: Story = {
 	args: {
-		// Got from dev.coder.com network calls
+		// Based on network calls to a real deployment
 		templateInsights: {
 			data: {
 				report: {
