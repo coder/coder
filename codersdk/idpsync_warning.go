@@ -24,12 +24,17 @@ type GroupSyncWarning struct {
 	// Path is a JSON Pointer (RFC 6901) to the element concerned, in the
 	// settings as received. The empty path refers to the whole text.
 	Path string `json:"path"`
-	// Received is the JSON text of the element at Path, as received.
-	Received json.RawMessage `json:"received"`
+	// Received is the JSON text of the element at Path, as received. Its
+	// kind follows from the element Path names: a UUID string for an element
+	// of a mapping array, an array or null for a mapping value, the member's
+	// value for a top-level member, and the whole settings object for the
+	// empty path.
+	Received json.RawMessage `json:"received" swaggertype:"object"`
 	// Accepted is the JSON text of the element in the settings as saved or
-	// returned. It is absent when the element was removed, and equal to
-	// Received when the settings were not rewritten.
-	Accepted json.RawMessage `json:"accepted,omitempty"`
+	// returned, of the same kind as Received. It is absent when the element
+	// was removed, and equal to Received when the settings were not
+	// rewritten.
+	Accepted json.RawMessage `json:"accepted,omitempty" swaggertype:"object"`
 }
 
 // GroupSyncSettingsResponse is what the group sync settings endpoints
