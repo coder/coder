@@ -824,7 +824,9 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		delegatedOrgID uuid.NullUUID
 	)
 	switch {
-	case in.GetKey() != "" && (in.GetKeyId() != "" || in.GetDelegatedOrganizationId() != ""):
+	case in.GetKey() != "" && in.GetKeyId() != "":
+		return nil, ErrAmbiguousAuth
+	case in.GetKey() != "" && in.GetDelegatedOrganizationId() != "":
 		return nil, ErrAmbiguousAuth
 	case in.GetKeyId() != "":
 		keyID = in.GetKeyId()
