@@ -1,0 +1,340 @@
+# TEMPORARY workflow to finish the v2.39.0 release.
+#
+# The v2.39.0 release run failed inside the "Publish Helm Chart" step while
+# pushing the charts to ghcr.io (a registry transient after the GCS uploads
+# succeeded). Everything after that step never ran. Re-running the release job
+# would rebuild and re-sign every artifact of a release that is already live,
+# so this workflow finishes only the missing steps:
+#
+#   1. Push the three chart tags to ghcr.io/coder/chart, using the exact chart
+#      archives already published as release assets (OCI is content-addressed,
+#      so identical bytes yield identical digests).
+#   2. Send the coder-release repository-dispatch to coder/packages.
+#   3. Run the publish-homebrew and publish-winget jobs, copied from
+#      release.yaml with the version hardcoded.
+#
+# This file lives on release/2.39 (not main) and must be dispatched at that
+# ref: the jobs needing CDRCI_GITHUB_TOKEN use the "release" environment,
+# whose deployment policy only allows v* tags and release/* branches.
+#
+#   gh workflow run finish-v2.39.0.yaml --ref release/2.39 -f dry_run=true
+#
+# Revert this commit after the run succeeds.
+name: Finish v2.39.0 release (temporary)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Download and verify the charts and show what would be pushed, but do not publish anything.
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  VERSION: "2.39.0"
+
+jobs:
+  # Only allow maintainers/admins, same gate as release.yaml.
+  check-perms:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Allow only maintainers/admins
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+            const role = data.role_name || data.user?.role_name || data.permission;
+            const perms = data.user?.permissions || {};
+            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
+
+            const allowed =
+              role === 'admin' ||
+              role === 'maintain' ||
+              perms.admin === true ||
+              perms.maintain === true;
+
+            if (!allowed) core.setFailed('Denied: requires maintain or admin');
+
+  publish-helm-oci:
+    name: Push v2.39.0 Helm charts to ghcr.io
+    needs: check-perms
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Necessary to push the charts to ghcr.io.
+      packages: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Download charts and checksums from the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          gh release download "v${VERSION}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern "coder_helm_${VERSION}.tgz" \
+            --pattern "provisioner_helm_${VERSION}.tgz" \
+            --pattern "ai-gateway_helm_${VERSION}.tgz" \
+            --pattern "coder_${VERSION}_checksums.txt"
+
+      - name: Verify charts against the release checksums
+        run: |
+          set -euo pipefail
+          grep -E "_helm_${VERSION//./\\.}\.tgz\$" "coder_${VERSION}_checksums.txt" > helm_checksums.txt
+          if [[ "$(wc -l < helm_checksums.txt)" -ne 3 ]]; then
+            echo "::error::expected 3 helm chart entries in checksums, got:" >&2
+            cat helm_checksums.txt >&2
+            exit 1
+          fi
+          sha256sum -c helm_checksums.txt
+
+      - name: Docker Login
+        if: ${{ !inputs.dry_run }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push missing chart tags
+        run: |
+          set -euo pipefail
+          # Asset file -> chart name (the OCI repository under ghcr.io/coder/chart).
+          declare -A charts=(
+            ["coder_helm_${VERSION}.tgz"]="coder"
+            ["provisioner_helm_${VERSION}.tgz"]="coder-provisioner"
+            ["ai-gateway_helm_${VERSION}.tgz"]="coder-ai-gateway"
+          )
+          for tgz in "${!charts[@]}"; do
+            chart="${charts[$tgz]}"
+            ref="oci://ghcr.io/coder/chart/${chart}"
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "DRY RUN: would push ${tgz} ($(sha256sum "${tgz}" | awk '{print $1}')) to ${ref}:${VERSION}"
+              continue
+            fi
+            mkdir -p "pulled/${chart}"
+            if helm pull "${ref}" --version "${VERSION}" -d "pulled/${chart}" 2>/dev/null; then
+              echo "${ref}:${VERSION} already exists, skipping push"
+            else
+              helm push "${tgz}" "oci://ghcr.io/coder/chart"
+            fi
+          done
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+
+      - name: Verify pushed charts match the release assets byte for byte
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          declare -A charts=(
+            ["coder_helm_${VERSION}.tgz"]="coder"
+            ["provisioner_helm_${VERSION}.tgz"]="coder-provisioner"
+            ["ai-gateway_helm_${VERSION}.tgz"]="coder-ai-gateway"
+          )
+          failed=0
+          for tgz in "${!charts[@]}"; do
+            chart="${charts[$tgz]}"
+            rm -rf verify && mkdir -p verify
+            helm pull "oci://ghcr.io/coder/chart/${chart}" --version "${VERSION}" -d verify
+            want="$(sha256sum "${tgz}" | awk '{print $1}')"
+            got="$(sha256sum verify/*.tgz | awk '{print $1}')"
+            if [[ "${want}" == "${got}" ]]; then
+              echo "OK ${chart}:${VERSION} ${got}"
+            else
+              echo "::error::${chart}:${VERSION} digest mismatch: release asset ${want}, registry ${got}" >&2
+              failed=1
+            fi
+          done
+          exit "${failed}"
+
+  # Same as the "Send repository-dispatch event" step of release.yaml, with the
+  # payload hardcoded. v2.39.0 was a mainline release.
+  dispatch-packages:
+    name: Dispatch coder/packages
+    needs: publish-helm-oci
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Send repository-dispatch event
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          repository: coder/packages
+          event-type: coder-release
+          client-payload: '{"coder_version": "2.39.0", "release_channel": "mainline"}'
+
+  # Copied from release.yaml publish-homebrew, with the version hardcoded and
+  # the environment switched from release-publish to release (release-publish
+  # only allows v* tag refs; CDRCI_GITHUB_TOKEN exists in both).
+  publish-homebrew:
+    name: Publish to Homebrew tap
+    runs-on: ubuntu-latest
+    needs: publish-helm-oci
+    if: ${{ !inputs.dry_run }}
+    environment: release
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Update homebrew
+        env:
+          GH_REPO: coder/homebrew-coder
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+        run: |
+          # Keep version number around for reference, removing any potential leading v
+          coder_version="$(echo "${VERSION}" | tr -d v)"
+
+          set -euxo pipefail
+
+          # Setup Git
+          git config --global user.email "ci@coder.com"
+          git config --global user.name "Coder CI"
+          git config --global credential.helper "store"
+
+          temp_dir="$(mktemp -d)"
+          cd "$temp_dir"
+
+          # Download checksums
+          checksums_url="$(gh release view --repo coder/coder "v$coder_version" --json assets \
+            | jq -r ".assets | map(.url) | .[]" \
+            | grep -e ".checksums.txt\$")"
+          wget "$checksums_url" -O checksums.txt
+
+          # Get the SHAs
+          darwin_arm_sha="$(grep "darwin_arm64.zip" checksums.txt | awk '{ print $1 }')"
+          darwin_intel_sha="$(grep "darwin_amd64.zip" checksums.txt | awk '{ print $1 }')"
+          linux_sha="$(grep "linux_amd64.tar.gz" checksums.txt | awk '{ print $1 }')"
+
+          echo "macOS arm64: $darwin_arm_sha"
+          echo "macOS amd64: $darwin_intel_sha"
+          echo "Linux amd64: $linux_sha"
+
+          # Check out the homebrew repo
+          git clone "https://github.com/$GH_REPO" homebrew-coder
+          brew_branch="auto-release/$coder_version"
+          cd homebrew-coder
+
+          # Check if a PR already exists.
+          pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
+          if [ "$pr_count" -gt 0 ]; then
+            echo "Bailing out as PR already exists" 2>&1
+            exit 0
+          fi
+
+          # Set up cdrci credentials for pushing to homebrew-coder
+          echo "https://x-access-token:$GH_TOKEN@github.com" >> ~/.git-credentials
+          # Update the formulae and push
+          git checkout -b "$brew_branch"
+          ./scripts/update-v2.sh "$coder_version" "$darwin_arm_sha" "$darwin_intel_sha" "$linux_sha"
+          git add .
+          git commit -m "coder $coder_version"
+          git push -u origin -f "$brew_branch"
+
+          # Create PR
+          gh pr create \
+            -B master -H "$brew_branch" \
+            -t "coder $coder_version" \
+            -b "" \
+            -r "${GITHUB_ACTOR}" \
+            -a "${GITHUB_ACTOR}" \
+            -b "This automatic PR was triggered by the release of Coder v$coder_version"
+
+  # Copied from release.yaml publish-winget, with the version hardcoded, the
+  # environment switched to release (see publish-homebrew above), and the
+  # unused repo checkout steps dropped (nothing below reads the repo).
+  publish-winget:
+    name: Publish to winget-pkgs
+    runs-on: windows-latest
+    needs: publish-helm-oci
+    if: ${{ !inputs.dry_run }}
+    environment: release
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Sync fork
+        run: gh repo sync cdrci/winget-pkgs -b master
+        env:
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+      - name: Install wingetcreate
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+      - name: Submit updated manifest to winget-pkgs
+        run: |
+          # The package version is the same as the tag minus the leading "v".
+          $version = $env:VERSION.Trim('v')
+
+          $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
+            ConvertFrom-Json
+          # Get the installer URLs from the release assets.
+          $amd64_installer_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
+            Select -ExpandProperty url
+          $amd64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64.zip$" | `
+            Select -ExpandProperty url
+          $arm64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_arm64.zip$" | `
+            Select -ExpandProperty url
+
+          echo "amd64 Installer URL: ${amd64_installer_url}"
+          echo "amd64 zip URL: ${amd64_zip_url}"
+          echo "arm64 zip URL: ${arm64_zip_url}"
+          echo "Package version: ${version}"
+
+          .\wingetcreate.exe update Coder.Coder `
+            --submit `
+            --version "${version}" `
+            --urls "${amd64_installer_url}" "${amd64_zip_url}" "${arm64_zip_url}"
+
+        env:
+          # For gh CLI:
+          GH_TOKEN: ${{ github.token }}
+          # For wingetcreate. We need a real token since we're pushing a commit
+          # to GitHub and then making a PR in a different repo.
+          # wingetcreate will read the token from the environment variable defined below.
+          # Reference: https://aka.ms/winget-create-token
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+      - name: Comment on PR
+        run: |
+          # wait 30 seconds
+          Start-Sleep -Seconds 30.0
+          # Find the PR that wingetcreate just made.
+          $version = $env:VERSION.Trim('v')
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
+            ConvertFrom-Json
+          $pr_number = $pr_list[0].number
+
+          gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
+
+        env:
+          # For gh CLI. We need a real token since we're commenting on a PR in a
+          # different repo.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
