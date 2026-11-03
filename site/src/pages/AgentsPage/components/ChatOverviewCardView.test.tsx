@@ -134,6 +134,8 @@ describe("ChatOverviewCardView", () => {
 
 		await user.tab();
 
-		expect(document.activeElement?.textContent ?? "").not.toContain("main");
+		expect(
+			screen.getByRole("button", { name: /#123 Queue jobs/ }),
+		).toHaveFocus();
 	});
 });
