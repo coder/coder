@@ -18,7 +18,6 @@ import type { MessageAttachment } from "./ChatConversation/messageHelpers";
 import { getPRIconConfig } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
 
-/** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
 /** Where a card row leads: the right panel tab that holds its details. */
@@ -31,7 +30,7 @@ type OverviewRepo = {
 	deletions: number;
 };
 
-/** What the overview card shows. */
+/** Card data. Empty lists and an absent cost hide their sections. */
 export type ChatOverview = {
 	/**
 	 * Chat tree cost. Absent without AI Gateway or before the first request;
@@ -42,7 +41,6 @@ export type ChatOverview = {
 		| "unavailable";
 	/** The cost covers the parent chat and its other subagents too. */
 	isSubagent: boolean;
-	/** Every git watcher repository, clean ones too, labeled by branch. */
 	repos: OverviewRepo[];
 	pullRequests: Array<{ number: string; status: ChatDiffStatus }>;
 	/** Files in the chat's messages, newest first. */
@@ -51,15 +49,14 @@ export type ChatOverview = {
 
 type ChatOverviewCardViewProps = {
 	overview: ChatOverview;
-	/** Cost or messages are still loading, so an empty card is not final. */
 	isLoading?: boolean;
 	onOpenTarget: (target: OverviewTarget) => void;
 	className?: string;
 };
 
 /**
- * Leaves out empty sections. A repository without changes is plain text,
- * because the Git panel has nothing to show for it.
+ * A repository without changes is plain text, because the Git panel has
+ * nothing to show for it.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
@@ -233,11 +230,7 @@ type OverviewListSectionProps<T> = {
 	render: (item: T) => React.ReactNode;
 };
 
-/**
- * A titled list, or nothing when the list is empty. It shows the first rows
- * and a toggle for the rest. The toggle stays rendered in both states, so
- * keyboard focus stays on it.
- */
+/** The toggle stays rendered in both states, so keyboard focus stays on it. */
 const OverviewListSection = <T,>({
 	title,
 	items,
@@ -268,19 +261,14 @@ const OverviewListSection = <T,>({
 type OverviewRowProps = {
 	icon: LucideIcon;
 	iconClassName?: string;
-	/** Names the icon for screen readers when it carries a state. */
 	iconLabel?: string;
 	label: string;
 	subtitle?: string;
 	detail?: React.ReactNode;
-	/** Without it, the row is plain text. */
 	onClick?: () => void;
 };
 
-/**
- * A card row. Its label and subtitle truncate, so a tooltip shows them in
- * full on hover and on keyboard focus.
- */
+/** Labels truncate, so a tooltip shows them in full on hover and focus. */
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
 	iconClassName,
