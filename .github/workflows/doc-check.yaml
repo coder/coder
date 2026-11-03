@@ -439,8 +439,9 @@ jobs:
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: doc-check
-        # A wait timeout fails this step but not the job. The last step
-        # decides whether the failure means the review did not run.
+        # A failure here does not fail the job by itself. "Fail unless the
+        # review is still running" fails the job for every failure of this
+        # step except a wait timeout on a chat that is still running.
         continue-on-error: true
         uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
@@ -462,10 +463,14 @@ jobs:
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
           wait: complete
-          # The chat keeps running in Coder after this job stops watching and
-          # posts its own results, so the wait only decides whether the step
-          # below can stop the workspace. Many reviews take longer than this,
-          # and the last step reports those as still running, not failed.
+          # The chat keeps running in Coder after this job stops watching.
+          # The wait does two things: "Stop the review workspace" can stop the
+          # workspace of a review that finishes within it, and while it waits
+          # the run holds the PR's concurrency group, so the next run cannot
+          # send the chat another message yet. Many reviews take longer, and
+          # "Fail unless the review is still running" passes those. Keep this
+          # below timeout-minutes with room for setup, or GitHub cancels the
+          # job instead.
           wait-timeout-seconds: "2400"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
@@ -495,39 +500,33 @@ jobs:
             }
           echo "Stopped workspace ${WORKSPACE_ID}."
 
-      # A review that outlasts the wait keeps running in Coder and posts its
-      # own results, so a wait timeout on a running chat is not a failed
-      # review. Fail the job only when the review ended in an error or never
-      # started.
-      - name: Report the review status
+      # A review that outlasts the wait keeps running in Coder. Pass the job
+      # in one case only: the chat step timed out while the chat was still
+      # running. The chat URL is built from a secret and prints masked, so
+      # name the chat by its ID.
+      - name: Fail unless the review is still running
         if: always() && steps.doc-check.outcome == 'failure'
         env:
-          ERROR_KIND: ${{ steps.doc-check.outputs.chat-error-kind }}
-          ERROR_MESSAGE: ${{ steps.doc-check.outputs.chat-error-message }}
+          CHAT_ERROR_KIND: ${{ steps.doc-check.outputs.chat-error-kind }}
           CHAT_STATUS: ${{ steps.doc-check.outputs.chat-status }}
-          CHAT_URL: ${{ steps.doc-check.outputs.chat-url }}
+          CHAT_ID: ${{ steps.doc-check.outputs.chat-id }}
         run: |
           set -euo pipefail
 
-          if [[ "${ERROR_KIND}" == "timeout" &&
-                ( "${CHAT_STATUS}" == "running" || "${CHAT_STATUS}" == "pending" ) ]]; then
-            echo "::notice::The review is still running in Coder. It posts its results to the pull request when it finishes."
+          if [[ "${CHAT_ERROR_KIND}" == "timeout" && "${CHAT_STATUS}" == "running" ]]; then
+            echo "::notice::Review chat ${CHAT_ID} is still running in Coder. It posts to this pull request only if it has findings."
             {
               echo "### Documentation check still running"
               echo ""
-              echo "The review did not finish within this job's wait, so it keeps running in Coder and posts its results to the pull request when it finishes."
-              if [[ -n "${CHAT_URL}" ]]; then
-                echo ""
-                echo "Follow it in [the review chat](${CHAT_URL})."
-              fi
+              echo "The review did not finish within this job's wait, so it keeps running in Coder as chat \`${CHAT_ID}\`."
+              echo "It posts to the pull request only if it has findings, so a clean or failed review shows only in the chat."
+              echo "This job could not stop the review workspace, so the workspace stays up until its autostop deadline."
             } >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
-          # GitHub reads workflow commands one line at a time, so keep the
-          # message on one line.
-          MESSAGE="${ERROR_MESSAGE//[$'\r\n']/ }"
-          echo "::error::The review chat failed (${ERROR_KIND:-unknown}): ${MESSAGE:-no message}"
+          # The chat step's own error annotation carries the message.
+          echo "::error::The review chat failed (kind ${CHAT_ERROR_KIND:-unknown}, chat status ${CHAT_STATUS:-unknown}, chat ${CHAT_ID:-unknown})."
           exit 1
 
   # Delete the review workspace once its PR merges. A PR closed without
