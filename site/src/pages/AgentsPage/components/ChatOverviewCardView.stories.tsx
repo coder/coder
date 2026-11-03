@@ -97,20 +97,16 @@ const meta: Meta<typeof ChatOverviewCardView> = {
 export default meta;
 type Story = StoryObj<typeof ChatOverviewCardView>;
 
-/** Every section, with a fourth attachment behind the toggle. */
 export const Full: Story = {};
 
-/** Opened before the chat has anything to show. */
 export const Empty: Story = {
 	args: { overview: mockEmptyChatOverview },
 };
 
-/** Opened while the cost or the messages still load. */
 export const Loading: Story = {
 	args: { overview: mockEmptyChatOverview, isLoading: true },
 };
 
-/** A subagent chat sees the cost of the whole tree, with unpriced usage. */
 export const SubagentCost: Story = {
 	args: {
 		overview: {
@@ -122,14 +118,12 @@ export const SubagentCost: Story = {
 	},
 };
 
-/** The cost request failed. */
 export const CostUnavailable: Story = {
 	args: {
 		overview: { ...mockChatOverview, cost: "unavailable" },
 	},
 };
 
-/** The earlier attachments failed to load: Attachments shows the error and a retry. */
 export const EarlierAttachmentsError: Story = {
 	args: {
 		earlierAttachmentsRequest: {
@@ -140,10 +134,6 @@ export const EarlierAttachmentsError: Story = {
 	},
 };
 
-/**
- * Without AI Gateway the card has no Cost row, and a clean repository still
- * shows its branch with +0 −0, as text and not as a button.
- */
 export const NoCostCleanRepo: Story = {
 	args: {
 		overview: {
@@ -153,7 +143,6 @@ export const NoCostCleanRepo: Story = {
 	},
 };
 
-/** A truncated row shows its full label in a tooltip. */
 export const TruncatedRowTooltip: Story = {
 	args: { overview: mockLongChatOverview },
 	play: async ({ canvasElement }) => {
@@ -165,12 +154,10 @@ export const TruncatedRowTooltip: Story = {
 	},
 };
 
-/** Long lists fold behind a toggle, and long names truncate. */
 export const ManyRows: Story = {
 	args: { overview: mockLongChatOverview },
 };
 
-/** The Changes list after its toggle opens. */
 export const ManyRowsExpanded: Story = {
 	args: { overview: mockLongChatOverview },
 	play: async ({ canvasElement }) => {
@@ -178,7 +165,7 @@ export const ManyRowsExpanded: Story = {
 			name: "Changes",
 		});
 		await userEvent.click(
-			within(changes).getByRole("button", { name: "Show 2 more" }),
+			within(changes).getByRole("button", { name: "Show 2 more changes" }),
 		);
 	},
 };

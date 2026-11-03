@@ -8,7 +8,7 @@ title: MCP
 <!-- -->
 
 > [!WARNING]
-> Injected MCP in AI Gateway is deprecated.
+> Injected Model Context Protocol (MCP) in AI Gateway is deprecated.
 > It remains functional and will not be removed until the new implementation is released.
 > Only critical security-related patches will be made.
 

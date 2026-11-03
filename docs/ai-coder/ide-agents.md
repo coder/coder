@@ -6,7 +6,7 @@ Learn how to use Coder Workspaces with IDEs and plugins to run coding agents lik
 
 ## How it works
 
-Coder Workspaces are full development environments that run on your cloud infrastructure, such as Kubernetes or AWS EC2.
+Coder Workspaces are full development environments that run on your cloud infrastructure, such as Kubernetes or AWS Elastic Compute Cloud (EC2).
 Developers can connect with their favorite IDEs with pre-configured extensions and configuration for agentic coding.
 
 ![Workspace Page](../images/guides/ai-agents/workspace-page.png)
@@ -16,7 +16,7 @@ Developers can connect with their favorite IDEs with pre-configured extensions a
 Running coding agents in Coder workspaces provides several advantages over running them locally:
 
 - **Fast, out-of-the-box setup**:
-  LLMs, proxies, and MCP tools can be pre-configured for developers to use immediately, eliminating setup time and configuration hassles.
+  Large language models (LLMs), proxies, and Model Context Protocol (MCP) tools can be pre-configured for developers to use immediately, eliminating setup time and configuration hassles.
 - **Consistent environments**:
   All developers use the same standardized environments, ensuring consistent access to tools and resources.
 - **Resource optimization**:
