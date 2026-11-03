@@ -296,8 +296,8 @@ Once you select **Implement plan**, the next turn runs in normal mode again.
 
 ## Questions outside plan mode
 
-In chats created from the Coder dashboard, the agent can also ask you a question outside plan mode without stopping work.
-It keeps working on anything that doesn't depend on the answer.
+In chats created from the Coder dashboard, the agent can also call `ask_user_question` outside plan mode.
+The question doesn't stop the agent, which keeps working on anything that doesn't depend on the answer.
 You can answer while the agent runs, or after it ends its turn.
 While the agent runs, your answer joins the end of the message queue.
 The agent reads it in a later turn, after the current turn and any messages queued before it.
