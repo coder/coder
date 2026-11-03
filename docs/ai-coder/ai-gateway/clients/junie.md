@@ -74,11 +74,11 @@ Run Junie with the profile:
 junie --model custom:ai-gateway
 ```
 
-Custom profiles also appear in the model selection list of the interactive TUI and in the `/model` slash command.
+Custom profiles also appear in the model selection list of the interactive terminal user interface (TUI) and in the `/model` slash command.
 
 ## BYOK (Personal API Key)
 
-Junie supports custom headers, so BYOK works by sending your personal provider key as the API key and the Coder API token as the governance token:
+Junie supports custom headers, so Bring Your Own Key (BYOK) works by sending your personal provider key as the API key and the Coder API token as the governance token:
 
 ```json
 {
@@ -119,4 +119,4 @@ resource "coder_env" "coder_api_token" {
 Reference the deployment URL in the profile with `${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1/responses` if you generate the file from the template instead of committing it.
 
 **References:**
-[Junie custom LLMs](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models)
+[Junie custom large language models (LLMs)](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models)

@@ -10,7 +10,7 @@ This page describes the runtime and permission requirements for running Agent Fi
 ## Runtime & Permission Requirements for Running Boundary in Kubernetes
 
 Requirements depend on the node OS and the container runtime.
-The following examples use **EKS with Managed Node Groups** for two common node AMIs.
+The following examples use **Amazon Elastic Kubernetes Service (EKS) with Managed Node Groups** for two common node Amazon Machine Images (AMIs).
 
 ---
 

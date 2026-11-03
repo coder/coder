@@ -12,7 +12,7 @@ Claude Desktop can list your running Coder workspaces, so you can connect to the
 ## Prerequisites
 
 - [Claude Desktop](https://claude.com/download) installed on your local machine.
-- The [Coder CLI](../../install/cli.md) installed and on your `PATH`.
+- The [Coder CLI](./index.md#install-the-cli) installed and on your `PATH`.
 - The Coder CLI authenticated with your deployment:
 
   ```sh

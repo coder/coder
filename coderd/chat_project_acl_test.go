@@ -70,6 +70,7 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Empty(t, acl.Groups)
 		require.Len(t, acl.Users, 1)
 		require.Equal(t, shareeUser.ID, acl.Users[0].ID)
+		require.Equal(t, shareeUser.Username, acl.Users[0].Username)
 		require.Equal(t, codersdk.ChatProjectRoleUse, acl.Users[0].Role)
 
 		requireChatProjectListed(t, sharee, project.ID)
@@ -224,6 +225,12 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Equal(t, firstUser.OrganizationID, acl.Groups[0].ID)
 		require.Equal(t, database.EveryoneGroup, acl.Groups[0].Name)
 		require.Equal(t, codersdk.ChatProjectRoleUse, acl.Groups[0].Role)
+		require.Equal(t, 3, acl.Groups[0].TotalMemberCount)
+		acl, err = client.ChatProjectACL(ctx, groupProject.OrganizationID, groupProject.ID)
+		require.NoError(t, err)
+		require.Len(t, acl.Groups, 1)
+		require.Equal(t, group.ID, acl.Groups[0].ID)
+		require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
 
 		projects, err := groupMember.ListChatProjects(ctx)
 		require.NoError(t, err)

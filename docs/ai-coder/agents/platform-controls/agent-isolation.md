@@ -31,7 +31,7 @@ You need:
 
 - A Linux cluster with NetworkPolicy enforcement turned on for standalone Pods.
 - A default storage class that provides a volume writable by user and group ID `1000`.
-- A fixed IPv4 address and TCP port for Coder, including agent downloads and relay connections.
+- A fixed IPv4 address and Transmission Control Protocol (TCP) port for Coder, including agent downloads and relay connections.
 - A Coder provisioner with permission to create Pods, a PVC, a ConfigMap, and a NetworkPolicy in that namespace.
 
 Check these permissions using the provisioner's Kubernetes credentials:
@@ -50,8 +50,8 @@ The provisioner also needs permission to read, update, and delete these resource
 > Do not run untrusted code until the network tests pass.
 > Kubernetes can accept a NetworkPolicy without enforcing it, leaving the agent's network access unrestricted.
 
-For GKE, check [network policy enforcement](https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy).
-For Amazon VPC CNI, use Deployment-managed Pods instead of this example's standalone Pods.
+For Google Kubernetes Engine (GKE), check [network policy enforcement](https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy).
+For Amazon Virtual Private Cloud (VPC) Container Network Interface (CNI), use Deployment-managed Pods instead of this example's standalone Pods.
 [AWS documents unreliable enforcement for standalone Pods](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html).
 
 Save this Terraform as `main.tf` in an empty template directory.
@@ -403,7 +403,7 @@ Your network plugin can also allow traffic to the node or its local DNS service.
 Review these exceptions in the [Kubernetes NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
 
 The agent can read any credentials you give it, edit shared files, and send data to Coder.
-Keep workspace MCP configuration outside the shared project.
+Keep workspace Model Context Protocol (MCP) configuration outside the shared project.
 This policy does not restrict organization MCP servers.
 Restrict their tools and credentials separately.
 

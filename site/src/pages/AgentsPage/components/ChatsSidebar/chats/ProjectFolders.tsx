@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { NavLink, type To, useLocation } from "react-router";
+import { NavLink, type To, useLocation, useMatch } from "react-router";
 import type { ChatListInput } from "#/api/queries/chats";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -204,14 +204,24 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onDelete,
 	emptyMessage,
 }) => {
-	const projectPath: To = {
-		pathname: buildAgentProjectPath({ projectId: project.id }),
-		search: locationSearch,
-	};
+	const projectPathname = buildAgentProjectPath({ projectId: project.id });
+	const projectPath: To = { pathname: projectPathname, search: locationSearch };
+	const isOnProjectPage = useMatch(projectPathname) !== null;
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	const toggleRef = useRef<HTMLButtonElement>(null);
+	// Keeps the closing menu from pulling focus back out of the composer.
+	const newChatPickedRef = useRef(false);
+	const handleNewChat = () => {
+		newChatPickedRef.current = true;
+	};
+	const handleMenuCloseAutoFocus = (event: Event) => {
+		if (newChatPickedRef.current) {
+			newChatPickedRef.current = false;
+			event.preventDefault();
+		}
+	};
 	return (
 		<ChatDropArea
 			target={{
@@ -293,6 +303,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							</DropdownMenuTrigger>
 							<DropdownMenuContent
 								align="end"
+								onCloseAutoFocus={handleMenuCloseAutoFocus}
 								// Portaled, but React events still bubble to the row's
 								// context-menu trigger and would open a second menu.
 								onContextMenu={(e) => {
@@ -304,6 +315,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
@@ -312,11 +324,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						</DropdownMenu>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent>
+				<ContextMenuContent onCloseAutoFocus={handleMenuCloseAutoFocus}>
 					<ProjectActionsMenuItems
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}

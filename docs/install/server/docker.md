@@ -16,7 +16,7 @@ You can install and run Coder using the official Docker images published on [Git
 > [!IMPORTANT]
 > This guide is for **Linux** hosts only.
 > The `getent` and `--group-add` Docker socket patterns used below are Linux-specific and do not translate cleanly to macOS Docker runtimes.
-> For macOS, install Coder using the [standalone binary](../cli.md) instead.
+> For macOS, install Coder using the [standalone binary](https://coder.com/downloads) instead.
 
 <div class="tabs">
 

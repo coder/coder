@@ -70,7 +70,7 @@ Within a thread, the prompt shows the total token usage and cost of the thread, 
 Token usage is broken down into input, output, cache read, and cache write tokens.
 A warning next to the model means either that the model was unpriced, or that Coder used the price of the model the provider reports serving instead of the requested model.
 To see which model was used for pricing, hover over the model.
-The agentic loop shows its duration and number of tool calls, and each step shows tool call details (including arguments and MCP server URLs).
+The agentic loop shows its duration and number of tool calls, and each step shows tool call details (including arguments and Model Context Protocol (MCP) server URLs).
 
 The **Session summary** card beside the timeline shows the session's total token usage, with the same breakdown, and its total cost.
 A warning next to a cost means some usage was unpriced, so the actual cost may be higher.

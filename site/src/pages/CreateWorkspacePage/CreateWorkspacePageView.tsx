@@ -488,7 +488,6 @@ export const CreateWorkspacePageView: React.FC<
 									rel="noreferrer"
 								>
 									View docs
-									<span className="sr-only"> (opens in new tab)</span>
 								</Link>
 							</AlertDescription>
 						</Alert>
