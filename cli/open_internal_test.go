@@ -194,6 +194,8 @@ func Test_sessionTokenDestinationTrusted(t *testing.T) {
 		{"UppercaseSchemeAndAuthority", "VSCode://Coder.Coder-Remote/open?url=" + origin + "&token=" + token},
 		{"UppercaseURLHost", "vscode://coder.coder-remote/open?url=https://CODER.example.com&token=" + token},
 		{"DefaultPort", "vscode://coder.coder-remote/open?url=https://coder.example.com:443&token=" + token},
+		{"ZeroPaddedDefaultPort", "vscode://coder.coder-remote/open?url=https://coder.example.com:0443&token=" + token},
+		{"SemicolonInAnotherValue", "vscode://coder.coder-remote/open?url=" + origin + "&token=" + token + "&folder=/work;sync"},
 	}
 	for _, tc := range trusted {
 		t.Run("Allows/"+tc.name, func(t *testing.T) {
@@ -208,6 +210,8 @@ func Test_sessionTokenDestinationTrusted(t *testing.T) {
 	}{
 		{"AnotherOrigin", "vscode://coder.coder-remote/open?url=https://attacker.example&token=" + token},
 		{"AnotherPort", "vscode://coder.coder-remote/open?url=https://coder.example.com:1&token=" + token},
+		{"OutOfRangePort", "vscode://coder.coder-remote/open?url=https://coder.example.com:65979&token=" + token},
+		{"InvalidEscape", "vscode://coder.coder-remote/open?url=" + origin + "&token=" + token + "&x=%zz"},
 		{"AnotherScheme", "vscode://coder.coder-remote/open?url=http://coder.example.com&token=" + token},
 		{"EncodedOtherOrigin", "vscode://coder.coder-remote/open?url=https%3A%2F%2Fattacker.example&token=" + token},
 		{"NoURL", "vscode://coder.coder-remote/open?token=" + token},
@@ -286,6 +290,10 @@ func Test_urlOrigin(t *testing.T) {
 		{"http://[::1]:3000", "http://[::1]:3000"},
 		{"http://[::1]", "http://[::1]"},
 		{"https://COD\u0130NG.com", "https://cod\u0130ng.com"},
+		{"https://coder.example.com:0443", "https://coder.example.com"},
+		{"http://coder.example.com:0080", "http://coder.example.com"},
+		{"http://coder.example.com:0001", "http://coder.example.com:1"},
+		{"https://coder.example.com:65536", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {

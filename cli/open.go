@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -795,11 +796,8 @@ func sessionTokenDestinationTrusted(appURL string, origins []string) bool {
 // hasTrustedSessionTokenParams reports whether every name in rawQuery appears
 // once, `token` is the placeholder, and `url` is one of origins.
 func hasTrustedSessionTokenParams(rawQuery string, origins []string) bool {
-	// URLSearchParams, which IDEs use, drops one leading `?`. Without this,
-	// `??url=a&url=b` would parse as two different names and hide the
-	// duplicate `url`.
-	values, err := url.ParseQuery(strings.TrimPrefix(rawQuery, "?"))
-	if err != nil {
+	values, ok := parseSearchParams(rawQuery)
+	if !ok {
 		return false
 	}
 	for _, v := range values {
@@ -809,6 +807,31 @@ func hasTrustedSessionTokenParams(rawQuery string, origins []string) bool {
 	}
 	return values.Get("token") == externalSessionTokenPlaceholder &&
 		isTrustedBareOrigin(values.Get("url"), origins)
+}
+
+// parseSearchParams parses rawQuery like URLSearchParams, which IDEs use. It
+// drops one leading `?`, so `??url=a&url=b` can't hide the duplicate `url`
+// behind a `?url` name, and splits on `&` only, so a `;` in a value is kept
+// rather than rejected as url.ParseQuery does. Unlike URLSearchParams, it
+// rejects invalid percent escapes.
+func parseSearchParams(rawQuery string) (url.Values, bool) {
+	values := url.Values{}
+	for _, entry := range strings.Split(strings.TrimPrefix(rawQuery, "?"), "&") {
+		if entry == "" {
+			continue
+		}
+		rawName, rawValue, _ := strings.Cut(entry, "=")
+		name, err := url.QueryUnescape(rawName)
+		if err != nil {
+			return nil, false
+		}
+		value, err := url.QueryUnescape(rawValue)
+		if err != nil {
+			return nil, false
+		}
+		values.Add(name, value)
+	}
+	return values, true
 }
 
 // bareOriginRegex matches a URL that is only an origin, optionally with a
@@ -829,16 +852,25 @@ func isTrustedBareOrigin(rawURL string, origins []string) bool {
 	if strings.IndexFunc(u.Hostname(), func(r rune) bool { return r > unicode.MaxASCII }) != -1 {
 		return false
 	}
-	return slices.Contains(origins, urlOrigin(u))
+	origin := urlOrigin(u)
+	return origin != "" && slices.Contains(origins, origin)
 }
 
 // urlOrigin returns the scheme, host, and non-default port of u, with ASCII
-// letters lowercased like a browser origin. Unicode case folding would turn
-// hosts such as `codİng.com` into a different, trusted host.
+// letters lowercased and the port in canonical form, like a browser origin.
+// Unicode case folding would turn hosts such as `codİng.com` into a
+// different, trusted host. It returns "" when the port is out of range.
 func urlOrigin(u *url.URL) string {
 	scheme := asciiLower(u.Scheme)
 	host := asciiLower(u.Hostname())
 	port := u.Port()
+	if port != "" {
+		n, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return ""
+		}
+		port = strconv.FormatUint(n, 10)
+	}
 	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
 		port = ""
 	}
