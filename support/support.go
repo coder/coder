@@ -126,6 +126,15 @@ type PprofCollection struct {
 	EndpointURL  string    `json:"endpoint_url"`
 }
 
+const (
+	// defaultAgentDialTimeout bounds waiting for the agent to become reachable when Deps.AgentDialTimeout is unset.
+	defaultAgentDialTimeout = 30 * time.Second
+	// agentRequestTimeout bounds each request made over an established agent connection.
+	agentRequestTimeout = 10 * time.Second
+	// agentBundleFilesTimeout bounds collecting workspace files, which transfer more data than other agent requests.
+	agentBundleFilesTimeout = 60 * time.Second
+)
+
 // Deps is a set of dependencies for discovering information
 type Deps struct {
 	// Source from which to obtain information.
@@ -147,6 +156,9 @@ type Deps struct {
 	WorkspaceFilePatterns []string
 	// CollectPprof toggles server and agent pprof collection.
 	CollectPprof bool
+	// AgentDialTimeout bounds how long to wait for the agent to become
+	// reachable over tailnet. Zero or negative uses defaultAgentDialTimeout.
+	AgentDialTimeout time.Duration
 }
 
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspacesCap int) Deployment {
@@ -539,7 +551,9 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	return w
 }
 
-func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceFilePatterns []string) Agent {
+// AgentInfo collects agent information and reports whether the agent was
+// reachable over tailnet within dialTimeout.
+func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceFilePatterns []string, dialTimeout time.Duration) (Agent, bool) {
 	var (
 		a  Agent
 		eg errgroup.Group
@@ -547,7 +561,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 
 	if agentID == uuid.Nil {
 		log.Error(ctx, "no agent id specified")
-		return a
+		return a, false
 	}
 
 	eg.Go(func() error {
@@ -576,41 +590,50 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 
 	// to simplify control flow, fetching information directly from
 	// the agent is handled in a separate function
-	closer := connectedAgentInfo(ctx, client, log, agentID, workspaceFilePatterns, &eg, &a)
+	closer, reachable := connectedAgentInfo(ctx, client, log, agentID, workspaceFilePatterns, dialTimeout, &eg, &a)
 	defer closer()
 
 	if err := eg.Wait(); err != nil {
 		log.Error(ctx, "fetch agent information", slog.Error(err))
 	}
 
-	return a
+	return a, reachable
 }
 
-func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceFilePatterns []string, eg *errgroup.Group, a *Agent) (closer func()) {
+// dialReachableAgent dials the agent, giving up after dialTimeout. DialAgent
+// waits for the agent to become reachable and closes the conn on failure, so
+// the caller owns the conn only when err is nil.
+func dialReachableAgent(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, dialTimeout time.Duration) (workspacesdk.AgentConn, error) {
+	dialCtx, cancel := context.WithTimeout(ctx, dialTimeout)
+	defer cancel()
+
 	conn, err := workspacesdk.New(client).
-		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
-			Logger:         log.Named("dial-agent"),
+		DialAgent(dialCtx, agentID, &workspacesdk.DialAgentOptions{
+			Logger:         log,
 			BlockEndpoints: false,
 		})
-
-	closer = func() {}
-
 	if err != nil {
-		log.Error(ctx, "dial agent", slog.Error(err))
-		return closer
+		return nil, xerrors.Errorf("dial agent (timeout %s): %w", dialTimeout, err)
+	}
+	return conn, nil
+}
+
+func closeAgentConn(ctx context.Context, log slog.Logger, conn workspacesdk.AgentConn) {
+	if err := conn.Close(); err != nil {
+		log.Error(ctx, "failed to close agent connection", slog.Error(err))
+	}
+	<-conn.TailnetConn().Closed()
+}
+
+func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceFilePatterns []string, dialTimeout time.Duration, eg *errgroup.Group, a *Agent) (closer func(), reachable bool) {
+	conn, err := dialReachableAgent(ctx, client, log.Named("dial-agent"), agentID, dialTimeout)
+	if err != nil {
+		log.Warn(ctx, "agent unreachable, skipping agent-connected sections",
+			slog.F("timeout", dialTimeout), slog.Error(err))
+		return func() {}, false
 	}
 
-	if !conn.AwaitReachable(ctx) {
-		log.Error(ctx, "timed out waiting for agent")
-		return closer
-	}
-
-	closer = func() {
-		if err := conn.Close(); err != nil {
-			log.Error(ctx, "failed to close agent connection", slog.Error(err))
-		}
-		<-conn.TailnetConn().Closed()
-	}
+	closer = func() { closeAgentConn(ctx, log, conn) }
 
 	eg.Go(func() error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/", nil)
@@ -624,6 +647,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, agentRequestTimeout)
+		defer cancel()
 		promRes, err := conn.PrometheusMetrics(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch agent prometheus metrics: %w", err)
@@ -633,6 +658,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, agentRequestTimeout)
+		defer cancel()
 		_, _, pingRes, err := conn.Ping(ctx)
 		if err != nil {
 			return xerrors.Errorf("ping agent: %w", err)
@@ -648,6 +675,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, agentRequestTimeout)
+		defer cancel()
 		msBytes, err := conn.DebugMagicsock(ctx)
 		if err != nil {
 			return xerrors.Errorf("get agent magicsock page: %w", err)
@@ -657,6 +686,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, agentRequestTimeout)
+		defer cancel()
 		manifestRes, err := conn.DebugManifest(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch manifest: %w", err)
@@ -670,6 +701,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, agentRequestTimeout)
+		defer cancel()
 		logBytes, err := conn.DebugLogs(ctx, workspacesdk.WithLogsAfter(time.Now().Add(-supportBundleAgentLogLookback)))
 		if err != nil {
 			return xerrors.Errorf("fetch coder agent logs: %w", err)
@@ -680,6 +713,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 
 	if len(workspaceFilePatterns) > 0 {
 		eg.Go(func() error {
+			ctx, cancel := context.WithTimeout(ctx, agentBundleFilesTimeout)
+			defer cancel()
 			workspaceFilesArchive, err := conn.BundleFiles(ctx, workspacesdk.BundleFilesRequest{
 				Paths: workspaceFilePatterns,
 			})
@@ -697,6 +732,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	}
 
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, agentRequestTimeout)
+		defer cancel()
 		lps, err := conn.ListeningPorts(ctx)
 		if err != nil {
 			return xerrors.Errorf("get listening ports: %w", err)
@@ -705,7 +742,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 		return nil
 	})
 
-	return closer
+	return closer, true
 }
 
 // unsupportedWorkspaceFilesArchive builds a manifest-only archive recording
@@ -1107,6 +1144,11 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	d.Log.Info(ctx, "running as user", slog.F("me", me))
 
 	totalCap := d.WorkspacesTotalCap
+	dialTimeout := d.AgentDialTimeout
+	if dialTimeout <= 0 {
+		dialTimeout = defaultAgentDialTimeout
+	}
+	var agentReachable bool
 
 	var eg errgroup.Group
 	eg.Go(func() error {
@@ -1142,8 +1184,9 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID, d.WorkspaceFilePatterns)
+		ai, reachable := AgentInfo(ctx, d.Client, d.Log, d.AgentID, d.WorkspaceFilePatterns, dialTimeout)
 		b.Agent = ai
+		agentReachable = reachable
 		return nil
 	})
 
@@ -1190,9 +1233,16 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	_ = eg.Wait()
 
 	// Collect pprof data after deployment info is available (need version check).
-	// Pprof endpoints require Coder server version 2.28.0 or newer.
+	// Server pprof endpoints require Coder server version 2.28.0 or newer.
 	if d.CollectPprof {
-		b.Pprof = collectPprof(ctx, d, &b)
+		b.Pprof.Server = collectServerPprof(ctx, d, &b)
+		switch {
+		case d.AgentID == uuid.Nil:
+		case !agentReachable:
+			d.Log.Warn(ctx, "skipping agent pprof: agent unreachable")
+		default:
+			b.Pprof.Agent = collectAgentPprof(ctx, d, dialTimeout)
+		}
 	}
 
 	return &b, nil
@@ -1220,19 +1270,29 @@ func VersionSupportsPprof(version string) bool {
 	return semver.Compare(canonical, minPprofVersion) >= 0
 }
 
-func collectPprof(ctx context.Context, d *Deps, b *Bundle) Pprof {
-	var pprof Pprof
+// collectAgentPprof collects pprof data from the agent over tailnet.
+func collectAgentPprof(ctx context.Context, d *Deps, dialTimeout time.Duration) *PprofCollection {
+	conn, err := dialReachableAgent(ctx, d.Client, d.Log.Named("dial-agent-pprof"), d.AgentID, dialTimeout)
+	if err != nil {
+		d.Log.Warn(ctx, "failed to connect to agent for pprof collection",
+			slog.F("timeout", dialTimeout), slog.Error(err))
+		return nil
+	}
+	defer closeAgentConn(ctx, d.Log, conn)
+	return PprofInfoFromAgent(ctx, conn, d.Log)
+}
 
-	// Check server version before attempting pprof collection.
+// collectServerPprof collects server pprof data when the server version supports the pprof API endpoints.
+func collectServerPprof(ctx context.Context, d *Deps, b *Bundle) *PprofCollection {
 	if b.Deployment.BuildInfo == nil {
-		d.Log.Warn(ctx, "skipping pprof collection: build info not available")
-		return pprof
+		d.Log.Warn(ctx, "skipping server pprof collection: build info not available")
+		return nil
 	}
 	if !VersionSupportsPprof(b.Deployment.BuildInfo.Version) {
-		d.Log.Warn(ctx, "skipping pprof collection: server version too old",
+		d.Log.Warn(ctx, "skipping server pprof collection: server version too old",
 			slog.F("version", b.Deployment.BuildInfo.Version),
 			slog.F("min_version", minPprofVersion))
-		return pprof
+		return nil
 	}
 
 	// Try the consolidated /debug/profile endpoint first. It
@@ -1245,38 +1305,7 @@ func collectPprof(ctx context.Context, d *Deps, b *Bundle) Pprof {
 		// Fall back to the legacy per-profile endpoint approach.
 		serverPprof = PprofInfo(ctx, d.Client, d.Log)
 	}
-	if serverPprof != nil {
-		pprof.Server = serverPprof
-	}
-
-	if d.AgentID != uuid.Nil {
-		conn, err := workspacesdk.New(d.Client).
-			DialAgent(ctx, d.AgentID, &workspacesdk.DialAgentOptions{
-				Logger:         d.Log.Named("dial-agent-pprof"),
-				BlockEndpoints: false,
-			})
-		if err != nil {
-			d.Log.Warn(ctx, "failed to dial agent for pprof collection", slog.Error(err))
-		} else {
-			defer func() {
-				if err := conn.Close(); err != nil {
-					d.Log.Error(ctx, "failed to close agent pprof connection", slog.Error(err))
-				}
-				<-conn.TailnetConn().Closed()
-			}()
-
-			if conn.AwaitReachable(ctx) {
-				agentPprof := PprofInfoFromAgent(ctx, conn, d.Log)
-				if agentPprof != nil {
-					pprof.Agent = agentPprof
-				}
-			} else {
-				d.Log.Warn(ctx, "agent not reachable for pprof collection")
-			}
-		}
-	}
-
-	return pprof
+	return serverPprof
 }
 
 // sanitizeEnv modifies kvs in place and replaces the values all non-empty keys
