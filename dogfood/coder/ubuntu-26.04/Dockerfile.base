@@ -203,11 +203,11 @@ ENV MISE_DATA_DIR=/home/coder/.local/share/mise
 
 # Bake a system fallback for trusted_config_paths so the canonical
 # /home/coder/coder repo and the mise-oci-synthesized /etc/mise/config.toml
-# are trusted without a per-config prompt. The workspace template
-# (dogfood/coder/main.tf install-deps coder_script) seeds a matching
-# user-owned ~/.config/mise/conf.d/00-coder-trust.toml on workspace
-# start, which the user can edit to add their own paths; that file
-# lives on the persistent home volume and overrides this fallback.
+# are trusted without a per-config prompt. The workspace templates in
+# coder/dogfood seed a matching user-owned
+# ~/.config/mise/conf.d/00-coder-trust.toml on workspace start, which
+# the user can edit to add their own paths; that file lives on the
+# persistent home volume and overrides this fallback.
 RUN install --directory --mode=0755 /etc/mise /etc/mise/conf.d
 COPY --chmod=0644 <<'EOF' /etc/mise/conf.d/00-coder-trust.toml
 [settings]
@@ -221,8 +221,8 @@ EOF
 # duplicated below in MISE_SHARED_INSTALL_DIRS and PATH; if it ever
 # changes, update all three plus mise.toml. Ownership of /opt/mise
 # and /opt/mise/data is reasserted at workspace start by the
-# install-deps coder_script in dogfood/coder/main.tf: `mise oci
-# build` emits tar layers owned by uid=0/gid=0 by default (see
+# workspace templates in coder/dogfood: `mise oci build` emits tar
+# layers owned by uid=0/gid=0 by default (see
 # crates/mise-oci/src/layer.rs), so the final image always overwrites
 # whatever ownership we set here.
 RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/mise/data
