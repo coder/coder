@@ -129,7 +129,7 @@ Some drawbacks include:
   Once the image is cached in `envbox`, startup performance is similar.
 
 Envbox requires the same kernel requirements as running sysbox directly on the nodes.
-Refer to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to ensure your nodes are compliant.
+Refer to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to make sure your nodes are compliant.
 
 To get started with `envbox`, refer to the [starter template](../../../../examples/templates/kubernetes-envbox) or visit the [repo](https://github.com/coder/envbox).
 
@@ -222,7 +222,7 @@ Before using Podman, review the following documentation:
    ```
 
    > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (for example, AKS, EKS, GKE), be sure to set node labels via your cloud provider.
-   > Otherwise, your nodes may drop the labels and break podman functionality.
+   > Otherwise, your nodes might drop the labels and break podman functionality.
 
 3. For systems running SELinux, you might need to disable SELinux or set it to permissive mode.
 
@@ -436,7 +436,7 @@ To run dev containers on Kubernetes without a container engine in the workspace,
 ## Privileged sidecar container
 
 A [privileged container](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) can be added to your templates to add docker support.
-This may come in handy if your nodes cannot run Sysbox.
+This can come in handy if your nodes cannot run Sysbox.
 
 > [!WARNING]
 > This is insecure.
