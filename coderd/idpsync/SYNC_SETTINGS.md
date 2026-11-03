@@ -524,6 +524,9 @@ settings valid or there is no rewrite at all.
 - **Deleted organization** (`organization_deleted`, stored rows only). Stored
   settings for a deleted organization violate V2, and no omission repairs
   that.
+- **Absent organization** (`organization_absent`, stored rows only). Stored
+  settings for an organization ID that names no organization violate V2, and
+  no omission repairs that either.
 
 #### Request routes
 
