@@ -7659,19 +7659,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildParameters(ctx, workspaceBuild
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildParameters), ctx, workspaceBuildID)
 }
 
-// GetWorkspaceBuildParametersByBuildIDsAndNamePrefix mocks base method.
-func (m *MockStore) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]database.WorkspaceBuildParameter, error) {
+// GetWorkspaceBuildParametersByBuildIDsAndNames mocks base method.
+func (m *MockStore) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]database.WorkspaceBuildParameter, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceBuildParametersByBuildIDsAndNamePrefix", ctx, arg)
+	ret := m.ctrl.Call(m, "GetWorkspaceBuildParametersByBuildIDsAndNames", ctx, arg)
 	ret0, _ := ret[0].([]database.WorkspaceBuildParameter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspaceBuildParametersByBuildIDsAndNamePrefix indicates an expected call of GetWorkspaceBuildParametersByBuildIDsAndNamePrefix.
-func (mr *MockStoreMockRecorder) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, arg any) *gomock.Call {
+// GetWorkspaceBuildParametersByBuildIDsAndNames indicates an expected call of GetWorkspaceBuildParametersByBuildIDsAndNames.
+func (mr *MockStoreMockRecorder) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildParametersByBuildIDsAndNamePrefix", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildParametersByBuildIDsAndNamePrefix), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildParametersByBuildIDsAndNames", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildParametersByBuildIDsAndNames), ctx, arg)
 }
 
 // GetWorkspaceBuildProvisionerStateByID mocks base method.

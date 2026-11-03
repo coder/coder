@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -55,7 +56,43 @@ func TestConvertWorkspaceBuild_AgentRelay(t *testing.T) {
 				ClientPlatform: "claude_in_slack",
 				SessionIDHash:  hash("session-1"),
 				PoolHash:       hash("claude-pool"),
-				Attempt:        2,
+				Attempt:        ptr.Ref(2),
+			},
+		},
+		{
+			// Attempt 0 is the first dispatch and must stay distinct from a
+			// missing attempt.
+			name: "AttemptZero",
+			params: map[string]string{
+				"agent_relay_session_id": "session-1",
+				"agent_relay_attempt":    "0",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:      telemetry.AgentRelayProviderUnknown,
+				SessionIDHash: hash("session-1"),
+				Attempt:       ptr.Ref(0),
+			},
+		},
+		{
+			// A template default stores an empty session ID on builds a
+			// person creates by hand.
+			name: "EmptySessionID",
+			params: map[string]string{
+				"agent_relay_session_id": "",
+				"agent_relay_pool":       "pool",
+			},
+			want: nil,
+		},
+		{
+			name: "ClientPlatformNormalized",
+			params: map[string]string{
+				"agent_relay_session_id":      "session-1",
+				"agent_relay_client_platform": "Claude-In-Slack <script>",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:       telemetry.AgentRelayProviderUnknown,
+				ClientPlatform: "claude_in_slack",
+				SessionIDHash:  hash("session-1"),
 			},
 		},
 		{
@@ -111,7 +148,7 @@ func TestConvertWorkspaceBuild_AgentRelay(t *testing.T) {
 			},
 		},
 		{
-			name: "UnknownProvider",
+			name: "UnknownProviderInvalidAttempt",
 			params: map[string]string{
 				"agent_relay_session_id": "session-3",
 				"agent_relay_attempt":    "not-a-number",

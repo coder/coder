@@ -6115,12 +6115,12 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
-func (q *querier) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]database.WorkspaceBuildParameter, error) {
+func (q *querier) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]database.WorkspaceBuildParameter, error) {
 	// Batch lookup across workspaces, used by telemetry.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, arg)
+	return q.db.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, buildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {

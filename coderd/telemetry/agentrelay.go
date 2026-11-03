@@ -18,7 +18,6 @@ import (
 // agent-relay's template contract and the agent-relay registry modules.
 // Renaming one there silently drops it from telemetry here.
 const (
-	agentRelayParameterPrefix           = "agent_relay_"
 	agentRelayParameterSessionID        = "agent_relay_session_id"
 	agentRelayParameterPool             = "agent_relay_pool"
 	agentRelayParameterAttempt          = "agent_relay_attempt"
@@ -27,40 +26,49 @@ const (
 	agentRelayParameterCursorPrefix     = "agent_relay_cursor_"
 )
 
-// AgentRelayProvider is the Agent Relay provider that dispatched a build.
+// agentRelayClientPlatformMaxLength caps the reported client platform. The
+// value is user-settable, so it is normalized before it leaves the deployment.
+const agentRelayClientPlatformMaxLength = 15
+
+// AgentRelayProvider identifies whose provider-specific parameters a build
+// carries.
 type AgentRelayProvider string
 
-// Agent Relay providers reported in WorkspaceBuildAgentRelay.Provider.
 const (
 	AgentRelayProviderClaudeCode AgentRelayProvider = "claude_code"
 	AgentRelayProviderCursor     AgentRelayProvider = "cursor"
-	AgentRelayProviderUnknown    AgentRelayProvider = "unknown"
+	// AgentRelayProviderUnknown is reported when a build carries no
+	// provider-specific parameters.
+	AgentRelayProviderUnknown AgentRelayProvider = "unknown"
 	// AgentRelayProviderAmbiguous is reported when a build carries
 	// parameters of more than one provider.
 	AgentRelayProviderAmbiguous AgentRelayProvider = "ambiguous"
 )
 
-// WorkspaceBuildAgentRelay describes a build dispatched by Agent Relay,
-// derived from the agent_relay_* rich parameters it stamps on the build.
+// WorkspaceBuildAgentRelay is derived from the agent_relay_* parameters.
 type WorkspaceBuildAgentRelay struct {
-	// Provider is claude_code, cursor, ambiguous, or unknown.
 	Provider AgentRelayProvider `json:"provider"`
 	// ClientPlatform is the surface that started the session, such as
-	// claude_in_slack. Only the Claude Code provider reports it.
+	// claude_in_slack. Only the Claude Code provider reports it. It is
+	// lowercased, characters outside [a-z0-9_] become underscores, and it is
+	// cut to 15 characters.
 	ClientPlatform string `json:"client_platform,omitempty"`
 	// SessionIDHash is the SHA-256 of the relay session ID. Builds of the
 	// same session share it.
 	SessionIDHash string `json:"session_id_hash"`
-	// PoolHash is the SHA-256 of the relay pool name.
+	// PoolHash is the unsalted SHA-256 of the relay pool name. It is for
+	// counting distinct pools; it does not hide common names.
 	PoolHash string `json:"pool_hash,omitempty"`
-	// Attempt is the dispatch attempt number, 0 when not reported.
-	Attempt int `json:"attempt,omitempty"`
+	// Attempt is the dispatch attempt number, nil when the parameter is
+	// missing or not an integer.
+	Attempt *int `json:"attempt,omitempty"`
 }
 
-// agentRelayBuildParameters returns the Agent Relay parameters of the given
-// builds, keyed by build ID and then parameter name. Only start builds are
-// looked up: stop and delete builds of a relay workspace carry the same
-// parameters, but they are not dispatches and get no AgentRelay field.
+// agentRelayBuildParameters only looks up start builds: stop and delete
+// builds of a relay workspace carry the same parameters, but they are not
+// dispatches and get no AgentRelay field. Only the parameters the converter
+// reads are loaded, so other agent_relay_* values, such as credentials,
+// never reach the reporter.
 func agentRelayBuildParameters(ctx context.Context, db database.Store, builds []database.WorkspaceBuild) (map[uuid.UUID]map[string]string, error) {
 	paramsByBuild := make(map[uuid.UUID]map[string]string)
 	buildIDs := make([]uuid.UUID, 0, len(builds))
@@ -73,9 +81,18 @@ func agentRelayBuildParameters(ctx context.Context, db database.Store, builds []
 	if len(buildIDs) == 0 {
 		return paramsByBuild, nil
 	}
-	params, err := db.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams{
+	params, err := db.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams{
 		WorkspaceBuildIds: buildIDs,
-		NamePrefix:        agentRelayParameterPrefix,
+		Names: []string{
+			agentRelayParameterSessionID,
+			agentRelayParameterPool,
+			agentRelayParameterAttempt,
+			agentRelayParameterClientPlatform,
+		},
+		NamePrefixes: []string{
+			agentRelayParameterClaudeCodePrefix,
+			agentRelayParameterCursorPrefix,
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get agent relay workspace build parameters: %w", err)
@@ -89,9 +106,9 @@ func agentRelayBuildParameters(ctx context.Context, db database.Store, builds []
 	return paramsByBuild, nil
 }
 
-// convertWorkspaceBuildAgentRelay returns nil unless the parameters mark the
-// build as dispatched by Agent Relay. Session ID and pool are hashed because
-// the pool name is user content and the session ID only needs to be counted.
+// convertWorkspaceBuildAgentRelay returns nil unless the build has a
+// non-empty relay session ID. The pool is hashed because it is user content,
+// and the session ID because it only needs to be counted.
 func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBuildAgentRelay {
 	sessionID, ok := parameters[agentRelayParameterSessionID]
 	if !ok || sessionID == "" {
@@ -99,22 +116,36 @@ func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBui
 	}
 	relay := &WorkspaceBuildAgentRelay{
 		Provider:       agentRelayProvider(parameters),
-		ClientPlatform: parameters[agentRelayParameterClientPlatform],
+		ClientPlatform: normalizeAgentRelayClientPlatform(parameters[agentRelayParameterClientPlatform]),
 		SessionIDHash:  fmt.Sprintf("%x", sha256.Sum256([]byte(sessionID))),
 	}
 	if pool := parameters[agentRelayParameterPool]; pool != "" {
 		relay.PoolHash = fmt.Sprintf("%x", sha256.Sum256([]byte(pool)))
 	}
 	if attempt, err := strconv.Atoi(parameters[agentRelayParameterAttempt]); err == nil {
-		relay.Attempt = attempt
+		relay.Attempt = &attempt
 	}
 	return relay
 }
 
-// agentRelayProvider reports which provider's parameters the build carries.
-// Only names matter: coderd stores a row for every parameter the template
-// declares, so ephemeral provider parameters stay present, with their
-// default value, on stop and restart builds.
+func normalizeAgentRelayClientPlatform(platform string) string {
+	platform = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
+			return r
+		default:
+			return '_'
+		}
+	}, strings.ToLower(platform))
+	if len(platform) > agentRelayClientPlatformMaxLength {
+		platform = platform[:agentRelayClientPlatformMaxLength]
+	}
+	return platform
+}
+
+// agentRelayProvider only looks at names: coderd stores a row for every
+// parameter the template declares, so ephemeral provider parameters stay
+// present, with their default value, on later builds.
 func agentRelayProvider(parameters map[string]string) AgentRelayProvider {
 	var claudeCode, cursor bool
 	for name := range parameters {

@@ -5393,12 +5393,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceBuildsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceBuildParametersByBuildIDsAndNamePrefix", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams{
+	s.Run("GetWorkspaceBuildParametersByBuildIDsAndNames", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams{
 			WorkspaceBuildIds: []uuid.UUID{uuid.New()},
-			NamePrefix:        "agent_relay_",
+			Names:             []string{"agent_relay_session_id"},
+			NamePrefixes:      []string{"agent_relay_cursor_"},
 		}
-		dbm.EXPECT().GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(gomock.Any(), arg).Return([]database.WorkspaceBuildParameter{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildParametersByBuildIDsAndNames(gomock.Any(), arg).Return([]database.WorkspaceBuildParameter{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

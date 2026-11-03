@@ -4064,11 +4064,11 @@ func (m queryMetricsStore) GetWorkspaceBuildParameters(ctx context.Context, work
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]database.WorkspaceBuildParameter, error) {
+func (m queryMetricsStore) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]database.WorkspaceBuildParameter, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParametersByBuildIDsAndNamePrefix").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildParametersByBuildIDsAndNamePrefix").Inc()
+	r0, r1 := m.s.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParametersByBuildIDsAndNames").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildParametersByBuildIDsAndNames").Inc()
 	return r0, r1
 }
 

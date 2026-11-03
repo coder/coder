@@ -40244,25 +40244,33 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 	return items, nil
 }
 
-const getWorkspaceBuildParametersByBuildIDsAndNamePrefix = `-- name: GetWorkspaceBuildParametersByBuildIDsAndNamePrefix :many
+const getWorkspaceBuildParametersByBuildIDsAndNames = `-- name: GetWorkspaceBuildParametersByBuildIDsAndNames :many
 SELECT
     workspace_build_id, name, value
 FROM
     workspace_build_parameters
 WHERE
     workspace_build_id = ANY($1 :: uuid[])
-    AND starts_with(name, $2 :: text)
+    AND (
+        name = ANY($2 :: text[])
+        OR EXISTS (
+            SELECT 1 FROM unnest($3 :: text[]) AS prefix
+            WHERE starts_with(name, prefix)
+        )
+    )
 `
 
-type GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams struct {
+type GetWorkspaceBuildParametersByBuildIDsAndNamesParams struct {
 	WorkspaceBuildIds []uuid.UUID `db:"workspace_build_ids" json:"workspace_build_ids"`
-	NamePrefix        string      `db:"name_prefix" json:"name_prefix"`
+	Names             []string    `db:"names" json:"names"`
+	NamePrefixes      []string    `db:"name_prefixes" json:"name_prefixes"`
 }
 
-// starts_with is used instead of LIKE so an underscore in the prefix is
-// matched literally rather than as a wildcard.
-func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]WorkspaceBuildParameter, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParametersByBuildIDsAndNamePrefix, pq.Array(arg.WorkspaceBuildIds), arg.NamePrefix)
+// Matches parameters whose name is in names or starts with one of
+// name_prefixes. starts_with is used instead of LIKE so an underscore in a
+// prefix is matched literally rather than as a wildcard.
+func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]WorkspaceBuildParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParametersByBuildIDsAndNames, pq.Array(arg.WorkspaceBuildIds), pq.Array(arg.Names), pq.Array(arg.NamePrefixes))
 	if err != nil {
 		return nil, err
 	}
