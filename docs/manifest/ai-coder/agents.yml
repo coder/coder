@@ -10,8 +10,12 @@ children:
     path: ./ai-coder/agents/architecture.md
   - include: ai-coder/agents/platform-controls.yml
   - title: Extending agents
-    description: Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.
+    description: Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.
     path: ./ai-coder/agents/extending-agents.md
+  - title: ACP subagents
+    description: Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.
+    path: ./ai-coder/agents/acp-subagents.md
+    state: [early access]
   - title: Models
     description: Configure the LLM providers and models that power Coder Agents from Admin settings.
     path: ./ai-coder/agents/models.md
