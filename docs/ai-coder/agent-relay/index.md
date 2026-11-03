@@ -82,17 +82,8 @@ One Agent Relay process can serve pools for both providers.
 
 ## Requirements
 
-- A Coder deployment with a Premium license, on version 2.39 or later.
-- Agent Relay v0.14.0 or later.
-- A Coder service account with a long-lived token.
-- A workspace template for each pool that includes the provider's [Agent Relay module](https://registry.coder.com/modules?search=tag%3Aagent-relay).
-- Provisioner capacity for Agent Relay builds.
-- Somewhere to run the Agent Relay container, such as a Kubernetes cluster or a Docker host.
-
-The daemon is distributed as a public container image and Helm chart:
-
-- Image: `ghcr.io/coder/agent-relay`, tagged `X.Y.Z`, `X.Y`, and `latest` for each release.
-- Helm chart: `oci://ghcr.io/coder/chart/coder-agent-relay`, versioned to match the image it deploys.
+Agent Relay requires a Premium license, Coder 2.39 or later, Agent Relay v0.14.0 or later, and a plan with a [supported provider](#supported-providers).
+For the full list, refer to [Before you begin](./setup.md#before-you-begin).
 
 ## Known limitations
 

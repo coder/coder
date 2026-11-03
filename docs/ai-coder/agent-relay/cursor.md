@@ -37,6 +37,9 @@ Refer to [Cursor's team pools documentation](https://cursor.com/docs/cloud-agent
 
 ## Configure a Cursor pool
 
+These steps are [Step 4 of Set up Agent Relay](./setup.md#step-4-configure-provider-pools).
+When you finish them, return to [Step 5: Install Agent Relay](./setup.md#step-5-install-agent-relay).
+
 ### Step 1: Allow self-hosted machines
 
 A Cursor team admin must turn on **Allow Self-Hosted Machines** in the Cursor Cloud Agents dashboard.
@@ -106,9 +109,7 @@ Use the latest module version from the registry.
 > [!NOTE]
 > Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
 > Do not set `AGENT_RELAY_CURSOR_TOKEN` in the template yourself.
-> If you're upgrading from 0.7.0 or earlier, upgrade Coder, then Agent Relay, then move templates to 1.0.0 one at a time.
-> Templates on 0.7.0 keep working in the meantime.
-> To roll back Coder or Agent Relay, pin templates back to 0.7.0 first.
+> To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
 The template must also meet the [template requirements](./setup.md#step-3-prepare-a-workspace-template) that apply to every provider.
 To keep the worker from starting before your startup scripts finish, order the module after them, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
@@ -180,7 +181,7 @@ Agent Relay refuses to start if:
 - Two pools that share an API key use the same `cursor_pool_name`.
 - A `dispatch_deadline` is longer than 15&nbsp;minutes.
 - An `idle_release_timeout` has no unit, such as `600`, or isn't whole seconds.
-  If you're upgrading from v0.13.0 or earlier, convert seconds to a duration, such as `10m` for `600`.
+  If you're upgrading from early access, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
 Agent Relay rejects a `template_parameters` entry that uses a name it sets on every build: `agent_relay_session_id`, `agent_relay_delivery_id`, `agent_relay_pool`, `agent_relay_cursor_pool_name`, `agent_relay_cursor_repo_url`, `agent_relay_credential`, `agent_relay_cursor_idle_release_timeout`, or `agent_relay_cursor_credential_kind`.
 

@@ -41,6 +41,9 @@ Anthropic calls this unit an *environment* in claude.ai and a *pool* in its API,
 
 ## Configure a Claude Code pool
 
+These steps are [Step 4 of Set up Agent Relay](./setup.md#step-4-configure-provider-pools).
+When you finish them, return to [Step 5: Install Agent Relay](./setup.md#step-5-install-agent-relay).
+
 > [!IMPORTANT]
 > Steps 1 and 2 require an Owner of your Anthropic organization.
 
@@ -117,9 +120,7 @@ Use the latest module version from the registry.
 > [!NOTE]
 > Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
 > Do not set `SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET` in the template yourself.
-> If you're upgrading from 0.4.0 or earlier, upgrade Coder, then Agent Relay, then move templates to 1.0.0 one at a time.
-> Templates on 0.4.0 keep working in the meantime.
-> To roll back Coder or Agent Relay, pin templates back to 0.4.0 first.
+> To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
 The template must also meet the [template requirements](./setup.md#step-3-prepare-a-workspace-template) that apply to every provider.
 To keep the worker from starting before your startup scripts finish, order the module after them, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).

@@ -58,13 +58,6 @@ These can come from the template's access control list instead of a role.
 The `organization-admin` role in each organization covers all of these permissions.
 To grant less, create an organization-scoped [custom role](../../admin/users/groups-roles.md#custom-roles) with only the permissions above.
 
-Agent Relay needs `workspace` `update` to extend the autostop deadline of workspaces with an active session.
-It checks for this permission in every organization at startup, even if no template uses keepalive.
-
-Agent Relay delivers each session's provider credential to the workspace as an ephemeral workspace build secret, which is why it needs `workspace_secret` permissions.
-It checks the Coder version once, at startup, to decide how to deliver credentials, and logs the result as `build_secrets` on its `authenticated against coderd` line.
-Restart Agent Relay after you upgrade Coder.
-
 1. Create the service account in the organization that Agent Relay serves:
 
    ```shell
@@ -97,6 +90,13 @@ For example, a service account without the `workspace_secret` `create` permissio
 Agent Relay verifies template permissions per pool.
 A missing template permission degrades only that pool, and the pool recovers when you fix the template.
 
+Why Agent Relay needs some of these permissions:
+
+- `workspace` `update` lets it extend the autostop deadline of workspaces with an active session.
+  It checks for this permission in every organization at startup, even if no template uses keepalive.
+- `workspace_secret` `create` lets it deliver each session's provider credential to the workspace as an ephemeral workspace build secret.
+  Agent Relay checks the Coder version once, at startup, to decide how to deliver credentials, so restart Agent Relay after you upgrade Coder.
+
 ## Step 2: Provision capacity for Agent Relay
 
 Agent Relay builds run on your Coder provisioners, and time spent waiting for a free provisioner counts against each session's build deadline.
@@ -115,7 +115,33 @@ To run a dedicated set of provisioners on Kubernetes:
    coder provisioner keys create relay-key --org <org> --tag workload=agent-relay
    ```
 
-1. Store the key in a Kubernetes secret.
+   Copy the key from the output.
+   Coder shows it once.
+
+1. Store the key in a Kubernetes secret:
+
+   ```shell
+   kubectl create secret generic agent-relay-provisioner-key \
+     --namespace coder \
+     --from-literal=key="<provisioner-key>"
+   ```
+
+1. Create a `provisioner-values.yaml` file:
+
+   ```yaml
+   coder:
+     env:
+       - name: CODER_URL
+         value: "https://coder.example.com"
+     # One provisioner runs one build at a time.
+     replicaCount: 10
+   provisionerDaemon:
+     pskSecretName: ""
+     keySecretName: agent-relay-provisioner-key
+     keySecretKey: key
+   ```
+
+   The provisioners pick up the `workload=agent-relay` tag from the key.
 
 1. Install the `coder-provisioner` Helm chart with a version that matches your Coder server version:
 
@@ -299,6 +325,7 @@ It needs no writable path and no baked-in configuration.
    docker run --rm \
      -e CODER_AGENT_RELAY_CODERD_SESSION_TOKEN="$RELAY_TOKEN" \
      -e CLAUDE_ENVIRONMENT_SECRET \
+     -e CURSOR_SERVICE_ACCOUNT_KEY \
      -e CODER_AGENT_RELAY_PROMETHEUS_ENABLE=true \
      -e CODER_AGENT_RELAY_PROMETHEUS_ADDRESS=0.0.0.0:2112 \
      -e CODER_AGENT_RELAY_CONFIG_PATH=/etc/agent-relay/config.yaml \
@@ -306,6 +333,8 @@ It needs no writable path and no baked-in configuration.
      -p 2112:2112 \
      ghcr.io/coder/agent-relay:<version>
    ```
+
+   Pass one `-e` flag for each pool's `secret_env` variable, and leave out the providers you don't serve.
 
 Set the session token with `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`.
 Do not put it in `config.yaml`.
@@ -326,12 +355,18 @@ An invalid token, an unlicensed deployment, an unsupported Coder version, or a m
 1. Read the daemon's logs:
 
    ```shell
+   # Kubernetes
    kubectl logs -n coder deploy/coder-agent-relay
+
+   # Docker
+   docker logs <container>
    ```
 
 1. Confirm that the `authenticated against coderd` log line shows `build_secrets=true`.
 
-1. Confirm that each pool logs that its template is verified and the pool is serving.
+1. Confirm that each pool logs that it's ready.
+
+   A Claude Code pool logs `template verified, polling`, and a Cursor pool logs `pool verified, serving`.
 
 1. Confirm that Agent Relay is ready.
    With Helm, the pod becomes `Ready` only after at least one pool passes verification.
@@ -395,6 +430,26 @@ To change these durations, set [`--reap-keepalive-refresh-before` and `--reap-ke
 - Keepalive requires module version 1.0.0 or later and Agent Relay v0.14.0 or later.
 
 Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` for Cursor.
+
+## Upgrade from early access
+
+Agent Relay v0.14.0 and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
+Templates on an early access module version, `agent-relay-claude-code` 0.4.0 or earlier or `agent-relay-cursor` 0.7.0 or earlier, keep working until you move them.
+
+1. Upgrade Coder to 2.39 or later.
+
+1. Grant the service account `workspace` `update` and `workspace_secret` `create` in every organization that a pool names.
+
+   Agent Relay v0.14.0 doesn't start without them.
+   The `organization-admin` role already includes both.
+
+1. Convert each Cursor pool's `idle_release_timeout` from seconds to a duration, such as `10m` for `600`.
+
+1. Upgrade Agent Relay to v0.14.0 or later.
+
+1. Move templates to module version 1.0.0 one at a time.
+
+To roll back Coder or Agent Relay, pin templates back to their early access module version first.
 
 ## Learn more
 
