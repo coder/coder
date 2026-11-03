@@ -10,7 +10,7 @@ It guides you through selecting base infrastructure, adding modules, and configu
 ## Learn the concepts
 
 While templates are written in standard Terraform, it's important to learn the Coder-specific concepts behind templates.
-The best way to learn the concepts is by [creating a basic template from scratch](template-from-scratch.md).
+The best way to learn the concepts is by [creating a basic template from scratch](./template-from-scratch.md).
 If you are unfamiliar with Terraform, see [HashiCorp's Tutorials](https://developer.hashicorp.com/terraform/tutorials) for common cloud providers.
 
 ## Create a template

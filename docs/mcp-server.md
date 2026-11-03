@@ -105,9 +105,9 @@ CODER_OAUTH2_PROVIDER_ENABLE=true
 CODER_EXPERIMENTS=mcp-server-http
 ```
 
-For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
+For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](./admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
 That page does not cover the experiment.
-Set it with the top-level [`experiments`](reference/cli/server/index.md#--experiments) YAML key.
+Set it with the top-level [`experiments`](./reference/cli/server/index.md#--experiments) YAML key.
 
 ### MCP Registry
 
@@ -176,7 +176,7 @@ This metadata identifies the full MCP endpoint URL as the `resource`, for exampl
 > [!NOTE]
 > OAuth2 requires `CODER_OAUTH2_PROVIDER_ENABLE=true` on your Coder deployment.
 >
-> [Dynamic Client Registration (DCR)](admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is off by default and must be enabled before clients can self-register.
+> [Dynamic Client Registration (DCR)](./admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is off by default and must be enabled before clients can self-register.
 
 ### Session Token (For Programmatic Access)
 
@@ -229,6 +229,6 @@ Clients that support prompts surface them for you to invoke, for example as slas
 ### OAuth2 authentication not working
 
 - Ensure your Coder deployment has `CODER_OAUTH2_PROVIDER_ENABLE=true` set
-- If your client registers itself automatically, ensure [Dynamic Client Registration](admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is enabled
+- If your client registers itself automatically, ensure [Dynamic Client Registration](./admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is enabled
 - Verify your MCP client supports RFC 9728 Protected Resource Metadata
 - Check that your browser can reach the Coder authorization endpoint

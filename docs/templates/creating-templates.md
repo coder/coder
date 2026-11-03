@@ -79,7 +79,7 @@ The template builder's first step also links to alternative creation paths:
 - **Upload an existing template**:
   Upload a `.tar.gz` or `.zip` of Terraform files you have authored locally.
 - **Start from scratch**:
-  Follow the [template from scratch tutorial](template-from-scratch.md) to write Terraform by hand.
+  Follow the [template from scratch tutorial](./template-from-scratch.md) to write Terraform by hand.
 - **Browse community templates**:
   Browse the [Coder Registry](https://registry.coder.com/templates) for community and official templates.
 
@@ -192,7 +192,7 @@ You can use [any Terraform provider](https://registry.terraform.io) with Coder t
 
 Refer to the following resources:
 
-- [Tutorial: Create a template from scratch](template-from-scratch.md)
+- [Tutorial: Create a template from scratch](./template-from-scratch.md)
 - [Extending templates](./extending-templates/index.md): Features and concepts around templates (agents, parameters, variables, and so on)
 - [Coder Registry](https://registry.coder.com/templates): Official and community templates for Coder
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)

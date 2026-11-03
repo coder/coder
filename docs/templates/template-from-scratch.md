@@ -3,7 +3,7 @@ title: Write a template from scratch
 ---
 
 > [!TIP]
-> If you want to create a template without writing Terraform, use the [template builder](creating-templates.md#template-builder) instead.
+> If you want to create a template without writing Terraform, use the [template builder](./creating-templates.md#template-builder) instead.
 > The builder guides you through selecting base infrastructure and adding modules through a visual interface.
 
 A template is a common configuration that you use to deploy workspaces.
@@ -181,7 +181,7 @@ This template's agent also runs a startup script, sets environment variables, an
     We use the data source from `coder_workspace` to set the environment variables based on the workspace's owner.
     This way, the owner can make git commits immediately without any manual configuration.
 
-- [`metadata`](extending-templates/agent-metadata.md) blocks
+- [`metadata`](./extending-templates/agent-metadata.md) blocks
 
   - Your template can use metadata to show information to the workspace owner Coder displays this metadata in the Coder dashboard.
 
@@ -253,7 +253,7 @@ resource "docker_volume" "home_volume" {
 }
 ```
 
-For details, see [Resource persistence](extending-templates/resource-persistence.md).
+For details, see [Resource persistence](./extending-templates/resource-persistence.md).
 
 ## 6. Set up the Docker container
 
@@ -402,6 +402,6 @@ You can upload the template through the CLI, or through the Coder dashboard:
 
 ### Next steps
 
-- [Setting up templates](index.md)
-- [Customizing templates](extending-templates/index.md)
-- [Troubleshooting template](troubleshooting.md)
+- [Setting up templates](./index.md)
+- [Customizing templates](./extending-templates/index.md)
+- [Troubleshooting template](./troubleshooting.md)
