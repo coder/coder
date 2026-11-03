@@ -366,8 +366,8 @@ importers:
         specifier: 4.22.3
         version: 4.22.3
       jest-canvas-mock:
-        specifier: 2.5.2
-        version: 2.5.2
+        specifier: 2.5.8
+        version: 2.5.8
       jest-websocket-mock:
         specifier: 2.5.0
         version: 2.5.0
@@ -4830,8 +4830,8 @@ packages:
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==, tarball: https://registry.npmjs.org/jackspeak/-/jackspeak-3.4.3.tgz}
 
-  jest-canvas-mock@2.5.2:
-    resolution: {integrity: sha512-vgnpPupjOL6+L5oJXzxTxFrlGEIbHdZqFU+LFNdtLxZ3lRDCl17FlTMM7IatoRQkrcyOTMlDinjUguqmQ6bR2A==, tarball: https://registry.npmjs.org/jest-canvas-mock/-/jest-canvas-mock-2.5.2.tgz}
+  jest-canvas-mock@2.5.8:
+    resolution: {integrity: sha512-RUZRaFHCnLjg0/UAodCai5PTsa7kQI1rUXE5wsQu9f2315dh2YSN7/i3fObTycs7PO09DLSiGXiJTALYIw2yuw==, tarball: https://registry.npmjs.org/jest-canvas-mock/-/jest-canvas-mock-2.5.8.tgz}
 
   jest-diff@29.6.2:
     resolution: {integrity: sha512-t+ST7CB9GX5F2xKwhwCf0TAR17uNDiaPTZnVymP9lw0lssa9vG+AFyDZoeIHStU3WowFFwT+ky+er0WVl2yGhA==, tarball: https://registry.npmjs.org/jest-diff/-/jest-diff-29.6.2.tgz}
@@ -11157,7 +11157,7 @@ snapshots:
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
 
-  jest-canvas-mock@2.5.2:
+  jest-canvas-mock@2.5.8:
     dependencies:
       cssfontparser: 1.2.1
       moo-color: 1.0.3

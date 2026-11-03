@@ -158,7 +158,7 @@
 		"babel-plugin-react-compiler": "1.0.0",
 		"dpdm": "3.15.1",
 		"express": "4.22.3",
-		"jest-canvas-mock": "2.5.2",
+		"jest-canvas-mock": "2.5.8",
 		"jest-websocket-mock": "2.5.0",
 		"jsdom": "27.2.0",
 		"knip": "5.71.0",
