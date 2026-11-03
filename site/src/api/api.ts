@@ -40,7 +40,6 @@ import * as TypesGen from "./typesGenerated";
 
 /**
  * Originally from codersdk/client.go.
- * The below declaration is required to stop Knip from complaining.
  * @public
  */
 export const SessionTokenCookie = "coder_session_token";

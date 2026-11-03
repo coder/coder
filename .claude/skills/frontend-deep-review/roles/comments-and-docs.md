@@ -72,7 +72,7 @@ FE parent: FE4
 
 Look for:
 
-- A `@public` tag or a "Consumed by ... in a higher stack layer" note on an export that nothing outside the PR stack uses. knip skips exports tagged `@public`, so the tag hides dead code. Keep `@public` where a named external consumer needs the export, as in `site/src/api/api.ts`.
+- A `@public` tag or a "Consumed by ... in a higher stack layer" note on an export that nothing outside the PR stack uses. fallow skips exports tagged `@public`, so the tag hides dead code. Keep `@public` where a named external consumer needs the export, as in `site/src/api/api.ts`.
 - A type or interface doc block that describes what each method does instead of the method's own JSDoc doing it; a call-site comment in a test or page that explains a helper's behavior instead of sitting on the helper's definition.
 - Frontend doc comments that describe callers ("used on the org members editor") or coderd internals (which endpoint populates which field); both belong with the code they describe, or nowhere. The values the frontend must handle are the exception CD2 keeps.
 - Module-level or config-file prose placed away from the section it governs (a cleanup note at the top of a file whose cleanup section sits at the bottom, a one-line policy at line 1 of a 300-line module).

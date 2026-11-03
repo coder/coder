@@ -1,0 +1,27 @@
+{
+	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/v3.38.1/schema.json",
+	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
+	"ignoreFindings": [
+		"**/*Generated.ts",
+		// Vendored upstream code keeps its upstream exports.
+		"src/vendor/**"
+	],
+	"ignoreDependencies": [
+		"@babel/plugin-syntax-typescript",
+		"@shadcn/lint",
+		"@tailwindcss/typography",
+		"ts-proto"
+	],
+	"typeAware": {
+		"enabled": true
+	},
+	"rules": {
+		// Exporting every type a public signature references widens module
+		// surface without a consumer.
+		"private-type-leaks": "off"
+	},
+	"audit": {
+		// Growing a function that is already over a threshold fails like a new one.
+		"worsened": "error"
+	}
+}

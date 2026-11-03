@@ -88,7 +88,7 @@ Look for:
 
 - A new module in the hundreds of lines (`@@ -0,0 +1,678 @@`) landing with its first consumers and a bug fix in one diff; ask whether the design is the simplest that meets the stated need and whether an existing dependency covers part of it.
 - Bug fixes or behavior changes buried inside a large refactor diff (see RO5); on a big diff the reviewers refuse to review them in place.
-- Split stacks that leave exports unused in the current PR and suppress the lint (`site/.knip.jsonc` exclusions with "staged in PR n" comments): each slice should be self-contained, so move the export into the slice that first uses it instead of suppressing the lint.
+- Split stacks that leave exports unused in the current PR and suppress the lint (`site/.fallowrc.jsonc` `ignoreFindings` entries or `fallow-ignore` comments with "staged in PR n" notes): each slice should be self-contained, so move the export into the slice that first uses it instead of suppressing the lint.
 
 Fix: split by concern (infrastructure, consumers, fixes) into a stack of PRs each reviewable on its own, with no lint exclusions carrying dead exports between slices.
 
@@ -97,5 +97,5 @@ Fix: split by concern (infrastructure, consumers, fixes) into a stack of PRs eac
 - Hand-rolled runtime type guards (`typeof record.x === "string" && ...`) versus yup schemas: RO owns "use the existing library", but the narrowing and type-predicate correctness belongs to TN.
 - Manual `scrollIntoView` where the primitive scrolls natively: RP owns the effect, SA asks whether CSS replaces it.
 - A story file defining a dozen helper components: RO flags the copies of real components, but story structure and what a story should contain is TS.
-- Knip exclusions carrying unused exports between stacked PRs: dead-code ownership is SD.
+- fallow dead-code suppressions carrying unused exports between stacked PRs: dead-code ownership is SD.
 - Whether a visual change to a shared `Select` or `OrganizationAutocomplete` looks right: SA; RO5 only asks that a shared component change that alters current callers move to its own PR.
