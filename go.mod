@@ -250,7 +250,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.26.2
@@ -590,6 +590,7 @@ require (
 
 require (
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 
