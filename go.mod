@@ -76,45 +76,28 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202603091
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
-// Forked from coder/fantasy (coder_2_33) which adds:
-// 1) Anthropic computer use + thinking effort
-// 2) Go 1.25 downgrade for Windows CI compat
-// 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
-// 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
-// 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
-// 6) Anthropic EffortXHigh constant for Claude Opus 4.7
-// 7) coder/fantasy#mike/openai-responses-continuity, OpenAI Responses replay safety:
-//    replay stored reasoning item references, only replay web_search references
-//    when paired with reasoning, and validate function_call output pairing.
-// 8) coder/fantasy#33, fail closed when Anthropic or OpenAI Responses
-//    streams close before their terminal events.
-// 9) coder/fantasy#35, preserve Anthropic replay fidelity for signed
-//    reasoning and provider-executed web_search error results.
-// 10) coder/fantasy#37, cherry-pick of upstream charmbracelet/fantasy#197:
-//     emit a Base64 PDF document block for application/pdf FileParts on the
-//     Anthropic provider so user-uploaded PDFs actually reach Claude/Bedrock
-//     instead of being silently dropped.
-// 11) coder/fantasy#38, forward PDF and text filenames as a sanitized
-//     Anthropic document title so Claude can refer to attachments by
-//     name, and warn on unsupported FilePart media types instead of
-//     silently dropping them.
-// 12) coder/fantasy#39, support Anthropic thinking_display natively.
-// 13) coder/fantasy#42, sync upstream charmbracelet/fantasy main (v0.31.0)
-//     into coder_2_33.
-// 14) coder/fantasy bedrock: mirror the request region when prefixing
-//     cross-region inference profiles so the model-ID prefix matches the
-//     region the request is actually signed for.
-// 15) coder/fantasy#41, surface Anthropic refusal stop_reason as
-//     content-filter.
-// 16) coder/fantasy#46, route the gpt-5.6 family (sol, terra, luna)
-//     through the OpenAI Responses API.
-// 17) coder/fantasy#47, convert Anthropic reasoning effort to enabled
-//     budget thinking on pre-4.6 models instead of sending adaptive
-//     thinking, which those models reject with an HTTP 400, and send
-//     an explicit thinking disable for effort none on Claude 5+ models
-//     that otherwise run adaptive thinking by default.
-// See: https://github.com/coder/fantasy/commits/a63de4b40315
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260718195754-a63de4b40315
+// Forked from coder/fantasy (coder_2_33), synced with upstream
+// charmbracelet/fantasy v0.40.0 (coder/fantasy#51). Remaining fork-only
+// patches on top of upstream:
+// 1) OpenAI computer use support (coder/fantasy#32).
+// 2) coder/fantasy#31, OpenAI Responses replay safety: replay stored
+//    reasoning item references, only replay web_search references when
+//    paired with reasoning, and validate function_call output pairing.
+// 3) coder/fantasy#47, convert Anthropic reasoning effort to enabled
+//    budget thinking on pre-4.6 models instead of sending adaptive
+//    thinking, which those models reject with an HTTP 400, and send
+//    an explicit thinking disable for effort none on Claude 5+ models
+//    that otherwise run adaptive thinking by default.
+// 4) coder/fantasy#41 (metadata half), parse Anthropic refusal
+//    stop_details into RefusalMetadata; the finish-reason mapping
+//    itself is upstream.
+// 5) coder/fantasy bedrock: mirror the request region when prefixing
+//    cross-region inference profiles so the model-ID prefix matches the
+//    region the request is actually signed for.
+// 6) go.mod replaces pointing anthropic-sdk-go and openai-go at the
+//    coder forks below.
+// See: https://github.com/coder/fantasy/commits/bb10946892ef
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260810175832-bb10946892ef
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -226,9 +209,9 @@ require (
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.7
 	github.com/prometheus-community/pro-bing v0.9.0
-	github.com/prometheus/client_golang v1.24.0
+	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.70.0
+	github.com/prometheus/common v0.70.1
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.26.2
@@ -342,7 +325,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dop251/goja v0.0.0-20241024094426-79f3a7efcdbd // indirect
 	github.com/dustin/go-humanize v1.0.1
-	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
@@ -487,7 +470,7 @@ require (
 	go.opentelemetry.io/contrib v1.19.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13 // indirect
@@ -496,8 +479,8 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d // indirect
+	google.golang.org/genproto v0.0.0-20260729162451-8efbd57d26e0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260729162451-8efbd57d26e0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	howett.net/plist v1.0.1 // indirect
@@ -522,7 +505,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
-	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -579,9 +562,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0 // indirect
 	github.com/DataDog/dd-trace-go/v2 v2.8.1 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.59.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.59.0 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.7.0-default-no-op // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
@@ -599,9 +582,7 @@ require (
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/charmbracelet/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab // indirect
-	github.com/charmbracelet/openai-go v0.0.0-20260319145158-d0740cc34266 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250904123553-b4e2667e5ad5 // indirect
-	github.com/charmbracelet/x/json v0.2.0 // indirect
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
@@ -637,8 +618,8 @@ require (
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/joho/godotenv v1.5.1
-	github.com/kaptinlin/jsonpointer v0.4.26 // indirect
-	github.com/kaptinlin/jsonschema v0.8.0 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.28 // indirect
+	github.com/kaptinlin/jsonschema v0.9.8 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c // indirect
 	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
@@ -685,7 +666,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
 	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
-	google.golang.org/genai v1.60.0 // indirect
+	google.golang.org/genai v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d // indirect
 	mvdan.cc/gofumpt v0.8.0 // indirect

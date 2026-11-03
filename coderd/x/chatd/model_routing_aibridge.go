@@ -170,7 +170,7 @@ func (p *Server) newModel(
 	if err != nil {
 		return nil, err
 	}
-	return newLanguageModel(
+	model, err := newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
@@ -178,6 +178,21 @@ func (p *Server) newModel(
 		extraHeaders,
 		&http.Client{Transport: baseRT},
 	)
+	if err != nil {
+		return nil, err
+	}
+	return p.withThinkingDropBlock(model, route.Provider.ID, anthropicBetaHeader(extraHeaders), req.Chat.ID), nil
+}
+
+// anthropicBetaHeader returns the Anthropic-Beta value in headers,
+// matching the header name case-insensitively.
+func anthropicBetaHeader(headers map[string]string) string {
+	for name, value := range headers {
+		if strings.EqualFold(name, chatprovider.HeaderAnthropicBeta) {
+			return value
+		}
+	}
+	return ""
 }
 
 // mergeConfigBetaHeaders never mutates extraHeaders; existing entries win
