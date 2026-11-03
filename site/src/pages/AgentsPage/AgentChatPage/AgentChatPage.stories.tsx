@@ -687,14 +687,8 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 						question:
 							"How should we structure the database migration for the auth split?",
 						options: [
-							{
-								label: "Single migration",
-								description: "One migration with all changes.",
-							},
-							{
-								label: "Incremental migrations",
-								description: "Multiple sequential migrations.",
-							},
+							{ label: "Use a single migration." },
+							{ label: "Use incremental migrations." },
 						],
 					},
 				],
@@ -704,7 +698,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			type: "tool-result",
 			tool_call_id: "every-ask-user",
 			tool_name: "ask_user_question",
-			result: { questions: [{ answer: "Incremental migrations" }] },
+			result: { questions: [{ answer: "Use incremental migrations." }] },
 		},
 
 		// propose_plan -- proposed plan with content
