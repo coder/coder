@@ -1108,6 +1108,7 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 
 		if err := writeBedrockAnthropicStream(w,
 			`{"type":"message_start","message":{}}`,
+			`{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}`,
 			`{"type":"message_stop"}`,
 		); err != nil {
 			t.Errorf("write bedrock stream: %v", err)

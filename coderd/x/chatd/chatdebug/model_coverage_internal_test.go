@@ -58,6 +58,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 				"Tools":            "normalized",
 				"ToolChoice":       "normalized",
 				"UserAgent":        "skipped: internal transport header, not useful for debug panel",
+				"Headers":          "skipped: transport headers, may carry credentials",
 				"ProviderOptions":  "skipped: opaque provider data, only count preserved",
 			},
 		},
@@ -76,6 +77,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 				"PresencePenalty":   "normalized",
 				"FrequencyPenalty":  "normalized",
 				"UserAgent":         "skipped: internal transport header, not useful for debug panel",
+				"Headers":           "skipped: transport headers, may carry credentials",
 				"ProviderOptions":   "skipped: opaque provider data, only count preserved",
 				"RepairText":        "skipped: function value, not serializable",
 			},
@@ -196,6 +198,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 				"Output":           "normalized: text extracted via normalizeToolResultOutput",
 				"ProviderExecuted": "skipped: provider vs client distinction not needed for debug panel",
 				"ProviderOptions":  "skipped: opaque provider-specific options",
+				"ClientMetadata":   "skipped: client execution metadata not needed for debug panel",
 			},
 		},
 
@@ -262,6 +265,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 				"ClientMetadata":   "skipped: client execution metadata not needed for debug panel",
 				"ProviderExecuted": "skipped: provider vs client distinction not needed for debug panel",
 				"ProviderMetadata": "skipped: opaque provider-specific metadata",
+				"StopTurn":         "skipped: control-flow flag is not rendered in the debug panel",
 			},
 		},
 
