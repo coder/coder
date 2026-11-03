@@ -2883,7 +2883,7 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 			switch streamedCallCount.Add(1) {
 			case 1:
 				return chattest.OpenAIStreamingResponse(
-					chattest.OpenAIToolCallChunk("propose_plan", `{}`),
+					chattest.OpenAIToolCallChunk("propose_plan", `{"path":""}`),
 				)
 			default:
 				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("should not continue")...)
@@ -11907,7 +11907,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 			}
 			proposePlanReached.Store(true)
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("propose_plan", `{}`),
+				chattest.OpenAIToolCallChunk("propose_plan", `{"path":""}`),
 			)
 		default:
 			return chattest.OpenAIStreamingResponse(
