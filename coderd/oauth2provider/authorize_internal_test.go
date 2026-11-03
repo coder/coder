@@ -50,3 +50,9 @@ func TestHashOAuth2State(t *testing.T) {
 			"same state should produce identical hash")
 	})
 }
+
+// Rejection reasons, exported for the oauth2provider_test package.
+var (
+	ReasonBeyondSession    = errBeyondSession.Error()
+	ReasonSessionAllowList = errSessionAllowList.Error()
+)
