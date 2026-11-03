@@ -26,7 +26,10 @@ import {
 	type OrganizationMembersTableProps,
 } from "./OrganizationMembersTable";
 
-type OrganizationMembersPageViewProps = OrganizationMembersTableProps & {
+type OrganizationMembersPageViewProps = Omit<
+	OrganizationMembersTableProps,
+	"filterUsed" | "onResetFilters"
+> & {
 	error: unknown;
 	filterProps: { filter: ReturnType<typeof useFilter> };
 	membersQuery: PaginationResultInfo & {
@@ -72,7 +75,11 @@ export const OrganizationMembersPageView: React.FC<
 					query={membersQuery}
 					paginationUnitLabel={{ singular: "member", plural: "members" }}
 				>
-					<OrganizationMembersTable {...props} />
+					<OrganizationMembersTable
+						{...props}
+						filterUsed={filterProps.filter.used}
+						onResetFilters={() => filterProps.filter.update("")}
+					/>
 				</PaginationContainer>
 			</div>
 		</div>

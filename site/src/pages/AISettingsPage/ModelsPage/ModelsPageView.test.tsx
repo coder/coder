@@ -98,4 +98,17 @@ describe("ModelsPageView", () => {
 		);
 		expect(router.state.location.search).toContain("provider=prov-anthropic");
 	});
+
+	it("clears the search and provider filters when Reset filters is clicked", async () => {
+		const user = userEvent.setup();
+		const { router } = renderModelsPageView(
+			"/ai/settings/models?search=no-such-model&provider=prov-anthropic",
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Reset filters" }),
+		);
+
+		await waitFor(() => expect(router.state.location.search).toBe(""));
+	});
 });

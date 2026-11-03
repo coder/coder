@@ -1,4 +1,3 @@
-import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
@@ -6,7 +5,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { docs } from "#/utils/docs";
 
 type IdpMappingTableProps = {
@@ -36,18 +35,18 @@ export const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 				</TableHeader>
 				<TableBody>
 					{rowCount === 0 ? (
-						<TableEmpty
-							message={`No ${type.toLocaleLowerCase()} mappings`}
-							isCompact
-							cta={
-								<Link
-									href={docs(
-										`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
-									)}
-								>
-									How to setup IdP {type.toLocaleLowerCase()} sync
-								</Link>
+						<TableEmptyState
+							variant="docs"
+							message={`No ${type.toLocaleLowerCase()} mappings configured`}
+							description={
+								type === "Group"
+									? "Automatically assign users to groups based on their identity provider claims."
+									: "Automatically assign roles to users based on their identity provider claims."
 							}
+							docsHref={docs(
+								`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
+							)}
+							docsLabel={`How to set up IdP ${type.toLocaleLowerCase()} sync`}
 						/>
 					) : (
 						children

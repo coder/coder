@@ -331,6 +331,37 @@ export const NoMembers: Story = {
 	},
 };
 
+export const NoMembersMatchingSearch: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					organization: MockDefaultOrganization.name,
+					groupName: MockGroupWithoutMembers.name,
+				},
+				searchParams: { filter: "nobody" },
+			},
+			routing: reactRouterOutlet(
+				{ path: "/organizations/:organization/groups/:groupName" },
+				<GroupMembersPage />,
+			),
+		}),
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			{
+				key: getGroupMembersQueryKey(
+					MockDefaultOrganization.name,
+					MockGroupWithoutMembers.name,
+					{ limit: 25, offset: 0, q: "nobody" },
+				),
+				data: { users: [], count: 0 },
+			},
+			permissionsQuery({ canUpdateGroup: true }),
+			membersQuery({ members: [] }),
+		],
+	},
+};
+
 export const FiltersByMembers: Story = {
 	parameters: {
 		queries: [

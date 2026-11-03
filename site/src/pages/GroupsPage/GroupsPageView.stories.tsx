@@ -437,6 +437,6 @@ export const NoSearchResults: Story = {
 		await expect(
 			canvas.getByText("No groups match your search"),
 		).toBeInTheDocument();
-		expect(canvas.queryByText("No groups yet")).not.toBeInTheDocument();
+		expect(canvas.queryByText("No groups configured")).not.toBeInTheDocument();
 	},
 };

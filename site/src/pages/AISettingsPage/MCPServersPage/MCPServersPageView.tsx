@@ -23,7 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { docs } from "#/utils/docs";
 import { MCPServerRow } from "./components/MCPServerRow";
@@ -150,7 +150,8 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 					{isLoading ? (
 						<TableLoader />
 					) : !error && servers.length === 0 ? (
-						<TableEmpty
+						<TableEmptyState
+							variant="create"
 							message="No MCP servers configured"
 							description="Add a server to give agents access to external tools."
 							cta={
@@ -168,9 +169,10 @@ const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 							}
 						/>
 					) : servers.length > 0 && filteredServers.length === 0 ? (
-						<TableEmpty
+						<TableEmptyState
+							variant="search"
 							message="No servers match your search"
-							description="Try a different search term."
+							onResetFilters={() => setSearchQuery("")}
 						/>
 					) : (
 						filteredServers.map((server) => (

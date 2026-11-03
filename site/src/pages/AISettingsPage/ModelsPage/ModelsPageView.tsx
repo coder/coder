@@ -37,7 +37,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
@@ -262,6 +262,14 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 		});
 	};
 
+	const handleResetFilters = () => {
+		updateSearchParams((params) => {
+			params.delete(SEARCH_PARAM);
+			params.delete(PROVIDER_PARAM);
+			params.delete(PAGE_PARAM);
+		});
+	};
+
 	const handlePageChange = (newPage: number) => {
 		updateSearchParams((params) => {
 			if (newPage <= 1) {
@@ -368,9 +376,10 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 					{isLoading ? (
 						<TableLoader />
 					) : loadError != null ? null : !hasModels ? (
-						<TableEmpty
+						<TableEmptyState
+							variant="create"
 							message="No models configured"
-							description="Configured models will appear here."
+							description="Add a model for your agents to run on."
 							cta={
 								canCreateModel ? (
 									<AddModelDropdown
@@ -381,9 +390,10 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 							}
 						/>
 					) : filteredModels.length === 0 ? (
-						<TableEmpty
-							message="No models match your filters"
-							description="Try a different search term or provider."
+						<TableEmptyState
+							variant="search"
+							message="No models match your search"
+							onResetFilters={handleResetFilters}
 						/>
 					) : (
 						pagedItems.map((model) => (

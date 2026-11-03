@@ -34,6 +34,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
@@ -191,8 +192,17 @@ const OrganizationProvisionerJobsPageView: React.FC<
 										job={j}
 									/>
 								))
+							) : filter.status || filter.ids ? (
+								<TableEmptyState
+									variant="search"
+									message="No provisioner jobs match your search"
+									onResetFilters={() => onFilterChange({ status: "", ids: "" })}
+								/>
 							) : (
-								<TableEmpty message="No provisioner jobs found" />
+								<TableEmptyState
+									variant="default"
+									message="No provisioner jobs found"
+								/>
 							)
 						) : error ? (
 							<TableEmpty

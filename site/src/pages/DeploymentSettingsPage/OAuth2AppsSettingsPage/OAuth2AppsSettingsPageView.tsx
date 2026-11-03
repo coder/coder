@@ -21,7 +21,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tabs,
@@ -195,7 +195,8 @@ const OAuth2AppsSettingsPageView: React.FC<OAuth2AppsSettingsProps> = ({
 							{isLoadingApps ? (
 								<TableLoader />
 							) : !appsError && (!apps || apps.length === 0) ? (
-								<TableEmpty
+								<TableEmptyState
+									variant="create"
 									message="No OAuth2 applications configured"
 									description="Add an application to use Coder as an OAuth2 provider."
 									cta={canCreateApp ? <AddApplicationButton /> : undefined}

@@ -24,7 +24,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	type TemplateFilterState,
@@ -170,20 +170,19 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 						{isLoading || !templates ? (
 							<TableLoader />
 						) : templates.length === 0 ? (
-							<TableEmpty
-								message={
-									filterState.filter.used
-										? "No results matched your search."
-										: "No templates found."
-								}
-								description={
-									filterState.filter.used
-										? undefined
-										: "Create a template before configuring whether Coder Agents can create workspaces."
-								}
-								isCompact
-								className="min-h-52"
-							/>
+							filterState.filter.used ? (
+								<TableEmptyState
+									variant="search"
+									message="No templates match your search"
+									onResetFilters={() => filterState.filter.update("")}
+								/>
+							) : (
+								<TableEmptyState
+									variant="default"
+									message="No templates found."
+									description="Create a template before configuring whether Coder Agents can create workspaces."
+								/>
+							)
 						) : (
 							templates.map((template) => (
 								<TemplateRow
