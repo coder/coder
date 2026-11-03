@@ -716,7 +716,7 @@ func TestProvision_TextFileBusy(t *testing.T) {
 			require.NoError(t, err)
 			defer l.Close()
 			handlerCalled := 0
-			// nolint: gosec
+			//nolint:gosec // Test server on a unix socket does not need timeouts.
 			srv := &http.Server{
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					assert.Equal(t, "/debug/pprof/goroutine", r.URL.Path)
