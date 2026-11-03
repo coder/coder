@@ -63,6 +63,7 @@ jobs:
     name: Build and publish
     needs: [check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: release
     permissions:
       # Required to publish a release
       contents: write
@@ -179,6 +180,8 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
+        with:
+          use-cache: "false"
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
@@ -559,8 +562,12 @@ jobs:
             ./build/*.apk
             ./build/*.deb
             ./build/*.rpm
-            "./coder_${VERSION}_sbom.spdx.json"
           )
+
+          # The SBOM is only generated for real releases.
+          if [[ $CODER_DRY_RUN != *t* ]]; then
+            files+=("./coder_${VERSION}_sbom.spdx.json")
+          fi
 
           # Only include the latest SBOM file if it was created
           if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
@@ -668,6 +675,7 @@ jobs:
   publish-homebrew:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
+    environment: release-publish
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
 
@@ -744,6 +752,7 @@ jobs:
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
+    environment: release-publish
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
 
