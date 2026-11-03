@@ -332,7 +332,7 @@ const OverviewListSection = <T,>({
 				>
 					{expanded
 						? `Show fewer ${title.toLowerCase()}`
-						: `Show ${hiddenCount} more ${title.toLowerCase()}`}
+						: `Show all ${items.length} ${title.toLowerCase()}`}
 				</button>
 			)}
 		</OverviewSection>
