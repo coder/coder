@@ -124,7 +124,7 @@
 		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.63.0",
 		"@rolldown/plugin-babel": "0.2.3",
-		"@shadcn/lint": "0.2.0",
+		"@shadcn/lint": "0.2.3",
 		"@storybook/addon-a11y": "10.6.2",
 		"@storybook/addon-docs": "10.6.2",
 		"@storybook/addon-links": "10.6.2",
