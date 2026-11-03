@@ -46,6 +46,11 @@ The `error_description` opens with the requested name that caused the rejection:
   This description stands alone.
   Dynamic Client Registration drops unsupported names before storing, so this applies to an allowlist set through the web UI or the management API, or to an application that registered before names were checked.
   Such a value was never checked against the catalog, so the response never echoes it; the `coderd` log records the application ID.
+- `scope requests permissions beyond the signed-in session`: the session authorizing the request does not hold that scope.
+  Authorize from a browser session, which holds every scope.
+- `the signed-in session is restricted to an allow list`: the session authorizing the request has an allow list other than `*:*`.
+  Authorize from a browser session, which has none.
+  This description stands alone.
 
 Omitting `scope` requests the application's allowlist, or full access if it has none.
 
