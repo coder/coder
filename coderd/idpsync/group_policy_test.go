@@ -120,8 +120,7 @@ var relaxedActionVectors = []relaxedActionVector{
 	{code: codersdk.GroupSyncFindingMissingGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "A stored row cannot be rejected; R6 applies."},
 
 	// R7: a group in another organization. Rejected on requests as a
-	// deliberate change, which is the fix for SEC-183; removed from stored
-	// rows.
+	// deliberate change; removed from stored rows.
 	{code: codersdk.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteFullReplace, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V4."},
 	{code: codersdk.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteMerge, want: idpsync.GroupSyncActionReject, why: "A deliberate new rejection: V4."},
 	{code: codersdk.GroupSyncFindingOutsideGroup, route: idpsync.GroupSyncRouteFetch, want: idpsync.GroupSyncActionRewrite, why: "A stored row cannot be rejected; R7 applies."},
