@@ -1,0 +1,153 @@
+# TEMPORARY workflow to finish the v2.39.0 release.
+#
+# The v2.39.0 release run failed inside the "Publish Helm Chart" step while
+# pushing the charts to ghcr.io (a registry transient after the GCS uploads
+# succeeded), so ghcr.io/coder/chart/{coder,coder-provisioner,coder-ai-gateway}
+# are all missing the 2.39.0 tag. Re-running the release job would rebuild and
+# re-sign every artifact of a release that is already live, so this workflow
+# republishes only the missing chart tags, using the exact chart archives
+# already published as release assets (OCI is content-addressed, so pushing
+# identical bytes yields identical digests).
+#
+# The remaining skipped steps (coder/packages dispatch, Homebrew, winget) are
+# run manually; they need cross-repo tokens, not ghcr access.
+#
+# Delete this workflow after the run succeeds.
+name: Finish v2.39.0 release (temporary)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Download and verify the charts, show what would be pushed, but do not push.
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  VERSION: "2.39.0"
+
+jobs:
+  # Only allow maintainers/admins, same gate as release.yaml.
+  check-perms:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Allow only maintainers/admins
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+            const role = data.role_name || data.user?.role_name || data.permission;
+            const perms = data.user?.permissions || {};
+            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
+
+            const allowed =
+              role === 'admin' ||
+              role === 'maintain' ||
+              perms.admin === true ||
+              perms.maintain === true;
+
+            if (!allowed) core.setFailed('Denied: requires maintain or admin');
+
+  publish-helm-oci:
+    name: Push v2.39.0 Helm charts to ghcr.io
+    needs: check-perms
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Necessary to push the charts to ghcr.io.
+      packages: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Download charts and checksums from the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          gh release download "v${VERSION}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern "coder_helm_${VERSION}.tgz" \
+            --pattern "provisioner_helm_${VERSION}.tgz" \
+            --pattern "ai-gateway_helm_${VERSION}.tgz" \
+            --pattern "coder_${VERSION}_checksums.txt"
+
+      - name: Verify charts against the release checksums
+        run: |
+          set -euo pipefail
+          grep -E "_helm_${VERSION//./\\.}\.tgz\$" "coder_${VERSION}_checksums.txt" > helm_checksums.txt
+          if [[ "$(wc -l < helm_checksums.txt)" -ne 3 ]]; then
+            echo "::error::expected 3 helm chart entries in checksums, got:" >&2
+            cat helm_checksums.txt >&2
+            exit 1
+          fi
+          sha256sum -c helm_checksums.txt
+
+      - name: Docker Login
+        if: ${{ !inputs.dry_run }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push missing chart tags
+        run: |
+          set -euo pipefail
+          # Asset file -> chart name (the OCI repository under ghcr.io/coder/chart).
+          declare -A charts=(
+            ["coder_helm_${VERSION}.tgz"]="coder"
+            ["provisioner_helm_${VERSION}.tgz"]="coder-provisioner"
+            ["ai-gateway_helm_${VERSION}.tgz"]="coder-ai-gateway"
+          )
+          for tgz in "${!charts[@]}"; do
+            chart="${charts[$tgz]}"
+            ref="oci://ghcr.io/coder/chart/${chart}"
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "DRY RUN: would push ${tgz} ($(sha256sum "${tgz}" | awk '{print $1}')) to ${ref}:${VERSION}"
+              continue
+            fi
+            mkdir -p "pulled/${chart}"
+            if helm pull "${ref}" --version "${VERSION}" -d "pulled/${chart}" 2>/dev/null; then
+              echo "${ref}:${VERSION} already exists, skipping push"
+            else
+              helm push "${tgz}" "oci://ghcr.io/coder/chart"
+            fi
+          done
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+
+      - name: Verify pushed charts match the release assets byte for byte
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          declare -A charts=(
+            ["coder_helm_${VERSION}.tgz"]="coder"
+            ["provisioner_helm_${VERSION}.tgz"]="coder-provisioner"
+            ["ai-gateway_helm_${VERSION}.tgz"]="coder-ai-gateway"
+          )
+          failed=0
+          for tgz in "${!charts[@]}"; do
+            chart="${charts[$tgz]}"
+            rm -rf verify && mkdir -p verify
+            helm pull "oci://ghcr.io/coder/chart/${chart}" --version "${VERSION}" -d verify
+            want="$(sha256sum "${tgz}" | awk '{print $1}')"
+            got="$(sha256sum verify/*.tgz | awk '{print $1}')"
+            if [[ "${want}" == "${got}" ]]; then
+              echo "OK ${chart}:${VERSION} ${got}"
+            else
+              echo "::error::${chart}:${VERSION} digest mismatch: release asset ${want}, registry ${got}" >&2
+              failed=1
+            fi
+          done
+          exit "${failed}"
