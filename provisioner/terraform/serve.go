@@ -38,7 +38,7 @@ type ServeOptions struct {
 	// happens when the provision is canceled via RPC and when the command is
 	// still running after the provision stream is closed. When it expires,
 	// the command is interrupted again and killed if it is still running
-	// after 10 seconds or ExitTimeout, whichever is shorter.
+	// after forceExitTimeout or ExitTimeout, whichever is shorter.
 	//
 	// This is a no-op on Windows where the process can't be interrupted.
 	//

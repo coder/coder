@@ -60,8 +60,9 @@ func (e *executor) basicEnv() []string {
 }
 
 // forceExitTimeout is how long a Terraform command can run after its
-// second interrupt before it is killed. Terraform exits within seconds of
-// a second interrupt, after it stops its provider plugins.
+// second interrupt before it is killed. plan and apply stop their provider
+// plugins and exit within seconds of a second interrupt. Other commands,
+// such as init, show and graph, ignore it and are killed.
 const forceExitTimeout = 10 * time.Second
 
 // command creates a Terraform command that stops when killCtx ends. Where
@@ -73,11 +74,15 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 	cmd.Dir = e.files.WorkDirectory()
 	if runtime.GOOS != "windows" {
 		cmd.Cancel = func() error {
+			// A short exit timeout also shortens the wait after the second
+			// interrupt. Do not use cmd.WaitDelay: its timer also starts when
+			// the command exits on its own, and it would then cut off output
+			// that is not read yet.
+			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
+				_ = cmd.Process.Kill()
+			})
 			return cmd.Process.Signal(os.Interrupt)
 		}
-		// A short exit timeout also shortens the wait after the second
-		// interrupt.
-		cmd.WaitDelay = min(forceExitTimeout, e.server.exitTimeout)
 	}
 	return cmd
 }
