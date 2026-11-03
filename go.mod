@@ -132,7 +132,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    mapping of toolset member calls to and from the computer tool.
 //    Since coder/fantasy#82, unknown model IDs take computer_20251124.
 // See: https://github.com/coder/fantasy/commits/7882f906a89a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261102054736-7882f906a89a
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103005632-647b1ef66f42
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
