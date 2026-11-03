@@ -2,7 +2,7 @@
 title: Coder Desktop Connect and Sync
 ---
 
-Use Coder Desktop to work on your workspaces and files as though they're on your LAN.
+Use Coder Desktop to work on your workspaces and files as though they're on your local area network (LAN).
 
 > [!NOTE]
 > Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
@@ -26,7 +26,7 @@ You can also connect to the SSH server in your workspace using any SSH client, s
 Any services listening on ports in your workspace are automatically available on the same hostname, with no manual port forwarding required.
 For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
 
-This works for all TCP ports.
+This works for all Transmission Control Protocol (TCP) ports.
 Start a service in your workspace and access it immediately from your local machine at `http://your-workspace.coder:PORT`.
 
 For other port forwarding methods (CLI, dashboard, SSH), see [Workspace Ports](../workspace-access/port-forwarding.md).

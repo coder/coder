@@ -221,9 +221,9 @@ func (p *Server) buildTurnEnvironment(
 		return turnEnvironment{}, err
 	}
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	var computerUseProvider codersdk.ChatComputerUseProvider
+	var computerUseToolVersion anthropic.ComputerUseToolVersion
 	if isComputerUse {
 		var ok bool
 		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
@@ -233,11 +233,14 @@ func (p *Server) buildTurnEnvironment(
 				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
 		}
+		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
+			computerUseToolVersion = anthropic.ComputerUseToolVersionForModel(modelConfig.Model)
+		}
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
@@ -283,16 +286,20 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
-		var advisorErr error
+		advisorUses, advisorErr := currentTurnAdvisorUses(ctx, logger, input.Messages)
+		if advisorErr != nil {
+			return turnEnvironment{}, xerrors.Errorf("count advisor uses: %w", advisorErr)
+		}
 		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
+			advisorUses,
 			modelOpts,
 			logger,
 		)
@@ -897,6 +904,7 @@ func (p *Server) buildTurnEnvironment(
 	if isComputerUse {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
+			toolVersion:      computerUseToolVersion,
 			isPlanModeTurn:   isPlanModeTurn,
 			isComputerUse:    isComputerUse,
 			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -922,22 +930,9 @@ func (p *Server) buildTurnEnvironment(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	// The owner is the subject: only the owner posts turns and descendant
-	// chats inherit it. Preparation runs for every step, so the first step
-	// with MCP candidates decides and later steps of the same turn reuse
-	// that decision; otherwise a rule change mid-turn would reject
-	// find_tools calls the model already issued. Without candidates
-	// find_tools is never offered, so skip the read.
-	toolSearchEnabled := false
-	if len(deferredCandidates) > 0 {
-		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
-			return p.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
-		})
-	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: toolSearchEnabled,
-		candidates:        deferredCandidates,
-		dynamicToolNames:  dynamicToolNames,
+		candidates:       deferredCandidates,
+		dynamicToolNames: dynamicToolNames,
 	}) {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
@@ -1239,10 +1234,10 @@ func (p *Server) deriveFinalTurnRunResult(
 	chat database.Chat,
 	logger slog.Logger,
 ) runChatResult {
-	// generateFinalTurnStatusLabel only produces a model-generated label for
-	// the Waiting status, so skip the model resolution and history read
+	// generateFinalTurnStatusLabel only produces a model-generated label
+	// for a finished turn, so skip the model resolution and history read
 	// otherwise.
-	if chat.Status != database.ChatStatusWaiting {
+	if !turnFinished(chat.Status) {
 		return runChatResult{}
 	}
 
@@ -2040,7 +2035,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "message_agent", "interrupt_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:

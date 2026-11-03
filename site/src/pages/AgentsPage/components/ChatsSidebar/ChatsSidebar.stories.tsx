@@ -226,6 +226,24 @@ export const ChatWithTurnSummary: Story = {
 	},
 };
 
+export const ChatActionsTriggerFocusedWithKeyboard: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-keyboard-actions",
+				title: "Keyboard focused chat",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("button", {
+			name: "Open actions for Keyboard focused chat",
+		});
+		trigger.focus();
+	},
+};
+
 /**
  * While the chat is streaming again the cached last_turn_summary still
  * holds the previous turn's text. The sidebar replaces it with a live
@@ -474,6 +492,19 @@ export const ChatWithTurnSummaryAndError: Story = {
 	},
 };
 
+export const PausedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-paused",
+				title: "Migrate the database",
+				status: "paused",
+				last_turn_summary: "Generated the migration files",
+			}),
+		],
+	},
+};
+
 export const RunningDelegatedChat: Story = {
 	args: {
 		chats: [
@@ -533,7 +564,8 @@ export const ExpandCollapse: Story = {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-2");
 
-		await userEvent.click(toggle);
+		toggle.focus();
+		await userEvent.keyboard("{Enter}");
 	},
 };
 

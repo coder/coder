@@ -2,7 +2,7 @@
 title: Configure ACP subagents
 ---
 
-As a developer, you can use ACP (Agent Client Protocol) subagents to delegate parts of a Coder Agents task to external coding agents in your workspace.
+As a developer, you can use Agent Client Protocol (ACP) subagents to delegate parts of a Coder Agents task to external coding agents in your workspace.
 A harness, such as Codex or Claude Code, is a program that runs an external coding agent.
 An ACP adapter launches the harness and connects it to Coder through the [Agent Client Protocol](https://agentclientprotocol.com/).
 
@@ -56,7 +56,7 @@ Files in subdirectories aren't loaded.
 | `enabled`      | Optional switch. Defaults to `true`. Set to `false` to turn off the harness.  |
 
 ACP subagents use the harness's own tools and configuration.
-They don't inherit the chat's MCP servers.
+They don't inherit the chat's Model Context Protocol (MCP) servers.
 Coder automatically approves tool permission requests received through the adapter.
 
 ## Check the context popup

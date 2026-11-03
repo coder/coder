@@ -84,7 +84,6 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		overridesRefetchError: null,
 		modelsError: null,
 		canEdit: true,
-		showAdvisor: true,
 		showComputerUse: false,
 		saveByContext,
 		savingContexts: new Set(),
@@ -246,15 +245,6 @@ export const CompactionTriggerWarningManyModels: Story = {
 		],
 	},
 	play: CompactionTriggerWarning.play,
-};
-
-export const AdvisorDisabled: Story = {
-	args: { showAdvisor: false },
-	play: async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).queryByText("Advisor"),
-		).not.toBeInTheDocument();
-	},
 };
 
 const computerUseArgs = {

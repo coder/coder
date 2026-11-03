@@ -409,6 +409,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000621Skills", 621, testMigration000621Skills},
 		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
 		{"Migration000635ChatModelOverrideComputerUse", 635, testMigration000635ChatModelOverrideComputerUse},
+		{"Migration000637DeleteMCPToolSearchExperimentRule", 637, testMigration000637DeleteMCPToolSearchExperimentRule},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -4770,4 +4771,22 @@ func testMigration000635ChatModelOverrideComputerUse(t *testing.T, sqlDB *sql.DB
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
+}
+
+func testMigration000637DeleteMCPToolSearchExperimentRule(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 637
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO site_configs (key, value) VALUES ('experiment_rule:mcp-tool-search', '{}'), ('experiment_rule:example', '{}')`)
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	var keys pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, `SELECT array_agg(key ORDER BY key) FROM site_configs
+		WHERE key IN ('experiment_rule:mcp-tool-search', 'experiment_rule:example')`).Scan(&keys)
+	require.NoError(t, err)
+	require.Equal(t, []string{"experiment_rule:example"}, []string(keys))
 }
