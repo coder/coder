@@ -234,7 +234,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `start_workspace`                           | Start a stopped workspace for the current chat                                                                                                               |
 | `stop_workspace`                            | Stop the current chat's workspace and wait for the stop build to finish                                                                                      |
 | `propose_plan`                              | Present a Markdown plan file for user review                                                                                                                 |
-| `ask_user_question`                         | Ask the user structured clarification questions in plan mode, or without stopping work in chats created from the Coder dashboard                             |
+| `ask_user_question`                         | Ask the user structured clarification questions in plan mode, or outside plan mode without stopping work in chats created from the Coder dashboard           |
 | `read_file`                                 | Read file contents from the workspace                                                                                                                        |
 | `write_file`                                | Write a file to the workspace                                                                                                                                |
 | `edit_files`                                | Replace `old_text` with `new_text` across files                                                                                                              |
@@ -296,8 +296,8 @@ Once you select **Implement plan**, the next turn runs in normal mode again.
 
 ## Questions outside plan mode
 
-In chats created from the Coder dashboard, the agent can also call `ask_user_question` outside plan mode.
-The question doesn't stop the agent, which keeps working on anything that doesn't depend on the answer.
+In chats created from the Coder dashboard, the agent can also ask you a question outside plan mode without stopping work.
+It keeps working on anything that doesn't depend on the answer.
 You can answer while the agent runs, or after it ends its turn.
 While the agent runs, your answer joins the end of the message queue.
 The agent reads it in a later turn, after the current turn and any messages queued before it.
@@ -316,5 +316,3 @@ While the form has focus, press a number to pick that answer, except in the Othe
 Press Enter on an answer to move to the next question, or to submit on the last one.
 
 When the agent asks a question, Coder sends you a [push notification](./getting-started.md#use-https-for-push-notifications) if push notifications are enabled.
-
-Chats created through the API keep `ask_user_question` in plan mode only.
