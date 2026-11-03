@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1195,18 +1197,17 @@ func escapeCSVCell(value string) string {
 }
 
 // aiSpendPeriod is the applied [start, end) report window and, when the
-// deployment purges AI Gateway data, the start of the retention window.
+// retention window applies, its start.
 type aiSpendPeriod struct {
 	start, end time.Time
-	// retentionStart is zero when retention is disabled.
+	// retentionStart is zero when retention is disabled or not applied.
 	retentionStart time.Time
 }
 
 // aiSpendPeriod resolves the report window from the request. When neither
-// start nor end is supplied it defaults to the current UTC monthly budget
-// period, narrowed to the retention window. Both bounds must be supplied
-// together and are interpreted as UTC, and an explicit window must be
-// non-empty, span at most 31 days, and begin within the retention window.
+// start nor end is supplied it defaults to the current budget period. Both
+// bounds must be supplied together and are interpreted as UTC, and an
+// explicit window must be non-empty and span at most 31 days.
 // Parameters not consumed by the given parser or here are rejected. On
 // invalid input it writes the error response and returns ok=false.
 func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (period aiSpendPeriod, ok bool) {
@@ -1224,18 +1225,9 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 		return aiSpendPeriod{}, false
 	}
 
-	// retentionStart is the oldest token usage still available, since anything
-	// older has been purged. A retention of zero disables purging.
-	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
-	hasRetention := retention > 0
-	if hasRetention {
-		period.retentionStart = api.Clock.Now().Add(-retention)
-	}
-
 	switch {
 	case !hasStart && !hasEnd:
-		// No period was requested, so start at the budget period or the
-		// retention window, whichever is later.
+		// No period was requested, so use the budget period.
 		window, err := api.currentAIBudgetWindow()
 		if err != nil {
 			api.Logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
@@ -1243,9 +1235,6 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 			return aiSpendPeriod{}, false
 		}
 		period.start, period.end = window.Start, window.End
-		if hasRetention && period.start.Before(period.retentionStart) {
-			period.start = period.retentionStart
-		}
 	case hasStart != hasEnd:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
@@ -1265,15 +1254,38 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 			})
 			return aiSpendPeriod{}, false
 		}
-		// Fail if the period starts before the oldest retained data
-		if hasRetention && start.Before(period.retentionStart) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
-			})
-			return aiSpendPeriod{}, false
-		}
 		period.start, period.end = start, end
 	}
+	return period, true
+}
+
+// aiSpendRetainedPeriod is aiSpendPeriod limited to the AI Gateway data
+// retention window. Use it for reports on raw AI Gateway data, since that data
+// is purged. It narrows a default period to the window and rejects an explicit
+// period that starts before it.
+func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (period aiSpendPeriod, ok bool) {
+	period, ok = api.aiSpendPeriod(ctx, rw, r, parser)
+	if !ok {
+		return aiSpendPeriod{}, false
+	}
+	// A retention of zero disables purging.
+	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
+	if retention <= 0 {
+		return period, true
+	}
+	period.retentionStart = api.Clock.Now().Add(-retention)
+	if !period.start.Before(period.retentionStart) {
+		return period, true
+	}
+	// aiSpendPeriod already rejected a single bound, so period_start means the
+	// request supplied the period.
+	if r.URL.Query().Has("period_start") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
+		})
+		return aiSpendPeriod{}, false
+	}
+	period.start = period.retentionStart
 	return period, true
 }
 
@@ -1314,7 +1326,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	groupID := parser.UUID(query, uuid.Nil, "group_id")
 	providerName := parser.String(query, "", "provider_name")
 	model := parser.String(query, "", "model")
-	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
+	period, ok := api.aiSpendRetainedPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
 	}
@@ -1395,6 +1407,174 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	}
 }
 
+// parseOrganizationAISpendPage reads the limit and offset of an organization
+// AI spend page, recording invalid values on the parser.
+func parseOrganizationAISpendPage(parser *httpapi.QueryParamParser, query url.Values) codersdk.OrganizationAISpendPage {
+	page := codersdk.OrganizationAISpendPage{
+		Limit:  int(parser.PositiveInt32(query, defaultOrganizationAISpendLimit, "limit")),
+		Offset: int(parser.PositiveInt32(query, 0, "offset")),
+	}
+	if page.Limit < 1 || page.Limit > maxOrganizationAISpendLimit {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "limit",
+			Detail: fmt.Sprintf("Query param \"limit\" must be in range [1, %d].", maxOrganizationAISpendLimit),
+		})
+	}
+	return page
+}
+
+// isStartOfUTCDay reports whether t is exactly 00:00:00 UTC.
+func isStartOfUTCDay(t time.Time) bool {
+	h, m, s := t.UTC().Clock()
+	return h == 0 && m == 0 && s == 0 && t.Nanosecond() == 0
+}
+
+// validateUTCDayStart returns a validation error for each period bound that
+// is not at 00:00:00 UTC, showing the value from the query.
+func validateUTCDayStart(query url.Values, period aiSpendPeriod) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	for _, bound := range []struct {
+		name  string
+		value time.Time
+	}{
+		{name: "period_start", value: period.start},
+		{name: "period_end", value: period.end},
+	} {
+		if !isStartOfUTCDay(bound.value) {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  bound.name,
+				Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00 UTC, got %s", bound.name, query.Get(bound.name)),
+			})
+		}
+	}
+	return validations
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get organization AI spend overview
+// @Description Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.
+// @Description The optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.
+// @Description Unknown query parameters are rejected.
+// @Description Requires organization-level administrator permissions.
+// @ID get-organization-ai-spend-overview
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param period_start query string false "Inclusive lower bound at 00:00:00 UTC (RFC3339)" format(date-time)
+// @Param period_end query string false "Exclusive upper bound at 00:00:00 UTC (RFC3339)" format(date-time)
+// @Param limit query int false "Page size (default 10, maximum 100)"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.OrganizationAISpendOverview
+// @Router /api/experimental/organizations/{organization}/ai/spend [get]
+// @x-apidocgen {"skip": true}
+func (api *API) organizationAISpend(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	// dbauthz enforces the same organization-wide read, but checking here
+	// first answers with 403 instead of an internal error.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceGroupMember.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	page := parseOrganizationAISpendPage(parser, query)
+	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
+	if !ok {
+		return
+	}
+	// The daily spend aggregate holds whole UTC days. The default budget
+	// period always starts and ends at 00:00:00 UTC.
+	if validations := validateUTCDayStart(query, period); len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: validations,
+		})
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", period.start),
+		slog.F("period_end", period.end),
+	)
+
+	// queryEnd caps the period end at the end of today, since later days have
+	// no spend yet. A past period keeps its end, and a future period reads no
+	// days.
+	queryEnd := dbtime.StartOfDay(api.Clock.Now().UTC()).AddDate(0, 0, 1)
+	if period.end.Before(queryEnd) {
+		queryEnd = period.end
+	}
+	if queryEnd.Before(period.start) {
+		queryEnd = period.start
+	}
+
+	var (
+		daily  []database.GetOrganizationAISpendPerDayRow
+		totals database.GetOrganizationAISpendTotalsRow
+		users  []database.ListOrganizationAISpendPerUserRow
+	)
+	// Read every query from one snapshot, so the daily spend, totals, and
+	// users agree even while new spend is being recorded.
+	err := api.Database.InTx(func(db database.Store) error {
+		var err error
+		daily, err = db.GetOrganizationAISpendPerDay(ctx, database.GetOrganizationAISpendPerDayParams{
+			OrganizationID: org.ID,
+			PeriodStart:    period.start,
+			PeriodEnd:      queryEnd,
+		})
+		if err != nil {
+			return xerrors.Errorf("get organization AI spend per day: %w", err)
+		}
+		totals, err = db.GetOrganizationAISpendTotals(ctx, database.GetOrganizationAISpendTotalsParams{
+			OrganizationID: org.ID,
+			PeriodStart:    period.start,
+			PeriodEnd:      queryEnd,
+		})
+		if err != nil {
+			return xerrors.Errorf("get organization AI spend totals: %w", err)
+		}
+		users, err = db.ListOrganizationAISpendPerUser(ctx, database.ListOrganizationAISpendPerUserParams{
+			OrganizationID: org.ID,
+			PeriodStart:    period.start,
+			PeriodEnd:      queryEnd,
+			// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+			LimitOpt: int32(page.Limit),
+			// #nosec G115 - The limit is capped above and the offset is parsed as int32.
+			OffsetOpt: int32(page.Offset),
+		})
+		if err != nil {
+			return xerrors.Errorf("list organization AI spend per user: %w", err)
+		}
+		return nil
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     true,
+		TxIdentifier: "organization_ai_spend_overview",
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to get organization AI spend overview", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	overview := codersdk.OrganizationAISpendOverview{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
+		Count:               totals.UserCount,
+		Totals: codersdk.OrganizationAISpendOverviewTotals{
+			SpendMicros:       totals.SpendMicros,
+			MedianSpendMicros: totals.MedianSpendMicros,
+		},
+		Intervals: db2sdk.OrganizationAISpendOverviewIntervals(daily),
+		Users:     db2sdk.OrganizationAISpendOverviewUsers(users),
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, overview)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary List organization AI spend by user
@@ -1433,21 +1613,12 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
-	page := codersdk.OrganizationAISpendPage{
-		Limit:  int(parser.PositiveInt32(query, defaultOrganizationAISpendLimit, "limit")),
-		Offset: int(parser.PositiveInt32(query, 0, "offset")),
-	}
-	if page.Limit < 1 || page.Limit > maxOrganizationAISpendLimit {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field:  "limit",
-			Detail: fmt.Sprintf("Query param \"limit\" must be in range [1, %d].", maxOrganizationAISpendLimit),
-		})
-	}
+	page := parseOrganizationAISpendPage(parser, query)
 	// An empty dimension matches every request.
 	providerName := parser.String(query, "", "provider_name")
 	model := parser.String(query, "", "model")
 	client := parser.String(query, "", "client")
-	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
+	period, ok := api.aiSpendRetainedPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
 	}
