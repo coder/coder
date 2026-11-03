@@ -17,8 +17,7 @@
 # (Apple's `container` CLI on macOS).
 set -euo pipefail
 
-# Keep MISE_VERSION + MISE_SHA256 in lockstep with mise.toml
-# min_version; scripts/check_mise_versions.sh enforces this.
+# scripts/check_mise_versions.sh checks these against the other mise pins.
 MISE_VERSION="v2026.10.25"
 MISE_SHA256="5d362ecc578dc7c146679b841dda949d6472cbf86ff5635db7afdca1b6b3fd87"
 # Bump the -rN suffix when the Dockerfile heredoc below changes
@@ -75,9 +74,9 @@ if [ -d "$HOME/.docker" ]; then
 	docker_config_arg=(-v "$HOME/.docker:/root/.docker:ro")
 fi
 
-# `oci build` needs all mise tools installed so it can package them
-# into layers, so it runs `mise install` first. `oci push` uses mise's
-# built-in registry client and needs no tools.
+# `oci build` packages installed tools into layers, so it runs
+# `mise install` first. `oci push --image-dir` uploads an existing
+# layout and needs no tools.
 # Single quotes are intentional: $@ expands inside the container's
 # `sh -c`, not in this script.
 # shellcheck disable=SC2016

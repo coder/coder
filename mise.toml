@@ -52,8 +52,8 @@ protoc-gen-go = "1.30.0"
 "go:github.com/rhysd/actionlint/cmd/actionlint" = "011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
-# crane serves the local registry the dogfood workflow uses to load the
-# `mise oci build` output into Docker. Sourced here so it travels with
+# The dogfood workflow uses crane to load the `mise oci build` output
+# into Docker through a local registry. Sourced here so it travels with
 # the rest of the mise toolset (one source of truth, deterministic
 # version, no apt drift across CI).
 crane = "0.21.6"
