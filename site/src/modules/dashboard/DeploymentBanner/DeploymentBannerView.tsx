@@ -107,7 +107,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 						{healthErrors.length > 0 ? (
 							<Link
 								asChild
-								className="flex p-3 bg-content-destructive"
+								className="flex p-3 my-0 bg-content-destructive"
 								showExternalIcon={false}
 							>
 								<RouterLink
