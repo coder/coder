@@ -1127,12 +1127,20 @@ func (s *MethodTestSuite) TestChats() {
 		ids := []uuid.UUID{chatA.ID, chatB.ID}
 		diffStatusA := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatA.ID})
 		diffStatusB := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatB.ID})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chatA.ID).Return(chatA, nil).AnyTimes()
-		dbm.EXPECT().GetChatByID(gomock.Any(), chatB.ID).Return(chatB, nil).AnyTimes()
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
 		dbm.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), ids).Return([]database.ChatDiffStatus{diffStatusA, diffStatusB}, nil).AnyTimes()
 		check.Args(ids).
 			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
 			Returns([]database.ChatDiffStatus{diffStatusA, diffStatusB})
+	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).
+			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
+			Returns([]database.Chat{chatA, chatB})
 	}))
 	s.Run("GetChatFileByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		file := testutil.Fake(s.T(), faker, database.ChatFile{})
