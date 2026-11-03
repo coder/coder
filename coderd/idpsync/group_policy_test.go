@@ -569,11 +569,17 @@ func TestRewritePlan(t *testing.T) {
 
 			plan := idpsync.RewritePlan(fixtureActions(t, v.actions), v.route, findings)
 			require.Equal(t, v.wantInstruction, plan.Instruction, v.why)
-			got := plan.Actions
-			if got == nil {
-				got = []idpsync.GroupSyncAction{}
+
+			// Each planned action carries its own finding, in the order the
+			// findings were given.
+			gotFindings := []codersdk.GroupSyncFinding{}
+			gotActions := []idpsync.GroupSyncAction{}
+			for _, planned := range plan.Actions {
+				gotFindings = append(gotFindings, planned.Finding)
+				gotActions = append(gotActions, planned.Action)
 			}
-			require.Equal(t, v.wantActions, got, v.why)
+			require.Equal(t, findings, gotFindings, "the plan must carry the findings, in order: %s", v.why)
+			require.Equal(t, v.wantActions, gotActions, v.why)
 		})
 	}
 }

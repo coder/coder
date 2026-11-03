@@ -39,10 +39,9 @@ type GroupSyncRewriteResult struct {
 	Warnings []codersdk.GroupSyncWarning
 }
 
-// RewriteResult carries out plan on settings, whose findings are findings.
-// The plan must be the one RewritePlan gave for those findings, so it has
-// one action for each finding, in the same order. The rewriter makes no
-// decisions of its own:
+// RewriteResult carries out plan on settings. The plan must be the one
+// RewritePlan gave for the settings' findings; it carries each finding with
+// its action. The rewriter makes no decisions of its own:
 //
 //   - accept: settings are returned unchanged, with no warnings;
 //   - rewrite: every finding's rewrite rule is applied and the result is
@@ -50,12 +49,10 @@ type GroupSyncRewriteResult struct {
 //   - keep: settings are returned unchanged, with one warning per finding;
 //   - reject: RewriteResult returns an error, since there is nothing to
 //     carry out.
-//
-// It also returns an error when the plan's actions do not match the
-// findings one for one.
-func RewriteResult(settings codersdk.GroupSyncSettings, findings []codersdk.GroupSyncFinding, plan GroupSyncRewritePlan) (GroupSyncRewriteResult, error) {
-	if len(plan.Actions) != len(findings) {
-		return GroupSyncRewriteResult{}, xerrors.Errorf("plan has %d actions for %d findings", len(plan.Actions), len(findings))
+func RewriteResult(settings codersdk.GroupSyncSettings, plan GroupSyncRewritePlan) (GroupSyncRewriteResult, error) {
+	findings := make([]codersdk.GroupSyncFinding, 0, len(plan.Actions))
+	for _, planned := range plan.Actions {
+		findings = append(findings, planned.Finding)
 	}
 
 	switch plan.Instruction {

@@ -146,14 +146,24 @@ func GroupSyncRewritable(code codersdk.GroupSyncFindingCode) bool {
 	}
 }
 
+// GroupSyncPlannedAction is the action a rewrite policy picked for one
+// finding. Pairing them means a plan cannot hold an action without its
+// finding, or a finding without its action.
+type GroupSyncPlannedAction struct {
+	// Finding is the finding the action is for.
+	Finding codersdk.GroupSyncFinding
+	// Action is the action picked for it.
+	Action GroupSyncAction
+}
+
 // GroupSyncRewritePlan is the result of applying a rewrite policy to a list
 // of findings: what the rewriter is to do.
 type GroupSyncRewritePlan struct {
 	// Instruction is the instruction for the settings as a whole.
 	Instruction GroupSyncInstruction
-	// Actions holds the action for each finding, in the same order as the
-	// findings given to RewritePlan.
-	Actions []GroupSyncAction
+	// Actions holds each finding with the action picked for it, in the same
+	// order as the findings given to RewritePlan.
+	Actions []GroupSyncPlannedAction
 }
 
 // RewritePlan applies a rewrite policy, whose action function is actions, to
@@ -167,7 +177,7 @@ type GroupSyncRewritePlan struct {
 // RewritePlan turns that action into reject, so a defective action function
 // fails closed.
 func RewritePlan(actions GroupSyncActionFunc, route GroupSyncRoute, findings []codersdk.GroupSyncFinding) GroupSyncRewritePlan {
-	plan := GroupSyncRewritePlan{Actions: make([]GroupSyncAction, 0, len(findings))}
+	plan := GroupSyncRewritePlan{Actions: make([]GroupSyncPlannedAction, 0, len(findings))}
 
 	anyKeep, anyReject := false, false
 	for _, f := range findings {
@@ -184,7 +194,7 @@ func RewritePlan(actions GroupSyncActionFunc, route GroupSyncRoute, findings []c
 			// defective action function could return.
 			action = GroupSyncActionReject
 		}
-		plan.Actions = append(plan.Actions, action)
+		plan.Actions = append(plan.Actions, GroupSyncPlannedAction{Finding: f, Action: action})
 		anyKeep = anyKeep || action == GroupSyncActionKeep
 		anyReject = anyReject || action == GroupSyncActionReject
 	}

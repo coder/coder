@@ -790,7 +790,7 @@ func TestRewriteResult(t *testing.T) {
 			findings := rewriteFindings(v)
 			plan := idpsync.RewritePlan(fixtureActions(t, actionsNeverReject), idpsync.GroupSyncRouteFetch, findings)
 
-			result, err := idpsync.RewriteResult(settings, findings, plan)
+			result, err := idpsync.RewriteResult(settings, plan)
 			require.NoError(t, err, v.why)
 			require.Equal(t, idpsync.GroupSyncRewriteOutcome(v.wantOutcome), result.Outcome, v.why)
 
@@ -826,16 +826,17 @@ func TestRewriteResult(t *testing.T) {
 	}
 }
 
-// TestRewriteResultCallerErrors checks the two plans RewriteResult refuses to
-// carry out: one that says reject, and one whose actions do not match the
-// findings one for one. Each is a mistake by the caller, so each returns an
-// error.
+// TestRewriteResultCallerErrors checks the plans RewriteResult refuses to
+// carry out: one that says reject, and one with an instruction that is not an
+// instruction at all. Each is a mistake by the caller, so each returns an
+// error. A plan cannot pair an action with the wrong finding, since it holds
+// them together.
 func TestRewriteResultCallerErrors(t *testing.T) {
 	t.Parallel()
 
 	settings, err := decodeFullInput(`{"field":"groups","mapping":{"eng":["00000000-0000-0000-0000-000000000000"]}}`)
 	require.NoError(t, err)
-	findings := []codersdk.GroupSyncFinding{{Code: codersdk.GroupSyncFindingNilUUID, Path: "/mapping/eng/0"}}
+	finding := codersdk.GroupSyncFinding{Code: codersdk.GroupSyncFindingNilUUID, Path: "/mapping/eng/0"}
 
 	cases := []struct {
 		name string
@@ -847,30 +848,22 @@ func TestRewriteResultCallerErrors(t *testing.T) {
 			why:  "A plan that says reject leaves nothing to carry out.",
 			plan: idpsync.GroupSyncRewritePlan{
 				Instruction: idpsync.GroupSyncInstructionReject,
-				Actions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionReject},
+				Actions:     []idpsync.GroupSyncPlannedAction{{Finding: finding, Action: idpsync.GroupSyncActionReject}},
 			},
 		},
 		{
-			name: "too_few_actions",
-			why:  "One finding but no actions: the plan was not made for these findings.",
+			name: "unknown_instruction",
+			why:  "An instruction RewritePlan never gives cannot be carried out.",
 			plan: idpsync.GroupSyncRewritePlan{
-				Instruction: idpsync.GroupSyncInstructionRewrite,
-				Actions:     []idpsync.GroupSyncAction{},
-			},
-		},
-		{
-			name: "too_many_actions",
-			why:  "One finding but two actions: the plan was not made for these findings.",
-			plan: idpsync.GroupSyncRewritePlan{
-				Instruction: idpsync.GroupSyncInstructionRewrite,
-				Actions:     []idpsync.GroupSyncAction{idpsync.GroupSyncActionRewrite, idpsync.GroupSyncActionRewrite},
+				Instruction: "unknown_instruction",
+				Actions:     []idpsync.GroupSyncPlannedAction{{Finding: finding, Action: idpsync.GroupSyncActionRewrite}},
 			},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := idpsync.RewriteResult(settings, findings, c.plan)
+			_, err := idpsync.RewriteResult(settings, c.plan)
 			require.Error(t, err, c.why)
 		})
 	}
