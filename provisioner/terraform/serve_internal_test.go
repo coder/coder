@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -97,16 +99,19 @@ func Test_absoluteBinaryPath(t *testing.T) {
 	}
 }
 
+// Test_terraformVersion writes stub binaries and then executes them, so it
+// runs serially: a process forked in parallel while a stub is still open for
+// writing makes executing the stub fail with "text file busy".
+//
+//nolint:paralleltest // Avoid "text file busy".
 func Test_terraformVersion(t *testing.T) {
-	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
 	}
 
 	// Only the first successful lookup spawns a process; later calls reuse it.
+	//nolint:paralleltest // Avoid "text file busy".
 	t.Run("Cached", func(t *testing.T) {
-		t.Parallel()
-
 		// The stub records every invocation so the test can count them.
 		tempDir := t.TempDir()
 		counterPath := filepath.Join(tempDir, "calls")
@@ -137,6 +142,14 @@ func Test_terraformVersion(t *testing.T) {
 			require.Same(t, first, again)
 		}
 
+		// Executors, which run before every stage, use the same cache.
+		e := srv.executor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
+		for range 3 {
+			again, err := e.version(ctx)
+			require.NoError(t, err)
+			require.Same(t, first, again)
+		}
+
 		calls, err := os.ReadFile(counterPath)
 		require.NoError(t, err)
 		require.Equal(t, 1, strings.Count(string(calls), "x"), "terraform version should be resolved once")
@@ -144,9 +157,8 @@ func Test_terraformVersion(t *testing.T) {
 
 	// A failed lookup is not cached, so a transient failure such as a
 	// canceled context does not break every later stage.
+	//nolint:paralleltest // Avoid "text file busy".
 	t.Run("NotCached", func(t *testing.T) {
-		t.Parallel()
-
 		// The stub fails until the ready file exists.
 		tempDir := t.TempDir()
 		readyPath := filepath.Join(tempDir, "ready")

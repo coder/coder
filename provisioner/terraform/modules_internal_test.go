@@ -1,10 +1,13 @@
 package terraform
 
 import (
+	"archive/tar"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -101,6 +104,22 @@ func TestGetModulesArchive(t *testing.T) {
 		requireImportedLockFile(t, extracted, lock)
 		require.NoFileExists(t, extracted.TerraformLockFile(), "the root lock file must not be overwritten on extraction")
 		require.NoFileExists(t, extracted.ModulesFilePath())
+
+		// coderd reuses identical archives by hash, so the lock file entries
+		// must not depend on when or by whom the archive was written.
+		reader := tar.NewReader(bytes.NewReader(archive))
+		for {
+			header, err := reader.Next()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			require.Zero(t, header.ModTime.Unix(), header.Name)
+			require.Equal(t, 1000, header.Uid, header.Name)
+			require.Equal(t, 1000, header.Gid, header.Name)
+			require.Empty(t, header.Uname, header.Name)
+			require.Empty(t, header.Gname, header.Name)
+		}
 	})
 
 	t.Run("LockFileWithModules", func(t *testing.T) {
@@ -127,13 +146,19 @@ func TestGetModulesArchive(t *testing.T) {
 	t.Run("LockFileSurvivesSizeLimit", func(t *testing.T) {
 		t.Parallel()
 
+		const limit = 5000
 		memFS := moduleArchiveFS(t, map[string]moduleDef{
-			"large": {payload: bytes.Repeat([]byte("L"), 5000)},
+			"large": {payload: bytes.Repeat([]byte("L"), 1500)},
 		})
+		// On its own, the module fits the budget.
+		_, skipped, err := GetModulesArchiveWithLimit(memFS, limit)
+		require.NoError(t, err)
+		require.Empty(t, skipped)
+
 		lock := bytes.Repeat([]byte("k"), 1000)
 		writeLockFile(t, memFS, lock)
 
-		archive, skipped, err := GetModulesArchiveWithLimit(memFS, 4000)
+		archive, skipped, err := GetModulesArchiveWithLimit(memFS, limit)
 		require.NoError(t, err)
 		require.Equal(t, []string{"large:large"}, skipped)
 
@@ -142,6 +167,25 @@ func TestGetModulesArchive(t *testing.T) {
 		require.NoDirExists(t, filepath.Join(extracted.ModulesDirectory(), "large"))
 		// modules.json is only archived alongside the modules it describes.
 		require.NoFileExists(t, extracted.ModulesFilePath())
+	})
+
+	// modules.json is written after the modules, so a module that fills the
+	// remaining budget must be skipped rather than make the archive, and the
+	// lock file with it, fail to write.
+	t.Run("ModulesFileFitsAfterModules", func(t *testing.T) {
+		t.Parallel()
+
+		for size := 1000; size <= 3000; size += 100 {
+			memFS := moduleArchiveFS(t, map[string]moduleDef{
+				"mod": {payload: bytes.Repeat([]byte("M"), size)},
+			})
+			lock := []byte("provider \"registry.terraform.io/coder/coder\" {}\n")
+			writeLockFile(t, memFS, lock)
+
+			archive, _, err := GetModulesArchiveWithLimit(memFS, 6000)
+			require.NoError(t, err, "module payload of %d bytes", size)
+			requireImportedLockFile(t, extractModulesArchive(t, archive), lock)
+		}
 	})
 
 	// Terraform writes modules.json for local modules too, but there is
@@ -401,10 +445,14 @@ func TestRestoreImportedLockFile(t *testing.T) {
 	committed := []byte("# committed by the template author\n")
 	imported := []byte("# captured during import\n")
 
-	setup := func(t *testing.T, platform string) tfpath.Layout {
+	// setup writes the template's lock file, unless templateLock is nil, and
+	// the lock file captured on platform, unless platform is empty.
+	setup := func(t *testing.T, templateLock []byte, platform string) tfpath.Layout {
 		t.Helper()
 		layout := tfpath.Layout(t.TempDir())
-		require.NoError(t, os.WriteFile(layout.TerraformLockFile(), committed, 0o600))
+		if templateLock != nil {
+			require.NoError(t, os.WriteFile(layout.TerraformLockFile(), templateLock, 0o600))
+		}
 		if platform != "" {
 			src := filepath.Join(layout.WorkDirectory(), filepath.FromSlash(importedLockFilePath(platform)))
 			require.NoError(t, os.MkdirAll(filepath.Dir(src), 0o700))
@@ -412,17 +460,40 @@ func TestRestoreImportedLockFile(t *testing.T) {
 		}
 		return layout
 	}
+	requireLockFile := func(t *testing.T, layout tfpath.Layout, want []byte) {
+		t.Helper()
+		got, err := os.ReadFile(layout.TerraformLockFile())
+		require.NoError(t, err)
+		require.Equal(t, want, got)
+	}
 
+	// The template's lock file is set aside and comes back when init has to
+	// fall back to it.
 	t.Run("SamePlatform", func(t *testing.T) {
 		t.Parallel()
 
-		layout := setup(t, terraformPlatform())
+		layout := setup(t, committed, terraformPlatform())
 		restored, err := restoreImportedLockFile(layout)
 		require.NoError(t, err)
 		require.True(t, restored)
-		got, err := os.ReadFile(layout.TerraformLockFile())
+		requireLockFile(t, layout, imported)
+
+		require.NoError(t, restoreTemplateLockFile(layout))
+		requireLockFile(t, layout, committed)
+	})
+
+	// Without a template lock file, falling back removes the lock file.
+	t.Run("NoTemplateLockFile", func(t *testing.T) {
+		t.Parallel()
+
+		layout := setup(t, nil, terraformPlatform())
+		restored, err := restoreImportedLockFile(layout)
 		require.NoError(t, err)
-		require.Equal(t, imported, got)
+		require.True(t, restored)
+		requireLockFile(t, layout, imported)
+
+		require.NoError(t, restoreTemplateLockFile(layout))
+		require.NoFileExists(t, layout.TerraformLockFile())
 	})
 
 	// Template archives keep file modes, so a committed lock file can be
@@ -433,14 +504,27 @@ func TestRestoreImportedLockFile(t *testing.T) {
 			t.Skip("Windows does not allow replacing read-only files.")
 		}
 
-		layout := setup(t, terraformPlatform())
+		layout := setup(t, committed, terraformPlatform())
 		require.NoError(t, os.Chmod(layout.TerraformLockFile(), 0o400))
 		restored, err := restoreImportedLockFile(layout)
 		require.NoError(t, err)
 		require.True(t, restored)
-		got, err := os.ReadFile(layout.TerraformLockFile())
+		requireLockFile(t, layout, imported)
+
+		require.NoError(t, restoreTemplateLockFile(layout))
+		requireLockFile(t, layout, committed)
+	})
+
+	// Restoring an identical lock file would change nothing, and there would
+	// be nothing to fall back to if init failed.
+	t.Run("IdenticalLockFile", func(t *testing.T) {
+		t.Parallel()
+
+		layout := setup(t, imported, terraformPlatform())
+		restored, err := restoreImportedLockFile(layout)
 		require.NoError(t, err)
-		require.Equal(t, imported, got)
+		require.False(t, restored)
+		requireLockFile(t, layout, imported)
 	})
 
 	// A lock file captured on another platform may lack hashes for this one,
@@ -448,19 +532,17 @@ func TestRestoreImportedLockFile(t *testing.T) {
 	t.Run("OtherPlatform", func(t *testing.T) {
 		t.Parallel()
 
-		layout := setup(t, "plan9_mips")
+		layout := setup(t, committed, "plan9_mips")
 		restored, err := restoreImportedLockFile(layout)
 		require.NoError(t, err)
 		require.False(t, restored)
-		got, err := os.ReadFile(layout.TerraformLockFile())
-		require.NoError(t, err)
-		require.Equal(t, committed, got)
+		requireLockFile(t, layout, committed)
 	})
 
 	t.Run("NotCaptured", func(t *testing.T) {
 		t.Parallel()
 
-		layout := tfpath.Layout(t.TempDir())
+		layout := setup(t, nil, "")
 		restored, err := restoreImportedLockFile(layout)
 		require.NoError(t, err)
 		require.False(t, restored)

@@ -21,7 +21,7 @@ Following these recommendations will:
 
 ## Lock your provider and module versions
 
-If you add a Terraform provider to `required_providers` without specifying a version requirement, Terraform will always fetch the latest version on each invocation:
+If you add a Terraform provider to `required_providers` without specifying a version requirement, Terraform selects the latest version whenever it resolves providers:
 
 ```tf
 terraform {
@@ -38,7 +38,7 @@ terraform {
 
 New releases of the `coder` or `frobnicate` providers are picked up the next time you push a template version, because workspace builds reuse the [provider versions that Coder selected](../../../tutorials/best-practices/speed-up-templates.md#template-lock-file) when it imported the template version.
 Builds on a provisioner with a different operating system or architecture, or with module caching disabled, pick up new releases on every build.
-Builds of a template without its own lock file also pick up new releases when they can't install the versions selected at import.
+Builds that can't install the versions selected at import also pick up new releases, except for providers pinned by a lock file you commit with the template.
 New releases can include breaking changes.
 
 To prevent this, add a [version constraint](https://developer.hashicorp.com/terraform/language/expressions/version-constraints) to each provider in the `required_providers` block:

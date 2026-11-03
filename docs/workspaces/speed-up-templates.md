@@ -86,7 +86,7 @@ Visit the [validated architecture documentation](../install/plan/sizing/index.md
 
 ### Template lock file
 
-On each workspace build, Terraform will examine the providers used by the template and attempt to download the latest version of each provider unless it is constrained to a specific version.
+Without a lock file, `terraform init` selects the latest version of each provider that matches the template's version constraints.
 Terraform exposes a mechanism to build a static list of provider versions, which improves cacheability.
 
 Without caching, Terraform will download each provider on each build, and this can create unnecessary network and disk I/O.
@@ -97,10 +97,9 @@ When Coder imports a template version, it keeps the lock file that `terraform in
 Workspace builds of that template version reuse the lock file when they run on a provisioner with the same operating system and architecture as the provisioner that imported the version.
 Those builds install the provider versions selected at import, and when those providers are already cached, Terraform verifies them against the lock file instead of fetching checksums and signatures for each provider.
 Terraform still queries the provider registry for the list of available versions.
-A build can fail to install the provider versions selected at import, for example when the provisioner's provider mirror no longer offers them.
-If the template doesn't include its own lock file, the build runs `terraform init` again without the lock file.
-That build selects the newest available provider versions that match the template's version constraints, and its build log shows a warning.
-Push a new template version to make builds reuse provider versions again.
+If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those provider versions, the build runs `terraform init` again with the template's own lock file, or without one.
+That build keeps the versions the template's own lock file pins, selects the latest available versions of other providers, and shows a warning in its build log.
+If the warning appears on every build, push a new template version and update workspaces to it so that builds reuse provider versions again.
 Coder doesn't reuse the lock file when [module caching](../../admin/templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
 Committing your own lock file also pins provider versions across template pushes.
 

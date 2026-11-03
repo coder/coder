@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -93,10 +92,6 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
-	// Checked before restoring, which replaces the template's lock file.
-	_, err = os.Lstat(sess.Files.TerraformLockFile())
-	templateHasLockFile := !xerrors.Is(err, fs.ErrNotExist)
-
 	// The imported lock file only speeds up init, so failing to restore it
 	// falls back to the lock file from the template source, if any.
 	restored, err := restoreImportedLockFile(sess.Files)
@@ -114,8 +109,8 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	err = e.init(ctx, killCtx, sess)
-	if err != nil && restored && !templateHasLockFile && ctx.Err() == nil {
-		err = s.initWithoutImportedLockFile(ctx, killCtx, e, sess, err)
+	if err != nil && restored && ctx.Err() == nil {
+		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
 	}
 	endStage(err)
 	if err != nil {
@@ -185,27 +180,30 @@ func (s *server) Init(
 	}
 }
 
-// initWithoutImportedLockFile runs init again after it failed with the lock
-// file captured during template import, for example because this
-// provisioner's mirror no longer offers the provider versions that lock file
-// pins. The template has no lock file of its own, so init selects provider
-// versions the same way it would without the imported lock file.
-func (s *server) initWithoutImportedLockFile(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, initErr error) error {
+// initWithTemplateLockFile runs init again after it failed with the lock file
+// captured during template import, this time with the template's own lock
+// file, or with none if the template has none. That is how builds ran before
+// the captured lock file was reused. It covers provisioners that can't install
+// the provider versions the captured lock file pins, for example after an
+// air-gapped upgrade replaced the provider mirror.
+//
+// The retry runs after any init failure, including transient ones and
+// provider checksum mismatches. The captured lock file only speeds up builds;
+// it is not meant to pin providers more strictly than the template does.
+func (s *server) initWithTemplateLockFile(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, initErr error) error {
 	s.logger.Warn(ctx, "terraform init failed with the lock file captured during template import, retrying without it",
 		slog.Error(initErr))
 	sess.ProvisionLog(proto.LogLevel_WARN,
 		"Retrying terraform init without the provider versions selected when this template version was imported.")
 
-	err := os.Remove(sess.Files.TerraformLockFile())
-	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
-		return xerrors.Errorf("remove imported lock file after init failed (%v): %w", initErr, err)
+	if err := restoreTemplateLockFile(sess.Files); err != nil {
+		return errors.Join(initErr, err)
 	}
-	err = e.init(ctx, killCtx, sess)
+	err := e.init(ctx, killCtx, sess)
 	if err == nil {
-		// The retry only succeeding without the imported provider versions
-		// means this provisioner can't install them.
 		sess.ProvisionLog(proto.LogLevel_WARN,
-			"Push a new template version to make builds reuse provider versions again.")
+			"If this warning appears on every build, push a new template version and update workspaces to it "+
+				"so builds reuse provider versions again.")
 	}
 	return err
 }
