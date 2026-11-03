@@ -189,7 +189,7 @@ Kubernetes control plane is running at https://example.domain:6443
 export CLUSTER_ADDRESS=https://example.domain:6443
 ```
 
-To fetch the CA certificate and token:
+To fetch the certificate authority (CA) certificate and token:
 
 ```sh
 export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data.ca\.crt}")

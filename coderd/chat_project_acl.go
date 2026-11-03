@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -54,7 +53,11 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	groups, err := api.chatProjectACLGroups(ctx, project)
+	// Groups from other organizations stay listed because their members in
+	// this organization still get access.
+	groups, err := resolveACLGroups(ctx, api.Database, uuid.Nil, project.GroupACL, func(group codersdk.Group, entry database.ChatACLEntry) codersdk.ChatProjectGroup {
+		return codersdk.ChatProjectGroup{Group: group, Role: convertToChatProjectRole(entry.Permissions)}
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -312,88 +315,23 @@ func grantedChatProjectIDs(roles map[uuid.UUID]codersdk.ChatProjectRole) []uuid.
 }
 
 func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatProject) ([]codersdk.ChatProjectUser, error) {
-	userIDs := make([]uuid.UUID, 0, len(project.UserACL))
-	for rawID := range project.UserACL {
-		id, err := uuid.Parse(rawID)
-		if err != nil {
-			api.Logger.Warn(ctx, "found invalid user uuid in chat project acl", slog.Error(err), slog.F("project_id", project.ID))
-			continue
-		}
-		userIDs = append(userIDs, id)
-	}
-	if len(userIDs) == 0 {
-		return []codersdk.ChatProjectUser{}, nil
-	}
-
-	//nolint:gocritic // Project readers see who it is shared with without user read permission.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	// Entries for users outside the organization grant nothing, because access
 	// requires membership, so hide them. The 000629 trigger and the membership
 	// lock in patchChatProjectACL keep such entries from being written.
-	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
+	//nolint:gocritic // Project readers see who it is shared with without user read permission.
+	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(dbauthz.AsSystemRestricted(ctx), parseACLIDs(project.UserACL))
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get organization memberships: %w", err)
 	}
-	userIDs = userIDs[:0]
+	members := make(database.ChatACL, len(memberships))
 	for _, membership := range memberships {
 		if slices.Contains(membership.OrganizationIDs, project.OrganizationID) {
-			userIDs = append(userIDs, membership.UserID)
+			members[membership.UserID.String()] = project.UserACL[membership.UserID.String()]
 		}
 	}
-	if len(userIDs) == 0 {
-		return []codersdk.ChatProjectUser{}, nil
-	}
-	dbUsers, err := api.Database.GetUsersByIDs(sysCtx, userIDs)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get users: %w", err)
-	}
-	users := make([]codersdk.ChatProjectUser, 0, len(dbUsers))
-	for _, user := range dbUsers {
-		users = append(users, codersdk.ChatProjectUser{
-			MinimalUser: db2sdk.MinimalUser(user),
-			Role:        convertToChatProjectRole(project.UserACL[user.ID.String()].Permissions),
-		})
-	}
-	return users, nil
-}
-
-func (api *API) chatProjectACLGroups(ctx context.Context, project database.ChatProject) ([]codersdk.ChatProjectGroup, error) {
-	groupIDs := make([]uuid.UUID, 0, len(project.GroupACL))
-	for rawID := range project.GroupACL {
-		id, err := uuid.Parse(rawID)
-		if err != nil {
-			api.Logger.Warn(ctx, "found invalid group uuid in chat project acl", slog.Error(err), slog.F("project_id", project.ID))
-			continue
-		}
-		groupIDs = append(groupIDs, id)
-	}
-	if len(groupIDs) == 0 {
-		return []codersdk.ChatProjectGroup{}, nil
-	}
-
-	// Groups from other organizations stay listed because their members in
-	// this organization still get access.
-	//nolint:gocritic // Project readers see shared groups without group read permission.
-	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get groups: %w", err)
-	}
-	groups := make([]codersdk.ChatProjectGroup, 0, len(dbGroups))
-	for _, group := range dbGroups {
-		//nolint:gocritic // Project readers see shared group sizes without group read permission.
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("count group members: %w", err)
-		}
-		groups = append(groups, codersdk.ChatProjectGroup{
-			Group: db2sdk.Group(group, nil, int(memberCount)),
-			Role:  convertToChatProjectRole(project.GroupACL[group.Group.ID.String()].Permissions),
-		})
-	}
-	return groups, nil
+	return resolveACLUsers(ctx, api.Database, members, func(user codersdk.MinimalUser, entry database.ChatACLEntry) codersdk.ChatProjectUser {
+		return codersdk.ChatProjectUser{MinimalUser: user, Role: convertToChatProjectRole(entry.Permissions)}
+	})
 }
 
 type ChatProjectACLUpdateValidator codersdk.UpdateChatProjectACL

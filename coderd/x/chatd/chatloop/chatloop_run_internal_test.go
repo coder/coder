@@ -1127,6 +1127,108 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 	require.Equal(t, "1", results[0].content.ToolCallID, "results keep original call order")
 }
 
+type haltingMarkerTool struct{ fantasy.AgentTool }
+
+func (haltingMarkerTool) SerialToolCalls() bool { return true }
+
+func (haltingMarkerTool) HaltedToolCallError() (string, bool) { return "halted", true }
+
+func TestExecuteToolsHaltsToolAfterFailedCall(t *testing.T) {
+	t.Parallel()
+
+	const (
+		succeed = `{}`
+		fail    = `{"fail":true}`
+	)
+	halting := func(id, input string) fantasy.ToolCallContent {
+		return fantasy.ToolCallContent{ToolCallID: id, ToolName: "halting_tool", Input: input}
+	}
+	other := fantasy.ToolCallContent{ToolCallID: "3", ToolName: "other_tool", Input: succeed}
+
+	tests := []struct {
+		name     string
+		observed []fantasy.ToolCallContent
+		executed []fantasy.ToolCallContent
+		wantRan  []string
+		// wantResults maps each executed call ID to its result text.
+		wantResults map[string]string
+	}{
+		{
+			name:        "FailedCall",
+			executed:    []fantasy.ToolCallContent{halting("1", succeed), halting("2", fail), other, halting("4", succeed)},
+			wantRan:     []string{"1", "2", "3"},
+			wantResults: map[string]string{"1": "ok", "2": "error: failed", "3": "ok", "4": "error: halted"},
+		},
+		{
+			name:        "RejectedCall",
+			observed:    []fantasy.ToolCallContent{halting("1", succeed), halting("2", succeed), other, halting("4", succeed)},
+			executed:    []fantasy.ToolCallContent{halting("1", succeed), other, halting("4", succeed)},
+			wantRan:     []string{"1", "3"},
+			wantResults: map[string]string{"1": "ok", "3": "ok", "4": "error: halted"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var mu sync.Mutex
+			var ran []string
+			record := func(id string) {
+				mu.Lock()
+				defer mu.Unlock()
+				ran = append(ran, id)
+			}
+			haltingTool := haltingMarkerTool{AgentTool: fantasy.NewAgentTool(
+				"halting_tool",
+				"fails when asked",
+				func(_ context.Context, input struct {
+					Fail bool `json:"fail"`
+				}, call fantasy.ToolCall,
+				) (fantasy.ToolResponse, error) {
+					record(call.ID)
+					if input.Fail {
+						return fantasy.NewTextErrorResponse("failed"), nil
+					}
+					return fantasy.NewTextResponse("ok"), nil
+				},
+			)}
+			otherTool := serialMarkerTool{AgentTool: fantasy.NewAgentTool(
+				"other_tool",
+				"runs between halting calls",
+				func(_ context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					record(call.ID)
+					return fantasy.NewTextResponse("ok"), nil
+				},
+			)}
+
+			outcome, err := ExecuteLocalTools(context.Background(), ExecuteLocalToolsOptions{
+				Tools:             []fantasy.AgentTool{haltingTool, otherTool},
+				ToolCalls:         tt.executed,
+				ObservedToolCalls: tt.observed,
+				Clock:             quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantRan, ran)
+			results := make(map[string]string)
+			for _, content := range outcome.Content {
+				result, ok := content.(fantasy.ToolResultContent)
+				require.True(t, ok, "%T", content)
+				switch output := result.Result.(type) {
+				case fantasy.ToolResultOutputContentText:
+					results[result.ToolCallID] = output.Text
+				case fantasy.ToolResultOutputContentError:
+					results[result.ToolCallID] = "error: " + output.Error.Error()
+				default:
+					t.Fatalf("unexpected result %T", result.Result)
+				}
+			}
+			require.Equal(t, tt.wantResults, results)
+			require.Equal(t, len(tt.wantRan), outcome.BatchBilledCalls, "halted calls are not billed")
+		})
+	}
+}
+
 func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	t.Parallel()
 

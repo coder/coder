@@ -22,8 +22,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 90 rules.
-Automated tooling checks 22 of them, and 1 of those 22 doesn't run on published pages.
+The guide documents 91 rules.
+Automated tooling checks 23 of them, and 1 of those 23 doesn't run on published pages.
 The other 68 are yours to apply by reading, 69 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
@@ -49,6 +49,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.USSpelling`                 | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/{api,cli}/*.md`                                                                                               | The `-ise` family and a list of British spellings                              |
 | `Coder.LatinAbbreviations`         | Vale                      | `suggestion` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md`                                             | `e.g.`, `i.e.`, and `etc.` in prose, not tables or code                        |
 | `Coder.Semicolons`                 | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md`                                             | A semicolon in a paragraph, list item, heading, or blockquote                  |
+| `Coder.AbbreviationFirstUse`       | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | Abbreviations with no earlier "Expanded Form (ABBR)" on the page               |
 | `MD001`, `MD025`, `MD040`, `MD045` | markdownlint              | `error`      | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text                |
 | `scripts/check_emdash.sh`          | `make lint/emdash`        | `error`      | Repository                                                                                                                                                                      | Em-dash, en-dash, and `--` as punctuation                                      |
 | `empty-table-header`               | `make lint/docs-html`     | `error`      | `docs/**`, including generated pages                                                                                                                                            | Table header cells with no text, in Markdown and HTML tables                   |
@@ -70,11 +71,11 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 | [Voice and tone](./voice-and-tone.md)                                 | 13    | 2            | 2       | 9                  |
 | [Procedural writing](./procedural-writing.md)                         | 6     | 1            | 0       | 5                  |
 | [Word choice](./word-choice.md)                                       | 20    | 5            | 9       | 6                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 6            | 2       | 6                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 15    | 7            | 2       | 6                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 4            | 6       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 90    | 22           | 23      | 45                 |
+| **Total**                                                             | 91    | 23           | 23      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
