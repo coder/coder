@@ -107,8 +107,9 @@ func convertWorkspaceBuildAgentRelay(parameters map[string]string) *WorkspaceBui
 }
 
 // agentRelayProvider reports which provider's parameters the build carries.
-// Builds without provider parameters are unknown: the Claude Code provider's
-// required parameter is ephemeral, so its stop and restart builds lack it.
+// Only names matter: coderd stores a row for every parameter the template
+// declares, so ephemeral provider parameters stay present, with their
+// default value, on stop and restart builds.
 func agentRelayProvider(parameters map[string]string) AgentRelayProvider {
 	var claudeCode, cursor bool
 	for name := range parameters {

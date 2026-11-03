@@ -59,6 +59,20 @@ func TestConvertWorkspaceBuild_AgentRelay(t *testing.T) {
 			},
 		},
 		{
+			// Stop and restart builds keep the ephemeral parameter's row
+			// with its default value.
+			name: "ClaudeCodeRestart",
+			params: map[string]string{
+				"agent_relay_session_id":                  "session-1",
+				"agent_relay_attempt":                     "",
+				"agent_relay_claude_code_lock_to_account": "",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:      telemetry.AgentRelayProviderClaudeCode,
+				SessionIDHash: hash("session-1"),
+			},
+		},
+		{
 			// The client platform alone does not identify a provider.
 			name: "UnknownWithClientPlatform",
 			params: map[string]string{
