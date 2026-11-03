@@ -89,7 +89,7 @@
 		"monaco-editor": "0.57.0",
 		"motion": "12.43.0",
 		"pretty-bytes": "6.1.1",
-		"radix-ui": "1.6.7",
+		"radix-ui": "1.8.1",
 		"react": "19.3.1",
 		"react-confetti": "6.4.0",
 		"react-day-picker": "9.14.0",
