@@ -1352,6 +1352,7 @@ jobs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    environment: ci-signing
     permissions:
       # Necessary to push docker images to ghcr.io.
       packages: write
@@ -1388,9 +1389,13 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go node pnpm cosign syft"
+          # Depot caches are shared across branches; don't trust them here.
+          use-cache: "false"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+        with:
+          use-cache: "false"
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
