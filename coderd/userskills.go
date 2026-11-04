@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -277,6 +280,8 @@ func (e skillWriteErrors) write(ctx context.Context, rw http.ResponseWriter, err
 		writeSkillNameConflict(ctx, rw)
 	case database.IsCheckViolation(err, database.CheckSkillsActionProjectOnly):
 		writeSkillActionNotAllowed(ctx, rw)
+	case database.IsCheckViolation(err, database.CheckSkillsDisplayNameProjectOnly):
+		writeSkillDisplayNameNotAllowed(ctx, rw)
 	default:
 		httpapi.InternalServerError(rw, err)
 	}
@@ -302,6 +307,7 @@ type skillCreate struct {
 	Content        string
 	Action         sql.NullBool
 	ModelInvocable sql.NullBool
+	DisplayName    sql.NullString
 }
 
 // createSkill parses a skill create request, stores the skill with insert,
@@ -318,8 +324,11 @@ func createSkill(
 	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
 		return database.Skill{}, false
 	}
-	if req.Action != nil && !kind.allowsAction() {
-		writeSkillActionNotAllowed(ctx, rw)
+	if !checkProjectSkillFields(ctx, rw, kind, req.Action, req.DisplayName) {
+		return database.Skill{}, false
+	}
+	displayName, ok := readSkillDisplayName(ctx, rw, req.DisplayName)
+	if !ok {
 		return database.Skill{}, false
 	}
 	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
@@ -335,6 +344,7 @@ func createSkill(
 		Content:        req.Content,
 		Action:         nullBool(req.Action),
 		ModelInvocable: modelInvocable,
+		DisplayName:    displayName,
 	})
 	if err != nil {
 		errs.write(ctx, rw, err)
@@ -381,6 +391,7 @@ type skillUpdate struct {
 	Enabled        sql.NullBool
 	Action         sql.NullBool
 	ModelInvocable sql.NullBool
+	DisplayName    sql.NullString
 }
 
 // readSkillUpdate reads and validates a PATCH request for the skill named
@@ -391,15 +402,18 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
 		return skillUpdate{}, false
 	}
-	if req.Action != nil && !kind.allowsAction() {
-		writeSkillActionNotAllowed(ctx, rw)
+	if !checkProjectSkillFields(ctx, rw, kind, req.Action, req.DisplayName) {
 		return skillUpdate{}, false
 	}
-	if req.Content == nil && req.Enabled == nil && req.Action == nil && req.ModelInvocable == nil {
+	if req.Content == nil && req.Enabled == nil && req.Action == nil && req.ModelInvocable == nil && req.DisplayName == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "No skill fields to update.",
-			Detail:  "Set at least one of content, enabled, action, or model_invocable.",
+			Detail:  "Set at least one of content, enabled, action, model_invocable, or display_name.",
 		})
+		return skillUpdate{}, false
+	}
+	displayName, ok := readSkillDisplayName(ctx, rw, req.DisplayName)
+	if !ok {
 		return skillUpdate{}, false
 	}
 
@@ -407,6 +421,7 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 		Enabled:        nullBool(req.Enabled),
 		Action:         nullBool(req.Action),
 		ModelInvocable: nullBool(req.ModelInvocable),
+		DisplayName:    displayName,
 	}
 	if req.Content == nil {
 		return update, true
@@ -435,11 +450,63 @@ func nullBool(value *bool) sql.NullBool {
 	return sql.NullBool{Bool: *value, Valid: true}
 }
 
+// checkProjectSkillFields rejects the action and display name fields for
+// owner kinds whose skills cannot be actions. It writes the error response
+// and returns false when the request sets one of them.
+func checkProjectSkillFields(ctx context.Context, rw http.ResponseWriter, kind skillOwnerKind, action *bool, displayName *string) bool {
+	if kind.allowsAction() {
+		return true
+	}
+	switch {
+	case action != nil:
+		writeSkillActionNotAllowed(ctx, rw)
+		return false
+	case displayName != nil:
+		writeSkillDisplayNameNotAllowed(ctx, rw)
+		return false
+	default:
+		return true
+	}
+}
+
 func writeSkillActionNotAllowed(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Only project skills can be actions.",
 		Detail:  "Remove the action field; personal and organization skills cannot be shown as actions.",
 	})
+}
+
+func writeSkillDisplayNameNotAllowed(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Only project skills can have display names.",
+		Detail:  "Remove the display_name field; display names label project skill actions.",
+	})
+}
+
+// readSkillDisplayName trims a requested display name and checks that it is
+// a single line of at most codersdk.MaxSkillDisplayNameLength characters. An
+// absent value stays unset. It writes the error response and returns false
+// when the value is invalid.
+func readSkillDisplayName(ctx context.Context, rw http.ResponseWriter, value *string) (sql.NullString, bool) {
+	if value == nil {
+		return sql.NullString{}, true
+	}
+	displayName := strings.TrimSpace(*value)
+	var detail string
+	switch {
+	case strings.ContainsFunc(displayName, unicode.IsControl):
+		detail = "Display names must be a single line without control characters."
+	case utf8.RuneCountInString(displayName) > codersdk.MaxSkillDisplayNameLength:
+		detail = fmt.Sprintf("Display names can have at most %d characters.", codersdk.MaxSkillDisplayNameLength)
+	}
+	if detail != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid skill display name.",
+			Detail:  detail,
+		})
+		return sql.NullString{}, false
+	}
+	return sql.NullString{String: displayName, Valid: true}, true
 }
 
 func writeSkillNameConflict(ctx context.Context, rw http.ResponseWriter) {

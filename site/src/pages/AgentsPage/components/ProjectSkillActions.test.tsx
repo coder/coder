@@ -28,10 +28,16 @@ const mockSkills: SkillMetadata[] = [
 	{ ...MockSkill, id: "skill-deploy", name: "deploy", action: true },
 ];
 
-const renderActions = () => {
-	vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
-		mockSkills,
-	);
+// "Assess issue" sorts first and "Wrap up" last, unlike their names.
+const mockSkillsWithDisplayNames: SkillMetadata[] = [
+	{ ...mockSkills[0], display_name: "Assess issue" },
+	mockSkills[1],
+	{ ...mockSkills[2], display_name: "Wrap up" },
+	...mockSkills.slice(3),
+];
+
+const renderActions = (skills: SkillMetadata[] = mockSkills) => {
+	vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(skills);
 	const onInvoke = vi.fn();
 	render(
 		<QueryClientProvider client={createTestQueryClient()}>
@@ -76,6 +82,34 @@ describe("ProjectSkillActions", () => {
 				["release"],
 				["review"],
 				["triage"],
+			]),
+		);
+	});
+
+	it("labels and sorts actions by display name but invokes them by name", async () => {
+		const { user, onInvoke } = renderActions(mockSkillsWithDisplayNames);
+
+		// "Assess issue" now sorts first, which moves "release" under More.
+		await user.click(
+			await screen.findByRole("button", { name: "Assess issue" }),
+		);
+		await user.click(screen.getByRole("button", { name: "lint" }));
+		await user.click(
+			screen.getByRole("button", { name: "More project actions" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "release" }));
+		await waitFor(() => expect(onInvoke).toHaveBeenLastCalledWith("release"));
+		await user.click(
+			screen.getByRole("button", { name: "More project actions" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Wrap up" }));
+
+		await waitFor(() =>
+			expect(onInvoke.mock.calls).toEqual([
+				["triage"],
+				["lint"],
+				["release"],
+				["review"],
 			]),
 		);
 	});

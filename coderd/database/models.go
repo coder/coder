@@ -6311,6 +6311,7 @@ type Skill struct {
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
 	Action         bool          `db:"action" json:"action"`
 	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
+	DisplayName    string        `db:"display_name" json:"display_name"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service

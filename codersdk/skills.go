@@ -17,6 +17,10 @@ type SkillMetadata struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Enabled     bool      `json:"enabled"`
+	// DisplayName labels a project skill's action. When it is empty, clients
+	// show Name instead. It is always empty for personal and organization
+	// skills.
+	DisplayName string `json:"display_name"`
 	// Action reports whether a project skill is offered as a one-click
 	// action above project composers. It is always false for personal and
 	// organization skills.
@@ -44,6 +48,10 @@ type CreateSkillRequest struct {
 	Content string `json:"content"`
 	// Action is only accepted for project skills and defaults to false.
 	Action *bool `json:"action,omitempty"`
+	// DisplayName is only accepted for project skills. It must be a single
+	// line of at most MaxSkillDisplayNameLength characters, and surrounding
+	// whitespace is trimmed.
+	DisplayName *string `json:"display_name,omitempty"`
 	// ModelInvocable defaults to false when the content's frontmatter sets
 	// disable-model-invocation: true, and to true otherwise.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
@@ -60,7 +68,14 @@ type UpdateSkillRequest struct {
 	// Action is only accepted for project skills.
 	Action         *bool `json:"action,omitempty"`
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
+	// DisplayName is only accepted for project skills. An empty value
+	// clears it.
+	DisplayName *string `json:"display_name,omitempty"`
 }
+
+// MaxSkillDisplayNameLength is the maximum number of characters in a skill
+// display name.
+const MaxSkillDisplayNameLength = 64
 
 // OrganizationSkillRole is a role a user or group holds in an organization
 // skill's access control list.
