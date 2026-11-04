@@ -20,6 +20,8 @@ import { getPRIconConfig } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
 
 const OVERVIEW_MAX_LIST_ROWS = 3;
+const OVERVIEW_CARD_MAX_HEIGHT = "36rem";
+const OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT = "calc(100vh - 6rem)";
 
 /** Where a card row leads: the right panel tab that holds its details. */
 export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
@@ -78,9 +80,12 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 			aria-labelledby={headingId}
 			aria-busy={isLoading}
 			className={cn(
-				"flex max-h-[min(32rem,calc(100vh-10rem))] w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
+				"flex w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
 				className,
 			)}
+			style={{
+				maxHeight: `min(${OVERVIEW_CARD_MAX_HEIGHT}, ${OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT})`,
+			}}
 		>
 			<h2
 				id={headingId}
