@@ -212,6 +212,13 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 		s.rmResponseChan(msgID)
 		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
 	case <-s.recvLoopDone:
+		// The receive loop publishes responses before it exits. Prefer a
+		// response already received to EOF, even if both cases are ready.
+		select {
+		case resp = <-respCh:
+			return resp, nil
+		default:
+		}
 		logger.Debug(s.ctx, "recvLoopDone while waiting for response")
 		return resp, io.ErrUnexpectedEOF
 	case resp = <-respCh:
@@ -225,7 +232,8 @@ func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
 	defer s.mu.Unlock()
 	msgID := s.nextMsgID
 	s.nextMsgID++
-	c := make(chan R)
+	// Delivery must not wait for a caller that may have selected cancellation.
+	c := make(chan R, 1)
 	s.responseChans[msgID] = c
 	return msgID, c
 }
