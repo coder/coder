@@ -35,6 +35,8 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	streaming?: boolean;
 	/** Keep single line breaks, the way the user typed them. */
 	preserveLineBreaks?: boolean;
+	/** Tighten the gaps between blocks and list items, for message bubbles. */
+	compact?: boolean;
 };
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -344,6 +346,7 @@ export const Response = ({
 	urlTransform,
 	streaming,
 	preserveLineBreaks,
+	compact,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -366,6 +369,10 @@ export const Response = ({
 		>
 			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
 				<Streamdown
+					// Streamdown merges this over its own space-y-4 root class.
+					// Paragraphs also carry the browser's default 1em bottom
+					// margin, which would otherwise outweigh space-y-2.
+					className={compact ? "space-y-2 [&_li]:py-0 [&_p]:mb-0" : undefined}
 					controls={false}
 					components={components}
 					urlTransform={urlTransform}
