@@ -3608,7 +3608,14 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
-		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows):
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot delete queued messages in an archived chat.",
+			})
+		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows), errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			// Every unarchived, valid state that refuses
+			// DeleteQueuedMessage has an empty queue, so the row no
+			// longer exists.
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3618,11 +3625,6 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
-		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to delete.",
-				Detail:  err.Error(),
-			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to delete queued message.",
@@ -3698,7 +3700,10 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot promote queued messages in an archived chat.",
 			})
-		case xerrors.Is(txErr, chatstate.ErrQueuedMessageNotFound):
+		case xerrors.Is(txErr, chatstate.ErrQueuedMessageNotFound), errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
+			// Every unarchived, valid state that refuses
+			// SteerQueuedMessage has an empty queue, so the row no
+			// longer exists.
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3708,11 +3713,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, txErr):
 			// response already written
-		case errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to promote.",
-				Detail:  txErr.Error(),
-			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to promote queued message.",

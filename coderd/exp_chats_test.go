@@ -12851,6 +12851,40 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		require.Equal(t, "Invalid queued message ID.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
 	})
+
+	t.Run("ArchivedChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "delete queued archived",
+		})
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
+		_, err = db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodDelete,
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+		require.Equal(t, "Cannot delete queued messages in an archived chat.", sdkErr.Message)
+	})
 }
 
 func TestPromoteChatQueuedMessage(t *testing.T) {
@@ -13233,64 +13267,57 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
 		require.NotEmpty(t, resp.Message)
 
-		var (
-			syntheticID int64
-			promotedID  int64
-		)
-		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
-				ChatID:  chat.ID,
-				AfterID: 0,
-			})
-			require.NoError(t, err)
-			syntheticID, promotedID = 0, 0
-			for _, msg := range messages {
-				parts, parseErr := chatprompt.ParseContent(msg)
-				require.NoError(t, parseErr)
-				for _, part := range parts {
-					if msg.Role == database.ChatMessageRoleTool &&
-						part.Type == codersdk.ChatMessagePartTypeToolResult &&
-						part.ToolCallID == pendingToolCallID &&
-						part.IsError {
-						syntheticID = msg.ID
-					}
-					if msg.Role == database.ChatMessageRoleUser &&
-						part.Type == codersdk.ChatMessagePartTypeText &&
-						part.Text == queuedText {
-						promotedID = msg.ID
-					}
-				}
-			}
-			return promotedID != 0
-		}, testutil.IntervalFast, "expected the promoted user message in chat history")
-		require.NotZero(t, syntheticID,
-			"expected a synthetic error tool result for the pending tool call")
-		require.Less(t, syntheticID, promotedID,
-			"synthetic tool result must precede the promoted user message")
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRequiresAction, after.Status,
+			"Send now does not cancel the pending tool call")
+		queued, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Len(t, queued, 1)
+		require.Equal(t, queuedMessage.ID, queued[0].ID)
+		require.Equal(t, database.ChatBusyBehaviorSteer, queued[0].BusyBehavior)
 
-		settledMessages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: syntheticID,
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{ToolCallID: pendingToolCallID, Output: json.RawMessage(`"done"`)}},
 		})
 		require.NoError(t, err)
-		var replyID int64
-		for _, msg := range settledMessages {
-			if msg.Role == database.ChatMessageRoleAssistant {
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		require.NoError(t, err)
+		var resultID, promotedID, replyID int64
+		for _, msg := range messages {
+			parts, err := chatprompt.ParseContent(msg)
+			require.NoError(t, err)
+			for _, part := range parts {
+				if msg.Role == database.ChatMessageRoleTool &&
+					part.Type == codersdk.ChatMessagePartTypeToolResult &&
+					part.ToolCallID == pendingToolCallID {
+					require.False(t, part.IsError, "the submitted result is the only result")
+					resultID = msg.ID
+				}
+				if msg.Role == database.ChatMessageRoleUser &&
+					part.Type == codersdk.ChatMessagePartTypeText &&
+					part.Text == queuedText {
+					promotedID = msg.ID
+				}
+			}
+			if msg.Role == database.ChatMessageRoleAssistant && promotedID != 0 && replyID == 0 {
 				replyID = msg.ID
-				break
 			}
 		}
+		require.NotZero(t, resultID, "expected the submitted tool result")
+		require.Less(t, resultID, promotedID,
+			"the steered message goes in after the submitted tool result")
 		require.NotZero(t, replyID,
-			"expected an assistant reply after the synthetic tool result")
-		require.Less(t, promotedID, replyID,
-			"the promoted user message must go in before the next assistant reply")
+			"expected an assistant reply after the steered message")
 
 		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
-		for _, qm := range queuedRemaining {
-			require.NotEqual(t, queuedMessage.ID, qm.ID)
-		}
+		require.Empty(t, queuedRemaining)
 	})
 
 	t.Run("WhileRunning", func(t *testing.T) {
@@ -13312,10 +13339,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		// No real worker runs here, so this test stops before delivery.
+		workerID := uuid.New()
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
 			Status:      database.ChatStatusRunning,
-			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
 			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 			HeartbeatAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		})
@@ -13343,10 +13371,10 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, database.ChatStatusInterrupting, after.Status,
-			"running-case promote must transition chat to interrupting")
-		require.True(t, after.WorkerID.Valid,
-			"running-case promote keeps current worker ownership")
+		require.Equal(t, database.ChatStatusRunning, after.Status,
+			"Send now does not interrupt a running chat")
+		require.Equal(t, uuid.NullUUID{UUID: workerID, Valid: true}, after.WorkerID,
+			"Send now keeps the worker")
 
 		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)

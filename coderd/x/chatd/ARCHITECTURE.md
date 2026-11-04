@@ -144,7 +144,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer` or `interrupt`. `queue` and `steer` name the lane (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send with one of them stores `m` in its lane and keeps the status, except a `steer` send from `E1P` or `P`. From `E1`, `E1P`, and `P`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly. A queued interrupt message goes to the end of the `steer` lane. A `queue` send never runs before a message under edit; an interrupt send runs before it, unless the chat is running or interrupting and the message under edit is a `steer` message.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
-- `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. Steering a message under edit ends its edit. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
+- `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. Steering a message under edit ends its edit. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. When another `steer` message under edit is the head, nothing is delivered and the chat keeps its state. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
 - `EditQueuedMessage(qid, content?, editing?)` rewrites a queued message's content, begins or ends its edit, or both. Beginning an edit ends any other edit on the chat. From `P`, ending the head's edit promotes it and reaches `running`; beginning an edit on a different message is refused.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
@@ -711,29 +711,29 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 
 The endpoint is owner-only because removing the head from `P` promotes the message behind it, which runs LLM inference with the owner's delegated credentials.
 
-No other input states are supported.
+No other input states are supported. In the other unarchived states the queue is empty, so the endpoint returns `404`, as it does for a missing `qid`. An archived chat returns `400`.
 
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
-This endpoint is "Send now". It applies `SteerQueuedMessage(qid)`, and then `Interrupt` in the same transaction if the chat is `running` or `requires_action`, or is `interrupting` and no worker owns it:
+This endpoint is "Send now". It applies `SteerQueuedMessage(qid)` and never interrupts:
 
 - `E1 -> SteerQueuedMessage(qid) -> R0 | R1 | R1P`
-- `E1P -> SteerQueuedMessage(qid) -> R0 | R1 | R1P`
-- `R1 -> SteerQueuedMessage(qid) -> R1 -> Interrupt -> I1`
-- `R1P -> SteerQueuedMessage(qid) -> R1 -> Interrupt -> I1`
+- `E1P -> SteerQueuedMessage(qid) -> E1P | R0 | R1 | R1P`
+- `R1 -> SteerQueuedMessage(qid) -> R1`
+- `R1P -> SteerQueuedMessage(qid) -> R1 | R1P`
 - `I1 -> SteerQueuedMessage(qid) -> I1`
-- `I1P -> SteerQueuedMessage(qid) -> I1`
-- `A1 -> SteerQueuedMessage(qid) -> A1 -> Interrupt -> R1`
-- `A1P -> SteerQueuedMessage(qid) -> A1 -> Interrupt -> R1`
-- `P -> SteerQueuedMessage(qid) -> R0 | R1 | R1P`
+- `I1P -> SteerQueuedMessage(qid) -> I1 | I1P`
+- `A1 -> SteerQueuedMessage(qid) -> A1`
+- `A1P -> SteerQueuedMessage(qid) -> A1 | A1P`
+- `P -> SteerQueuedMessage(qid) -> P | R0 | R1 | R1P`
 
-`SteerQueuedMessage` moves `qid` to the end of the `steer` lane with a new, highest `position`. If `qid` is already a `steer` message, it keeps its place. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results and delivers the whole `steer` lane into history: `R0` if no queued messages remain, or `R1` if `queue` messages remain (or `R1P` when the first of them is under edit). From the other states it keeps the chat status.
+`SteerQueuedMessage` moves `qid` to the end of the `steer` lane with a new, highest `position`. If `qid` is already a `steer` message, it keeps its place. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results and delivers the whole `steer` lane into history: `R0` if no queued messages remain, or `R1` if `queue` messages remain (or `R1P` when the first of them is under edit). From the other states it keeps the chat status. The state keeps its `P` when `qid` waits behind a `steer` message under edit.
 
-When the endpoint lands in `I1`, `FinishInterruption(partial?)` finalizes the interrupted suffix and then delivers the `steer` lane, ahead of `queue` messages. When it lands in `R1` from `A1`, `Interrupt` has closed the pending dynamic tool calls with synthetic cancellation results, and the chat worker delivers the `steer` lane with `DeliverSteerMessages` before its next LLM API call. If no worker owns an `R1` or `I1` chat, `Interrupt` applies `FinishInterruption` in the same transaction, so the `steer` lane goes into history immediately and the chat lands in `R0`, `R1`, or `R1P` without an owner. If `qid` does not exist, the transaction rolls back, so the interrupt does not happen either.
+From `R1`, `R1P`, `I1`, `I1P`, `A1`, and `A1P`, the `steer` lane goes in at the next delivery point: `DeliverSteerMessages` before the next LLM API call, `FinishTurn`, or `FinishInterruption`.
 
 When `qid` goes into history, the history message has `queued_message_id = qid`.
 
-No other input states are supported.
+No other input states are supported. In the other unarchived states the queue is empty, so the endpoint returns `404`, as it does for a missing `qid`. An archived chat returns `400`.
 
 ### `PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
 
@@ -1028,7 +1028,7 @@ One `chat_turn` span covers one prompt, not one runner. A runner keeps ownership
 - Takeover: a runner that acquired its chat from an owner whose heartbeat went stale (`spawnRunnerRequest.TakenOver`) opens its first turn at now with no `acquisition` stage, so the previous owner's work is not reported as pickup delay. The flag is also set when the owner of a chat in `requires_action` died before the results arrived, so that turn records no `acquisition` either.
 - Newer prompt: if `Ensure` is called on the current turn with a trigger after that turn's trigger, it closes that turn and opens a new one for the newer prompt. The closed turn is `abandoned` unless the task that ran it records an outcome before releasing it (see Emission below). A trigger that lands while the previous turn is still running keeps its own trigger as the anchor.
 - Invalidate: `Invalidate` records an outcome and an error for the open turn. The first call is kept, and a call after `Complete` is ignored: the finishing transition has committed, so a later failure in the same step does not change the outcome. A step whose `FinishError` transition commits, including a step that fails closed, records `error` with the failure. Every other failed step records nothing. A failure the task runner retries keeps the same trigger, so the retry's `Ensure` continues the same turn. A step that exits with an expected, non-retryable error (a fence or history mismatch), or whose task context is done, leaves the turn open for the interrupt task, a newer prompt's `Ensure`, or runner exit to close. A step that commits after a stop has committed but before the runner cancels its task fails the fence check this way, and the interrupt task then closes its turn as `interrupted`.
-- Interrupt: the interrupt task confirms the chat is `interrupting`, then invalidates the open turn as `interrupted` before `FinishInterruption` commits, so a queued prompt the commit promotes cannot close it first. `OpenToken`, like `Ensure`, returns the zero token once the task's context is done, so a canceled interrupt task cannot mark a turn its successor opened. After the commit, including a commit whose `Update` call reported an error, it settles the turn and records the promoted prompt's `queue_wait`; settling closes the turn even when no generation task holds it, for example when the interrupt lands between two steps. `interrupted` therefore means an interrupt request stopped the turn: a user or API client stopping the chat or promoting a queued message on a running chat, or a parent agent calling `interrupt_agent` or `message_agent` with `interrupt: true`.
+- Interrupt: the interrupt task confirms the chat is `interrupting`, then invalidates the open turn as `interrupted` before `FinishInterruption` commits, so a queued prompt the commit promotes cannot close it first. `OpenToken`, like `Ensure`, returns the zero token once the task's context is done, so a canceled interrupt task cannot mark a turn its successor opened. After the commit, including a commit whose `Update` call reported an error, it settles the turn and records the promoted prompt's `queue_wait`; settling closes the turn even when no generation task holds it, for example when the interrupt lands between two steps. `interrupted` therefore means an interrupt request stopped the turn: a user or API client stopping the chat, or a parent agent calling `interrupt_agent` or `message_agent` with `interrupt: true`.
 - Complete: after the `FinishTurn` or `EnterRequiresAction` transition commits, the generation step calls `Complete`. This marks the turn finished but leaves the span open. A chat waiting in `requires_action` is therefore outside any turn; the generation resumed by its tool results opens a new one.
 - Settle: when the step returns to the generation loop, after the step's own `generation_step` stage has ended, the loop calls `Settle`, which closes a finished or invalidated turn. Closing in two steps ensures the finishing step is counted inside the turn.
 - Emission: closing a turn fixes its end time and stops `Ensure` from joining it, but its span is emitted only once every task that joined it has called `Release`. `runTask` calls `Release` after the task's function returns, so every stage the task started has ended by then. A closed turn that no task holds, such as one the interrupt task settles after its generation task exited, is emitted at once.

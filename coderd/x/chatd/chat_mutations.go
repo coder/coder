@@ -573,8 +573,14 @@ func (p *Server) DeleteQueued(
 	}
 
 	var deleted chatstate.DeleteQueuedMessageResult
-	err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
+	err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
 		deleted, err = tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
@@ -705,9 +711,10 @@ func (p *Server) EditQueuedMessage(
 	return nil
 }
 
-// PromoteQueued requests immediate delivery of a queued message. It steers
-// before interrupting so inline interruption delivers the steer lane, not
-// the queue head.
+// PromoteQueued moves a queued message to the steer lane. From E1, E1P,
+// and P it delivers the steer lane in the same transaction. From other
+// states the steer lane waits for the next delivery point. It never
+// interrupts.
 func (p *Server) PromoteQueued(
 	ctx context.Context,
 	opts PromoteQueuedOptions,
@@ -716,10 +723,7 @@ func (p *Server) PromoteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
-	var (
-		promotedQueuedAt     time.Time
-		finishedInterruption bool
-	)
+	var promotedQueuedAt time.Time
 	refreshed, err := p.updateChat(ctx, opts.ChatID, "promote", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -736,24 +740,6 @@ func (p *Server) PromoteQueued(
 			return err
 		}
 		promotedQueuedAt = steered.PromotedQueuedAt
-		// An owned interrupting chat delivers the steer lane when its
-		// runner finishes the interruption.
-		interrupt := lockedChat.Status == database.ChatStatusRunning ||
-			lockedChat.Status == database.ChatStatusRequiresAction ||
-			(lockedChat.Status == database.ChatStatusInterrupting && !lockedChat.WorkerID.Valid)
-		if !interrupt {
-			return nil
-		}
-		interrupted, err := tx.Interrupt(chatstate.InterruptInput{
-			Reason: "Tool execution interrupted by queued message promotion",
-		})
-		if err != nil {
-			return xerrors.Errorf("interrupt after steer: %w", err)
-		}
-		if promotedQueuedAt.IsZero() {
-			promotedQueuedAt = interrupted.PromotedQueuedAt
-		}
-		finishedInterruption = interrupted.FinishedInterruption
 		return nil
 	})
 	if err != nil {
@@ -761,9 +747,6 @@ func (p *Server) PromoteQueued(
 	}
 
 	p.recordQueueWait(ctx, refreshed, promotedQueuedAt)
-	if finishedInterruption {
-		p.afterInlineInterruption(ctx, refreshed)
-	}
 	return nil
 }
 

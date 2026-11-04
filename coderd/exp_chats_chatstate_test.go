@@ -264,9 +264,9 @@ func TestChatQueueEndpointErrors(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "DeleteMissingReturns404", method: http.MethodDelete, queueFirst: true, wantStatus: http.StatusNotFound},
-		{name: "DeleteEmptyQueueReturnsConflict", method: http.MethodDelete, wantStatus: http.StatusConflict},
+		{name: "DeleteEmptyQueueReturns404", method: http.MethodDelete, wantStatus: http.StatusNotFound},
 		{name: "PromoteMissingReturns404", method: http.MethodPost, pathSuffix: "/promote", queueFirst: true, wantStatus: http.StatusNotFound},
-		{name: "PromoteEmptyQueueReturnsConflict", method: http.MethodPost, pathSuffix: "/promote", wantStatus: http.StatusConflict},
+		{name: "PromoteEmptyQueueReturns404", method: http.MethodPost, pathSuffix: "/promote", wantStatus: http.StatusNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

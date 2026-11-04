@@ -9503,58 +9503,6 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 	}
 }
 
-func TestSteerThenInterruptUnownedRunningChatKeepsQueueHead(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	// The server is never started, so no worker acquires the chat.
-	server := newChatdServer(t, ps, chatd.Config{
-		Logger:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		Database:  db,
-		ReplicaID: uuid.New(),
-	})
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-	user, org, model := seedChatDependencies(t, db)
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "steer-then-interrupt-unowned",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-	queue := func(text string) database.ChatQueuedMessage {
-		sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:       chat.ID,
-			CreatedBy:    user.ID,
-			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
-			BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-		})
-		require.NoError(t, err)
-		require.True(t, sent.Queued)
-		return *sent.QueuedMessage
-	}
-	head := queue("head")
-	target := queue("target")
-	require.NoError(t, server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: target.ID,
-	}))
-
-	requireDeliveredQueuedMessage(ctx, t, db, chat.ID, target.ID)
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 1)
-	require.Equal(t, head.ID, queued[0].ID)
-	updated, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusRunning, updated.Status)
-	require.False(t, updated.WorkerID.Valid)
-}
-
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	t.Parallel()
 
@@ -15104,13 +15052,12 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
-	// The promotion and its queue_wait happen only after the interruption
-	// finishes.
+	// Send now moves the message to the steer lane without interrupting,
+	// so the running turn completes and then delivers it.
 	t.Run("PromoteQueuedWhileRunning", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		started, release := make(chan struct{}), make(chan struct{})
-		defer close(release)
 		h := newHarness(t, blockFirstStream(started, release, textResponse()))
 		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
 		testutil.TryReceive(ctx, t, started)
@@ -15127,13 +15074,15 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			QueuedMessageID: sent.QueuedMessage.ID,
 		})
 		require.NoError(t, err)
+		close(release)
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 		index := waitForTurns(ctx, t, h.recorder, 2)
 
 		turns := index[string(chatloop.StageChatTurn)]
 		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
-		requireInterrupted(t, turns[0])
-		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+		for _, turn := range turns {
+			require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		}
 	})
 
 	t.Run("EditAbandonsTurn", func(t *testing.T) {
