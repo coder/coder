@@ -104,3 +104,81 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 		require.Equal(t, int32(1), dials.Load(), "the relay forwarder reconnected")
 	})
 }
+
+type selectCountingSession struct {
+	StreamPartsSession
+	selects *atomic.Int32
+}
+
+func (s selectCountingSession) SelectEpisode(ctx context.Context, historyVersion, generationAttempt int64) error {
+	s.selects.Add(1)
+	return s.StreamPartsSession.SelectEpisode(ctx, historyVersion, generationAttempt)
+}
+
+// TestStreamRelayForwarderSelectsOnlyChangedTargets configures the same
+// target repeatedly and expects one selection and one copy of the episode,
+// then one more selection when the target changes.
+func TestStreamRelayForwarderSelectsOnlyChangedTargets(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			episodeParts = 200
+			reconfigures = 10
+		)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+		defer buffer.Close()
+		chatID := uuid.New()
+		workerID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		createEpisode := func(historyVersion int64) streamRelayTarget {
+			key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: historyVersion, GenerationAttempt: 1}
+			require.NoError(t, buffer.CreateEpisode(key))
+			for i := range episodeParts {
+				require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(fmt.Sprintf("part %d", i+1))))
+			}
+			return streamRelayTarget{workerID: workerID, historyVersion: historyVersion, generationAttempt: 1}
+		}
+
+		logger := slogtest.Make(t, nil)
+		local := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{Buffer: buffer, Logger: logger})
+		var selects atomic.Int32
+		dialer := func(ctx context.Context, input StreamPartsDialInput) (StreamPartsSession, error) {
+			session, err := local(ctx, input)
+			if err != nil {
+				return nil, err
+			}
+			return selectCountingSession{StreamPartsSession: session, selects: &selects}, nil
+		}
+		relay := newStreamRelayForwarder(chatID, nil, dialer, clock, logger)
+		defer relay.Close()
+
+		// received reads relay.Parts() until every goroutine blocks.
+		received := func() int {
+			n := 0
+			for {
+				synctest.Wait()
+				select {
+				case <-relay.Parts():
+					n++
+				default:
+					return n
+				}
+			}
+		}
+
+		target := createEpisode(1)
+		parts := 0
+		for range reconfigures {
+			relay.Configure(ctx, target)
+			parts += received()
+		}
+		require.Equal(t, int32(1), selects.Load())
+		require.Equal(t, episodeParts, parts)
+
+		relay.Configure(ctx, createEpisode(2))
+		require.Equal(t, episodeParts, received())
+		require.Equal(t, int32(2), selects.Load())
+	})
+}
