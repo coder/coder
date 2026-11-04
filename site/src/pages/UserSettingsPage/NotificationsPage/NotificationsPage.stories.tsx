@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
@@ -8,12 +8,15 @@ import {
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
 } from "#/api/queries/notifications";
+import type { NotificationPreference } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
 	MockSystemNotificationTemplates,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -25,6 +28,26 @@ import NotificationsPage from "./NotificationsPage";
 const meta = {
 	title: "pages/UserSettingsPage/NotificationsPage",
 	component: NotificationsPage,
+	beforeEach: () => {
+		const preferences = new Map(
+			MockNotificationPreferences.map((pref) => [pref.id, pref]),
+		);
+		spyOn(API, "getUserNotificationPreferences").mockImplementation(async () =>
+			Array.from(preferences.values()),
+		);
+		spyOn(API, "putUserNotificationPreferences").mockImplementation(
+			async (_userId, { template_disabled_map }) => {
+				for (const [id, disabled] of Object.entries(template_disabled_map)) {
+					preferences.set(id, {
+						id,
+						disabled,
+						updated_at: MockNotificationPreferences[0].updated_at,
+					});
+				}
+				return Array.from(preferences.values());
+			},
+		);
+	},
 	parameters: {
 		experiments: ["notifications"],
 		queries: [
@@ -73,7 +96,6 @@ export const Default: Story = {
 
 export const ToggleGroup: Story = {
 	play: async ({ canvasElement }) => {
-		spyOn(API, "putUserNotificationPreferences").mockResolvedValue([]);
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const groupLabel = await canvas.findByLabelText("Workspace Events");
@@ -83,13 +105,67 @@ export const ToggleGroup: Story = {
 
 export const ToggleNotification: Story = {
 	play: async ({ canvasElement }) => {
-		spyOn(API, "putUserNotificationPreferences").mockResolvedValue([]);
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const notificationLabel = await canvas.findByLabelText(
 			"Workspace Marked as Dormant",
 		);
 		await user.click(notificationLabel);
+	},
+};
+
+export const ToggleNotificationsWhileSaving: Story = {
+	beforeEach: () => {
+		const pendingSave = createDeferred<NotificationPreference[]>();
+		spyOn(API, "putUserNotificationPreferences").mockReturnValue(
+			pendingSave.promise,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			await canvas.findByRole("switch", { name: "Workspace Deleted" }),
+		);
+		await user.click(
+			canvas.getByRole("switch", { name: "Workspace Marked as Dormant" }),
+		);
+	},
+};
+
+export const FailedSave: Story = {
+	beforeEach: () => {
+		spyOn(API, "putUserNotificationPreferences").mockRejectedValue(
+			new Error("Unable to save preferences"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			await canvas.findByRole("switch", { name: "Workspace Deleted" }),
+		);
+		await screen.findByText("Error updating notification preferences.");
+		await canvas.findByRole("switch", {
+			name: "Workspace Deleted",
+			checked: true,
+		});
+	},
+};
+
+export const FailedRefetch: Story = {
+	beforeEach: () => {
+		spyOn(API, "getUserNotificationPreferences").mockRejectedValue(
+			mockApiError({ message: "Unable to refresh notification preferences." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			await canvas.findByRole("switch", { name: "Workspace Deleted" }),
+		);
+		await canvas.findByRole("alert");
 	},
 };
 
@@ -136,31 +212,12 @@ export const DisableValidTemplate: Story = {
 			},
 		}),
 	},
-	decorators: [
-		(Story) => {
-			// Since the action occurs during the initial render, we need to spy on
-			// the API call before the story is rendered. This is done using a
-			// decorator to ensure the spy is set up in time.
-			spyOn(API, "putUserNotificationPreferences").mockResolvedValue(
-				MockNotificationPreferences.map((pref) => {
-					if (pref.id === templateToDisable.id) {
-						return {
-							...pref,
-							disabled: true,
-						};
-					}
-					return pref;
-				}),
-			);
-			return <Story />;
-		},
-	],
 	play: async ({ canvasElement }) => {
-		await within(document.body).findByText("Notification has been disabled.");
-		const switchEl = await within(canvasElement).findByLabelText(
-			templateToDisable.name,
-		);
-		expect(switchEl).not.toBeChecked();
+		await screen.findByText("Notification has been disabled.");
+		await within(canvasElement).findByRole("switch", {
+			name: templateToDisable.name,
+			checked: false,
+		});
 	},
 };
 
@@ -172,16 +229,10 @@ export const DisableInvalidTemplate: Story = {
 			},
 		}),
 	},
-	decorators: [
-		(Story) => {
-			// Since the action occurs during the initial render, we need to spy on
-			// the API call before the story is rendered. This is done using a
-			// decorator to ensure the spy is set up in time.
-			spyOn(API, "putUserNotificationPreferences").mockRejectedValue({});
-			return <Story />;
-		},
-	],
+	beforeEach: () => {
+		spyOn(API, "putUserNotificationPreferences").mockRejectedValue({});
+	},
 	play: async () => {
-		await within(document.body).findByText("Error disabling notification.");
+		await screen.findByText("Error disabling notification.");
 	},
 };

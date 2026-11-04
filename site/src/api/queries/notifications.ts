@@ -1,4 +1,9 @@
-import type { QueryClient, UseMutationOptions } from "react-query";
+import type {
+	Mutation,
+	MutationFilters,
+	QueryClient,
+	UseMutationOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type {
 	NotificationPreference,
@@ -21,26 +26,58 @@ export const userNotificationPreferences = (userId: string) => {
 	};
 };
 
+/** Selects pending choices separately from confirmed notification preferences. */
+export const pendingUserNotificationPreferences = (userId: string) => ({
+	filters: {
+		mutationKey: userNotificationPreferencesKey(userId),
+		exact: true,
+		status: "pending",
+	} satisfies MutationFilters,
+	select: ({ mutationId, state }: Mutation) => {
+		const preferences: UpdateUserNotificationPreferences["template_disabled_map"] =
+			{};
+		const request = state.variables;
+		if (
+			request &&
+			typeof request === "object" &&
+			"template_disabled_map" in request
+		) {
+			const map = request.template_disabled_map;
+			if (map && typeof map === "object") {
+				for (const [id, disabled] of Object.entries(map)) {
+					if (typeof disabled === "boolean") {
+						preferences[id] = disabled;
+					}
+				}
+			}
+		}
+		return { mutationId, preferences };
+	},
+});
+
 export const updateUserNotificationPreferences = (
 	userId: string,
 	queryClient: QueryClient,
 ) => {
+	const queryKey = userNotificationPreferencesKey(userId);
 	return {
+		mutationKey: queryKey,
+		// Group and individual toggles can update the same notification.
+		scope: { id: `user-notification-preferences-${userId}` },
 		mutationFn: (req) => {
 			return API.putUserNotificationPreferences(userId, req);
 		},
-		onMutate: (data) => {
-			queryClient.setQueryData(
-				userNotificationPreferencesKey(userId),
-				Object.entries(data.template_disabled_map).map(
-					([id, disabled]) =>
-						({
-							id,
-							disabled,
-							updated_at: new Date().toISOString(),
-						}) satisfies NotificationPreference,
-				),
-			);
+		onSuccess: async (data) => {
+			await queryClient.cancelQueries({ queryKey });
+			queryClient.setQueryData(queryKey, data);
+		},
+		onSettled: () => {
+			// Reconcile once the queue drains without keeping failed choices pending.
+			if (
+				queryClient.isMutating({ mutationKey: queryKey, exact: true }) === 1
+			) {
+				void queryClient.invalidateQueries({ queryKey });
+			}
 		},
 	} satisfies UseMutationOptions<
 		NotificationPreference[],
@@ -143,23 +180,4 @@ export const updateNotificationTemplateMethod = (
 		unknown,
 		UpdateNotificationTemplateMethod
 	>;
-};
-
-export const disableNotification = (
-	userId: string,
-	queryClient: QueryClient,
-) => {
-	return {
-		mutationFn: async (templateId: string) => {
-			const result = await API.putUserNotificationPreferences(userId, {
-				template_disabled_map: {
-					[templateId]: true,
-				},
-			});
-			return result;
-		},
-		onSuccess: (data) => {
-			queryClient.setQueryData(userNotificationPreferencesKey(userId), data);
-		},
-	} satisfies UseMutationOptions<NotificationPreference[], unknown, string>;
 };

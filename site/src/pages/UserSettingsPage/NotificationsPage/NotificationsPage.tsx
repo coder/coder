@@ -1,17 +1,23 @@
 import { Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQueryClient } from "react-query";
+import {
+	useMutation,
+	useMutationState,
+	useQueries,
+	useQueryClient,
+} from "react-query";
 import { useSearchParams } from "react-router";
 import { getErrorDetail } from "#/api/errors";
 import {
 	customNotificationTemplates,
-	disableNotification,
 	notificationDispatchMethods,
+	pendingUserNotificationPreferences,
 	selectTemplatesByGroup,
 	systemNotificationTemplates,
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "#/api/queries/notifications";
 import type { NotificationTemplate } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
@@ -60,17 +66,49 @@ const NotificationsPage: React.FC = () => {
 			notificationDispatchMethods(),
 		],
 	});
-	const queryClient = useQueryClient();
-	const updatePreferences = useMutation(
-		updateUserNotificationPreferences(user.id, queryClient),
+	const pendingPreferences = useMutationState(
+		pendingUserNotificationPreferences(user.id),
 	);
+	const effectivePreferences = { ...disabledPreferences.data };
+	for (const update of [...pendingPreferences].sort(
+		(a, b) => a.mutationId - b.mutationId,
+	)) {
+		Object.assign(effectivePreferences, update.preferences);
+	}
+
+	const queryClient = useQueryClient();
+	const updatePreferencesOptions = updateUserNotificationPreferences(
+		user.id,
+		queryClient,
+	);
+	const updatePreferences = useMutation({
+		...updatePreferencesOptions,
+		onSuccess: async (data) => {
+			await updatePreferencesOptions.onSuccess(data);
+			toast.success("Notification preferences updated.");
+		},
+		onError: (error) => {
+			toast.error("Error updating notification preferences.", {
+				description: getErrorDetail(error),
+			});
+		},
+	});
 
 	// Notification emails contain a link to disable a specific notification
 	// template. This functionality is achieved using the query string parameter
 	// "disabled".
-	const disableMutation = useMutation(
-		disableNotification(user.id, queryClient),
-	);
+	const disableMutation = useMutation({
+		...updatePreferencesOptions,
+		onSuccess: async (data) => {
+			await updatePreferencesOptions.onSuccess(data);
+			toast.success("Notification has been disabled.");
+		},
+		onError: (error) => {
+			toast.error("Error disabling notification.", {
+				description: getErrorDetail(error),
+			});
+		},
+	});
 	const [searchParams] = useSearchParams();
 	const disabledId = searchParams.get("disabled");
 	useEffect(() => {
@@ -78,16 +116,9 @@ const NotificationsPage: React.FC = () => {
 			return;
 		}
 		searchParams.delete("disabled");
-		disableMutation
-			.mutateAsync(disabledId)
-			.then(() => {
-				toast.success("Notification has been disabled.");
-			})
-			.catch((error) => {
-				toast.error("Error disabling notification.", {
-					description: getErrorDetail(error),
-				});
-			});
+		disableMutation.mutate({
+			template_disabled_map: { [disabledId]: true },
+		});
 	}, [searchParams, disabledId, disableMutation]);
 
 	const ready =
@@ -114,13 +145,16 @@ const NotificationsPage: React.FC = () => {
 
 			{ready ? (
 				<div className="flex flex-col gap-8">
+					{disabledPreferences.error && (
+						<ErrorAlert error={disabledPreferences.error} />
+					)}
 					{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
 						if (!canSeeNotificationGroup(group, permissions)) {
 							return null;
 						}
 
 						const allDisabled = templates.some((tpl) => {
-							return notificationIsDisabled(disabledPreferences.data, tpl);
+							return notificationIsDisabled(effectivePreferences, tpl);
 						});
 
 						return (
@@ -134,31 +168,12 @@ const NotificationsPage: React.FC = () => {
 											<Switch
 												id={group}
 												checked={!allDisabled}
-												onCheckedChange={async (checked) => {
-													const updated = { ...disabledPreferences.data };
-													for (const tpl of templates) {
-														updated[tpl.id] = !checked;
-													}
-													await updatePreferences.mutateAsync(
-														{
-															template_disabled_map: updated,
-														},
-														{
-															onSuccess: () => {
-																toast.success(
-																	"Notification preferences updated.",
-																);
-															},
-															onError: (error) => {
-																toast.error(
-																	"Error updating notification preferences.",
-																	{
-																		description: getErrorDetail(error),
-																	},
-																);
-															},
-														},
-													);
+												onCheckedChange={(checked) => {
+													updatePreferences.mutate({
+														template_disabled_map: Object.fromEntries(
+															templates.map((tpl) => [tpl.id, !checked]),
+														),
+													});
 												}}
 											/>
 										</div>
@@ -174,7 +189,7 @@ const NotificationsPage: React.FC = () => {
 										const label = methodLabels[method];
 
 										const disabled = notificationIsDisabled(
-											disabledPreferences.data,
+											effectivePreferences,
 											tmpl,
 										);
 
@@ -185,30 +200,12 @@ const NotificationsPage: React.FC = () => {
 														<Switch
 															id={tmpl.id}
 															checked={!disabled}
-															onCheckedChange={async (checked) => {
-																await updatePreferences.mutateAsync(
-																	{
-																		template_disabled_map: {
-																			...disabledPreferences.data,
-																			[tmpl.id]: !checked,
-																		},
+															onCheckedChange={(checked) => {
+																updatePreferences.mutate({
+																	template_disabled_map: {
+																		[tmpl.id]: !checked,
 																	},
-																	{
-																		onSuccess: () => {
-																			toast.success(
-																				"Notification preferences updated.",
-																			);
-																		},
-																		onError: (error) => {
-																			toast.error(
-																				"Error updating notification preferences.",
-																				{
-																					description: getErrorDetail(error),
-																				},
-																			);
-																		},
-																	},
-																);
+																});
 															}}
 														/>
 														<label
