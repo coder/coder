@@ -5006,9 +5006,7 @@ func (q *querier) GetProvisionerJobsToBeReaped(ctx context.Context, arg database
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
 		return nil, err
 	}
-	// The reaper's locked recheck filters out unauthorized daemons. Require
-	// read permission here so missing access cannot look like an absence of
-	// eligible online provisioners and cause protected pending jobs to be reaped.
+	// This query reads provisioner daemons, so require daemon read access.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon); err != nil {
 		return nil, err
 	}

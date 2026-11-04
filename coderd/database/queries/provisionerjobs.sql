@@ -326,26 +326,25 @@ WHERE
 	id = $1;
 
 -- name: GetProvisionerJobsToBeReaped :many
-WITH provisioner_requirements AS MATERIALIZED (
-	-- Collect distinct provisioner requirements so availability is checked
-	-- once per requirement set.
-	SELECT DISTINCT pj.organization_id, pj.provisioner, pj.tags
-	FROM provisioner_jobs pj
-	WHERE pj.started_at IS NULL
-		AND pj.completed_at IS NULL
-		AND pj.job_status = 'pending'::provisioner_job_status
-		-- Check only for jobs past the ordinary timeout and within the absolute
-		-- age limit. Older jobs are candidates regardless of provisioner
-		-- availability.
-		AND pj.created_at >= @max_pending_since::timestamptz
-		AND pj.updated_at < @pending_since
+WITH pending_requirements AS (
+	-- Requirement sets of pending jobs past the ordinary timeout that have
+	-- not reached the absolute age limit. Jobs that share an organization,
+	-- provisioner type, and tags have the same eligible daemons, and jobs
+	-- usually share a few template tag sets, so distinct sets are far fewer
+	-- than pending jobs. Checking daemon eligibility per set costs
+	-- sets x daemons calls to the plpgsql provisioner_tagset_contains
+	-- function, which Postgres cannot inline, instead of jobs x daemons.
+	SELECT DISTINCT organization_id, provisioner, tags
+	FROM provisioner_jobs
+	WHERE job_status = 'pending'::provisioner_job_status
+		AND updated_at < @pending_since
+		AND updated_at >= @max_pending_since
 ),
-requirements_without_online_provisioners AS MATERIALIZED (
-	-- Match daemons once per distinct requirement set. Keep only unavailable
-	-- requirements so protected jobs need not join against every available set.
+protected_requirements AS (
+	-- Requirement sets with an eligible daemon that was recently seen.
 	SELECT pr.organization_id, pr.provisioner, pr.tags
-	FROM provisioner_requirements pr
-	WHERE NOT EXISTS (
+	FROM pending_requirements pr
+	WHERE EXISTS (
 		SELECT 1
 		FROM provisioner_daemons pd
 		WHERE pd.organization_id = pr.organization_id
@@ -360,27 +359,21 @@ FROM
 	provisioner_jobs pj
 WHERE
 	(
-		-- Select unstarted jobs eligible for reaping.
-		pj.started_at IS NULL
+		-- If the job has not been started before @pending_since, reap it.
+		pj.updated_at < @pending_since
+		AND pj.started_at IS NULL
 		AND pj.completed_at IS NULL
-		AND (
-			(pj.job_status = 'pending'::provisioner_job_status AND pj.created_at < @max_pending_since::timestamptz)
-			OR
-			(
-				pj.updated_at < @pending_since
-				AND (
-					-- Jobs left unfinished after cancellation or failure
-					-- need cleanup regardless of provisioner availability.
-					pj.job_status != 'pending'::provisioner_job_status
-					-- No eligible provisioner is online.
-					OR EXISTS (
-						SELECT 1
-						FROM requirements_without_online_provisioners AS reqs
-						WHERE reqs.organization_id = pj.organization_id
-							AND reqs.provisioner = pj.provisioner
-							AND reqs.tags = pj.tags
-					)
-				)
+		-- Unless it is pending within the absolute age limit and an eligible
+		-- provisioner is online.
+		AND NOT (
+			pj.job_status = 'pending'::provisioner_job_status
+			AND pj.updated_at >= @max_pending_since
+			AND EXISTS (
+				SELECT 1
+				FROM protected_requirements pr
+				WHERE pr.organization_id = pj.organization_id
+					AND pr.provisioner = pj.provisioner
+					AND pr.tags = pj.tags
 			)
 		)
 	)

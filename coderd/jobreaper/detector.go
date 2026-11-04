@@ -25,9 +25,19 @@ const (
 
 	// PendingJobDuration is the duration since the last update to a PENDING
 	// job before it can be reaped when no eligible provisioner is online.
-	// Keep the --job-reaper-max-pending-age validation and description in
-	// codersdk/deployment.go in sync with this duration.
 	PendingJobDuration = 30 * time.Minute
+
+	// MaxPendingJobDuration is the duration since the last update to a
+	// PENDING job before it is reaped even if an eligible provisioner is
+	// online.
+	MaxPendingJobDuration = 2 * time.Hour
+
+	// ProvisionerStaleInterval is how recently a provisioner must have sent a
+	// heartbeat for the reaper to treat it as online and protect pending jobs
+	// it can run. It is longer than the interval used to display provisioners
+	// as online so that a delayed heartbeat does not expose queued jobs to
+	// reaping.
+	ProvisionerStaleInterval = 5 * time.Minute
 
 	// HungJobExitTimeout is the duration of time that provisioners should allow
 	// for a graceful exit upon cancellation due to failing to send an update to
@@ -58,7 +68,7 @@ func reapMessage(reapType ReapType, threshold time.Duration, termination string)
 	case Pending:
 		return fmt.Sprintf("Coder: Build has not been updated for at least %.0f minutes, and no online provisioner matches its requirements. It %s. Contact your administrator.", threshold.Minutes(), termination)
 	case PendingMaxAge:
-		return fmt.Sprintf("Coder: Build has been pending for more than %.0f minutes since creation, exceeding this deployment's maximum pending age. It %s. Contact your administrator to review the CODER_JOB_REAPER_MAX_PENDING_AGE setting.", threshold.Minutes(), termination)
+		return fmt.Sprintf("Coder: Build has been pending for more than %.0f minutes, exceeding the maximum pending age. It %s. Contact your administrator.", threshold.Minutes(), termination)
 	default:
 		return fmt.Sprintf("Coder: Build has been detected as %s for %.0f minutes and %s.", reapType, threshold.Minutes(), termination)
 	}
@@ -106,13 +116,11 @@ type Detector struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	db                       database.Store
-	pubsub                   pubsub.Pubsub
-	log                      slog.Logger
-	tick                     <-chan time.Time
-	stats                    chan<- Stats
-	maxPendingAge            time.Duration
-	provisionerStaleInterval time.Duration
+	db     database.Store
+	pubsub pubsub.Pubsub
+	log    slog.Logger
+	tick   <-chan time.Time
+	stats  chan<- Stats
 }
 
 // Stats contains statistics about the last run of the detector.
@@ -127,29 +135,20 @@ type Stats struct {
 }
 
 // New returns a new job reaper.
-// maxPendingAge must be greater than [PendingJobDuration].
-// provisionerStaleInterval is the maximum time since a provisioner's last
-// heartbeat for it to be considered online.
-func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time, maxPendingAge, provisionerStaleInterval time.Duration) (*Detector, error) {
-	if maxPendingAge <= PendingJobDuration {
-		return nil, xerrors.Errorf("maximum pending age must be greater than %s", PendingJobDuration)
-	}
-
+func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
 	//nolint:gocritic // Job reaper has a limited set of permissions.
 	ctx, cancel := context.WithCancel(dbauthz.AsJobReaper(ctx))
 	d := &Detector{
-		ctx:                      ctx,
-		cancel:                   cancel,
-		done:                     make(chan struct{}),
-		db:                       db,
-		pubsub:                   pub,
-		log:                      log,
-		tick:                     tick,
-		stats:                    nil,
-		maxPendingAge:            maxPendingAge,
-		provisionerStaleInterval: provisionerStaleInterval,
+		ctx:    ctx,
+		cancel: cancel,
+		done:   make(chan struct{}),
+		db:     db,
+		pubsub: pub,
+		log:    log,
+		tick:   tick,
+		stats:  nil,
 	}
-	return d, nil
+	return d
 }
 
 // WithStatsChannel will cause Executor to push a RunStats to ch after
@@ -217,8 +216,8 @@ func (d *Detector) run(t time.Time) Stats {
 	// Find all provisioner jobs to be reaped
 	jobs, err := d.db.GetProvisionerJobsToBeReaped(ctx, database.GetProvisionerJobsToBeReapedParams{
 		PendingSince:         t.Add(-PendingJobDuration),
-		MaxPendingSince:      t.Add(-d.maxPendingAge),
-		ProvisionerSeenSince: t.Add(-d.provisionerStaleInterval),
+		MaxPendingSince:      t.Add(-MaxPendingJobDuration),
+		ProvisionerSeenSince: t.Add(-ProvisionerStaleInterval),
 		HungSince:            t.Add(-HungJobDuration),
 		MaxJobs:              MaxJobsPerRun,
 	})
@@ -248,7 +247,7 @@ func (d *Detector) run(t time.Time) Stats {
 	for _, job := range jobsToReap {
 		log := d.log.With(slog.F("job_id", job.ID))
 
-		reapType, err := reapJob(ctx, log, d.db, d.pubsub, job, d.maxPendingAge, d.provisionerStaleInterval)
+		reapType, err := reapJob(ctx, log, d.db, d.pubsub, job)
 		if err != nil {
 			if (!xerrors.As(err, &acquireLockError{}) && !xerrors.As(err, &jobIneligibleError{})) {
 				log.Error(ctx, "error forcefully terminating provisioner job", slog.F("type", reapType), slog.Error(err))
@@ -262,7 +261,7 @@ func (d *Detector) run(t time.Time) Stats {
 	return stats
 }
 
-func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobToReap *jobToReap, maxPendingAge, provisionerStaleInterval time.Duration) (ReapType, error) {
+func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobToReap *jobToReap) (ReapType, error) {
 	var lowestLogID int64
 	reapType := jobToReap.Type
 
@@ -293,8 +292,8 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 					Err: xerrors.New("job is no longer pending"),
 				}
 			}
-			if job.CreatedAt.Before(now.Add(-maxPendingAge)) {
-				reapType, threshold = PendingMaxAge, maxPendingAge
+			if job.UpdatedAt.Before(now.Add(-MaxPendingJobDuration)) {
+				reapType, threshold = PendingMaxAge, MaxPendingJobDuration
 			} else {
 				if !job.UpdatedAt.Before(now.Add(-threshold)) {
 					return jobIneligibleError{
@@ -312,7 +311,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 				for _, daemon := range daemons {
 					lastSeen := daemon.ProvisionerDaemon.LastSeenAt
 					isOnline := lastSeen.Valid &&
-						!lastSeen.Time.Before(now.Add(-provisionerStaleInterval))
+						!lastSeen.Time.Before(now.Add(-ProvisionerStaleInterval))
 					if isOnline {
 						return jobIneligibleError{
 							Err: xerrors.New("an eligible provisioner is online"),

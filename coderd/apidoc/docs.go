@@ -29713,9 +29713,6 @@ const docTemplate = `{
                 },
                 "force_cancel_interval": {
                     "type": "integer"
-                },
-                "job_reaper_max_pending_age": {
-                    "type": "integer"
                 }
             }
         },

@@ -29,42 +29,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-const testMaxPendingAge = 2 * time.Hour
-
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
-}
-
-func TestNewMaxPendingAge(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name          string
-		maxPendingAge time.Duration
-		wantError     bool
-	}{
-		{name: "Zero", maxPendingAge: 0, wantError: true},
-		{name: "Negative", maxPendingAge: -time.Second, wantError: true},
-		{name: "BelowOrdinaryTimeout", maxPendingAge: jobreaper.PendingJobDuration - time.Nanosecond, wantError: true},
-		{name: "EqualToOrdinaryTimeout", maxPendingAge: jobreaper.PendingJobDuration, wantError: true},
-		{name: "AboveOrdinaryTimeout", maxPendingAge: jobreaper.PendingJobDuration + time.Nanosecond},
-		{name: "TwoHours", maxPendingAge: 2 * time.Hour},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			detector, err := jobreaper.New(t.Context(), nil, nil, testutil.Logger(t), nil, tc.maxPendingAge, provisionerdserver.StaleInterval)
-			if tc.wantError {
-				require.ErrorContains(t, err, "maximum pending age must be greater than 30m0s")
-				require.Nil(t, detector)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, detector)
-			detector.Start()
-			t.Cleanup(detector.Close)
-		})
-	}
 }
 
 // detectorTestEnv provides common infrastructure for jobreaper detector tests,
@@ -86,9 +52,7 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 	tickCh := make(chan time.Time)
 	statsCh := make(chan jobreaper.Stats)
 
-	detector, err := jobreaper.New(ctx, wrapDBAuthz(db, log), ps, log, tickCh, testMaxPendingAge, provisionerdserver.StaleInterval)
-	require.NoError(t, err)
-	detector.WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), ps, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
 
 	return &detectorTestEnv{
@@ -137,8 +101,7 @@ func requireTerminatedJob(ctx context.Context, t *testing.T, db database.Store, 
 	case jobreaper.Pending:
 		require.Equal(t, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner matches its requirements. It has been terminated by the reaper. Contact your administrator.", job.Error.String)
 	case jobreaper.PendingMaxAge:
-		expectedError := fmt.Sprintf("Coder: Build has been pending for more than %.0f minutes since creation, exceeding this deployment's maximum pending age. It has been terminated by the reaper. Contact your administrator to review the CODER_JOB_REAPER_MAX_PENDING_AGE setting.", testMaxPendingAge.Minutes())
-		require.Equal(t, expectedError, job.Error.String)
+		require.Equal(t, "Coder: Build has been pending for more than 120 minutes, exceeding the maximum pending age. It has been terminated by the reaper. Contact your administrator.", job.Error.String)
 	default:
 		require.Contains(t, job.Error.String, fmt.Sprintf("Build has been detected as %s", reapType))
 	}
