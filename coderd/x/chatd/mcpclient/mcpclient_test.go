@@ -1685,11 +1685,25 @@ func TestConvertCallResult_MixedContent(t *testing.T) {
 			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf"},
 		},
 		{
-			name: "EmbeddedBlobControlCharacterNameDropped",
+			name: "EmbeddedBlobControlCharacterRemovedFromName",
 			result: &mcp.CallToolResult{Content: []mcp.Content{
 				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///tmp/report%00.pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
 			}},
-			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf"},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Filename: "report.pdf"},
+		},
+		{
+			name: "EmbeddedBlobLongNameTruncated",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///tmp/" + strings.Repeat("a", 596) + ".pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Filename: strings.Repeat("a", 255)},
+		},
+		{
+			name: "EmbeddedBlobLongMultibyteNameTruncated",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///tmp/a" + strings.Repeat("文", 100) + ".pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Filename: "a" + strings.Repeat("文", 84)},
 		},
 		{
 			name: "EmbeddedBlobOpaqueURIHasNoFilename",

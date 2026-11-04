@@ -34,6 +34,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/safedial"
 )
 
@@ -1497,17 +1498,16 @@ func convertCallResult(
 // resourceFilename returns the last element of an MCP resource URI path,
 // with the canonical extension of mediaType appended when the name's own
 // extension does not map to mediaType, because providers such as OpenAI
-// detect the file type from the extension. It returns "" when the URI does
-// not name a file or mediaType has no known extension.
+// detect the file type from the extension. The name follows the rule for
+// uploaded file names, chatfiles.NormalizeStoredFileName. It returns "" when
+// the URI does not name a file or mediaType has no known extension.
 func resourceFilename(uri, mediaType string) string {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return ""
 	}
 	name := path.Base(u.Path)
-	// Postgres jsonb rejects NUL, so a name with a control character
-	// could stop the tool result from being saved.
-	if name == "." || name == "/" || strings.ContainsFunc(name, unicode.IsControl) {
+	if name == "." || name == "/" {
 		return ""
 	}
 	baseType, _, err := mime.ParseMediaType(mediaType)
@@ -1516,7 +1516,7 @@ func resourceFilename(uri, mediaType string) string {
 	}
 	// TypeByExtension adds a charset parameter to text types.
 	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name))); err == nil && extType == baseType {
-		return name
+		return chatfiles.NormalizeStoredFileName(name)
 	}
 	ext := ".pdf"
 	if baseType != "application/pdf" {
@@ -1526,7 +1526,7 @@ func resourceFilename(uri, mediaType string) string {
 		}
 		ext = exts[0]
 	}
-	return name + ext
+	return chatfiles.NormalizeStoredFileName(name + ext)
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
