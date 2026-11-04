@@ -145,7 +145,12 @@ const setup = (options?: {
 	composerMode?: ComposerMode;
 }) => {
 	const store = createChatStore();
-	store.setQueuedMessages(options?.storeQueue ?? []);
+	store.seed({
+		messages: [],
+		queued_messages: options?.storeQueue ?? [],
+		has_more: false,
+		snapshot_version: 1,
+	});
 	const queryClient = new QueryClient();
 	const patches: Patch[] = [];
 	const hook = renderHook(
@@ -208,7 +213,7 @@ describe("useQueuedMessageEdit", () => {
 		const t = setup();
 		expect(t.result().composerTarget).toBeNull();
 
-		act(() => t.store.setQueuedMessages([mockRow5Marked]));
+		act(() => t.store.setQueuedMessages([mockRow5Marked], 2));
 		expect(t.result().composerTarget).toEqual(queued(5));
 		expect(t.result().composerMode).toBe("follow");
 	});
@@ -223,7 +228,7 @@ describe("useQueuedMessageEdit", () => {
 		]);
 		expect(t.result().composerTarget).toEqual(queued(5));
 
-		act(() => t.store.setQueuedMessages([mockRow5Marked]));
+		act(() => t.store.setQueuedMessages([mockRow5Marked], 2));
 		await t.settle(t.patches[0], "resolve");
 		await waitFor(() => expect(t.result().markerStatus).toBe("success"));
 		expect(t.result().composerTarget).toEqual(queued(5));

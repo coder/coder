@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { getErrorStatus } from "#/api/errors";
 import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import {
 	type ChatStore,
+	selectQueuedMessages,
 	useChatSelector,
 } from "../components/ChatConversation/chatStore";
 import type { EditingTarget } from "../components/ChatConversation/types";
@@ -96,7 +96,7 @@ export function useQueuedMessageEdit(deps: {
 	const { store, composerMode, setComposerMode, isOwner, marker } = deps;
 	const serverMarkedID = useChatSelector(
 		store,
-		(s) => s.queuedMessages.find((row) => row.editing_since)?.id ?? null,
+		(s) => selectQueuedMessages(s).find((row) => row.editing_since)?.id ?? null,
 	);
 	// The choice of the latest Edit until the begin's handlers below have
 	// applied its outcome. While the composer holds that choice it stays the
@@ -111,9 +111,9 @@ export function useQueuedMessageEdit(deps: {
 			: deriveComposerTarget(composerMode, serverMarkedID, marker, isOwner);
 
 	const handleEditQueuedMessage = (id: number) => {
-		const row = store
-			.getSnapshot()
-			.queuedMessages.find((message) => message.id === id);
+		const row = selectQueuedMessages(store.getSnapshot()).find(
+			(message) => message.id === id,
+		);
 		if (
 			!row ||
 			(composerTarget?.kind === "queued" && composerTarget.id === id)
@@ -127,20 +127,15 @@ export function useQueuedMessageEdit(deps: {
 
 		const applied = () =>
 			setUnappliedEdit((current) => (current === editMode ? null : current));
-		void deps
-			.setQueuedMessageEditing(id, true)
-			.then(applied, (error: unknown) => {
-				// A refused begin returns the composer to the mode before Edit, so
-				// it does not open the row later when another client edits it,
-				// unless a later choice replaced this one. A 404 dropped the row,
-				// which closes the edit on its own.
-				if (getErrorStatus(error) !== 404) {
-					setComposerMode((current) =>
-						current === editMode ? composerMode : current,
-					);
-				}
-				applied();
-			});
+		void deps.setQueuedMessageEditing(id, true).then(applied, () => {
+			// A refused begin returns the composer to the mode before Edit, so
+			// it does not open the row later when another client edits it,
+			// unless a later choice replaced this one.
+			setComposerMode((current) =>
+				current === editMode ? composerMode : current,
+			);
+			applied();
+		});
 	};
 
 	const handleEndQueuedMessageEdit = (id: number) =>

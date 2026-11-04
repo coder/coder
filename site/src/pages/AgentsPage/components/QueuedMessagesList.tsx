@@ -25,7 +25,7 @@ import {
 import { isPendingRowID } from "./ChatConversation/chatStore";
 import { SkillChip } from "./ChatMessageInput/SkillChip";
 
-export type QueuedRowAction = "delete" | "promote";
+export type QueuedRowAction = "delete" | "promote" | "end_edit";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -33,6 +33,14 @@ type QueuedMessagesListProps = {
 	busyRows: ReadonlyMap<number, QueuedRowAction>;
 	onDelete: (id: number) => void;
 	onPromote: (id: number) => void;
+	onEdit?: (id: number) => void;
+	onEndEdit?: (id: number) => void;
+	isChatPaused?: boolean;
+	queuedMessageUnderEditID: number | null;
+	// The queued row this composer edits, or null. It gets no Edit action; a
+	// row under edit elsewhere keeps Edit so this client can take it over.
+	composerQueuedMessageID: number | null;
+	showEnterToSendHint?: boolean;
 	className?: string;
 };
 
@@ -198,10 +206,13 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	showEnterToSendHint,
 	className,
 }) => {
-	const underEditIndex = messages.findIndex((message) => message.editing_since);
+	const underEditIndex = messages.findIndex(
+		(message) => message.id === queuedMessageUnderEditID,
+	);
 	const items = messages.map((message, index) => {
-		const isUnderEdit = Boolean(message.editing_since);
+		const isUnderEdit = message.id === queuedMessageUnderEditID;
 		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+
 		let badge: { label: string; tooltip: string } | undefined;
 		if (isUnderEdit) {
 			badge = {
@@ -214,6 +225,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				tooltip: "Waits for the edit above to finish.",
 			};
 		}
+
 		return {
 			id: message.id,
 			...getQueuedMessageInfo(message),
@@ -302,7 +314,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && !item.isUnderEdit && !isPendingRow && (
+							{isFirst && showEnterToSendHint && (
 								<span
 									className={cn(
 										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
@@ -320,6 +332,34 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
+								{item.isUnderEdit && onEndEdit && (
+									<QueuedMessageActionButton
+										label="Cancel edit"
+										tooltip={
+											isChatPaused
+												? "Cancel edit and send unchanged"
+												: "Cancel edit"
+										}
+										icon={<XIcon className="size-3.5" />}
+										busy={busyAction === "end_edit"}
+										disabled={busyAction !== undefined || isPendingRow}
+										onClick={() => onEndEdit(item.id)}
+									/>
+								)}
+								{onEdit && item.id !== composerQueuedMessageID && (
+									<QueuedMessageActionButton
+										label="Edit"
+										icon={<PencilIcon className="size-3.5" />}
+										busy={false}
+										disabled={busyAction !== undefined || isPendingRow}
+										disabledReason={
+											isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
+												? "Finish the current edit first."
+												: undefined
+										}
+										onClick={() => onEdit(item.id)}
+									/>
+								)}
 								<QueuedMessageActionButton
 									label="Send now"
 									icon={<ArrowUpIcon className="size-3.5" />}
