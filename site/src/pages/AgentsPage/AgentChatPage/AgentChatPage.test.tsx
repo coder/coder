@@ -16,7 +16,11 @@ import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -59,15 +63,17 @@ beforeAll(() => {
 	});
 });
 
-// Renders the page for MockChat with the given queued rows; the user owns
-// the chat. publish delivers stream events to the page. Queries are scoped
-// to this render, so a test can render the page twice as two tabs.
+// Renders the page for MockChat with the given messages and queued rows; the
+// user owns the chat. publish delivers stream events to the page. Queries are
+// scoped to this render, so a test can render the page twice as two tabs.
 const renderQueuedChat = ({
 	queuedMessages,
+	messages = [],
 	chat = MockChat,
 	models = [{ ...MockChatModel, id: chat.last_model_config_id }],
 }: {
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
+	messages?: readonly TypesGen.ChatMessage[];
 	chat?: TypesGen.Chat;
 	models?: readonly TypesGen.ChatModel[];
 }) => {
@@ -85,7 +91,7 @@ const renderQueuedChat = ({
 	);
 	vi.spyOn(API.experimental, "getChat").mockResolvedValue(chat);
 	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-		messages: [],
+		messages: [...messages],
 		queued_messages: [...queuedMessages],
 		has_more: false,
 		snapshot_version: 1,
@@ -405,16 +411,25 @@ describe("AgentChatPage", () => {
 
 		// react-query delivers the failed request's state to the page on a
 		// scheduler it owns, which may run before the request's own error
-		// handlers.
+		// handlers. On a 404 the row is gone, and another client's edit of
+		// another row follows.
+		const otherRow = {
+			...row,
+			id: 8,
+			content: [{ type: "text" as const, text: "other row" }],
+		};
 		it.each([
-			["", defaultScheduler],
+			["", defaultScheduler, 409, [row]],
 			[
 				" when the page sees the failure before the request's handlers",
 				queueMicrotask,
+				409,
+				[row],
 			],
+			[" or of another row after a 404", defaultScheduler, 404, [otherRow]],
 		])(
 			"an Edit the server refuses leaves the composer as it was, so it does not open another client's edit of the row%s",
-			async (_name, scheduler) => {
+			async (_name, scheduler, status, queueAfter) => {
 				notifyManager.setScheduler(scheduler);
 				onTestFinished(() => notifyManager.setScheduler(defaultScheduler));
 				const page = renderQueuedChat({ queuedMessages: [row] });
@@ -430,7 +445,7 @@ describe("AgentChatPage", () => {
 
 				page.editChatQueuedMessage.mockRejectedValueOnce({
 					...mockApiError({ message: "Another edit is open." }),
-					status: 409,
+					status,
 				});
 				await page.rowAction("Edit");
 				await waitFor(() =>
@@ -441,7 +456,10 @@ describe("AgentChatPage", () => {
 				await page.publish({
 					type: "queue_update",
 					chat_id: MockChat.id,
-					queued_messages: [{ ...row, editing_since: "2024-01-01T00:00:00Z" }],
+					queued_messages: queueAfter.map((queued) => ({
+						...queued,
+						editing_since: "2024-01-01T00:00:00Z",
+					})),
 					snapshot_version: 2,
 				});
 				await screen.findByRole("button", { name: "Editing" });
@@ -486,6 +504,34 @@ describe("AgentChatPage", () => {
 
 			expect(page.editChatQueuedMessage).not.toHaveBeenCalled();
 			expect(screen.queryByRole("button", { name: "Editing" })).toBeNull();
+			expect(page.composer().textContent).toBe("");
+		});
+
+		it("Edit on a sent message does nothing while a send is in flight", async () => {
+			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+				new Promise(() => {}),
+			);
+			const page = renderQueuedChat({
+				queuedMessages: [],
+				messages: [
+					{
+						...MockChatMessage,
+						id: 3,
+						chat_id: MockChat.id,
+						role: "user",
+						content: [{ type: "text", text: "sent text" }],
+					},
+				],
+			});
+			await page.type("hello");
+			await page.user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(page.composer().textContent).toBe(""));
+
+			await page.user.click(
+				screen.getByRole("button", { name: "Edit message" }),
+			);
+
+			expect(screen.queryByRole("button", { name: "Save Edit" })).toBeNull();
 			expect(page.composer().textContent).toBe("");
 		});
 	});
