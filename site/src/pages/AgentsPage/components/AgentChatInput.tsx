@@ -198,7 +198,6 @@ type AgentChatInputProps = {
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
 	isChatPaused?: boolean;
-	// isActiveChatStatus of the chat's status.
 	isChatActive?: boolean;
 	// Editing state, owned by the parent. The kind selects the banner text.
 	editingKind?: EditingTarget["kind"];
