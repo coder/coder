@@ -41,11 +41,6 @@ The **Computer use** row appears only while the `chat-virtual-desktop` experimen
 The list shows the organization's enabled models that computer use supports: models from Anthropic and OpenAI AI providers, and Claude models from AWS Bedrock AI providers.
 To add a model to the list, enable one of these models on the **Models** page.
 
-If the AWS Bedrock AI provider uses the [InvokeModel](../../ai-gateway/providers.md#invokemodel) protocol, AI Gateway runs the provider's configured model, not the chat model.
-Coder still reads the chat model ID to decide whether the model is a Claude model and which version of the computer use tool to send.
-Give the chat model the ID of the Claude model that the provider runs.
-If the provider runs an application inference profile, use the ID of the Claude model behind the profile, not the profile's Amazon Resource Name (ARN).
-
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
 To return to the default model, select **Clear**, then select **Save**.
 If the selected model is later disabled, deleted, changed to a model that computer use doesn't support, or unusable for the chat owner, computer use falls back to the organization's default model.
