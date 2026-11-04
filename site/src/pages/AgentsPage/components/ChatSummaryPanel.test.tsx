@@ -9,6 +9,7 @@ import {
 	MockChatAttachment,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -136,5 +137,23 @@ describe("ChatSummaryPanel attachments", () => {
 			{ before_id: mockOldestLoadedMessage.id },
 			expect.any(AbortSignal),
 		]);
+	});
+
+	it("keeps the failure and its retry button while the retry runs", async () => {
+		const user = userEvent.setup();
+		const retry = createDeferred<TypesGen.ChatAttachmentsResponse>();
+		vi.spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(new Error("attachments unavailable"))
+			.mockReturnValueOnce(retry.promise);
+
+		renderPanel();
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+		expect(screen.getByText("attachments unavailable")).toBeVisible();
+		expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled();
+		retry.resolve({ attachments: [MockChatAttachment] });
+		await waitFor(() =>
+			expect(screen.queryByRole("button", { name: /Retry/ })).toBeNull(),
+		);
 	});
 });
