@@ -109,7 +109,9 @@ export const OnMarkNotificationAsRead: Story = {
 		).getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		await userEvent.click(secondNotification);
-		const markButton = body.getByRole("button", { name: /mark as read/i });
+		const markButton = within(secondNotification).getByRole("button", {
+			name: /mark as read/i,
+		});
 		await userEvent.click(markButton);
 		await expect(args.onMarkNotificationAsRead).toHaveBeenCalledTimes(1);
 		await expect(args.onMarkNotificationAsRead).toHaveBeenCalledWith(
