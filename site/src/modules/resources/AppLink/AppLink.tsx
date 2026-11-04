@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ButtonProps } from "#/components/Button/Button";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
 import { Markdown } from "#/components/Markdown/Markdown";
@@ -41,6 +42,8 @@ type AppLinkProps = {
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;
 	grouped?: boolean;
+	disabled?: boolean;
+	size?: ButtonProps["size"];
 };
 
 export const AppLink: React.FC<AppLinkProps> = ({
@@ -48,114 +51,24 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	workspace,
 	agent,
 	grouped,
+	disabled,
+	size,
 }) => {
 	const { proxy } = useProxy();
-	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
 	const link = useAppLink(app, { agent, workspace });
-
-	// canClick is ONLY false when it's a subdomain app and the admin hasn't
-	// enabled wildcard access URL or the session token is being fetched.
-	//
-	// To avoid bugs in the healthcheck code locking users out of apps, we no
-	// longer block access to apps if they are unhealthy/initializing.
-	let canClick = true;
-	let primaryTooltip: React.ReactNode = "";
-	let icon = !iconError && (
-		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
-	);
-
-	if (app.health === "initializing") {
-		icon = <Spinner loading />;
-		primaryTooltip = "Initializing...";
-	}
-
-	if (app.health === "unhealthy") {
-		icon = (
-			<CircleAlertIcon
-				aria-hidden="true"
-				className="size-icon-sm text-content-warning"
-			/>
-		);
-		primaryTooltip = "Unhealthy";
-	}
-
-	if (isAppBlockedByMissingWildcard(app, host)) {
-		canClick = false;
-		icon = (
-			<CircleAlertIcon
-				aria-hidden="true"
-				className="size-icon-sm text-content-secondary"
-			/>
-		);
-		primaryTooltip =
-			"Your admin has not configured subdomain application access";
-	}
-
-	if (app.subdomain_name && app.subdomain_name.length > 63) {
-		icon = (
-			<CircleAlertIcon
-				aria-hidden="true"
-				className="size-icon-sm text-content-warning"
-			/>
-		);
-		primaryTooltip = (
-			<>
-				Port forwarding will not work because hostname is too long, see the{" "}
-				<Link
-					href={docs("/user-guides/workspace-access/port-forwarding#dashboard")}
-					target="_blank"
-					size="sm"
-				>
-					documentation
-				</Link>{" "}
-				for more details
-			</>
-		);
-	}
-
-	const hasValidUrl = isAppUrlValid(app);
-	if (link.isBlocked || !hasValidUrl) {
-		canClick = false;
-		icon = (
-			<CircleAlertIcon
-				aria-hidden="true"
-				className="size-icon-sm text-content-warning"
-			/>
-		);
-		primaryTooltip = (
-			<>
-				{hasValidUrl
-					? SESSION_TOKEN_LINK_BLOCKED_MESSAGE
-					: "This app has an invalid URL and can't be opened."}{" "}
-				{agent.parent_id ? (
-					<>
-						Fix the app's <code>url</code> in the dev container's{" "}
-						<code>devcontainer.json</code>.
-					</>
-				) : (
-					<>
-						Ask your template administrator to fix the app's <code>url</code> in
-						the template's <code>coder_app</code> configuration.
-					</>
-				)}
-			</>
-		);
-	}
-
-	// The session token for external apps is minted on click, so key generation
-	// no longer gates clickability. While a click is minting a token, show a
-	// spinner to reflect the in-flight request.
-	if (link.isLoading) {
-		icon = <Spinner loading />;
-	}
-
-	if (
-		agent.lifecycle_state === "starting" &&
-		agent.startup_script_behavior === "blocking"
-	) {
-		canClick = false;
-	}
+	const status = getAppLinkStatus({
+		app,
+		agent,
+		link,
+		wildcardHostname: proxy.preferredWildcardHostname,
+		disabled,
+	});
+	const icon =
+		status.icon ??
+		(!iconError && (
+			<BaseIcon app={app} alt="" onIconPathError={() => setIconError(true)} />
+		));
 
 	const canShare = app.sharing_level !== "owner";
 	const { shareTooltip, shareIcon: ShareIcon } = canShare
@@ -186,16 +99,18 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	);
 
 	const trigger = opensViaClick ? (
+		// aria-disabled instead of disabled keeps the button focusable, so its
+		// tooltip stays reachable from the keyboard.
 		<button
 			type="button"
-			onClick={link.onClick}
-			disabled={!canClick || link.isLoading}
+			onClick={status.canClick ? link.onClick : undefined}
+			aria-disabled={!status.canClick || undefined}
 		>
 			{content}
 		</button>
 	) : (
 		<a
-			href={canClick ? link.href : undefined}
+			href={status.canClick ? link.href : undefined}
 			onClick={link.onClick}
 			target={app.open_in === "tab" ? "_blank" : undefined}
 			rel={app.open_in === "tab" ? "noreferrer" : undefined}
@@ -205,23 +120,31 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	);
 
 	const button = grouped ? (
-		<DropdownMenuItem asChild>{trigger}</DropdownMenuItem>
+		<DropdownMenuItem
+			asChild
+			disabled={disabled}
+			onSelect={status.canClick ? undefined : (e) => e.preventDefault()}
+			className="w-full"
+		>
+			{trigger}
+		</DropdownMenuItem>
 	) : (
-		<AgentButton asChild>{trigger}</AgentButton>
+		<AgentButton asChild size={size}>
+			{trigger}
+		</AgentButton>
 	);
 
-	if (primaryTooltip || app.tooltip) {
+	if (status.tooltip || app.tooltip) {
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>{button}</TooltipTrigger>
 				<TooltipContent className="max-w-xs">
-					{primaryTooltip ? (
-						primaryTooltip
-					) : app.tooltip ? (
-						<Markdown className="text-content-secondary prose-sm font-medium">
-							{app.tooltip}
-						</Markdown>
-					) : null}
+					{status.tooltip ||
+						(app.tooltip && (
+							<Markdown className="text-content-secondary prose-sm font-medium">
+								{app.tooltip}
+							</Markdown>
+						))}
 					{shareTooltip}
 				</TooltipContent>
 			</Tooltip>
@@ -230,6 +153,143 @@ export const AppLink: React.FC<AppLinkProps> = ({
 
 	return button;
 };
+
+type AppLinkStatus = {
+	canClick: boolean;
+	// Replaces the app's own icon when set.
+	icon?: React.ReactNode;
+	tooltip?: React.ReactNode;
+};
+
+const getAppLinkStatus = ({
+	app,
+	agent,
+	link,
+	wildcardHostname,
+	disabled,
+}: {
+	app: TypesGen.WorkspaceApp;
+	agent: TypesGen.WorkspaceAgent;
+	link: ReturnType<typeof useAppLink>;
+	wildcardHostname: string;
+	disabled?: boolean;
+}): AppLinkStatus => {
+	const hasValidUrl = isAppUrlValid(app);
+	const isBlockedByStartup =
+		agent.lifecycle_state === "starting" &&
+		agent.startup_script_behavior === "blocking";
+	// To avoid bugs in the healthcheck code locking users out of apps, app
+	// health never blocks access.
+	const canClick =
+		!disabled &&
+		!link.isLoading &&
+		!link.isBlocked &&
+		hasValidUrl &&
+		!isAppBlockedByMissingWildcard(app, wildcardHostname) &&
+		!isBlockedByStartup;
+
+	const indicator = getAppLinkIndicator({
+		app,
+		agent,
+		link,
+		wildcardHostname,
+		hasValidUrl,
+	});
+	return {
+		canClick,
+		icon: link.isLoading ? <Spinner loading /> : indicator.icon,
+		tooltip: indicator.tooltip,
+	};
+};
+
+// Returns the highest-priority problem to show for the app, if any.
+const getAppLinkIndicator = ({
+	app,
+	agent,
+	link,
+	wildcardHostname,
+	hasValidUrl,
+}: {
+	app: TypesGen.WorkspaceApp;
+	agent: TypesGen.WorkspaceAgent;
+	link: ReturnType<typeof useAppLink>;
+	wildcardHostname: string;
+	hasValidUrl: boolean;
+}): Omit<AppLinkStatus, "canClick"> => {
+	if (link.isBlocked || !hasValidUrl) {
+		return {
+			icon: <WarningIcon />,
+			tooltip: (
+				<>
+					{hasValidUrl
+						? SESSION_TOKEN_LINK_BLOCKED_MESSAGE
+						: "This app has an invalid URL and can't be opened."}{" "}
+					{agent.parent_id ? (
+						<>
+							Fix the app's <code>url</code> in the dev container's{" "}
+							<code>devcontainer.json</code>.
+						</>
+					) : (
+						<>
+							Ask your template administrator to fix the app's <code>url</code>{" "}
+							in the template's <code>coder_app</code> configuration.
+						</>
+					)}
+				</>
+			),
+		};
+	}
+
+	if (app.subdomain_name && app.subdomain_name.length > 63) {
+		return {
+			icon: <WarningIcon />,
+			tooltip: (
+				<>
+					Port forwarding will not work because hostname is too long, see the{" "}
+					<Link
+						href={docs(
+							"/user-guides/workspace-access/port-forwarding#dashboard",
+						)}
+						target="_blank"
+						size="sm"
+					>
+						documentation
+					</Link>{" "}
+					for more details
+				</>
+			),
+		};
+	}
+
+	if (isAppBlockedByMissingWildcard(app, wildcardHostname)) {
+		return {
+			icon: (
+				<CircleAlertIcon
+					aria-hidden="true"
+					className="size-icon-sm text-content-secondary"
+				/>
+			),
+			tooltip: "Your admin has not configured subdomain application access",
+		};
+	}
+
+	if (app.health === "unhealthy") {
+		return { icon: <WarningIcon />, tooltip: "Unhealthy" };
+	}
+
+	if (app.health === "initializing") {
+		return { icon: <Spinner loading />, tooltip: "Initializing..." };
+	}
+
+	return {};
+};
+
+const WarningIcon: React.FC = () => (
+	<CircleAlertIcon
+		aria-hidden="true"
+		className="size-icon-sm text-content-warning"
+	/>
+);
 
 const shareDetails: {
 	[SharingLevel in TypesGen.WorkspaceAppSharingLevel as Exclude<
