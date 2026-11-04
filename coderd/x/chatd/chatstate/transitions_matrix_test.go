@@ -968,12 +968,15 @@ func matrixCases() []transitionCaseSpec {
 		sendMessageSteerCase(chatstate.StateR0, chatstate.StateR1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateR1, chatstate.StateR1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateR1P, chatstate.StateR1, queueSeed{}),
+		withSeed(sendMessageSteerCase(chatstate.StateR1P, chatstate.StateR1P, queueSeed{}), scenarioEditSteerHead, seedSteerHeadUnderEdit),
 		sendMessageSteerCase(chatstate.StateI0, chatstate.StateI1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateI1, chatstate.StateI1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateI1P, chatstate.StateI1, queueSeed{}),
+		withSeed(sendMessageSteerCase(chatstate.StateI1P, chatstate.StateI1P, queueSeed{}), scenarioEditSteerHead, seedSteerHeadUnderEdit),
 		sendMessageSteerCase(chatstate.StateA0, chatstate.StateA1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateA1, chatstate.StateA1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateA1P, chatstate.StateA1, queueSeed{}),
+		withSeed(sendMessageSteerCase(chatstate.StateA1P, chatstate.StateA1P, queueSeed{}), scenarioEditSteerHead, seedSteerHeadUnderEdit),
 
 		// SendMessage(interrupt) cases. The interrupt applier runs
 		// with body "sm-interrupt" so the assertion can prove the

@@ -132,7 +132,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 
 1. `busy_behavior` names the lane, `steer` or `queue`. Inside a lane, `position` gives the order.
 2. The whole `steer` lane goes first, in position order, then the `queue` lane. Every queue list shows this delivery order: the HTTP API, the `queue_update` stream event, and the `coder_get_chat_messages` MCP tool.
-3. Queued messages go into history only at delivery points. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. In an errored or paused chat with queued messages, each `queue` or `steer` send is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end. From `E1` or `A1`, `PromoteQueuedMessage(qid)` delivers only `qid`.
+3. Queued messages go into history only at delivery points. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. Delivery stops at a message under edit: it and every message behind it wait. In an errored or paused chat with queued messages, each `queue` or `steer` send is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end. From `E1` or `A1`, `PromoteQueuedMessage(qid)` delivers only `qid`. When one delivery inserts several messages, the chat takes the model and the reasoning effort of the last message that sets each (`InsertChatMessages`).
 
 ### Transitions used by the HTTP endpoints
 
