@@ -317,7 +317,9 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 								<StackLabelHelperText>
 									<span>
 										When checked, Terraform modules are re-downloaded for each
-										workspace build instead of using cached versions.{" "}
+										workspace build instead of using cached versions, and builds
+										don't reuse the provider lock file saved when the template
+										version was imported.{" "}
 										<strong>
 											Warning: This makes workspace builds less predictable and
 											is not recommended for production templates.
