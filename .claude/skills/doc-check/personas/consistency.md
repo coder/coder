@@ -2,11 +2,16 @@
 
 Terms, facts, and instructions agree within each page and across the docs.
 
+Budget: 25 tool calls.
+
 ## Load
 
-- The docs pages the change adds or edits, in full, not only the changed lines.
-- Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `consistency`.
-  These include [One term per concept](../../../../docs/.style/style-guide/word-choice.md#one-term-per-concept).
+- The docs pages the change adds or edits, in full, at the head, not only the changed lines.
+- `change-model.md`.
+- Rules: only the section headed "One term per concept", per [Finding your rule sections](../contract.md#finding-your-rule-sections).
+
+The Copy Editor sweeps apply the word-choice rules line by line.
+Your job is what they cannot see from the changed lines alone: other sentences on the page, and other pages.
 
 ## Method
 
