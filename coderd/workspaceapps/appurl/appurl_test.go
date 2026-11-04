@@ -574,6 +574,18 @@ func TestConvertAppURLForCSP(t *testing.T) {
 			wildcard: "apps.*.com",
 			expected: "example.com",
 		},
+		{
+			name:     "AsteriskWithPort",
+			host:     "example.com:8443",
+			wildcard: "*.apps.example.com:8443",
+			expected: "*.apps.example.com:8443",
+		},
+		{
+			name:     "FirstPrefixWithPort",
+			host:     "example.com:8443",
+			wildcard: "*--apps.example.com:8443",
+			expected: "*.example.com:8443",
+		},
 	}
 
 	for _, c := range testCases {
