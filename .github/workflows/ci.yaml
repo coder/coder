@@ -1048,7 +1048,7 @@ jobs:
     # We always build the dylibs on Go changes to verify we're not merging unbuildable code,
     # but they need only be signed and uploaded on coder/coder main.
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-15' || 'macos-15' }}
     # Signing only happens on main and release branches; PR runs build unsigned.
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'ci-signing' || '' }}
     steps:
