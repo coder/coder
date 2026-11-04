@@ -14,9 +14,13 @@ type discoveryClient struct{ client }
 
 func (*discoveryClient) SessionUpdate(context.Context, acp.SessionNotification) error { return nil }
 
+// RequestPermission approves each request once. Harnesses can attach durable
+// side effects to "always" options, such as saving allow rules to their
+// settings files or switching the session to a mode that bypasses later
+// prompts, so those are selected only when no one-time option exists.
 func (*client) RequestPermission(ctx context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
 	if ctx.Err() == nil {
-		for _, kind := range []acp.PermissionOptionKind{acp.PermissionOptionKindAllowAlways, acp.PermissionOptionKindAllowOnce} {
+		for _, kind := range []acp.PermissionOptionKind{acp.PermissionOptionKindAllowOnce, acp.PermissionOptionKindAllowAlways} {
 			for _, option := range req.Options {
 				if option.Kind == kind {
 					return acp.RequestPermissionResponse{Outcome: acp.RequestPermissionOutcome{Selected: &acp.RequestPermissionOutcomeSelected{OptionId: option.OptionId}}}, nil

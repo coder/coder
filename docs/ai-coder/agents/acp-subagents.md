@@ -58,6 +58,7 @@ Files in subdirectories aren't loaded.
 ACP subagents use the harness's own tools and configuration.
 They don't inherit the chat's Model Context Protocol (MCP) servers.
 Coder automatically approves tool permission requests received through the adapter.
+When the adapter offers a one-time approval, Coder selects it instead of an option that saves the approval or changes the harness's permission mode.
 
 ## Check the context popup
 
