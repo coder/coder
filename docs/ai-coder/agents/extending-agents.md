@@ -141,7 +141,7 @@ You can still invoke the skill from the `/` menu in the chat composer.
 For a workspace skill, `read_skill_file` still returns its supporting files, so the agent can read the files an invoked skill's instructions reference.
 When you invoke a workspace skill, the agent also gets the skill's directory, as long as the chat stays in that workspace, so the agent can run the scripts that the skill includes.
 
-For a personal, organization, or project skill, the key takes effect only when you create the skill.
+For a personal, organization, or project skill, the key turns off a stored setting instead.
 For details, refer to [Turn off automatic use](#turn-off-automatic-use).
 
 ### Naming and size constraints
@@ -320,14 +320,19 @@ A chat that has only workspace skills that set `disable-model-invocation: true` 
 
 ### Turn off automatic use
 
-When automatic use is off, the agent can't use the skill on its own, but you can still invoke it from the `/` menu.
-The `disable-model-invocation: true` key turns off automatic use for a personal, organization, or project skill only when you create the skill in one of these ways:
+Personal, organization, and project skills have a `model_invocable` setting that is on by default.
+When automatic use is off, the skill is left out of the list of skills the agent can choose from, and `read_skill` reports that the skill was not found.
+You can still invoke the skill from the `/` menu.
+
+The `disable-model-invocation: true` key in the `SKILL.md` frontmatter turns off automatic use in these cases:
 
 - You import a `SKILL.md` file that sets the key while you add a project skill.
   The import turns off **Agents can use it automatically**, which [Project skills](#project-skills) describes.
-- You create the skill through the API from content that sets the key, and the request leaves out `model_invocable`.
+- You create or update a skill through the API from content that sets the key, and the request leaves out `model_invocable`.
 
-Adding the key to an existing skill doesn't change automatic use.
+Claude Code, Cursor, and VS Code read the same key.
+A `model_invocable` value in the request always wins, and new content without the key leaves the setting unchanged.
+Coder removes the `disable-model-invocation` line before it stores the file, so the stored file never disagrees with the setting.
 
 ### Skills with the same name
 
