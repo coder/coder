@@ -50,10 +50,8 @@ describe("the row shown as under edit", () => {
 		["a pending end on the marked row hides it", 5, pendingEnd(5), null],
 		["a pending end on another row leaves the marked row", 5, pendingEnd(6), 5],
 		["a settled begin leaves it to the marked row", 6, settledBegin(5), 6],
-	])("%s", (_name, serverMarkedID, marker, expected) => {
-		expect(deriveQueuedMessageUnderEditID(serverMarkedID, marker)).toBe(
-			expected,
-		);
+	])("%s", (_name, markedID, marker, expected) => {
+		expect(deriveQueuedMessageUnderEditID(markedID, marker)).toBe(expected);
 	});
 });
 
@@ -123,9 +121,9 @@ describe("the row the composer edits", () => {
 	];
 	it.each(cases)(
 		"%s",
-		(_name, composerMode, serverMarkedID, marker, isOwner, expected) => {
+		(_name, composerMode, markedID, marker, isOwner, expected) => {
 			expect(
-				deriveComposerTarget(composerMode, serverMarkedID, marker, isOwner),
+				deriveComposerTarget(composerMode, markedID, marker, isOwner),
 			).toEqual(expected);
 		},
 	);

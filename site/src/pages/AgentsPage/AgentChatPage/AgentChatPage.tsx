@@ -625,7 +625,7 @@ const AgentChatPage: React.FC = () => {
 	const isOwner = chat !== undefined && !isViewerNotOwner;
 	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
 	const {
-		serverMarkedID,
+		markedID,
 		queuedMessageUnderEditID,
 		composerTarget,
 		handleEditQueuedMessage,
@@ -693,12 +693,8 @@ const AgentChatPage: React.FC = () => {
 			void handleEndQueuedMessageEdit(composerTarget.id).catch(() => undefined);
 			return;
 		}
-		if (
-			composerTarget?.kind === "history" &&
-			isOwner &&
-			serverMarkedID !== null
-		) {
-			editing.handleCancelEdit({ kind: "queued", id: serverMarkedID });
+		if (composerTarget?.kind === "history" && isOwner && markedID !== null) {
+			editing.handleCancelEdit({ kind: "queued", id: markedID });
 			return;
 		}
 		editing.handleCancelEdit();
