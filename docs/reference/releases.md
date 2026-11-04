@@ -71,7 +71,8 @@ They exist purely as a feedback mechanism: Coder can ship targeted builds, gathe
 
 ## Install stable
 
-When installing Coder, we generally advise specifying the desired version from our GitHub [releases page](https://github.com/coder/coder/releases).
+Download the latest stable or mainline release from the [Coder downloads page](https://coder.com/downloads).
+To install a specific version, use our GitHub [releases page](https://github.com/coder/coder/releases).
 
 You can also use our `install.sh` script with the `stable` flag to install the latest stable release:
 
