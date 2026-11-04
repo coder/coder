@@ -7038,8 +7038,9 @@ export const MaxSecretsFileBytes = 1048576; // 1 MiB
 
 // From codersdk/skills.go
 /**
- * MaxSkillDisplayNameLength is the maximum number of characters in a skill
- * display name.
+ * MaxSkillDisplayNameLength is the maximum length of a skill display name,
+ * counted in Unicode code points after surrounding whitespace is trimmed, not
+ * in bytes or UTF-16 units.
  */
 export const MaxSkillDisplayNameLength = 64;
 

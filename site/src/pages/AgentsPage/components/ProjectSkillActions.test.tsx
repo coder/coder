@@ -102,7 +102,10 @@ describe("ProjectSkillActions", () => {
 		await user.click(
 			screen.getByRole("button", { name: "More project actions" }),
 		);
-		await user.click(await screen.findByRole("menuitem", { name: "Wrap up" }));
+		// The slash command tells apart actions that share a display name.
+		await user.click(
+			await screen.findByRole("menuitem", { name: /^Wrap up.*\/review/ }),
+		);
 
 		await waitFor(() =>
 			expect(onInvoke.mock.calls).toEqual([

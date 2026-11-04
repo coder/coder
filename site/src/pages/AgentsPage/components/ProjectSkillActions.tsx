@@ -21,6 +21,17 @@ const MAX_INLINE_ACTIONS = 3;
 const skillActionLabel = (skill: SkillMetadata): string =>
 	skill.display_name || skill.name;
 
+/**
+ * Shows the slash command behind a display name, so actions that share a
+ * display name stay distinguishable.
+ */
+const SkillActionCommand: React.FC<{ skill: SkillMetadata }> = ({ skill }) =>
+	skill.display_name ? (
+		<span className="block max-w-full break-all font-mono text-xs">
+			/{skill.name}
+		</span>
+	) : null;
+
 type ProjectSkillActionsProps = {
 	organizationId: string;
 	projectId: string;
@@ -103,6 +114,7 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 								<span className="max-w-full truncate text-content-primary">
 									{skillActionLabel(skill)}
 								</span>
+								<SkillActionCommand skill={skill} />
 								{skill.description && (
 									<span className="line-clamp-2 text-xs font-normal">
 										{skill.description}
@@ -142,6 +154,7 @@ const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 			<span className="block break-words font-medium">
 				{skillActionLabel(skill)}
 			</span>
+			<SkillActionCommand skill={skill} />
 			{skill.description && <span className="block">{skill.description}</span>}
 		</TooltipContent>
 	</Tooltip>

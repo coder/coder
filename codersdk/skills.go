@@ -73,8 +73,9 @@ type UpdateSkillRequest struct {
 	DisplayName *string `json:"display_name,omitempty"`
 }
 
-// MaxSkillDisplayNameLength is the maximum number of characters in a skill
-// display name.
+// MaxSkillDisplayNameLength is the maximum length of a skill display name,
+// counted in Unicode code points after surrounding whitespace is trimmed, not
+// in bytes or UTF-16 units.
 const MaxSkillDisplayNameLength = 64
 
 // OrganizationSkillRole is a role a user or group holds in an organization
