@@ -32,6 +32,7 @@ type QueuedMessagesListProps = {
 	onEdit?: (id: number) => void;
 	onEndEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
+	isChatActive?: boolean;
 	queuedMessageUnderEditID: number | null;
 	// The queued row this composer edits, or null. It gets no Edit action; a
 	// row under edit elsewhere keeps Edit so this client can take it over.
@@ -197,6 +198,15 @@ const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
 	);
 };
 
+/**
+ * Whether Send now on a row does anything. While the turn is in progress, a
+ * steer row already goes in before the next model call.
+ */
+export const canSendQueuedMessageNow = (
+	busyBehavior: ChatBusyBehavior,
+	isChatActive: boolean,
+): boolean => !(isChatActive && busyBehavior === "steer");
+
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
@@ -204,6 +214,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onEdit,
 	onEndEdit,
 	isChatPaused = false,
+	isChatActive = false,
 	queuedMessageUnderEditID,
 	composerQueuedMessageID,
 	showEnterToSendHint,
@@ -377,8 +388,10 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											? () => void runAction(item.id, "end_edit", onEndEdit)
 											: undefined
 									}
-									onPromote={() =>
-										void runAction(item.id, "promote", onPromote)
+									onPromote={
+										canSendQueuedMessageNow(item.busyBehavior, isChatActive)
+											? () => void runAction(item.id, "promote", onPromote)
+											: undefined
 									}
 									onDelete={() => void runAction(item.id, "delete", onDelete)}
 								/>
@@ -426,7 +439,7 @@ type QueuedMessageRowProps = {
 	onMouseLeave: () => void;
 	onEdit: (() => void) | undefined;
 	onEndEdit: (() => void) | undefined;
-	onPromote: () => void;
+	onPromote: (() => void) | undefined;
 	onDelete: () => void;
 };
 
@@ -540,13 +553,15 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 						onClick={onEdit}
 					/>
 				)}
-				<QueuedMessageActionButton
-					label="Send now"
-					icon={<ArrowUpIcon className="size-3.5" />}
-					busy={pendingAction === "promote"}
-					disabled={disabled}
-					onClick={onPromote}
-				/>
+				{onPromote && (
+					<QueuedMessageActionButton
+						label="Send now"
+						icon={<ArrowUpIcon className="size-3.5" />}
+						busy={pendingAction === "promote"}
+						disabled={disabled}
+						onClick={onPromote}
+					/>
+				)}
 				<QueuedMessageActionButton
 					label="Remove from queue"
 					tooltip="Remove"

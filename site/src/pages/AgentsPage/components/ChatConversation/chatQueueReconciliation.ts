@@ -1,7 +1,11 @@
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatStore, ChatStoreState } from "./chatStore";
+import {
+	type ChatStore,
+	type ChatStoreState,
+	isActiveChatStatus,
+} from "./chatStore";
 
 /**
  * Restores the store to a snapshot taken before an optimistic request.
@@ -66,6 +70,8 @@ const moveToSteerLane = (
 
 /**
  * Tolerate a missing row because delivery or deletion can race "Send now".
+ * An active chat keeps its status and live stream: the steer lane waits for
+ * the next delivery point.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
@@ -98,13 +104,16 @@ export const runPromoteQueuedMessage = async (params: {
 	const previousSnapshot = store.getSnapshot();
 	const queueFenceBeforePromote = store.getQueueConvergenceFence();
 	const statusVersionBeforePromote = store.getServerChatStatusVersion();
+	const startsTurn = !isActiveChatStatus(previousSnapshot.chatStatus);
 	store.batch(() => {
 		store.setQueuedMessages(
 			moveToSteerLane(previousSnapshot.queuedMessages, id),
 		);
-		store.clearStreamState();
-		store.clearStreamError();
-		store.setChatStatus("running");
+		if (startsTurn) {
+			store.clearStreamState();
+			store.clearStreamError();
+			store.setChatStatus("running");
+		}
 	});
 	clearChatErrorReason(agentId);
 	try {
@@ -122,7 +131,10 @@ export const runPromoteQueuedMessage = async (params: {
 					? queuedMessages.filter((message) => message.id !== id)
 					: queuedMessages,
 			);
-			if (store.getServerChatStatusVersion() === statusVersionBeforePromote) {
+			if (
+				startsTurn &&
+				store.getServerChatStatusVersion() === statusVersionBeforePromote
+			) {
 				store.setChatStatus(previousSnapshot.chatStatus);
 				store.setStreamState(previousSnapshot.streamState);
 				store.setStreamError(previousSnapshot.streamError);

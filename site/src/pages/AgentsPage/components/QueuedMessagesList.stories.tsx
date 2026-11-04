@@ -200,6 +200,15 @@ export const GroupedByLane: Story = {
 	},
 };
 
+// Steer rows while the turn runs.
+export const GroupedByLaneWhileActive: Story = {
+	args: {
+		...GroupedByLane.args,
+		isChatActive: true,
+		showEnterToSendHint: false,
+	},
+};
+
 // One row with every action.
 export const HeadRowActions: Story = {
 	args: {

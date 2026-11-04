@@ -261,7 +261,7 @@ describe("runPromoteQueuedMessage", () => {
 		busy_behavior: busyBehavior,
 		content: [{ type: "text", text }],
 	});
-	it("moves the row to the end of the steer lane at once", async () => {
+	it("moves the row to the end of the steer lane and keeps a running turn's stream", async () => {
 		const store = createChatStore();
 		const steer = buildQueuedMessage(1, "S", "steer");
 		const a = buildQueuedMessage(2, "A");
@@ -269,6 +269,7 @@ describe("runPromoteQueuedMessage", () => {
 		const c = buildQueuedMessage(4, "C");
 		store.setQueuedMessages([steer, a, b, c]);
 		store.setChatStatus("running");
+		store.applyMessagePart({ type: "text", text: "live output" });
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
@@ -293,6 +294,9 @@ describe("runPromoteQueuedMessage", () => {
 			c,
 		]);
 		expect(snapshot.chatStatus).toBe("running");
+		expect(snapshot.streamState?.blocks).toEqual([
+			{ type: "response", text: "live output" },
+		]);
 	});
 
 	it("rolls back queue and status and rethrows on API error", async () => {
