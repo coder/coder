@@ -60,6 +60,16 @@ export const withDefaultTimeRange = (
 };
 
 /**
+ * Removes filters the sessions search API does not support yet, so they can
+ * show as chips without the request failing validation.
+ *
+ * TODO: drop `organization` once the sessions search API filters by it.
+ */
+export const withoutUnsupportedFilters = (query: string): string => {
+	return extractFreeText(query, ["organization"]);
+};
+
+/**
  * Removes the started_after and started_before tokens from a filter query,
  * keeping every other token and search text verbatim.
  */

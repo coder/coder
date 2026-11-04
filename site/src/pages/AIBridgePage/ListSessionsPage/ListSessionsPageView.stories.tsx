@@ -12,7 +12,10 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withAuthProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 type FilterProps = React.ComponentProps<
@@ -50,7 +53,7 @@ const meta: Meta<typeof ListSessionsPageView> = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 	},
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 };
 
 export default meta;

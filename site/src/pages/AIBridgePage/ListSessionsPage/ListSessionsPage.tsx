@@ -15,11 +15,12 @@ import {
 	parseTimeRange,
 	queryWithTimeRange,
 	withDefaultTimeRange,
+	withoutUnsupportedFilters,
 } from "./timeRange";
 
 const AISessionListPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements } = useDashboard();
+	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const navigate = useNavigate();
 
 	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
@@ -41,13 +42,18 @@ const AISessionListPage: React.FC = () => {
 		// the unfiltered sessions query never scans the entire table.
 		queryPayload: () =>
 			withDefaultTimeRange(
-				searchParams.get(useFilterParamsKey) ?? "",
+				withoutUnsupportedFilters(searchParams.get(useFilterParamsKey) ?? ""),
 				defaultRange,
 			),
 		enabled: canViewSessions,
 	});
 
+	const defaultOrganization = organizations.find((org) => org.is_default);
 	const filter = useFilter({
+		fallbackFilter:
+			showOrganizations && defaultOrganization
+				? `organization:${defaultOrganization.name}`
+				: "",
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 		onUpdate: sessionsQuery.goToFirstPage,

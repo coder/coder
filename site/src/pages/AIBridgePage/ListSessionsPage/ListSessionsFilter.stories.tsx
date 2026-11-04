@@ -6,17 +6,23 @@ import {
 	aiBridgeModelsKey,
 	aiBridgeProvidersKey,
 } from "#/api/queries/aiBridge";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { usersKey } from "#/api/queries/users";
 import type { AIBridgeProvider } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
+	MockDefaultOrganization,
+	MockOrganization2,
 	MockPermissions,
 	MockUserMember,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withAuthProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 
 const mockProviders: AIBridgeProvider[] = [
@@ -91,7 +97,7 @@ const meta: Meta<typeof ListSessionsFilterHarness> = {
 			},
 		],
 	},
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 };
 
 export default meta;
@@ -134,5 +140,32 @@ export const WithFilterError: Story = {
 			message: "Invalid filter query.",
 			validations: [{ field: "q", detail: "no search key specified" }],
 		}),
+	},
+};
+
+export const WithDefaultOrganization: Story = {
+	args: {
+		initialQuery: `organization:${MockDefaultOrganization.name} ${rangeQuery}`,
+	},
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrganizationsKey({
+					object: { resource_type: "audit_log" },
+					action: "read",
+				}),
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+		await userEvent.hover(
+			await screen.findByRole("option", { name: "Organization" }),
+		);
 	},
 };
