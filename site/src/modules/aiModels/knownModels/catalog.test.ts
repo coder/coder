@@ -215,7 +215,7 @@ describe("isKnownComputerUseModel", () => {
 		expect(
 			isKnownComputerUseModel(
 				"anthropic",
-				"anthropic.claude-haiku-4-5-20251001-v1:0",
+				"anthropic.claude-sonnet-4-6-20260101-v1:0",
 			),
 		).toBe(false);
 		expect(

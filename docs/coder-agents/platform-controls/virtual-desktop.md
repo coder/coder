@@ -44,7 +44,8 @@ To add a model to the list, enable one of these models on the **Models** page.
 > [!NOTE]
 > On an AWS Bedrock AI provider that uses the [InvokeModel](../../ai-gateway/providers.md#invokemodel) protocol, AI Gateway runs the provider's configured model, not the chat model.
 > Coder picks the computer use tool version from the chat model ID.
-> Give the chat model the ID of the model that the provider runs.
+> Give the chat model the ID of the Claude model that the provider runs.
+> If the provider runs an application inference profile, use the ID of the Claude model behind the profile, not the profile ARN.
 
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
 To return to the default model, select **Clear**, then select **Save**.

@@ -298,8 +298,8 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 }
 
 // Computer use chats run on their own model config; the tool flavor follows
-// that model's AI provider type, and the Anthropic tool version follows the
-// model on every platform.
+// that model's AI provider type and model ID, and the Anthropic tool version
+// follows the model on every platform.
 func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
