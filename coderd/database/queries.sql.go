@@ -3774,58 +3774,89 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	return items, nil
 }
 
-const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+const getUnpricedAIModels = `-- name: GetUnpricedAIModels :many
+WITH unpriced_usage AS (
+	SELECT
+		interceptions.provider_name,
+		interceptions.model,
+		SUM(
+			token_usages.input_tokens
+			+ token_usages.output_tokens
+			+ token_usages.cache_read_input_tokens
+			+ token_usages.cache_write_input_tokens
+		)::bigint AS token_count
+	FROM aibridge_token_usages AS token_usages
+	JOIN aibridge_interceptions AS interceptions
+		ON interceptions.id = token_usages.interception_id
+	WHERE token_usages.created_at >= $2::timestamptz
+		AND token_usages.created_at < $3::timestamptz
+		AND token_usages.cost_micros IS NULL
+		AND token_usages.priced_model IS NULL
+	GROUP BY interceptions.provider_name, interceptions.model
+)
 SELECT
+	providers.name AS provider_name,
+	providers.display_name AS provider_display_name,
+	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
-	interceptions.model AS model,
-	SUM(
-		token_usages.input_tokens
-		+ token_usages.output_tokens
-		+ token_usages.cache_read_input_tokens
-		+ token_usages.cache_write_input_tokens
-	)::bigint AS token_count
-FROM aibridge_interceptions AS interceptions
-JOIN aibridge_token_usages AS token_usages
-	ON token_usages.interception_id = interceptions.id
+	unpriced_usage.model,
+	unpriced_usage.token_count
+FROM unpriced_usage
 JOIN ai_providers AS providers
-	ON providers.name = interceptions.provider_name
+	ON providers.name = unpriced_usage.provider_name
 	AND providers.deleted = false
-WHERE interceptions.started_at >= $1::timestamptz
-	AND token_usages.cost_micros IS NULL
-	AND providers.type::text = ANY($2::text[])
+WHERE providers.type::text = ANY($1::text[])
 	AND NOT EXISTS (
 		SELECT 1
 		FROM ai_model_prices AS prices
 		WHERE prices.provider = providers.type::text
-			AND prices.model = interceptions.model
+			AND prices.model = unpriced_usage.model
 	)
-GROUP BY providers.type, interceptions.model
-ORDER BY token_count DESC, provider_type ASC, model ASC
+ORDER BY
+	unpriced_usage.token_count DESC,
+	providers.name ASC,
+	LOWER(unpriced_usage.model) ASC,
+	unpriced_usage.model ASC
 `
 
-type GetUnpricedAIModelsSinceParams struct {
-	Since              time.Time `db:"since" json:"since"`
+type GetUnpricedAIModelsParams struct {
 	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+	PeriodStart        time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd          time.Time `db:"period_end" json:"period_end"`
 }
 
-type GetUnpricedAIModelsSinceRow struct {
-	ProviderType string `db:"provider_type" json:"provider_type"`
-	Model        string `db:"model" json:"model"`
-	TokenCount   int64  `db:"token_count" json:"token_count"`
+type GetUnpricedAIModelsRow struct {
+	ProviderName        string         `db:"provider_name" json:"provider_name"`
+	ProviderDisplayName sql.NullString `db:"provider_display_name" json:"provider_display_name"`
+	ProviderIcon        string         `db:"provider_icon" json:"provider_icon"`
+	ProviderType        string         `db:"provider_type" json:"provider_type"`
+	Model               string         `db:"model" json:"model"`
+	TokenCount          int64          `db:"token_count" json:"token_count"`
 }
 
-// Returns the models used since the given time that hold no price, most used
-// first. openai-compat providers cannot be priced, so their models are excluded.
-func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+// Returns, for each live provider, the requested models with unpriced token
+// usage in the [period_start, period_end) window, most unpriced tokens first.
+// Only models without a site-wide price now are returned. Usage priced through
+// the model reported by the provider, or whose cost could not be computed from
+// a found price, is not reported as unpriced. openai-compat providers cannot be
+// priced, so they are excluded.
+func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModels, pq.Array(arg.PriceableProviders), arg.PeriodStart, arg.PeriodEnd)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetUnpricedAIModelsSinceRow
+	var items []GetUnpricedAIModelsRow
 	for rows.Next() {
-		var i GetUnpricedAIModelsSinceRow
-		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
+		var i GetUnpricedAIModelsRow
+		if err := rows.Scan(
+			&i.ProviderName,
+			&i.ProviderDisplayName,
+			&i.ProviderIcon,
+			&i.ProviderType,
+			&i.Model,
+			&i.TokenCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

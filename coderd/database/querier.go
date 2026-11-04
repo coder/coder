@@ -1007,9 +1007,13 @@ type sqlcQuerier interface {
 	// rollup and accept day-granularity bounds.
 	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
-	// Returns the models used since the given time that hold no price, most used
-	// first. openai-compat providers cannot be priced, so their models are excluded.
-	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
+	// Returns, for each live provider, the requested models with unpriced token
+	// usage in the [period_start, period_end) window, most unpriced tokens first.
+	// Only models without a site-wide price now are returned. Usage priced through
+	// the model reported by the provider, or whose cost could not be computed from
+	// a found price, is not reported as unpriced. openai-compat providers cannot be
+	// priced, so they are excluded.
+	GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error)
 	// Counts unpublished usage events in the last 60 days:
 	//   pending: created within the last 30 days (still eligible to publish)
 	//   expired: created 30-60 days ago (too old to publish; Tallyman would reject)

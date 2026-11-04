@@ -6623,19 +6623,19 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), ctx)
 }
 
-// GetUnpricedAIModelsSince mocks base method.
-func (m *MockStore) GetUnpricedAIModelsSince(ctx context.Context, arg database.GetUnpricedAIModelsSinceParams) ([]database.GetUnpricedAIModelsSinceRow, error) {
+// GetUnpricedAIModels mocks base method.
+func (m *MockStore) GetUnpricedAIModels(ctx context.Context, arg database.GetUnpricedAIModelsParams) ([]database.GetUnpricedAIModelsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnpricedAIModelsSince", ctx, arg)
-	ret0, _ := ret[0].([]database.GetUnpricedAIModelsSinceRow)
+	ret := m.ctrl.Call(m, "GetUnpricedAIModels", ctx, arg)
+	ret0, _ := ret[0].([]database.GetUnpricedAIModelsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUnpricedAIModelsSince indicates an expected call of GetUnpricedAIModelsSince.
-func (mr *MockStoreMockRecorder) GetUnpricedAIModelsSince(ctx, arg any) *gomock.Call {
+// GetUnpricedAIModels indicates an expected call of GetUnpricedAIModels.
+func (mr *MockStoreMockRecorder) GetUnpricedAIModels(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnpricedAIModelsSince", reflect.TypeOf((*MockStore)(nil).GetUnpricedAIModelsSince), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnpricedAIModels", reflect.TypeOf((*MockStore)(nil).GetUnpricedAIModels), ctx, arg)
 }
 
 // GetUsageEventsStats mocks base method.

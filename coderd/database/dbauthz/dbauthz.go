@@ -5492,11 +5492,11 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
-func (q *querier) GetUnpricedAIModelsSince(ctx context.Context, arg database.GetUnpricedAIModelsSinceParams) ([]database.GetUnpricedAIModelsSinceRow, error) {
+func (q *querier) GetUnpricedAIModels(ctx context.Context, arg database.GetUnpricedAIModelsParams) ([]database.GetUnpricedAIModelsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return nil, err
 	}
-	return q.db.GetUnpricedAIModelsSince(ctx, arg)
+	return q.db.GetUnpricedAIModels(ctx, arg)
 }
 
 func (q *querier) GetUsageEventsStats(ctx context.Context, now time.Time) (database.GetUsageEventsStatsRow, error) {
