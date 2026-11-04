@@ -1844,6 +1844,21 @@ func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
 	return out
 }
 
+func UnpricedAIModel(row database.GetUnpricedAIModelsRow) codersdk.UnpricedAIModel {
+	displayName := row.ProviderName
+	if row.ProviderDisplayName.Valid && row.ProviderDisplayName.String != "" {
+		displayName = row.ProviderDisplayName.String
+	}
+	return codersdk.UnpricedAIModel{
+		ProviderName:        row.ProviderName,
+		ProviderDisplayName: displayName,
+		ProviderIcon:        row.ProviderIcon,
+		ProviderType:        codersdk.AIProviderType(row.ProviderType),
+		Model:               row.Model,
+		TokenCount:          row.TokenCount,
+	}
+}
+
 func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	return codersdk.AIModelPrice{
 		Provider:        dbPrice.Provider,

@@ -308,6 +308,55 @@
 				}
 			}
 		},
+		"/api/experimental/organizations/{organization}/ai/model-prices/unpriced": {
+			"get": {
+				"description": "Returns, for each provider, the requested models with token usage recorded without a price in the organization over the period, most used first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead.\nUnknown query parameters are rejected.",
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "List organization unpriced AI models",
+				"operationId": "list-organization-unpriced-ai-models",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Inclusive lower bound (RFC3339)",
+						"name": "period_start",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Exclusive upper bound (RFC3339)",
+						"name": "period_end",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UnpricedAIModels"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/organizations/{organization}/ai/spend/users": {
 			"get": {
 				"description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
@@ -30243,6 +30292,63 @@
 				"p95": {
 					"type": "integer",
 					"example": 146
+				}
+			}
+		},
+		"codersdk.UnpricedAIModel": {
+			"type": "object",
+			"properties": {
+				"model": {
+					"type": "string"
+				},
+				"provider_display_name": {
+					"description": "ProviderDisplayName falls back to the provider name when unset.",
+					"type": "string"
+				},
+				"provider_icon": {
+					"description": "ProviderIcon is empty when the provider has no configured icon.",
+					"type": "string"
+				},
+				"provider_name": {
+					"type": "string"
+				},
+				"provider_type": {
+					"$ref": "#/definitions/codersdk.AIProviderType"
+				},
+				"token_count": {
+					"description": "TokenCount is the number of tokens used without a price in the period.",
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.UnpricedAIModels": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"description": "Count is the number of models listed.",
+					"type": "integer"
+				},
+				"models": {
+					"description": "Models are most used first.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.UnpricedAIModel"
+					}
+				},
+				"period_end": {
+					"description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"period_start": {
+					"description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"retention_start": {
+					"description": "RetentionStart is the oldest instant for which token usage is still\nretained. An explicit period must not start before it. Omitted when the\ndeployment does not purge AI Gateway data.",
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},

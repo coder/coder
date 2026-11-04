@@ -16950,6 +16950,61 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UnpricedAIModel
+
+```json
+{
+  "model": "string",
+  "provider_display_name": "string",
+  "provider_icon": "string",
+  "provider_name": "string",
+  "provider_type": "openai",
+  "token_count": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                               | Required | Restrictions | Description                                                             |
+|-------------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `model`                 | string                                             | false    |              |                                                                         |
+| `provider_display_name` | string                                             | false    |              | Provider display name falls back to the provider name when unset.       |
+| `provider_icon`         | string                                             | false    |              | Provider icon is empty when the provider has no configured icon.        |
+| `provider_name`         | string                                             | false    |              |                                                                         |
+| `provider_type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |                                                                         |
+| `token_count`           | integer                                            | false    |              | Token count is the number of tokens used without a price in the period. |
+
+## codersdk.UnpricedAIModels
+
+```json
+{
+  "count": 0,
+  "models": [
+    {
+      "model": "string",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "provider_name": "string",
+      "provider_type": "openai",
+      "token_count": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|---------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`           | integer                                                       | false    |              | Count is the number of models listed.                                                                                                                                                   |
+| `models`          | array of [codersdk.UnpricedAIModel](#codersdkunpricedaimodel) | false    |              | Models are most used first.                                                                                                                                                             |
+| `period_end`      | string                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
+| `period_start`    | string                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `retention_start` | string                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
+
 ## codersdk.UpdateAIProviderRequest
 
 ```json

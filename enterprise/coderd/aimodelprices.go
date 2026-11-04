@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -19,6 +20,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -341,4 +345,64 @@ func validateAIModelPriceValues(field string, keys aiModelPriceKeys, prices aiMo
 	}
 
 	return validations
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List organization unpriced AI models
+// @Description Returns, for each provider, the requested models with token usage recorded without a price in the organization over the period, most used first. Only models without a price now are returned. A model has a price when it has a site-wide price for the provider's type or an organization price for the provider. Usage is attributed to the organization through its effective group.
+// @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current budget period is used.
+// @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead.
+// @Description Unknown query parameters are rejected.
+// @ID list-organization-unpriced-ai-models
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
+// @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Success 200 {object} codersdk.UnpricedAIModels
+// @Router /api/experimental/organizations/{organization}/ai/model-prices/unpriced [get]
+// @x-apidocgen {"skip": true}
+func (api *API) organizationUnpricedAIModels(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	// dbauthz enforces the same read on the organization's prices, but checking
+	// here first answers with 403 instead of an internal error.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAiModelPrice.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	period, ok := api.aiSpendPeriod(ctx, rw, r, httpapi.NewQueryParamParser())
+	if !ok {
+		return
+	}
+
+	rows, err := api.Database.GetUnpricedAIModels(ctx, database.GetUnpricedAIModelsParams{
+		OrganizationID:     uuid.NullUUID{UUID: org.ID, Valid: true},
+		PeriodStart:        period.start,
+		PeriodEnd:          period.end,
+		PriceableProviders: providers.SupportedStrings(),
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to list unpriced AI models",
+			slog.F("period_start", period.start),
+			slog.F("period_end", period.end),
+			slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.UnpricedAIModels{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
+		Count:               int64(len(rows)),
+		Models:              slice.List(rows, db2sdk.UnpricedAIModel),
+	}
+	if !period.retentionStart.IsZero() {
+		resp.RetentionStart = &period.retentionStart
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
