@@ -10803,7 +10803,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ## codersdk.GroupSyncFindingCode
 
 ```json
-"organization_deleted"
+"field_empty"
 ```
 
 ### Properties
@@ -10887,7 +10887,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "warnings": [
     {
       "accepted": {},
-      "code": "organization_deleted",
+      "code": "field_empty",
       "path": "string",
       "received": {}
     }
@@ -10914,7 +10914,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "accepted": {},
-  "code": "organization_deleted",
+  "code": "field_empty",
   "path": "string",
   "received": {}
 }

@@ -2967,7 +2967,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
   "warnings": [
     {
       "accepted": {},
-      "code": "organization_deleted",
+      "code": "field_empty",
       "path": "string",
       "received": {}
     }
@@ -3067,7 +3067,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   "warnings": [
     {
       "accepted": {},
-      "code": "organization_deleted",
+      "code": "field_empty",
       "path": "string",
       "received": {}
     }
@@ -3155,7 +3155,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   "warnings": [
     {
       "accepted": {},
-      "code": "organization_deleted",
+      "code": "field_empty",
       "path": "string",
       "received": {}
     }
@@ -3252,7 +3252,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   "warnings": [
     {
       "accepted": {},
-      "code": "organization_deleted",
+      "code": "field_empty",
       "path": "string",
       "received": {}
     }

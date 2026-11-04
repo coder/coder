@@ -27091,32 +27091,32 @@ const docTemplate = `{
         "codersdk.GroupSyncFindingCode": {
             "type": "string",
             "enum": [
-                "organization_deleted",
-                "organization_absent",
-                "missing_group",
-                "outside_group",
-                "everyone_group",
                 "field_empty",
                 "empty_mapping_key",
                 "null_array",
                 "nil_uuid",
                 "repeated_uuid",
                 "filter_excluded_key",
-                "legacy_mapping"
+                "legacy_mapping",
+                "organization_deleted",
+                "organization_absent",
+                "missing_group",
+                "outside_group",
+                "everyone_group"
             ],
             "x-enum-varnames": [
-                "GroupSyncFindingOrganizationDeleted",
-                "GroupSyncFindingOrganizationAbsent",
-                "GroupSyncFindingMissingGroup",
-                "GroupSyncFindingOutsideGroup",
-                "GroupSyncFindingEveryoneGroup",
                 "GroupSyncFindingFieldEmpty",
                 "GroupSyncFindingEmptyMappingKey",
                 "GroupSyncFindingNullArray",
                 "GroupSyncFindingNilUUID",
                 "GroupSyncFindingRepeatedUUID",
                 "GroupSyncFindingFilterExcludedKey",
-                "GroupSyncFindingLegacyMapping"
+                "GroupSyncFindingLegacyMapping",
+                "GroupSyncFindingOrganizationDeleted",
+                "GroupSyncFindingOrganizationAbsent",
+                "GroupSyncFindingMissingGroup",
+                "GroupSyncFindingOutsideGroup",
+                "GroupSyncFindingEveryoneGroup"
             ]
         },
         "codersdk.GroupSyncSettings": {

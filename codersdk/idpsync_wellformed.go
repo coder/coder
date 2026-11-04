@@ -11,34 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Finding codes reported by the syntax validator. Each names a violation of
-// one of the well-formedness conditions W1 through W8 in
-// `coderd/idpsync/SYNC_SETTINGS.md`.
-const (
-	// GroupSyncFindingFieldEmpty: `field` is empty while another member is
-	// nonempty (W4).
-	GroupSyncFindingFieldEmpty GroupSyncFindingCode = "field_empty"
-	// GroupSyncFindingEmptyMappingKey: a member name of `mapping` is the
-	// empty string (W5).
-	GroupSyncFindingEmptyMappingKey GroupSyncFindingCode = "empty_mapping_key"
-	// GroupSyncFindingNullArray: a member of `mapping` has the value `null`
-	// (W5).
-	GroupSyncFindingNullArray GroupSyncFindingCode = "null_array"
-	// GroupSyncFindingNilUUID: a `mapping` array contains the nil UUID (W5).
-	GroupSyncFindingNilUUID GroupSyncFindingCode = "nil_uuid"
-	// GroupSyncFindingRepeatedUUID: a `mapping` array contains a UUID that
-	// already appears earlier in the same array (W5). The nil UUID is
-	// reported as GroupSyncFindingNilUUID at every position, never as a
-	// repeat.
-	GroupSyncFindingRepeatedUUID GroupSyncFindingCode = "repeated_uuid"
-	// GroupSyncFindingFilterExcludedKey: `regex_filter` is a nonempty string
-	// that does not match a member name of `mapping` (W6).
-	GroupSyncFindingFilterExcludedKey GroupSyncFindingCode = "filter_excluded_key"
-	// GroupSyncFindingLegacyMapping: `legacy_group_name_mapping` is nonempty
-	// (W8).
-	GroupSyncFindingLegacyMapping GroupSyncFindingCode = "legacy_mapping"
-)
-
 // GroupSyncFinding is one violation found in group sync settings.
 type GroupSyncFinding struct {
 	// Code names the condition violated.
