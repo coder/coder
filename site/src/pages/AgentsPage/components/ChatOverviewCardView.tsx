@@ -80,7 +80,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 			aria-labelledby={headingId}
 			aria-busy={isLoading}
 			className={cn(
-				"flex w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
+				"flex w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-1.5 text-sm shadow-md",
 				className,
 			)}
 			style={{
@@ -89,14 +89,14 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 		>
 			<h2
 				id={headingId}
-				className="m-0 py-2 text-xs font-medium text-content-secondary"
+				className="m-0 px-1.5 py-2 text-xs font-medium text-content-secondary"
 			>
 				Overview
 			</h2>
 
 			{isEmpty &&
 				(isLoading ? (
-					<div role="status" className="flex flex-col gap-2 py-2">
+					<div role="status" className="flex flex-col gap-2 px-1.5 py-2">
 						<span className="sr-only">Loading overview</span>
 						{[0, 1, 2].map((row) => (
 							<div key={row} aria-hidden className="flex items-center gap-2">
@@ -106,7 +106,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						))}
 					</div>
 				) : (
-					<p className="m-0 py-2 text-xs text-content-secondary">
+					<p className="m-0 px-1.5 py-2 text-xs text-content-secondary">
 						Nothing to show yet. Cost, changes, pull requests, and attachments
 						show up here as the agent works.
 					</p>
@@ -232,7 +232,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 		<section aria-labelledby={headingId} className="flex flex-col py-2">
 			<h3
 				id={headingId}
-				className="m-0 pb-1 text-xs font-normal text-content-secondary"
+				className="m-0 px-1.5 pb-1 text-xs font-normal text-content-secondary"
 			>
 				{title}
 			</h3>
@@ -269,7 +269,7 @@ const OverviewListSection = <T,>({
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
-					className="-mx-1.5 rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					className="rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					{expanded
 						? `Show fewer ${title.toLowerCase()}`
@@ -348,7 +348,7 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 		</>
 	);
 	const className =
-		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
+		"flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
 	if (!onClick) {
 		return <div className={className}>{content}</div>;
 	}
