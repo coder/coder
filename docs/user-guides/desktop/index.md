@@ -13,7 +13,7 @@ Connect to workspace services using simple hostnames like `myworkspace.coder`, l
 ## What You'll Need
 
 - A Coder deployment running `v2.20.0` or [later](https://github.com/coder/coder/releases/latest)
-- Administrator privileges on your local machine (for VPN extension installation)
+- Administrator privileges on your local machine (for virtual private network (VPN) extension installation)
 - Access to your Coder deployment URL
 
 ## Quick Start
@@ -124,13 +124,13 @@ ping -n 3 your-workspace.coder
 
 ### Web Services
 
-Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (e.g. 3000 for frontend, 8080 for API)
+Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (for example, 3000 for frontend, 8080 for API)
 
 </div>
 
 ## Administrator Configuration
 
-Organizations that manage Coder Desktop deployments can configure the application using MDM (Mobile Device Management) or group policy.
+Organizations that manage Coder Desktop deployments can configure the application using mobile device management (MDM) or group policy.
 
 ### Disable Automatic Updates
 
@@ -157,7 +157,7 @@ New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
 ```
 
-You can also configure a `Updater:ForcedChannel` string value to lock users to a specific update channel (e.g. `stable`).
+You can also configure a `Updater:ForcedChannel` string value to lock users to a specific update channel (for example, `stable`).
 
 > [!NOTE]
 > For security, updater settings can only be configured at the machine level (`HKLM`), not per-user (`HKCU`).
@@ -249,7 +249,7 @@ If `dig` returns nothing or `dscacheutil` reports no entries, Coder Connect is n
 
 Run the following in an **elevated PowerShell** session.
 The service restart clears the embedded DNS state.
-The NRPT and adapter checks confirm the system routing policy is intact.
+The Name Resolution Policy Table (NRPT) and adapter checks confirm the system routing policy is intact.
 
 1. Stop the app and the VPN service:
 
@@ -283,9 +283,10 @@ The NRPT and adapter checks confirm the system routing policy is intact.
     Disable and re-enable the toggle, or repeat the steps above.
 
 > [!NOTE]
-> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver; restarting the service is what clears its internal cache.
+> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver.
+> Restarting the service is what clears its internal cache.
 > If you are running a network filtering agent (for example, Zscaler), it may shadow `.coder` lookups even after the tunnel comes back.
-> Check with your IT team if DNS still fails after a clean restart.
+> Check with your information technology (IT) team if DNS still fails after a clean restart.
 
 </div>
 
@@ -308,7 +309,7 @@ The file sync (Mutagen) daemon writes to a separate log file.
     ```
 
     The `BEGINSWITH` predicate captures the app, the helper daemon, and the network extension, which all log under subsystems prefixed with `com.coder.Coder-Desktop`.
-    Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred.
+    Adjust `--last` (for example, `30m`, `2h`, `1d`) to cover the time the issue occurred.
 
     You can stream the logs live while reproducing an issue:
 

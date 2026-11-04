@@ -87,7 +87,7 @@ resource "coder_agent" "main" {
 
 You can also show agent metadata for information about the workspace's host.
 
-[top](https://manpages.ubuntu.com/manpages/jammy/en/man1/top.1.html) is available in most Linux distributions and provides virtual memory, CPU and IO statistics.
+[top](https://manpages.ubuntu.com/manpages/jammy/en/man1/top.1.html) is available in most Linux distributions and provides virtual memory, CPU and input/output (IO) statistics.
 Running `top` produces output that looks like:
 
 ```txt
@@ -139,4 +139,4 @@ One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the 
 ## Next Steps
 
 - [Resource metadata](./resource-metadata.md)
-- [Parameters](./parameters.md)
+- [Parameters](./parameters/index.md)

@@ -52,7 +52,7 @@ If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/co
 ### Create a Coder template
 
 You can start from our [example template](../../../examples/templates/kubernetes).
-From there, add [template parameters](../templates/extending-templates/parameters.md) to allow developers to pick their desired cluster.
+From there, add [template parameters](../templates/extending-templates/parameters/index.md) to allow developers to pick their desired cluster.
 
 ```tf
 # main.tf
@@ -189,7 +189,7 @@ Kubernetes control plane is running at https://example.domain:6443
 export CLUSTER_ADDRESS=https://example.domain:6443
 ```
 
-To fetch the CA certificate and token:
+To fetch the certificate authority (CA) certificate and token:
 
 ```sh
 export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data.ca\.crt}")

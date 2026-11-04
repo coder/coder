@@ -8,7 +8,8 @@ It changes user-visible names, configuration options, the canonical HTTP API pat
 
 > [!NOTE]
 > Deprecated aliases remain available for gateway and proxy controls.
-> Provider configuration through environment variables, flags, and YAML has been removed under both names; refer to [Provider configuration](./providers.md#database-management-of-providers).
+> Provider configuration through environment variables, flags, and YAML has been removed under both names.
+> Refer to [Provider configuration](./providers.md#database-management-of-providers).
 
 Adopt the `ai_gateway` names for gateway and proxy settings so your configuration matches the current documentation.
 

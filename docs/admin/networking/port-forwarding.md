@@ -7,16 +7,16 @@ A common use case is testing web applications in a browser.
 
 There are four ways to forward ports in Coder:
 
-| Method                                 | Details                                                                                                                                                        |
-|:---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via VPN tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
-| [CLI](#the-coder-port-forward-command) | Forwards specific TCP or UDP ports from the workspace to local ports. Supports peer-to-peer connections.                                                       |
-| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                               |
-| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                         |
+| Method                                 | Details                                                                                                                                                                                  |
+|:---------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via virtual private network (VPN) tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
+| [CLI](#the-coder-port-forward-command) | Forwards specific Transmission Control Protocol (TCP) or User Datagram Protocol (UDP) ports from the workspace to local ports. Supports peer-to-peer connections.                        |
+| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                                                         |
+| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                                                   |
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
-1. The Dashboard which proxies traffic through the Coder control plane versus peer-to-peer which is possible with the Coder CLI and Coder Desktop
+1. The Dashboard, which proxies traffic through the Coder control plane instead of peer-to-peer like the Coder CLI and Coder Desktop
 1. `sshd` which does double encryption of traffic with both Wireguard and SSH
 
 ## Coder Desktop
@@ -123,7 +123,7 @@ Once a port is shared at either `authenticated` or `public` levels, it will stay
 
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
-The sharing level is limited by the maximum level enforced in the template settings in premium deployments, and not restricted in OSS deployments.
+The sharing level is limited by the maximum level enforced in the template settings in premium deployments, and not restricted in open source software (OSS) deployments.
 
 This can also be used to change the sharing level of `coder_app`s by entering their port number in the sharable ports UI.
 The `share` attribute on `coder_app` resource uses a different method of authentication and **is not impacted by the template's maximum sharing level**, nor the level of a shared port that points to the app.
@@ -161,7 +161,7 @@ https://33295s--agent--workspace--user--apps.example.com/
 
 When forwarding via the dashboard, Coder automatically sets headers that allow requests between separately forwarded applications belonging to the same user.
 
-When forwarding through other methods the application itself will need to set its own CORS headers if they are being forwarded through different origins since Coder does not intercept these cases.
+When forwarding through other methods the application itself will need to set its own cross-origin resource sharing (CORS) headers if they are being forwarded through different origins since Coder does not intercept these cases.
 See below for the required headers.
 
 #### Authentication
@@ -205,57 +205,62 @@ In other words, CORS behavior through the dashboard is not currently configurabl
 #### Allowed by default
 
 <table class="tg">
+<caption>
+Which requests between forwarded apps the dashboard allows by default.
+Columns are the origin: the user, workspace, and app that sends the request.
+Rows are the destination: the user, workspace, and app that receives it.
+</caption>
 <thead>
   <tr>
-    <th class="tg-0pky" rowspan="2"></th>
-    <th class="tg-0pky" rowspan="3"></th>
-    <th class="tg-0pky">From</th>
-    <th class="tg-0pky" colspan="3">Alice</th>
-    <th class="tg-0pky">Bob</th>
+    <th class="tg-0pky" scope="row" colspan="3">From user</th>
+    <th class="tg-0pky" scope="col" colspan="3">Alice</th>
+    <th class="tg-0pky" scope="col">Bob</th>
   </tr>
   <tr>
-    <th class="tg-0pky" rowspan="2"></th>
-    <th class="tg-0pky">Workspace 1</th>
-    <th class="tg-0pky" colspan="2">Workspace 2</th>
-    <th class="tg-0pky">Workspace 3</th>
+    <th class="tg-0pky" scope="row" colspan="3">From workspace</th>
+    <th class="tg-0pky" scope="col">Workspace 1</th>
+    <th class="tg-0pky" scope="col" colspan="2">Workspace 2</th>
+    <th class="tg-0pky" scope="col">Workspace 3</th>
   </tr>
   <tr>
-    <th class="tg-0pky">To</th>
-    <th class="tg-0pky">App A</th>
-    <th class="tg-0pky">App B</th>
-    <th class="tg-0pky">App C</th>
-    <th class="tg-0pky">App D</th>
+    <th class="tg-0pky" scope="col">To user</th>
+    <th class="tg-0pky" scope="col">To workspace</th>
+    <th class="tg-0pky" scope="col">To app</th>
+    <th class="tg-0pky" scope="col">App A</th>
+    <th class="tg-0pky" scope="col">App B</th>
+    <th class="tg-0pky" scope="col">App C</th>
+    <th class="tg-0pky" scope="col">App D</th>
   </tr>
 </thead>
 <tbody>
   <tr>
-    <td class="tg-0pky" rowspan="3">Alice</td>
-    <td class="tg-0pky" rowspan="2">Workspace 1</td>
-    <td class="tg-0pky">App A</td>
+    <th class="tg-0pky" scope="row" rowspan="3">Alice</th>
+    <th class="tg-0pky" scope="row" rowspan="2">Workspace 1</th>
+    <th class="tg-0pky" scope="row">App A</th>
     <td class="tg-0pky">✅</td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">❌</td>
   </tr>
   <tr>
-    <td class="tg-0pky">App B</td>
+    <th class="tg-0pky" scope="row">App B</th>
     <td class="tg-0pky">✅*</td>
     <td class="tg-0pky">✅</td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">❌</td>
   </tr>
   <tr>
-    <td class="tg-0pky">Workspace 2</td>
-    <td class="tg-0pky">App C</td>
+    <th class="tg-0pky" scope="row">Workspace 2</th>
+    <th class="tg-0pky" scope="row">App C</th>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">✅</td>
     <td class="tg-0pky">❌</td>
   </tr>
   <tr>
-    <td class="tg-0pky">Bob</td>
-    <td class="tg-0pky">Workspace 3</td>
-    <td class="tg-0pky">App D</td>
+    <th class="tg-0pky" scope="row">Bob</th>
+    <th class="tg-0pky" scope="row">Workspace 3</th>
+    <th class="tg-0pky" scope="row">App D</th>
     <td class="tg-0pky">❌</td>
     <td class="tg-0pky">❌</td>
     <td class="tg-0pky">❌</td>

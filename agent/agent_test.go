@@ -133,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
-	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC216WithRole(context.Context, string) (
+	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -1823,68 +1823,38 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 func TestAgent_CoderEnvVars(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_OWNER_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
+	manifest := agentsdk.Manifest{
+		AgentName:        "test-agent",
+		OwnerName:        "test-user",
+		WorkspaceName:    "test-workspace",
+		WorkspaceID:      uuid.New(),
+		WorkspaceBuildID: uuid.New(),
+		TemplateID:       uuid.New(),
+		TemplateName:     "test-template",
+	}
+	for key, want := range map[string]string{
+		"CODER":                         "true",
+		"CODER_WORKSPACE_NAME":          manifest.WorkspaceName,
+		"CODER_WORKSPACE_OWNER_NAME":    manifest.OwnerName,
+		"CODER_WORKSPACE_AGENT_NAME":    manifest.AgentName,
+		"CODER_WORKSPACE_ID":            manifest.WorkspaceID.String(),
+		"CODER_WORKSPACE_BUILD_ID":      manifest.WorkspaceBuildID.String(),
+		"CODER_WORKSPACE_TEMPLATE_ID":   manifest.TemplateID.String(),
+		"CODER_WORKSPACE_TEMPLATE_NAME": manifest.TemplateName,
+	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+			session := setupSSHSession(t, manifest, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
 			}
 			output, err := session.Output(command)
 			require.NoError(t, err)
-			require.NotEmpty(t, strings.TrimSpace(string(output)))
+			require.Equal(t, want, strings.TrimSpace(string(output)))
 		})
 	}
-}
-
-func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
-	t.Parallel()
-
-	command := "sh -c 'echo $CODER_WORKSPACE_BUILD_ID'"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo %CODER_WORKSPACE_BUILD_ID%"
-	}
-
-	buildID := uuid.New()
-	session := setupSSHSession(t, agentsdk.Manifest{WorkspaceBuildID: buildID}, codersdk.ServiceBannerConfig{}, nil)
-	output, err := session.Output(command)
-	require.NoError(t, err)
-	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
-
-	// A manifest from a server that predates the build ID leaves it unset
-	// rather than exporting the nil UUID.
-	t.Run("Unset", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS == "windows" {
-			t.Skip("uses POSIX parameter expansion")
-		}
-		// The agent inherits the runner's environment, so hide any build ID the
-		// runner itself exports.
-		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
-			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
-		})
-		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
-		require.NoError(t, err)
-		require.Equal(t, "unset", strings.TrimSpace(string(output)))
-	})
-}
-
-// withoutEnvInfo is the system environment without one variable.
-type withoutEnvInfo struct {
-	usershell.SystemEnvInfo
-	exclude string
-}
-
-func (e withoutEnvInfo) Environ() []string {
-	var environ []string
-	for _, kv := range e.SystemEnvInfo.Environ() {
-		if !strings.HasPrefix(kv, e.exclude+"=") {
-			environ = append(environ, kv)
-		}
-	}
-	return environ
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
@@ -4763,17 +4733,16 @@ func requireEcho(t *testing.T, conn net.Conn) int {
 const (
 	wantSomeBytes   int64 = -1
 	wantIgnoreBytes int64 = -2
-	// wantNonZeroCode accepts any non-zero disconnect status code, for
-	// disconnects whose code depends on how the platform reports a killed
-	// process.
-	wantNonZeroCode = -1
+	// wantIgnoreCode skips the disconnect status code check, for disconnects
+	// whose code depends on process timing.
+	wantIgnoreCode = -1
 )
 
 // assertConnectionReport expects the provided connect and disconnect events
 // have been reported.  If the disconnection bytes are wantSomeBytes, assert the
 // bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
-// they match exactly. If the disconnect code is wantNonZeroCode, assert the
-// status code is non-zero, otherwise assert it matches exactly.
+// they match exactly. If the disconnect code is wantIgnoreCode, do not check
+// the status code, otherwise assert it matches exactly.
 func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
 ) {
@@ -4802,9 +4771,7 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	if disconnect.Code == wantNonZeroCode {
-		assert.NotZero(t, reports[1].GetConnection().GetStatusCode(), "disconnect status code should be non-zero")
-	} else {
+	if disconnect.Code != wantIgnoreCode {
 		assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
 	}
 	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")

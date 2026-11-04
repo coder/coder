@@ -16,8 +16,8 @@ Coder provides the workspace where the agent executes, and logs that correlate t
 
 ## How it works
 
-1. A developer selects a Cursor worker pool mapped to a Coder organization and workspace template, then starts a Cursor agent session.
-1. Agent Relay claims the pending Cursor request and asks the Coder control plane to provision a workspace from the mapped template for that user.
+1. A developer selects a Cursor worker pool mapped to a Coder organization and workspace template, then starts an agent session.
+1. Agent Relay claims the pending Cursor request and asks Coder to provision the user's workspace from the mapped template.
 1. A Cursor worker process inside the workspace connects to the corresponding Cursor cloud session and executes the agent's tool calls.
 1. When the session ends, Agent Relay manages workspace teardown.
 

@@ -28,7 +28,7 @@ data "coder_workspace_tags" "custom_workspace_tags" {
 - `zone` - static tag value set to `developers`
 - `runtime` - supported by the string-type `coder_parameter` to select provisioner runtime, `runtime_selector`
 - `project_id` - a formatted string supported by the string-type `coder_parameter`, `project_name`
-- `cache` - an HCL condition involving boolean-type `coder_parameter`, `feature_cache_enabled`
+- `cache` - a HashiCorp Configuration Language (HCL) condition involving boolean-type `coder_parameter`, `feature_cache_enabled`
 
 Review the [full template example](../../../../examples/workspace-tags) using `coder_workspace_tags` and `coder_parameter`s.
 
@@ -75,7 +75,7 @@ In most cases, `coder_parameter`s backing `coder_workspace_tags` should be marke
 
 You may only specify the following as inputs for `coder_workspace_tags`:
 
-|                    | Example                                       |
+| Input              | Example                                       |
 |:-------------------|:----------------------------------------------|
 | Static values      | `"developers"`                                |
 | Template variables | `var.az`                                      |

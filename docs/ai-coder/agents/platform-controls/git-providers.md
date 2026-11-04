@@ -27,7 +27,7 @@ Without `API_BASE_URL`, Coder defaults to `https://api.github.com`.
 Clone and push still work (they use `AUTH_URL` and `TOKEN_URL` directly), but the diff viewer silently fails because Coder builds its URL-matching patterns from the API base URL.
 
 > [!NOTE]
-> If you have both a `github.com` and a GHE external auth config, only the GHE config needs `API_BASE_URL`.
+> If you have both a `github.com` and a GitHub Enterprise (GHE) external auth config, only the GHE config needs `API_BASE_URL`.
 
 ## GitLab configuration
 
@@ -67,7 +67,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 ```
 
 > [!NOTE]
-> You may also set `API_BASE_URL` explicitly if needed (e.g., `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
+> You may also set `API_BASE_URL` explicitly if needed (for example, `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
 
 ## Known limitations
 
@@ -75,7 +75,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 
 The GitLab provider has some semantic differences compared to the GitHub provider:
 
-- **Approved** uses GitLab's threshold-based approval (e.g., "all required approvals met") rather than GitHub's "at least one approval and no changes requested" model.
+- **Approved** uses GitLab's threshold-based approval (for example, "all required approvals met") rather than GitHub's "at least one approval and no changes requested" model.
 - **Changes requested** has no GitLab equivalent.
   This field is always reported as `false`.
 - **Reviewer count** only counts users who have approved, not all assigned reviewers.

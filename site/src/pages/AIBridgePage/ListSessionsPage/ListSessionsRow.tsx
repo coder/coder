@@ -9,14 +9,17 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { clampContent } from "#/utils/text";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ClientsBadge } from "../ClientsBadge";
 import { ModelsBadge } from "../ModelsBadge";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { ProvidersBadge } from "../ProvidersBadge";
 import { TokenBadges } from "../TokenBadges";
-import { formatSessionCost, truncatePromptPreview } from "../utils";
+import { formatSessionCost } from "../utils";
 import type { SessionColumnId } from "./sessionColumns";
+
+const PROMPT_PREVIEW_MAX_CHARS = 500;
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
@@ -159,8 +162,9 @@ const placeholderInitialPrompt = (session: AIBridgeSession): string =>
 	session.last_prompt ?? "";
 
 const InitialPromptCell: React.FC<SessionCellContentProps> = ({ session }) => {
-	const promptPreview = truncatePromptPreview(
+	const promptPreview = clampContent(
 		placeholderInitialPrompt(session),
+		PROMPT_PREVIEW_MAX_CHARS,
 	);
 	return (
 		<TableCell className="font-normal">

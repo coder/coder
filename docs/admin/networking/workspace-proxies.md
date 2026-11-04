@@ -11,8 +11,8 @@ Workspace proxies provide low-latency experiences for geo-distributed teams.
 Coder's networking does a best effort to make direct connections to a workspace.
 In situations where this is not possible, such as connections via the web terminal and [web IDEs](../../user-guides/workspace-access/index.md#other-web-ides), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
-A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, etc.
-Dashboard connections and API calls (e.g. the workspaces list) are not served over workspace proxies.
+A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, and so on.
+Dashboard connections and API calls (for example, the workspaces list) are not served over workspace proxies.
 
 ## Deploy a workspace proxy
 

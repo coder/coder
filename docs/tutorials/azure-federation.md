@@ -38,10 +38,10 @@ Select the App Registration blade, and register a new application.
 Fill in the following fields:
 
 - **Name**:
-  this is a friendly identifier and can be anything (e.g. "Coder")
+  this is a friendly identifier and can be anything (for example, "Coder")
 - **Supported Account Types**: - set to "Accounts in this organizational directory only (single-tenant)"
 
-The **Redirect URI** field does not need to be set in this case.
+The **Redirect URI** field, which takes a Uniform Resource Identifier (URI), does not need to be set in this case.
 Take note of the `Application (client) ID` and `Directory (tenant) ID` values, which will be used by Coder.
 
 ## Step 3: Assign Client Certificate to the Azure Application

@@ -44,6 +44,7 @@ For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRO
 - Answer informational questions directly. Requests to implement, fix, or investigate authorize that work even when phrased as a question.
 - Install and use the repository Git hooks. Never bypass them with `--no-verify`. Wait for slow first runs while caches warm.
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
+- Before you open or update a PR that touches `docs/` or user-facing behavior, run the [doc-check skill](.claude/skills/doc-check/SKILL.md) on your branch in author self-check mode and fix every blocking finding.
 - Do not force-push unless explicitly requested.
 - Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file. Use a broader scope or no scope for cross-cutting changes.
 - Name branches so they do not collide with issue-tracker IDs. When a branch references a GitHub issue number, write it as `issue-<number>` (for example, `issue-1234-fix-flake`), not as a bare `<word>-<number>` such as `docs-1234` or a leading number. Connected trackers like Linear auto-link any branch containing a `<key>-<number>` token to the same-numbered issue on the team that owns `<key>`, silently attaching the PR to an unrelated ticket and moving it through that ticket's workflow.

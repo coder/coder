@@ -73,7 +73,8 @@ They have no provider-specific integration beyond that.
 ### OpenAI
 
 Set the base URL to the upstream endpoint and provide an API key.
-The default `https://api.openai.com/v1/` targets the native OpenAI service; point it at any OpenAI-compatible endpoint (for example, a hosted proxy or LiteLLM deployment) when needed.
+The default `https://api.openai.com/v1/` targets the native OpenAI service.
+Point it at any OpenAI-compatible endpoint (for example, a hosted proxy or LiteLLM deployment) when needed.
 
 If you create an [OpenAI key](https://platform.openai.com/api-keys) with minimal privileges, this is the minimum required set:
 
@@ -82,7 +83,8 @@ If you create an [OpenAI key](https://platform.openai.com/api-keys) with minimal
 ### Anthropic
 
 Set the base URL and provide an API key.
-The default `https://api.anthropic.com/` targets Anthropic's public API; override it for Anthropic-compatible brokers.
+The default `https://api.anthropic.com/` targets Anthropic's public API.
+Override it for Anthropic-compatible brokers.
 
 Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys) to have restricted permissions at the time of writing (June 2026).
 
@@ -95,7 +97,7 @@ It is distinct from [Amazon Bedrock](#amazon-bedrock), which is a separate provi
 Every Claude Platform provider requires:
 
 - A **region**, for example `us-east-1`.
-  It selects the default endpoint `https://aws-external-anthropic.<region>.api.aws` and, for IAM authentication, the signing scope.
+  It selects the default endpoint `https://aws-external-anthropic.<region>.api.aws` and, for Identity and Access Management (IAM) authentication, the signing scope.
   Set it explicitly even when you override the endpoint, so requests routed through a proxy are still signed for the correct region.
 - A **workspace ID**, sent as the `anthropic-workspace-id` header on every request.
   AI Gateway sets the header from provider configuration and strips any value a client sends, so a client cannot choose which workspace its traffic is attributed to.
@@ -104,11 +106,14 @@ AI Gateway chooses authentication from the credentials available for each reques
 
 1. When [Bring Your Own Key](#bring-your-own-key) is enabled, a client key takes precedence over stored provider keys and IAM signing.
 2. Otherwise, AI Gateway uses the provider's stored API-key collection, with key pooling, rotation, masking, and [key failover](#key-failover).
-3. When no client or stored provider key is available, AI Gateway signs the request with AWS SigV4 for the `aws-external-anthropic` service using its ambient AWS credentials.
+3. When no client or stored provider key is available, AI Gateway signs the request with AWS SigV4.
+
+   It signs for the `aws-external-anthropic` service using its ambient AWS credentials.
 
 Configure the AWS identity on the gateway process through the default AWS credential chain, such as an instance profile, container identity, or `AWS_PROFILE`.
 Individual Claude Platform provider settings do not select an AWS identity or authentication mode.
-Adding a stored key selects API-key authentication; removing the last stored key allows requests without a client key to use IAM.
+Adding a stored key selects API-key authentication.
+Removing the last stored key allows requests without a client key to use IAM.
 
 A supplied key that fails authentication does not trigger a fallback to IAM.
 A client sending an ordinary Anthropic key to a Claude Platform provider receives an upstream authentication error.
@@ -124,7 +129,8 @@ Configure:
 - An **endpoint** in the format the protocol requires: `https://bedrock-runtime.<region>.amazonaws.com` for InvokeModel or `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle.
   The AWS region is read from the endpoint host.
 - The **model** and **small fast model** identifiers, for InvokeModel only.
-  Mantle providers do not set them; the client chooses the model on each request and AI Gateway forwards it upstream.
+  Mantle providers do not set them.
+  The client chooses the model on each request and AI Gateway forwards it upstream.
 
 #### InvokeModel
 
@@ -161,20 +167,20 @@ curl "${CODER_URL}/api/v2/ai-gateway/${PROVIDER_NAME}/v1/messages" \
 Do not attach API keys to a Bedrock provider.
 The provider itself always authenticates with AWS credentials.
 
-When [BYOK](auth.md#bring-your-own-key-byok) is enabled, a user can save a personal Amazon Bedrock API key under their [Agents API keys](../agents/models.md#user-api-keys-byok).
+When [Bring Your Own Key (BYOK)](auth.md#bring-your-own-key-byok) is enabled, a user can save a personal Amazon Bedrock API key under their [Agents API keys](../agents/models.md#user-api-keys-byok).
 AI Gateway then sends that key as a bearer token for the user's requests instead of signing them with the deployment's AWS credentials.
 Requests from users without a personal key continue to use the credentials below.
 
 AI Gateway resolves AWS credentials one of three ways:
 
 - **AWS SDK default credential chain (recommended).**
-  When no explicit credentials are configured, the AWS SDK resolves them automatically from the environment: IAM Roles (instance profiles, IRSA, ECS task roles), shared config files, environment variables, SSO, and more.
+  When no explicit credentials are configured, the AWS SDK resolves them automatically from the environment: IAM Roles (instance profiles, IAM Roles for Service Accounts (IRSA), Amazon Elastic Container Service (ECS) task roles), shared config files, environment variables, single sign-on (SSO), and more.
   Attaching an IAM Role to the compute running Coder follows [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html) for temporary credentials.
   The role must permit `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
 - **Static credentials.**
   Provide an access key and secret for an IAM user with the same Bedrock permissions.
 - **Assumed IAM role.**
-  Set a **Role ARN** to have the gateway assume that role before calling Bedrock, signing requests with the resulting temporary credentials.
+  Set a **Role ARN**, the role's Amazon Resource Name (ARN), to have the gateway assume that role before calling Bedrock, signing requests with the resulting temporary credentials.
   This works on top of either of the above base identities and supports cross-account Bedrock access.
   See [IAM role assumption](#iam-role-assumption).
 
@@ -199,18 +205,23 @@ When you cannot use the default credential chain, create a dedicated IAM user an
    - Select **Create access key**.
    - Save both the access key ID and secret access key securely.
 
-4. **Enter the access key ID and secret access key** when you add or edit the Bedrock provider from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md), along with the region (or base URL) and model identifiers.
+4. **Enter the access key ID and secret access key** when you add or edit the Bedrock provider.
+
+   Add or edit the provider from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md), along with the region (or base URL) and model identifiers.
 
 #### IAM role assumption
 
 Set the optional **Role ARN** field to have the gateway assume an IAM role before calling Bedrock.
-The base identity (static credentials or the default credential chain) signs an STS `AssumeRole` call, and the temporary credentials it returns sign Bedrock requests.
+The base identity (static credentials or the default credential chain) signs an AWS Security Token Service (STS) `AssumeRole` call, and the temporary credentials it returns sign Bedrock requests.
 The field is optional: a provider with no Role ARN authenticates with its base identity directly, exactly as described above.
 
 To use role assumption:
 
-1. **Create the IAM role** in the target account and grant it `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
-   The base identity does not need Bedrock permissions itself; the assumed role does.
+1. **Create the IAM role** in the target account.
+
+   Grant it `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
+   The base identity does not need Bedrock permissions itself.
+   The assumed role does.
 
 2. **Configure the role's trust policy** to allow the gateway's base identity to assume it.
 

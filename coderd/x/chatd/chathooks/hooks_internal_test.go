@@ -277,6 +277,35 @@ func TestEventMessagesSkipsBlankModelContext(t *testing.T) {
 	require.Equal(t, database.ChatMessageVisibilityModel, messages[0].Visibility)
 }
 
+func TestUserPromptMessageShowsSkillInvocations(t *testing.T) {
+	t.Parallel()
+
+	message, err := UserPromptMessage([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("please run"),
+		codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceProject, "triage"),
+		codersdk.ChatMessageText("on the issue"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "please run /project/triage on the issue", message.Prompt)
+}
+
+func TestUserPromptMessageOmitsResolvedSkillFields(t *testing.T) {
+	t.Parallel()
+
+	invocation := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "deploy")
+	invocation.SkillBody = "Run scripts/deploy.sh."
+	invocation.SkillDir = "/home/coder/.agents/skills/deploy"
+	invocation.SkillWorkspaceID = uuid.New()
+	message, err := UserPromptMessage([]codersdk.ChatMessagePart{invocation})
+	require.NoError(t, err)
+	// chatd resolves the body and directory after the user sends the
+	// message, so the hook payload carries neither.
+	require.NotContains(t, string(message.Parts), "skill_body")
+	require.NotContains(t, string(message.Parts), "skill_dir")
+	require.NotContains(t, string(message.Parts), "skill_workspace_id")
+	require.Contains(t, string(message.Parts), `"skill_name":"deploy"`)
+}
+
 func TestComposeUserPromptContentOverride(t *testing.T) {
 	t.Parallel()
 

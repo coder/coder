@@ -21,7 +21,7 @@ export const WorkspaceDormantBadge: React.FC<WorkspaceDormantBadgeProps> = ({
 	return workspace.deleting_at ? (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Badge role="status" variant="destructive" size="xs">
+				<Badge role="status" variant="destructive" size="sm">
 					Deletion Pending
 				</Badge>
 			</TooltipTrigger>
@@ -35,7 +35,7 @@ export const WorkspaceDormantBadge: React.FC<WorkspaceDormantBadgeProps> = ({
 	) : (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Badge role="status" variant="warning" size="xs">
+				<Badge role="status" variant="warning" size="sm">
 					Dormant
 				</Badge>
 			</TooltipTrigger>

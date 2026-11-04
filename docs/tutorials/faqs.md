@@ -2,8 +2,8 @@
 title: FAQs
 ---
 
-Frequently asked questions on Coder OSS and licensed deployments.
-These FAQs come from our community and customers, feel free to [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
+Frequently asked questions on Coder open source software (OSS) and licensed deployments.
+These frequently asked questions (FAQs) come from our community and customers, feel free to [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
 For other community resources, see our [GitHub discussions](https://github.com/coder/coder/discussions), or join our [Discord server](https://discord.gg/coder).
 
@@ -27,13 +27,13 @@ Visit <https://coder.com/trial> or contact [sales@coder.com](mailto:sales@coder.
 
    ![Add a license from the licenses screen](../images/admin/licenses/licenses-nolicense.png)
 
-1. On the **Add a license** screen, drag your `.jwt` license file into the **Upload Your License** section, or paste your license in the **Paste Your License** text box, then select **Upload License**:
+1. On the **Add a license** screen, drag your `.jwt` file into **Upload Your License** or paste it into **Paste Your License**, then select **Upload License**:
 
    ![Add a license screen](../images/admin/licenses/add-license-ui.png)
 
 ### Coder CLI
 
-1. Ensure you have the [Coder CLI](../install/cli.md) installed.
+1. Make sure you have the [Coder CLI](https://coder.com/downloads) installed.
 1. Save your license key to disk and make note of the path.
 1. Open a terminal.
 1. Log in to your Coder deployment:
@@ -67,18 +67,18 @@ Visit the [licensing documentation](../install/prepare/licensing.md) for more in
 The primary developer use case is a local IDE connecting over SSH to a Coder workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or [Direct connection](../admin/networking/index.md#direct-connections) between the local IDE and the workspace.
-However, this requires some additional protocols like UDP and being able to reach a STUN server to echo the IP addresses of the local IDE machine and workspace, for sharing using a Wireguard Coordination Server.
+However, this requires some additional protocols like User Datagram Protocol (UDP) and being able to reach a Session Traversal Utilities for Network Address Translation (STUN) server to echo the IP addresses of the local IDE machine and workspace, for sharing using a Wireguard Coordination Server.
 By default, Coder assumes Internet and attempts to reach Google's STUN servers to perform this IP echo.
 
 Operators experimenting with Coder may run into networking issues if UDP (which STUN requires) or the STUN servers are unavailable, potentially resulting in lengthy local IDE and SSH connection times as the Coder control plane attempts to establish these direct connections.
 
 Setting the following flags as shown disables this logic to simplify troubleshooting.
 
-| Flag                                                                                                | Value       | Meaning                               |
-|-----------------------------------------------------------------------------------------------------|-------------|---------------------------------------|
-| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                                | Value       | Meaning                                                                        |
+|-----------------------------------------------------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections                                                      |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                                                                  |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale Designated Encrypted Relay for Packets (DERP) |
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -130,11 +130,11 @@ resource "coder_app" "code-server" {
 
 An important concept to understand is that Coder creates workspaces which have an agent that must be able to reach the control plane.
 
-If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not accessible from a workspace, the workspace may build, but the agent cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
+If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not accessible from a workspace, the workspace may build, but the agent cannot reach Coder, and thus the missing icons. For example, Terminal, IDEs, Apps.
 
 By default, `coder server` automatically creates an Internet-accessible reverse proxy so that workspaces you create can reach the control plane.
 
-If you are doing a standalone install, e.g., on a MacBook and want to build workspaces in Docker Desktop, everything is self-contained and workspaces (containers in Docker Desktop) can reach the control plane.
+If you are doing a standalone install, for example, on a MacBook and want to build workspaces in Docker Desktop, everything is self-contained and workspaces (containers in Docker Desktop) can reach the control plane.
 
 ```sh
 coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
@@ -212,7 +212,7 @@ coder.example.com {
 ## I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?
 
 Caddy requires your DNS provider's credentials to create wildcard certificates.
-This involves building the Caddy binary [from source](https://github.com/caddyserver/caddy) with the DNS provider plugin added. e.g., [Google Cloud DNS provider here](https://github.com/caddy-dns/googleclouddns)
+This involves building the Caddy binary [from source](https://github.com/caddyserver/caddy) with the DNS provider plugin added. For example, [Google Cloud DNS provider here](https://github.com/caddy-dns/googleclouddns)
 
 To compile Caddy, the host running Coder requires Go.
 Once installed, replace the existing Caddy binary in `usr/bin` and restart the Caddy service.
@@ -386,7 +386,9 @@ An example use case is the user should decide if they want a browser-based IDE l
     fi
     ```
 
-3. Add a Terraform meta-argument [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) in the `coder_app` resource so it will only create the resource if the `coder_parameter` is `true`
+3. Add a Terraform meta-argument [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) in the `coder_app` resource.
+
+    This creates the resource only if the `coder_parameter` is `true`.
 
     ```tf
     # code-server
@@ -412,14 +414,14 @@ An example use case is the user should decide if they want a browser-based IDE l
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
 
-It is because, more than likely, the supported OS of either the container image or VM/VPS doesn't have the proper C libraries to run the VS Code Server.
+It is because, more than likely, the supported OS of either the container image or VM/virtual private server (VPS) doesn't have the proper C libraries to run the VS Code Server.
 For instance, Alpine is not supported at all.
 If so, you need to find a container image or supported OS for the VS Code Server.
-For more information on OS prerequisites for Linux, please look at the VSCode docs. <https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
+For more information on OS prerequisites for Linux, look at the VSCode docs. <https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
 
 ## How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
-If your JetBrains IDE is disconnected for a long period of time due to a network change (for example turning off a VPN), you may find that the IDE will not reconnect once the network is re-established (for example turning a VPN back on).
+If your JetBrains IDE is disconnected for a long period of time due to a network change (for example turning off a virtual private network (VPN)), you may find that the IDE will not reconnect once the network is re-established (for example turning a VPN back on).
 When this happens a persistent message will appear similar to the below:
 
 ```console
@@ -465,7 +467,7 @@ The primary purpose of this feature is to warn and discourage users from downloa
 
 Agent API capabilities, such as file operations performed by AI agents in Coder Agents chat (including chat file uploads into the workspace), are not affected by this setting because they do not go through the SSH transfer path.
 
-The `sftp` subsystem is blocked in full, not just the `sftp` command, so any workflow that moves files over SFTP stops working.
+The `sftp` subsystem is blocked in full, not just the `sftp` command, so any workflow that moves files over SSH File Transfer Protocol (SFTP) stops working.
 This includes IDE remote file browsers that rely on it.
 
 [Coder Desktop file sync](../user-guides/desktop/desktop-connect-sync.md) also stops working, though for a different reason.
@@ -477,13 +479,13 @@ For more advanced security needs, consider adopting an endpoint security solutio
 
 ## How do I change the access URL for my control plane?
 
-You may want to change the default domain that's used to access coder, i.e. `yourcompany.coder.com` and find yourself unfamiliar with the process.
+You may want to change the default domain that's used to access coder, that is, `yourcompany.coder.com` and find yourself unfamiliar with the process.
 
 To change the access URL associated with your control plane, you can edit any of the following variables:
 
 - CLI using the `--access-url` flag
 - YAML using the `accessURL` option
-- or ENV using the `CODER_ACCESS_URL` environmental variable.
+- or the `CODER_ACCESS_URL` environment variable.
 
 For example, if you're using an environment file to configure your control plane, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
 

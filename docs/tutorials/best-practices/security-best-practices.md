@@ -21,11 +21,11 @@ Even a successful read-only attack against the control plane could result in a c
 
 ### User authentication
 
-Configure [OIDC authentication](../../admin/users/oidc-auth/index.md) against your organization’s Identity Provider (IdP), such as Okta, to allow single-sign on.
+Configure [OpenID Connect (OIDC) authentication](../../admin/users/oidc-auth/index.md) against your organization’s Identity Provider (IdP), such as Okta, to allow single-sign on.
 
 1. Enable and require two-factor authentication in your identity provider.
 1. Enable [IdP Sync](../../admin/users/idp-sync.md) to manage users’ roles and groups in Coder.
-1. Use SCIM to automatically suspend users when they leave the organization.
+1. Use System for Cross-domain Identity Management (SCIM) to automatically suspend users when they leave the organization.
 
 This allows you to manage user credentials according to your company’s central requirements, such as password complexity, 2FA, PassKeys, and others.
 
@@ -139,6 +139,7 @@ Running provisioner daemons within the same cluster/cloud as the workspaces they
 ### Authentication
 
 1. Use a [scoped key](../../install/operate/provisioners/index.md#scoped-key-recommended) to authenticate the provisioner daemons with Coder.
+
    These keys can only be used to authenticate provisioner daemons (not other APIs on the control plane).
 
 1. Store the keys securely and use environment variables to pass them to the provisioner daemon.
@@ -147,7 +148,7 @@ Running provisioner daemons within the same cluster/cloud as the workspaces they
 
 1. Tag provisioners with identifiers for the specific cluster/cloud.
 
-   This allows your templates to target a specific cluster/cloud such as for geographic proximity to the end user, or for specific features like GPUs or managed services.
+   This allows your templates to target a specific cluster/cloud such as for geographic proximity to the end user, or for specific features like graphics processing units (GPUs) or managed services.
 
 1. Scope your keys to organizations and the specific cluster/cloud using the same tags when creating the keys.
 
@@ -159,7 +160,7 @@ This ensures that compromise of one Provisioner Daemon does not compromise all c
 Deploy the provisioner daemon to the cloud and leverage infrastructure-provided credentials, if available:
 
 - [Service account tokens on Kubernetes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
-- [IAM roles for EC2 on AWS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html)
+- [AWS Identity and Access Management (IAM) roles for Amazon Elastic Compute Cloud (EC2) on AWS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html)
 - [Attached service accounts on Google Cloud](https://cloud.google.com/iam/docs/attach-service-accounts)
 
 ### Encryption in transit
@@ -264,12 +265,14 @@ While your most privileged secrets should never be included in template files, t
 
 GitOps is the practice of using a Git repository as the source of truth for operational config and reconciling the config in Git with operational systems each time the `main` (or, archaically, `master`) branch of the repository is updated.
 
-1. Store Coder templates in a single Git repository, or a single repository per Coder organization, and use the [Coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template) to push changes from the main branch to Coder using a CI/CD tool.
+1. Store Coder templates in a single Git repository, or a single repository per Coder organization.
 
    This gives you an easily browsable, auditable history of template changes and who made them.
    Coder audit logs establish who and when changes happen, but git repositories are particularly handy for analyzing exactly what changes to templates are made.
 
-1. Use a Coder user account exclusively for the purpose of pushing template changes and do not give any human users the credentials.
+1. Use the [Coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template) to push changes to Coder from a continuous integration and continuous delivery (CI/CD) tool.
+
+1. Use a Coder user account exclusively for pushing template changes, and give no human users the credentials.
 
    This ensures any actions taken by the account correspond exactly to CI/CD actions from the repository and allows you to avoid granting the template admin role widely in your organization.
 
@@ -291,7 +294,7 @@ It is important to limit Coder users to trusted insiders and/or take steps to co
 Example constraints include:
 
 - Network policy or segmentation
-- Runtime protections on the workspace host (e.g. SELinux)
+- Runtime protections on the workspace host (for example, SELinux)
 - Limiting privileges of the account or role assigned to the workspace such as a service account on Kubernetes, or IAM role on public clouds
 - Monitoring and/or auditing for suspicious activity such as cryptomining or exfiltration
 
@@ -318,7 +321,7 @@ A non-exclusive list of network assets to consider:
 - Access to internal corporate networks
   - If end users will access the workspace over the corporate network, you must allow outbound access to establish the encrypted tunnels.
 - Access to staging or production systems
-- Access to confidential data (e.g. payment processing data, health records, personally identifiable information)
+- Access to confidential data (for example, payment processing data, health records, personally identifiable information)
 - Access to other clusters/clouds
 
 ### Inbound network access
@@ -328,7 +331,7 @@ These tunnels are established by sending outbound packets, so on stateful firewa
 
 #### DERP
 
-[DERP](https://tailscale.com/kb/1232/derp-servers) is a relay protocol developed by Tailscale.
+[Designated Encrypted Relay for Packets (DERP)](https://tailscale.com/kb/1232/derp-servers) is a relay protocol developed by Tailscale.
 
 The control plane and Workspace Proxies include a DERP service by default.
 Tailcale also runs a set of public DERP servers, globally distributed.
@@ -340,7 +343,7 @@ If not, feel free to configure Tailscale DERP servers for global coverage.
 
 #### STUN
 
-[STUN](https://en.wikipedia.org/wiki/STUN) is an IETF standard protocol that allows network endpoints behind NAT to learn their public address and port mappings.
+[Session Traversal Utilities for Network Address Translation (STUN)](https://en.wikipedia.org/wiki/STUN) is an Internet Engineering Task Force (IETF) standard protocol that allows network endpoints behind Network Address Translation (NAT) to learn their public address and port mappings.
 It is an essential component of Coder’s networking to enable encrypted tunnels to be established without a relay for best performance.
 
 Coder does not ship with a STUN service because it needs to be run directly connected to the network, not behind a reverse proxy or load balancer as Coder usually is.

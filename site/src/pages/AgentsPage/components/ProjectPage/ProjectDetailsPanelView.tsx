@@ -18,6 +18,12 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	/** `undefined` while the skills load or after loading fails. */
+	readonly skillCount: number | undefined;
+	/** `undefined` while the skills load or after loading fails. */
+	readonly disabledSkillCount: number | undefined;
+	readonly skillsError: unknown;
+	readonly onOpenSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
@@ -33,6 +39,10 @@ export const ProjectDetailsPanelView: React.FC<
 	ownerLabel,
 	createdAt,
 	organizationLabel,
+	skillCount,
+	disabledSkillCount,
+	skillsError,
+	onOpenSkills,
 	instructions,
 	error,
 	onRetry,
@@ -50,6 +60,17 @@ export const ProjectDetailsPanelView: React.FC<
 			}
 		/>
 	);
+	let skillsLabel =
+		skillCount === undefined
+			? "Unknown"
+			: skillCount === 0
+				? "None"
+				: skillCount === 1
+					? "1 skill"
+					: `${skillCount} skills`;
+	if (skillCount && disabledSkillCount) {
+		skillsLabel += `, ${disabledSkillCount} disabled`;
+	}
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
@@ -88,6 +109,24 @@ export const ProjectDetailsPanelView: React.FC<
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">{organizationLabel}</DetailRow>
 					)}
+					<DetailRow label="Skills">
+						{skillCount === undefined && !skillsError ? (
+							<>
+								<Skeleton className="my-1 ml-auto h-3 w-12" />
+								<span className="sr-only">Loading</span>
+							</>
+						) : (
+							<button
+								type="button"
+								aria-label={`Skills: ${skillsLabel}`}
+								className="group inline-flex items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+								onClick={onOpenSkills}
+							>
+								{skillsLabel}
+								<PenIcon className="size-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
+							</button>
+						)}
+					</DetailRow>
 				</dl>
 				<section
 					aria-labelledby={instructionsHeadingId}
@@ -110,16 +149,22 @@ export const ProjectDetailsPanelView: React.FC<
 					) : (
 						<>
 							{instructions.instructions === "" ? (
-								<div className="flex justify-center rounded-lg border border-dashed border-border px-4 py-6">
+								<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-5 text-center">
 									{onEditInstructions ? (
-										<Button
-											size="sm"
-											variant="outline"
-											aria-label="Create instructions"
-											onClick={onEditInstructions}
-										>
-											Create
-										</Button>
+										<>
+											<p className="m-0 text-sm text-content-secondary">
+												Set preferences for every chat, like project background,
+												audience, or goals.
+											</p>
+											<Button
+												size="xs"
+												variant="outline"
+												aria-label="Add instructions"
+												onClick={onEditInstructions}
+											>
+												Add
+											</Button>
+										</>
 									) : (
 										<p className="m-0 text-sm text-content-secondary">
 											No instructions

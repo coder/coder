@@ -19,6 +19,21 @@ It uses [xterm.js](https://xtermjs.org/) and WebSocket technology for a responsi
 
 Read the complete [Web Terminal documentation](./web-terminal.md) for customization options, keyboard shortcuts, and troubleshooting guides.
 
+## Install the CLI
+
+Download the `coder` CLI for your platform from the [Coder downloads page](https://coder.com/downloads).
+
+On macOS and Linux, you can also install the CLI from your Coder deployment.
+The install script downloads the CLI from your deployment, so it works in air-gapped deployments and installs the same version as your control plane.
+
+1. In the dashboard, open your user menu.
+1. Select **Install CLI**.
+1. Copy the command on the page.
+
+   ![Install Coder binary from your deployment](../../images/install/install_from_deployment.png)
+
+1. Run the command in your terminal.
+
 ## SSH
 
 ### Through the CLI
@@ -39,7 +54,7 @@ Or, you can configure plain SSH on your client below.
 
 ### Run remote commands with quoting
 
-Arguments after `--` are joined with spaces into a single command string before being sent to the workspace agent (per [RFC 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5), which defines the SSH exec request as a single string).
+Arguments after `--` are joined with spaces into a single command string before being sent to the workspace agent (per [Request for Comments (RFC) 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5), which defines the SSH exec request as a single string).
 Your local shell consumes outer quotes before the CLI ever sees the arguments, so inner quoting is not preserved on the wire.
 
 This means a common pattern from interactive shells does not behave as you might expect:
@@ -49,8 +64,10 @@ This means a common pattern from interactive shells does not behave as you might
 coder ssh my-workspace -- bash -c 'echo ready'
 ```
 
-The local shell strips the single-quotes, the CLI receives the argv `[bash, -c, echo, ready]`, and the remote agent runs `bash -c echo ready`; `echo` gets no arguments and `ready` is bound to `$0`.
-The same caveat applies to plain `ssh user@host -- bash -c '...'`; this is SSH protocol semantics, not a `coder ssh` limitation.
+The local shell strips the single-quotes, the CLI receives the argv `[bash, -c, echo, ready]`, and the remote agent runs `bash -c echo ready`.
+`echo` gets no arguments and `ready` is bound to `$0`.
+The same caveat applies to plain `ssh user@host -- bash -c '...'`.
+This is SSH protocol semantics, not a `coder ssh` limitation.
 
 For commands that need preserved quoting, use one of these patterns:
 
@@ -183,11 +200,11 @@ Supported IDEs:
 - File Browser
 
 Our [Module Registry](https://registry.coder.com/modules) also hosts a variety of tools for extending the capability of your workspace.
-If you have a request for a new IDE or tool, please file an issue in our [Modules repo](https://github.com/coder/registry/issues).
+If you have a request for a new IDE or tool, file an issue in our [Modules repo](https://github.com/coder/registry/issues).
 
 ## Coder Desktop
 
-[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a VPN tunnel.
+[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a virtual private network (VPN) tunnel.
 With Coder Desktop, you get:
 
 - **Automatic port forwarding**:
@@ -214,4 +231,4 @@ Read more in the [docs on workspace ports](./port-forwarding.md).
 
 ## Remote Desktops
 
-Coder also supports connecting with an RDP solution, see our [RDP guide](./remote-desktops.md) for details.
+Coder also supports connecting with a Remote Desktop Protocol (RDP) solution, see our [RDP guide](./remote-desktops.md) for details.

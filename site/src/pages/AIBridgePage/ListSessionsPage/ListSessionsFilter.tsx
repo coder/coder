@@ -1,4 +1,10 @@
-import { BrainIcon, CloudIcon, TerminalIcon, UserIcon } from "lucide-react";
+import {
+	BrainIcon,
+	Building2Icon,
+	CloudIcon,
+	TerminalIcon,
+	UserIcon,
+} from "lucide-react";
 import { useQueryClient } from "react-query";
 import {
 	getValidationErrorMessage,
@@ -11,7 +17,11 @@ import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { getUserFilterOptions } from "#/pages/WorkspacesPage/filter/categoryOptions";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getOrganizationFilterOptions,
+	getUserFilterOptions,
+} from "#/pages/WorkspacesPage/filter/categoryOptions";
 import {
 	getClientFilterOptions,
 	getModelFilterOptions,
@@ -33,6 +43,7 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	onTimeRangeChange,
 }) => {
 	const { user: me } = useAuthenticated();
+	const { showOrganizations } = useDashboard();
 	const queryClient = useQueryClient();
 
 	const categories: FilterCategory[] = [
@@ -60,6 +71,17 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 			icon: <BrainIcon />,
 			getOptions: (query) => getModelFilterOptions(query, queryClient),
 		},
+		...(showOrganizations
+			? [
+					{
+						key: "organization",
+						label: "Organization",
+						icon: <Building2Icon />,
+						getOptions: (query: string) =>
+							getOrganizationFilterOptions(query, queryClient),
+					},
+				]
+			: []),
 	];
 
 	// The page hides its ErrorAlert for API validation errors, so the filter

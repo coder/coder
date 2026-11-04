@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -59,22 +58,112 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 	s.m2 += d * d2
 }
 
-// Write finalizes the summary and writes it
-func (s *pingSummary) Write(w io.Writer) {
+// finalize computes the derived Avg and Variance fields from the
+// accumulated results. It must be called before the summary is
+// displayed or serialized.
+func (s *pingSummary) finalize() {
 	if s.Successful > 0 {
 		s.Avg = new(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
 	}
 	if s.Successful > 1 {
 		s.Variance = new(time.Duration((s.m2 / float64(s.Successful-1)) * float64(time.Second)))
 	}
-	out, err := cliui.DisplayTable([]*pingSummary{s}, "", nil)
+}
+
+// pingResult is the data handed to the output formatter once pinging ends.
+// pongs is only populated in JSON mode.
+type pingResult struct {
+	summary *pingSummary
+	pongs   []PingJSONPong
+}
+
+// pingTableFormat renders the summary table under a dashed rule that
+// separates it from the per-attempt lines above.
+type pingTableFormat struct {
+	cliui.OutputFormat
+}
+
+func (f pingTableFormat) Format(ctx context.Context, data any) (string, error) {
+	out, err := f.OutputFormat.Format(ctx, data)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, "Failed to display ping summary: %v\n", err)
-		return
+		return "", err
 	}
 	width := len(strings.Split(out, "\n")[0])
-	_, _ = fmt.Println(strings.Repeat("-", width))
-	_, _ = fmt.Fprint(w, out)
+	return strings.Repeat("-", width) + "\n" + out, nil
+}
+
+func newPingFormatter() *cliui.OutputFormatter {
+	return cliui.NewOutputFormatter(
+		pingTableFormat{cliui.ChangeFormatterData(
+			cliui.TableFormat([]*pingSummary{}, nil),
+			func(data any) (any, error) {
+				res, ok := data.(pingResult)
+				if !ok {
+					return nil, xerrors.Errorf("expected pingResult, got %T", data)
+				}
+				return []*pingSummary{res.summary}, nil
+			},
+		)},
+		cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
+			res, ok := data.(pingResult)
+			if !ok {
+				return nil, xerrors.Errorf("expected pingResult, got %T", data)
+			}
+			return PingJSONOutput{
+				Workspace: res.summary.Workspace,
+				Pongs:     res.pongs,
+				Summary:   res.summary.jsonSummary(),
+			}, nil
+		}),
+	)
+}
+
+// PingJSONPong is one ping attempt. Error is set when the attempt failed.
+type PingJSONPong struct {
+	Sequence   int        `json:"sequence"`
+	Time       *time.Time `json:"time,omitempty"`
+	LatencyMS  *float64   `json:"latency_ms,omitempty"`
+	Direct     *bool      `json:"direct,omitempty"`
+	DERPRegion string     `json:"derp_region,omitempty"`
+	Error      string     `json:"error,omitempty"`
+}
+
+// PingJSONSummary mirrors the fields shown in the ping summary table.
+type PingJSONSummary struct {
+	Total      int      `json:"total"`
+	Successful int      `json:"successful"`
+	MinMS      *float64 `json:"min_ms,omitempty"`
+	AvgMS      *float64 `json:"avg_ms,omitempty"`
+	MaxMS      *float64 `json:"max_ms,omitempty"`
+	VarianceMS *float64 `json:"variance_ms,omitempty"`
+}
+
+// PingJSONOutput is the single document `coder ping -o json` prints to stdout
+// after the last attempt.
+type PingJSONOutput struct {
+	Workspace string          `json:"workspace"`
+	Pongs     []PingJSONPong  `json:"pongs"`
+	Summary   PingJSONSummary `json:"summary"`
+}
+
+func durationMS(d *time.Duration) *float64 {
+	if d == nil {
+		return nil
+	}
+	ms := float64(*d) / float64(time.Millisecond)
+	return &ms
+}
+
+// jsonSummary builds the JSON summary. finalize must be called first.
+func (s *pingSummary) jsonSummary() PingJSONSummary {
+	return PingJSONSummary{
+		Total:      s.Total,
+		Successful: s.Successful,
+		MinMS:      durationMS(s.Min),
+		AvgMS:      durationMS(s.Avg),
+		MaxMS:      durationMS(s.Max),
+		VarianceMS: durationMS(s.Variance),
+	}
 }
 
 func (r *RootCmd) ping() *serpent.Command {
@@ -84,6 +173,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		pingWait      time.Duration
 		pingTimeLocal bool
 		pingTimeUTC   bool
+		formatter     = newPingFormatter()
 	)
 
 	cmd := &serpent.Command{
@@ -94,6 +184,14 @@ func (r *RootCmd) ping() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			// JSON output is a single document printed when pinging ends. Without
+			// --num, pinging continues until interrupted, so stdout would stay
+			// empty and every pong would be held in memory until then.
+			jsonOutput := formatter.FormatID() == "json"
+			if jsonOutput && pingNum <= 0 {
+				return xerrors.New("--output json requires --num, because pings continue until interrupted without it")
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -103,6 +201,15 @@ func (r *RootCmd) ping() *serpent.Command {
 			appearanceConfig := initAppearance(ctx, client)
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
+
+			// In JSON mode, stdout carries a single JSON document at the
+			// end. Diagnostic and per-attempt lines that would otherwise go
+			// to stdout are redirected to stderr so they cannot corrupt the
+			// JSON output. Default (table) output is unaffected.
+			diagOut := inv.Stdout
+			if jsonOutput {
+				diagOut = inv.Stderr
+			}
 
 			workspaceName := inv.Args[0]
 			_, workspaceAgent, _, err := GetWorkspaceAndAgent(
@@ -125,7 +232,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			opts := &workspacesdk.DialAgentOptions{}
 
 			if r.verbose {
-				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(diagOut)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
@@ -177,7 +284,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			if err == nil {
 				connDiags.LocalInterfaces = &ifReport
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve local interfaces report: %v\n", err)
+				_, _ = fmt.Fprintf(diagOut, "Failed to retrieve local interfaces report: %v\n", err)
 			}
 
 			agentNetcheck, err := conn.Netcheck(diagCtx)
@@ -187,9 +294,9 @@ func (r *RootCmd) ping() *serpent.Command {
 			} else {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					_, _ = fmt.Fprint(inv.Stdout, "Could not generate full connection report as the workspace agent is outdated\n")
+					_, _ = fmt.Fprint(diagOut, "Could not generate full connection report as the workspace agent is outdated\n")
 				} else {
-					_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection report from agent: %v\n", err)
+					_, _ = fmt.Fprintf(diagOut, "Failed to retrieve connection report from agent: %v\n", err)
 				}
 			}
 
@@ -198,6 +305,32 @@ func (r *RootCmd) ping() *serpent.Command {
 			connDiags.Write(inv.Stderr)
 			results := &pingSummary{
 				Workspace: workspaceName,
+			}
+			var pongs []PingJSONPong
+			// Pongs are only kept for JSON output, where --num bounds them.
+			// Table mode can run until interrupted, so it keeps nothing.
+			recordPong := func(p PingJSONPong) {
+				if jsonOutput {
+					pongs = append(pongs, p)
+				}
+			}
+			writeResult := func() error {
+				results.finalize()
+				out, err := formatter.Format(inv.Context(), pingResult{summary: results, pongs: pongs})
+				if err != nil {
+					return xerrors.Errorf("format ping result: %w", err)
+				}
+				_, err = fmt.Fprintln(inv.Stdout, out)
+				return err
+			}
+			// finishEarly ends pinging when the last attempt fails or the
+			// context is canceled. Table output skips the summary in these
+			// cases, but JSON output always prints its document.
+			finishEarly := func() error {
+				if jsonOutput {
+					return writeResult()
+				}
+				return nil
 			}
 			var (
 				pong *ipnstate.PingResult
@@ -223,32 +356,49 @@ func (r *RootCmd) ping() *serpent.Command {
 				results.addResult(pong)
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
-						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
+						_, _ = fmt.Fprintf(diagOut, "ping to %q timed out \n", workspaceName)
+						recordPong(PingJSONPong{
+							Sequence: n,
+							Time:     &pongTime,
+							Error:    "timed out",
+						})
 						if n == int(pingNum) {
-							return nil
+							return finishEarly()
 						}
 						continue
 					}
 					if xerrors.Is(err, context.Canceled) {
-						return nil
+						return finishEarly()
 					}
 
 					if err.Error() == "no matching peer" {
+						recordPong(PingJSONPong{
+							Sequence: n,
+							Time:     &pongTime,
+							Error:    err.Error(),
+						})
 						continue
 					}
 
-					_, _ = fmt.Fprintf(inv.Stdout, "ping to %q failed %s\n", workspaceName, err.Error())
+					_, _ = fmt.Fprintf(diagOut, "ping to %q failed %s\n", workspaceName, err.Error())
+					recordPong(PingJSONPong{
+						Sequence: n,
+						Time:     &pongTime,
+						Error:    err.Error(),
+					})
 					if n == int(pingNum) {
-						return nil
+						return finishEarly()
 					}
 					continue
 				}
 
-				dur = dur.Round(time.Millisecond)
+				dispDur := dur.Round(time.Millisecond)
 				var via string
+				var derpRegionName string
+				direct := p2p
 				if p2p {
 					if !didP2p {
-						_, _ = fmt.Fprintln(inv.Stdout, "p2p connection established in",
+						_, _ = fmt.Fprintln(diagOut, "p2p connection established in",
 							pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Since(start).Round(time.Millisecond).String()),
 						)
 					}
@@ -264,6 +414,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					if ok {
 						derpName = derpRegion.RegionName
 					}
+					derpRegionName = derpName
 					via = fmt.Sprintf("%s via %s",
 						pretty.Sprint(cliui.DefaultStyles.Fuchsia, "proxied"),
 						pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("DERP(%s)", derpName)),
@@ -275,12 +426,21 @@ func (r *RootCmd) ping() *serpent.Command {
 					displayTime = pretty.Sprintf(cliui.DefaultStyles.DateTimeStamp, "[%s] ", pongTime.Format(time.RFC3339))
 				}
 
-				_, _ = fmt.Fprintf(inv.Stdout, "%spong from %s %s in %s\n",
+				_, _ = fmt.Fprintf(diagOut, "%spong from %s %s in %s\n",
 					displayTime,
 					pretty.Sprint(cliui.DefaultStyles.Keyword, workspaceName),
 					via,
-					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dur.String()),
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dispDur.String()),
 				)
+
+				latencyMS := float64(dur) / float64(time.Millisecond)
+				recordPong(PingJSONPong{
+					Sequence:   n,
+					Time:       &pongTime,
+					LatencyMS:  &latencyMS,
+					Direct:     &direct,
+					DERPRegion: derpRegionName,
+				})
 
 				select {
 				case <-notifyCtx.Done():
@@ -303,9 +463,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					"   %s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
 			}
 
-			results.Write(inv.Stdout)
-
-			return nil
+			return writeResult()
 		},
 	}
 
@@ -326,7 +484,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		{
 			Flag:          "num",
 			FlagShorthand: "n",
-			Description:   "Specifies the number of pings to perform. By default, pings will continue until interrupted.",
+			Description:   "Specifies the number of pings to perform. By default, pings will continue until interrupted. Required with --output json.",
 			Value:         serpent.Int64Of(&pingNum),
 		},
 		{
@@ -340,6 +498,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			Value:       serpent.BoolOf(&pingTimeUTC),
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 

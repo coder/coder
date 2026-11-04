@@ -139,7 +139,7 @@ For duration formats, how retention works, and best practices, see the [Data Ret
 
 ## Structured Logging
 
-AI Gateway can emit structured logs for every interception record, making it straightforward to export data to external SIEM or observability platforms.
+AI Gateway can emit structured logs for every interception record, making it straightforward to export data to external security information and event management (SIEM) or observability platforms.
 
 Enable with `--ai-gateway-structured-logging` or `CODER_AI_GATEWAY_STRUCTURED_LOGGING`:
 

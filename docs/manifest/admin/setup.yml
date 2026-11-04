@@ -8,13 +8,13 @@ children:
     path: ./admin/setup/appearance.md
     state: [premium]
   - title: Configuration reference
-    description: Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key
+    description: Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key.
     path: ./admin/setup/configuration-reference.md
   - title: Telemetry
     description: Learn what usage telemetry Coder collects, why it is collected, and how to opt out.
     path: ./admin/setup/telemetry.md
   - title: Chat lifecycle hooks
-    description: Configure an external policy service for chat agent lifecycle events
+    description: Configure an external policy service for chat agent lifecycle events.
     path: ./admin/setup/chat-lifecycle-hooks.md
     state: [early access]
   - title: Data retention

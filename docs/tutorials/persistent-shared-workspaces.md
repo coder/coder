@@ -16,24 +16,25 @@ This pattern is useful for any scenario where a workspace outlives the people wh
   Access rotates with the shift schedule.
 - **Shared staging or QA**:
   A team workspace hosts a persistent staging environment.
-  Testers and reviewers are added and removed as sprints change.
+  Quality assurance (QA) testers and reviewers are added and removed as sprints change.
 - **Pair programming**:
   A service-account-owned workspace gives two or more developers a shared environment without either one owning (and accidentally deleting) it.
 - **Contractor onboarding**:
   An external team gets scoped access to a workspace for the duration of an engagement, then access is revoked.
 
-The steps below use an **on-call SRE workspace** as a running example, but the same commands apply to any of the scenarios above.
+The steps below use an on-call site reliability engineering (SRE) workspace as a running example, but the same commands apply to any of the scenarios above.
 Substitute the usernames, group names, and template to match your use case.
 
 ## Prerequisites
 
 - A running Coder deployment (v2.32+) with workspace sharing enabled.
-  Sharing is on by default for OSS; Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
+  Sharing is on by default for open source software (OSS).
+  Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
-- [OIDC authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate SSO identity.
+- [OpenID Connect (OIDC) authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate single sign-on (SSO) identity.
   Configure [refresh tokens](../admin/users/oidc-auth/refresh-tokens.md) to prevent session timeouts during long work sessions.
-- A [wildcard access URL](../admin/networking/wildcard-access-url.md) configured (e.g. `*.coder.example.com`) so that shared users can access workspace apps without a 404.
+- A [wildcard access URL](../admin/networking/wildcard-access-url.md) configured (for example, `*.coder.example.com`) so that shared users can access workspace apps without a 404.
 - (Recommended) [IdP Group Sync](../admin/users/idp-sync.md#group-sync) configured if your identity provider manages group membership for the teams that will share the workspace.
 
 ## 1. Create a service account
@@ -49,6 +50,9 @@ coder users create \
   --service-account
 ```
 
+Git in the workspace uses the service account's identity and credentials for every shared user.
+To set up repository access and let users commit as themselves, refer to [Git identity and credentials](../user-guides/shared-workspaces.md#git-identity-and-credentials).
+
 ## 2. Generate an API token for the service account
 
 Generate a long-lived API token so you can create and manage workspaces on behalf of the service account:
@@ -60,7 +64,7 @@ coder tokens create \
   --lifetime 8760h
 ```
 
-Store this token securely (e.g. in a secrets manager like Vault or AWS Secrets Manager).
+Store this token securely (for example, in a secrets manager like Vault or AWS Secrets Manager).
 
 > [!IMPORTANT]
 > Never distribute this token to end users.
@@ -81,7 +85,7 @@ coder create oncall-sre/oncall-workspace \
 ```
 
 > [!TIP]
-> Design a dedicated template for the workspace with the tools your team needs pre-installed (e.g. monitoring dashboards for on-call, test runners for QA).
+> Design a dedicated template for the workspace with the tools your team needs pre-installed (for example, monitoring dashboards for on-call, test runners for QA).
 > Set `subdomain = true` on workspace apps so that shared users can access web-based tools without a 404.
 > See [Access workspace apps in shared workspaces](../user-guides/shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
 
@@ -172,7 +176,7 @@ coder sharing status "$WORKSPACE"
 
 ### Group-based rotation with IdP Sync
 
-If your identity provider manages group membership (e.g. an `sre-oncall` group in Okta or Azure AD), you can skip manual share/remove commands entirely:
+If your identity provider manages group membership (for example, an `sre-oncall` group in Okta or Azure Active Directory (AD)), you can skip manual share/remove commands entirely:
 
 1. Configure [Group Sync](../admin/users/idp-sync.md#group-sync) to synchronize the group from your IdP to Coder.
 
@@ -183,7 +187,9 @@ If your identity provider manages group membership (e.g. an `sre-oncall` group i
    ```
 
 1. When your IdP rotates group membership, Coder group membership updates on next login.
-   All current members have access; removed members lose access after a workspace restart.
+
+   All current members have access.
+   Removed members lose access after a workspace restart.
 
 <a id="finding-shared-workspaces"></a>
 

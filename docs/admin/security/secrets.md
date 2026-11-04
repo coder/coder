@@ -19,9 +19,10 @@ Often, this workflow is simply:
 1. Give your users their secrets in advance
 1. Your users write them to a persistent file after they've built their workspace
 
-[Template parameters](../templates/extending-templates/parameters.md) are a dangerous way to accept secrets.
-We show parameters in cleartext around the product.
-Assume anyone with view access to a workspace can also see its parameters.
+> [!WARNING]
+> [Template parameters](../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
+> Coder shows parameter values in cleartext throughout the product.
+> Assume anyone with view access to a workspace can also see its parameters.
 
 ## SSH Keys
 
@@ -77,7 +78,7 @@ resource "coder_agent" "main" {
 }
 ```
 
-A catch-all variation of this approach is dynamically provisioning a cloud service account (e.g [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
+A catch-all variation of this approach is dynamically provisioning a cloud service account (for example, [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
 
 <a id="displaying-secrets"></a>
 

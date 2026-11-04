@@ -8,6 +8,7 @@ import {
 	toRFC3339,
 	withDefaultTimeRange,
 	withoutTimeRange,
+	withoutUnsupportedFilters,
 } from "./timeRange";
 
 const now = new Date(2026, 7, 13, 15, 0, 0);
@@ -78,6 +79,16 @@ describe("queryWithTimeRange", () => {
 		).toBe(
 			'initiator:me claude started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
 		);
+	});
+});
+
+describe("withoutUnsupportedFilters", () => {
+	it("drops the organization filter and keeps the rest", () => {
+		expect(
+			withoutUnsupportedFilters(
+				'organization:coder initiator:me started_after:"2026-01-01T00:00:00Z"',
+			),
+		).toBe('initiator:me started_after:"2026-01-01T00:00:00Z"');
 	});
 });
 

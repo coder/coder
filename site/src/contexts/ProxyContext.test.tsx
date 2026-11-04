@@ -154,17 +154,18 @@ const TestingScreen = () => {
 			<div data-testid="isLoading" title={isLoading.toString()}></div>
 			<div data-testid="preferredProxy" title={proxy.proxy?.id}></div>
 			<div data-testid="userProxy" title={userProxy?.id}></div>
-			<button data-testid="clearProxy" onClick={clearProxy}></button>
+			<button onClick={clearProxy}>Clear proxy</button>
 			<div data-testid="userSelectProxyData"></div>
 			<button
-				data-testid="userSelectProxy"
 				onClick={() => {
 					const data = screen.getByTestId("userSelectProxyData");
 					if (data.innerText) {
 						setProxy(JSON.parse(data.innerText));
 					}
 				}}
-			></button>
+			>
+				Select proxy
+			</button>
 		</>
 	);
 };
@@ -198,7 +199,9 @@ describe("ProxyContextSelection", () => {
 	// A way to simulate a user clearing the proxy selection.
 	const clearProxyAction = async (): Promise<void> => {
 		const user = userEvent.setup();
-		const clearProxyButton = screen.getByTestId("clearProxy");
+		const clearProxyButton = screen.getByRole("button", {
+			name: "Clear proxy",
+		});
 		await user.click(clearProxyButton);
 	};
 
@@ -208,7 +211,9 @@ describe("ProxyContextSelection", () => {
 			const selectData = screen.getByTestId("userSelectProxyData");
 			selectData.innerText = JSON.stringify(proxy);
 
-			const selectProxyButton = screen.getByTestId("userSelectProxy");
+			const selectProxyButton = screen.getByRole("button", {
+				name: "Select proxy",
+			});
 			await user.click(selectProxyButton);
 		};
 	};

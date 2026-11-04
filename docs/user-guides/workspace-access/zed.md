@@ -11,8 +11,6 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 1. [Install Zed](https://zed.dev/docs/)
 1. Install Coder CLI:
 
-   <!-- copied from docs/install/cli.md - make changes there -->
-
    <div class="tabs">
 
    ### Linux/macOS
@@ -23,7 +21,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
+   Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (for example, standalone binaries, system packages).
 
    ### Windows
 
@@ -39,7 +37,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
    </div>
 
-   Consult the [Coder CLI documentation](../../install/cli.md) for more options.
+   For more ways to install the CLI, refer to [Install the CLI](./index.md#install-the-cli).
 
 1. Log in to your Coder deployment and authenticate when prompted:
 
@@ -64,4 +62,4 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    ![Zed open remote project](../../images/zed/zed-ssh-open-remote.png)
 
 > [!NOTE]
-> If you have any suggestions or experience any issues, please [create a GitHub issue](https://github.com/coder/coder/issues) or share in [our Discord channel](https://discord.gg/coder).
+> If you have any suggestions or experience any issues, [create a GitHub issue](https://github.com/coder/coder/issues) or share in [our Discord channel](https://discord.gg/coder).

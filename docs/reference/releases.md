@@ -22,7 +22,7 @@ We support four primary release channels, as well as ad-hoc release candidates:
   Ad-hoc builds to validate in-development features
 
 We field our mainline releases publicly for one month before promoting them to stable.
-The security support version, so n-2 from mainline, receives patches only for security issues or CVEs.
+The security support version, so n-2 from mainline, receives patches only for security issues or Common Vulnerabilities and Exposures (CVEs).
 
 ### Mainline releases
 
@@ -49,10 +49,10 @@ For more information on feature rollout, see our [feature stages documentation](
 - Receives only critical bugfixes and security patches
 - Ideal for regulated environments or large deployments with strict upgrade cycles
 
-ESR releases will be updated with critical bugfixes and security patches that are available to paying customers.
+Extended Support Release (ESR) versions will be updated with critical bugfixes and security patches that are available to paying customers.
 This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability.
 Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints.
-The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.12).
+The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.14).
 
 For more information, see the [Coder ESR announcement](https://coder.com/blog/esr) or the [2.29 to 2.34 ESR Upgrade Guide](../install/operate/upgrade/esr-2.29-2.34-upgrade.md).
 
@@ -60,7 +60,7 @@ For more information, see the [Coder ESR announcement](https://coder.com/blog/es
 
 - Ad-hoc builds that Coder releases to validate in-development features with select customers
 - Not guaranteed to be stable or free of bugs
-- Features introduced in an RC are not guaranteed to be included in a mainline or stable release
+- Features introduced in a release candidate (RC) are not guaranteed to be included in a mainline or stable release
 - Not intended for production use
 
 Release candidates give Coder a way to push out builds for customers and other users to try out new, under-development functionality without cutting a new minor version.
@@ -86,13 +86,13 @@ Best practices for installing Coder can be found on our [install](../install/ind
 <!-- RELEASE_CALENDAR_START -->
 | Release name                                                                                    | Release Date       | Status                   | Latest Release                                                   |
 |-------------------------------------------------------------------------------------------------|--------------------|--------------------------|------------------------------------------------------------------|
-| [2.29](https://coder.com/changelog/coder-2-29)                                                  | December 02, 2025  | Extended Support Release | [v2.29.21](https://github.com/coder/coder/releases/tag/v2.29.21) |
+| [2.29](https://coder.com/changelog/coder-2-29)                                                  | December 02, 2025  | Extended Support Release | [v2.29.23](https://github.com/coder/coder/releases/tag/v2.29.23) |
 | [2.33](https://coder.com/changelog/coder-2-33)                                                  | May 05, 2026       | Not Supported            | [v2.33.11](https://github.com/coder/coder/releases/tag/v2.33.11) |
-| [2.34](https://coder.com/changelog/coder-2-34)                                                  | June 02, 2026      | Extended Support Release | [v2.34.12](https://github.com/coder/coder/releases/tag/v2.34.12) |
-| [2.35](https://coder.com/changelog/coder-2-35-1)                                                | July 07, 2026      | Not Supported            | [v2.35.9](https://github.com/coder/coder/releases/tag/v2.35.9)   |
-| [2.36](https://coder.com/changelog/coder-2-36)                                                  | August 04, 2026    | Security Support         | [v2.36.7](https://github.com/coder/coder/releases/tag/v2.36.7)   |
-| [2.37](https://coder.com/changelog/coder-2-37)                                                  | September 01, 2026 | Stable                   | [v2.37.4](https://github.com/coder/coder/releases/tag/v2.37.4)   |
-| [2.38](https://coder.com/changelog/broader-model-access-and-tighter-governance-controls-in-238) | October 06, 2026   | Mainline                 | [v2.38.0](https://github.com/coder/coder/releases/tag/v2.38.0)   |
+| [2.34](https://coder.com/changelog/coder-2-34)                                                  | June 02, 2026      | Extended Support Release | [v2.34.14](https://github.com/coder/coder/releases/tag/v2.34.14) |
+| [2.35](https://coder.com/changelog/coder-2-35-1)                                                | July 07, 2026      | Not Supported            | [v2.35.10](https://github.com/coder/coder/releases/tag/v2.35.10) |
+| [2.36](https://coder.com/changelog/coder-2-36)                                                  | August 04, 2026    | Security Support         | [v2.36.9](https://github.com/coder/coder/releases/tag/v2.36.9)   |
+| [2.37](https://coder.com/changelog/coder-2-37)                                                  | September 01, 2026 | Stable                   | [v2.37.6](https://github.com/coder/coder/releases/tag/v2.37.6)   |
+| [2.38](https://coder.com/changelog/broader-model-access-and-tighter-governance-controls-in-238) | October 06, 2026   | Mainline                 | [v2.38.3](https://github.com/coder/coder/releases/tag/v2.38.3)   |
 | 2.39                                                                                            |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
 

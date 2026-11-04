@@ -22,14 +22,14 @@ AI Governance Cost Control requires:
 
 These terms appear throughout this page and in the Coder dashboard:
 
-| Term                  | What it means                                                                         | Where it is set                        |
-|-----------------------|---------------------------------------------------------------------------------------|----------------------------------------|
-| **Budget period**     | The window spend accumulates in before it resets. Defaults to the UTC calendar month. | Deployment settings                    |
-| **Budget policy**     | The rule that selects a user's effective group. Defaults to the highest budget.       | Deployment settings                    |
-| **Group budget**      | A spend limit granted to each member of a group.                                      | **Groups** > {group} > **Settings**    |
-| **User override**     | A spend limit for one user that supersedes their group budget.                        | **Groups** > {group} > **Members** tab |
-| **Effective group**   | The group that supplies a user's budget and has their spend associated with it.       | Resolved automatically                 |
-| **Approximate spend** | A user's approximate spend in the current budget period.                              | Calculated from usage                  |
+| Term                  | What it means                                                                                                      | Where it is set                        |
+|-----------------------|--------------------------------------------------------------------------------------------------------------------|----------------------------------------|
+| **Budget period**     | The window spend accumulates in before it resets. Defaults to the Coordinated Universal Time (UTC) calendar month. | Deployment settings                    |
+| **Budget policy**     | The rule that selects a user's effective group. Defaults to the highest budget.                                    | Deployment settings                    |
+| **Group budget**      | A spend limit granted to each member of a group.                                                                   | **Groups** > {group} > **Settings**    |
+| **User override**     | A spend limit for one user that supersedes their group budget.                                                     | **Groups** > {group} > **Members** tab |
+| **Effective group**   | The group that supplies a user's budget and has their spend associated with it.                                    | Resolved automatically                 |
+| **Approximate spend** | A user's approximate spend in the current budget period.                                                           | Calculated from usage                  |
 
 ## Deployment settings
 
@@ -64,7 +64,7 @@ Refer to [Groups and roles](../../admin/users/groups-roles.md) for the deploymen
 The [Organization roles](../../admin/users/groups-roles.md#organization-roles) section covers the organization roles.
 
 A group budget applies to each member individually rather than to the group as a whole.
-For example, if a group has ten members and a budget of $200 USD, each member can spend $200 USD and the group has a total spend limit of $2,000 USD.
+For example, if a group has ten members and a budget of $200 United States dollars (USD), each member can spend $200 USD and the group has a total spend limit of $2,000 USD.
 
 1. Go to **Groups** and select a group.
 1. Select **Settings**.
@@ -114,9 +114,12 @@ A user can belong to several groups that have budgets, and can also hold an over
 AI Gateway resolves a single effective group for each request, in this order:
 
 1. The user's [override](#user-override) takes precedence over every group budget.
-1. Otherwise, the [budget policy](#deployment-settings) selects one of the groups the user belongs to.
+1. Otherwise, the [budget policy](#deployment-settings) selects one of the user's groups.
+
    The default policy, `highest`, selects the group with the largest budget.
-1. If none of those groups has a budget, the user has *effectively* unlimited spend and their spend is recorded against the `Everyone` group.
+1. If none of those groups has a budget, the user has *effectively* unlimited spend.
+
+   Their spend is recorded against the `Everyone` group.
 
 > [!NOTE]
 > Groups with identical budgets are ranked by the organization membership the user joined first, then by group ID.
@@ -317,7 +320,7 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 ```
 
 - Without parameters, the export covers the current budget period.
-- To select a range, pass `period_start` and `period_end` together as RFC 3339 timestamps.
+- To select a range, pass `period_start` and `period_end` together as Request for Comments (RFC) 3339 timestamps.
   A range can span at most 31&nbsp;days.
 - Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
 - Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.

@@ -477,6 +477,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if req.UserStatus != nil && *req.UserStatus == codersdk.UserStatusDormant {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Service accounts can't be dormant.",
+			})
+			return
+		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
 

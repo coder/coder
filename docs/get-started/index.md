@@ -118,14 +118,17 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
 
 If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
-[Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman container runtime.
+[Podman Desktop](https://podman-desktop.io) is a free graphical user interface (GUI) for the Podman container runtime.
 Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
 1. Download and install [Podman Desktop](https://podman-desktop.io/downloads).
 
 1. Follow the onboarding to configure Podman.
 
-1. If you configured Podman to use WSL2, then you will need to do either upgrade WSL2 to version 2.5.1 or later (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default) or create a `.wslconfig` file in the `%USERPROFILE%` directory with the following contents
+1. If you configured Podman to use WSL2, upgrade WSL2 to version 2.5.1 or later, or create a `.wslconfig` file.
+
+   WSL2 version 2.5.1 and later use [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default.
+   Create the `.wslconfig` file in the `%USERPROFILE%` directory with the following contents:
 
    ```txt
    [wsl2]
@@ -219,7 +222,8 @@ The template builder guides you through creating one without writing any Terrafo
    > [!NOTE]
    > This template requires Docker to be running in the background, so make sure Docker is running.
 
-1. Skip or configure any base template parameters, then select modules to add IDEs and tools to your template.
+1. Skip or configure any base template parameters, then select modules to add IDEs and tools.
+
    For example, add **code-server** to get VS Code in the browser.
    You can skip module selection for now and add modules later.
 
@@ -256,9 +260,11 @@ Now it's time to launch a workspace.
 1. After the template is ready, select **+ Create Workspace**.
 
 1. Give the workspace a name.
+
    If you need a suggestion, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-1. If the template has any [parameters](../admin/templates/extending-templates/parameters.md), fill them in.
+1. If the template has any [parameters](../admin/templates/extending-templates/parameters/index.md), fill them in.
+
    Parameters vary by template and the modules you selected in the builder.
 
 1. Select **Create workspace**.
@@ -290,6 +296,7 @@ If you didn't clone an existing Git repository when you created your workspace, 
    Learn more about how to find the repository URL in the [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
 
 2. Choose the folder to which VS Code should clone the repo.
+
    It will be in its own directory within this folder.
 
    Note that you cannot create a new parent directory in this step.
@@ -314,7 +321,7 @@ Each path starts from the deployment you just built.
 
 [Coder Agents](../ai-coder/agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
 Community deployments can run up to five agents at a time at no cost, so you can try Coder Agents on this deployment right away.
-You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
+You need an API key for a [supported large language model (LLM) provider](../ai-coder/agents/models.md).
 Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
 
 If you don't have a project in mind, ask the agent to generate something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
@@ -333,8 +340,11 @@ Coder is built for shared, remote infrastructure.
 When you're ready for other people to use it:
 
 1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
-1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
-1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default; refer to [Workspace management](../user-guides/workspace-management.md).
+1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect a single sign-on (SSO) provider.
+1. Have each teammate launch their own workspace from your template.
+
+   Everyone in the organization can use the template by default.
+   Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 
@@ -458,7 +468,7 @@ Identify and stop it, then start the control plane again.
    lsof -i :3000
    ```
 
-1. Stop the process using the PID from the previous command:
+1. Stop the process using the process ID (PID) from the previous command:
 
    ```sh
    kill <PID>

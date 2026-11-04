@@ -7,7 +7,7 @@ title: OpenShift
 - OpenShift cluster running K8s 1.19+ (OpenShift 4.7+)
 - Helm 3.5+ installed
 - OpenShift CLI (`oc`) installed
-- [Coder CLI](../cli.md) installed
+- [Coder CLI](https://coder.com/downloads) installed
 
 ## Install Coder with OpenShift
 
@@ -44,7 +44,7 @@ coder:
     seccompProfile: RuntimeDefault # Unchanged from default
 ```
 
-- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project user ID (UID) and project group ID (GID) with the following command:
 
     ```console
     oc get project coder -o json | jq -r '.metadata.annotations'
@@ -166,7 +166,7 @@ helm install coder coder-v2/coder \
 ```
 
 > [!NOTE]
-> If the Helm installation fails with a Kubernetes RBAC error, check the permissions of your OpenShift user using the `oc auth can-i` command.
+> If the Helm installation fails with a Kubernetes role-based access control (RBAC) error, check the permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:
 >
@@ -224,9 +224,10 @@ These images can then be run without modifying the Security Context Constraints 
    In this example, we will pick both UID and GID `1000680000`.
 
 1. Create a `BuildConfig` referencing the source image you want to customize.
+
    This will automatically kick off a `Build` that will remain pending until step 3.
 
-   > For more information, please consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
+   > For more information, consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
 
    ```sh
    oc create -f - <<EOF

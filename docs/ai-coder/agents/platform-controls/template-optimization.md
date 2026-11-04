@@ -3,7 +3,7 @@ title: Template optimization
 ---
 
 Not every chat with Coder Agents requires a workspace.
-The agent provisions one when missing tools, skills, MCP integrations, or context block progress, or when it needs to work with files or run commands.
+The agent provisions one when missing tools, skills, Model Context Protocol (MCP) integrations, or context block progress, or when it needs to work with files or run commands.
 
 When a workspace is needed, the agent reads the available templates, selects the appropriate one based on its name and description, and provisions a workspace automatically.
 Administrators can [restrict which templates the agent can use](#restrict-available-templates).
@@ -44,16 +44,16 @@ A good template description tells the agent:
 
 - What language, framework, or stack the template is for.
 - Which repository or service it targets, if applicable.
-- What type of work it supports (e.g., backend services, frontend apps, data pipelines).
+- What type of work it supports (for example, backend services, frontend apps, data pipelines).
 
 ### Examples
 
-| Description                                                                                 | Why it works                                                       |
-|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain                             |
-| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed  | Clear stack, named project, key tools listed                       |
-| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools       | Broad but descriptive — the agent can match it to Go-related tasks |
-| Java microservices for the order-processing pipeline. Maven, JDK 21, Kafka client libraries | Names the service domain and build tool                            |
+| Description                                                                                                        | Why it works                                                         |
+|--------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL                        | Specific language, repo, and toolchain                               |
+| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed                         | Clear stack, named project, key tools listed                         |
+| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools                              | Broad but descriptive, so the agent can match it to Go-related tasks |
+| Java microservices for the order-processing pipeline. Maven, Java Development Kit (JDK) 21, Kafka client libraries | Names the service domain and build tool                              |
 
 | Description        | Why it fails                                                            |
 |--------------------|-------------------------------------------------------------------------|
@@ -114,7 +114,7 @@ Agent templates differ from developer templates in several ways:
 - **Reduced permissions.**
   Agent workspaces can use scoped credentials with fewer permissions than a developer's interactive session.
 
-See [Creating templates](../../../admin/templates/creating-templates.md) for step-by-step instructions on creating templates via the UI, CLI, or CI/CD.
+See [Creating templates](../../../admin/templates/creating-templates.md) for step-by-step instructions on creating templates via the UI, CLI, or continuous integration and continuous delivery (CI/CD).
 
 ## Configure network boundaries
 
@@ -122,7 +122,7 @@ The workspace is the network boundary for the agent.
 If you want to control what the agent can access, control what the workspace can access.
 
 This is a deliberate architectural advantage of running the agent loop in the control plane.
-Because all AI functionality (LLM inference, tool dispatch, chat state) lives in the control plane, agent workspaces do not need outbound access to any LLM provider.
+Because all AI functionality (large language model (LLM) inference, tool dispatch, chat state) lives in the control plane, agent workspaces do not need outbound access to any LLM provider.
 The workspace only needs to reach:
 
 - **The Coder control plane** — required for the workspace daemon to function.
@@ -157,7 +157,7 @@ If a developer cannot access a resource through the Coder dashboard, the agent c
 When agent workspaces need access to external services (git providers, package registries, artifact stores), configure credentials with the minimum scope required:
 
 - **Use separate tokens for agent templates.**
-  Rather than sharing the same broad-scope token used by developer workspaces, create a dedicated token with only the permissions the agent needs (e.g., read/write access to specific repositories, no admin access).
+  Rather than sharing the same broad-scope token used by developer workspaces, create a dedicated token with only the permissions the agent needs (for example, read/write access to specific repositories, no admin access).
 - **Configure external auth at the template level.**
   Use Coder's [external authentication](../../../admin/external-auth.md) to provide scoped git credentials.
   The agent uses the same external auth flow as any other workspace, so credentials are managed centrally.
@@ -209,8 +209,8 @@ A description like "AWS region" is less useful to the agent than one that explai
 Parameters with values like `ami-0abcdef1234567890` or `subnet-12345` are difficult for the agent to reason about.
 Where possible, use human-readable option labels or map opaque IDs to descriptive names using Terraform locals.
 
-For full parameter reference (including types, validation, mutability, and workspace presets), see [Parameters](../../../admin/templates/extending-templates/parameters.md).
-[Dynamic parameters](../../../admin/templates/extending-templates/dynamic-parameters.md) add conditional form controls and identity-aware defaults for more advanced use cases.
+For full parameter reference (including types, validation, mutability, and workspace presets), see [Parameters](../../../admin/templates/extending-templates/parameters/index.md).
+[Conditional parameters](../../../admin/templates/extending-templates/parameters/conditional-parameters.md) and [identity-aware parameters](../../../admin/templates/extending-templates/parameters/identity-aware-parameters.md) add conditional form controls and identity-aware defaults for more advanced use cases.
 
 ## Pre-install tools and dependencies
 
@@ -219,7 +219,7 @@ The agent does not know how to install your organization's specific toolchain, a
 
 ### What to pre-install
 
-- **Language runtimes and build tools** for the target stack (e.g., Go, Node, Python, Maven).
+- **Language runtimes and build tools** for the target stack (for example, Go, Node, Python, Maven).
 - **Common CLI tools** the agent is likely to use: `git`, `curl`, `jq`, `make`, `docker` (if applicable).
 - **Project-specific dependencies.**
   If the template targets a specific repository, consider pre-installing the project's dependencies or running the setup script as part of workspace startup.

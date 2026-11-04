@@ -24,7 +24,7 @@ The roles in the following table apply across the whole deployment.
 Organizations have their own roles.
 Refer to [Organization roles](#organization-roles) for more information.
 
-|                                                                          | Auditor | User Admin | Template Admin | Owner |
+| Permission                                                               | Auditor | User Admin | Template Admin | Owner |
 |--------------------------------------------------------------------------|---------|------------|----------------|-------|
 | Add and remove Users                                                     |         | ✅          |                | ✅     |
 | Manage groups (premium)                                                  |         | ✅          |                | ✅     |
@@ -122,4 +122,4 @@ A malicious Template Admin could write a template that executes commands on the 
 To avoid this, run [external provisioners](../../install/operate/provisioners/index.md).
 
 In low-trust environments, we do not recommend giving users direct access to edit templates.
-Instead, use [CI/CD pipelines to update templates](../templates/managing-templates/change-management.md) with proper security scans and code reviews in place.
+Instead, use [continuous integration and continuous delivery (CI/CD) pipelines to update templates](../templates/managing-templates/change-management.md) with proper security scans and code reviews in place.

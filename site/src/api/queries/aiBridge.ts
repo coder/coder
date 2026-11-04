@@ -2,6 +2,7 @@ import { hashKey, type UseInfiniteQueryOptions } from "react-query";
 import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
+	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
@@ -34,7 +35,7 @@ export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
 
 export const aiBridgeProviders = () => ({
 	queryKey: aiBridgeProvidersKey,
-	queryFn: () => API.getAIBridgeProviders(),
+	queryFn: (): Promise<AIBridgeProvider[]> => API.getAIBridgeProviders(),
 });
 
 export const aiBridgeClientsKey = (q: string, limit: number) =>

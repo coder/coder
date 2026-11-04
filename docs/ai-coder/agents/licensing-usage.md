@@ -4,16 +4,16 @@ title: Licensing & usage
 
 Coder Agents licensing controls concurrent agent activity and Agent Time usage across your deployment.
 
-## Community licenses
+## Community and Premium licenses
 
-Community licenses support up to five concurrently active agents deployment-wide.
+Community and Premium licenses support up to five concurrently active agents deployment-wide.
 Coder doesn't limit how long those agents can run or how many tasks they complete over time.
 Agents queue when more than five agents are active at a time.
-With this agent pool, individuals and small teams can experiment with Coder Agents at no cost.
+With this agent pool, individuals and small teams can experiment with Coder Agents at no additional cost.
 
-## Premium licenses and Agent Hours
+## AI Premium licenses and Agent Hours
 
-A Premium license includes a preset amount of Agent Time.
+An [AI Premium](https://coder.com/pricing) license includes a preset amount of Agent Time.
 Agent Time is shared across the deployment, allowing unlimited agents to run concurrently while consuming from a shared pool of purchased working hours.
 This usage-based model supports enterprise workloads where large development teams, background automation, and API-triggered tasks can create variable bursts of agent activity.
 
@@ -44,9 +44,9 @@ Coder records Agent Time in milliseconds and sums it across all Coder Agents cha
 
 Coder handles concurrency and usage limits differently depending on the license you use.
 
-### Community concurrency limit
+### Community and Premium concurrency limit
 
-When a Community license deployment reaches its limit of five concurrently active agents, Coder places additional agents in a queue.
+When a Community or Premium license deployment reaches its limit of five concurrently active agents, Coder places additional agents in a queue.
 When an active agent completes its task, the next queued agent begins its work.
 
 ### Agent Hours exhaustion
@@ -56,7 +56,7 @@ Coder sends deployment administrators an in-app soft warning as the deployment a
 ## Agent Time usage reporting
 
 Coder reports Agent Time usage to Tallyman, a Coder-managed server used for billing and reporting.
-Coder sends the total Coder Agents runtime consumed per UTC hour, in milliseconds, with your deployment ID.
+Coder sends the total Coder Agents runtime consumed per Coordinated Universal Time (UTC) hour, in milliseconds, with your deployment ID.
 Coder doesn't send user-identifiable information or additional chat data to Tallyman.
 Coder also shares the reported usage with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based billing and reporting.
 
@@ -71,7 +71,7 @@ A successful request produces a debug log similar to the following example when 
 [debu] published usage events to tallyman accepted=1 rejected=0
 ```
 
-Coder sends the license JWT and deployment ID as request headers.
+Coder sends the license JSON Web Token (JWT) and deployment ID as request headers.
 The request body contains one `hb_agent_runtime_v1` event for each UTC hour.
 The `runtime_ms` value is the total Agent Time recorded during that hour.
 Idle hours have a value of `0`.

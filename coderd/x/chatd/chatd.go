@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -182,6 +181,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -202,7 +202,6 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
-	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -287,6 +286,7 @@ func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg advisorRuntimeConfig,
+	priorUses int,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -350,6 +350,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		PriorUses:            priorUses,
 	})
 	if err != nil {
 		logger.Warn(
@@ -660,7 +661,18 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	chatID := uuid.New()
-	contentParts := opts.InitialUserContent
+	// The new chat has no pinned workspace context yet, so it is resolved
+	// without a workspace and cannot invoke workspace skills.
+	contentParts, err := p.resolveSkillInvocations(ctx, database.Chat{
+		ID:             chatID,
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		ProjectID:      opts.ProjectID,
+		RootChatID:     opts.RootChatID,
+	}, opts.InitialUserContent)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// The prompt-submit hook fires with the first SendMessage when the
 	// chat is created without an initial user message.
 	if p.hooks.Enabled() && len(contentParts) > 0 {
@@ -818,22 +830,6 @@ func callerModelConfigContext(
 	return dbauthz.As(ctx, actor), nil
 }
 
-func resolveSendMessageModelConfigID(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	requested uuid.UUID,
-) (uuid.UUID, error) {
-	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID)
-	}
-
-	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
-		return uuid.Nil, err
-	}
-	return requested, nil
-}
-
 // requireEnabledChatModelConfig rechecks enabled state inside the daemon.
 // The coderd preflight can race an admin disabling the model or provider.
 func requireEnabledChatModelConfig(
@@ -916,6 +912,13 @@ func resolveFallbackModelConfigID(
 	return defaultConfig.ID, nil
 }
 
+// validateModelConfigOverride returns requested as an override if it is
+// an enabled model config in the organization, and no override when
+// requested is uuid.Nil. Call it before the chat transaction: model
+// config writes serialize on an organization advisory lock that chat
+// transactions do not take, so the chat row lock cannot stop a
+// concurrent disable. If the config is disabled after this check, the
+// turn runs on the organization default model (see resolveModelConfig).
 func validateModelConfigOverride(
 	ctx context.Context,
 	store database.Store,
@@ -1008,39 +1011,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 }
 
 const manualTitleMessageWindowLimit = 50
-
-// generatedChatTitle carries the title produced by the detached
-// automatic title-generation goroutine. maybeGenerateChatTitle stores
-// the generated title here so tests can observe it without a database
-// read; the title_change pubsub event it publishes remains the source of
-// truth for clients.
-type generatedChatTitle struct {
-	mu    sync.RWMutex
-	title string
-}
-
-func (t *generatedChatTitle) Store(title string) {
-	if t == nil || title == "" {
-		return
-	}
-
-	t.mu.Lock()
-	t.title = title
-	t.mu.Unlock()
-}
-
-func (t *generatedChatTitle) Load() (string, bool) {
-	if t == nil {
-		return "", false
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if t.title == "" {
-		return "", false
-	}
-	return t.title, true
-}
 
 // RenameChatTitle persists a user-supplied chat title. An unchanged
 // title is still written when its source is not yet user.
@@ -1135,7 +1105,7 @@ func (p *Server) generateManualTitleCandidate(
 	titleCtx := ctx
 	finishDebugRun := func(error) {}
 	if resolved.debugEnabled {
-		titleCtx, finishDebugRun = p.prepareManualTitleDebugRun(
+		titleCtx, finishDebugRun = prepareManualTitleDebugRun(
 			ctx,
 			p.debugService(),
 			chat,
@@ -1160,17 +1130,13 @@ func (p *Server) generateManualTitleCandidate(
 	return title, nil
 }
 
-func (p *Server) prepareManualTitleDebugRun(
+func prepareManualTitleDebugRun(
 	ctx context.Context,
 	debugSvc *chatdebug.Service,
 	chat database.Chat,
 	resolved resolvedModelCall,
 	messages []database.ChatMessage,
 ) (context.Context, func(error)) {
-	titleCtx := ctx
-	finishDebugRun := func(error) {}
-	modelConfig := resolved.dbConfig
-
 	var historyTipMessageID int64
 	if len(messages) > 0 {
 		historyTipMessageID = messages[len(messages)-1].ID
@@ -1193,75 +1159,16 @@ func (p *Server) prepareManualTitleDebugRun(
 		chatdebug.TruncateLabel(firstUserLabel, chatdebug.MaxLabelLength),
 	)
 
-	createRunCtx, createRunCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	debugRun, createRunErr := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	return debugSvc.StartRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
-		ModelConfigID:       modelConfig.ID,
+		ModelConfigID:       resolved.dbConfig.ID,
 		Provider:            string(resolved.route.Provider.Type),
-		Model:               modelConfig.Model,
+		Model:               resolved.dbConfig.Model,
 		Kind:                chatdebug.KindTitleGeneration,
 		Status:              chatdebug.StatusInProgress,
 		HistoryTipMessageID: historyTipMessageID,
 		TriggerMessageID:    0,
-		Summary:             seedSummary,
-	})
-	createRunCancel()
-	if createRunErr != nil {
-		p.logger.Warn(ctx, "failed to create manual title debug run",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", modelConfig.Model),
-			slog.Error(createRunErr),
-		)
-		return titleCtx, finishDebugRun
-	}
-
-	runContext := chatdebugRunContext(debugRun)
-	titleCtx = chatdebug.ContextWithRun(titleCtx, &runContext)
-	finishDebugRun = func(generateErr error) {
-		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
-			RunID:       debugRun.ID,
-			ChatID:      debugRun.ChatID,
-			Status:      chatdebug.ClassifyError(generateErr),
-			SeedSummary: seedSummary,
-		}); finalizeErr != nil {
-			p.logger.Warn(ctx, "failed to finalize manual title debug run",
-				slog.F("chat_id", chat.ID),
-				slog.F("run_id", debugRun.ID),
-				slog.Error(finalizeErr),
-			)
-		}
-	}
-
-	return titleCtx, finishDebugRun
-}
-
-func chatdebugRunContext(run database.ChatDebugRun) chatdebug.RunContext {
-	runContext := chatdebug.RunContext{
-		RunID:  run.ID,
-		ChatID: run.ChatID,
-	}
-	if run.RootChatID.Valid {
-		runContext.RootChatID = run.RootChatID.UUID
-	}
-	if run.ParentChatID.Valid {
-		runContext.ParentChatID = run.ParentChatID.UUID
-	}
-	if run.ModelConfigID.Valid {
-		runContext.ModelConfigID = run.ModelConfigID.UUID
-	}
-	if run.TriggerMessageID.Valid {
-		runContext.TriggerMessageID = run.TriggerMessageID.Int64
-	}
-	if run.HistoryTipMessageID.Valid {
-		runContext.HistoryTipMessageID = run.HistoryTipMessageID.Int64
-	}
-	if run.Provider.Valid {
-		runContext.Provider = run.Provider.String
-	}
-	if run.Model.Valid {
-		runContext.Model = run.Model.String
-	}
-	return runContext
+	}, seedSummary, debugFinalizeTimeout)
 }
 
 func deriveChatDebugSeed(messages []database.ChatMessage) (
@@ -1339,11 +1246,8 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	// ExperimentEvaluator decides user-scoped experiments for a chat's
-	// owner. It is required.
-	ExperimentEvaluator *experiments.Evaluator
-	PrometheusRegistry  prometheus.Registerer
-	TracerProvider      trace.TracerProvider
+	PrometheusRegistry             prometheus.Registerer
+	TracerProvider                 trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1353,6 +1257,9 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// InternalMCPServers are MCP servers that coderd code serves to chats
+	// in process. Slugs must be unique and not empty.
+	InternalMCPServers []InternalMCPServer
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -1364,8 +1271,8 @@ type Config struct {
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
-	if cfg.ExperimentEvaluator == nil {
-		return nil, xerrors.New("chatd: experiment evaluator is required")
+	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
+		return nil, xerrors.Errorf("chatd: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1450,23 +1357,17 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
-			debugSvc := chatdebug.NewService(
+			return chatdebug.NewService(
 				cfg.Database,
 				cfg.Logger.Named("chatdebug"),
 				ps,
 				chatdebug.WithAlwaysEnable(cfg.AlwaysEnableDebugLogs),
 			)
-			// Debug runs do not heartbeat during model streams; their
-			// updated_at is only touched on step/run completion. Use a
-			// longer stale window so long-running turns are not falsely
-			// finalized as stale while still executing.
-			debugSvc.SetStaleAfter(inFlightChatStaleAfter * 3)
-			return debugSvc
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
-		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -1854,25 +1755,15 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
-	region := ""
-	supportsAmbientCredentials := false
-	if settings.Bedrock != nil {
-		region = strings.TrimSpace(settings.Bedrock.Region)
-	}
-	if cp := settings.ClaudePlatformAWS; cp != nil {
-		region = strings.TrimSpace(cp.Region)
-		supportsAmbientCredentials = true
-	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
-		Region:                     region,
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
-		SupportsAmbientCredentials: supportsAmbientCredentials,
+		SupportsAmbientCredentials: settings.ClaudePlatformAWS != nil,
 	}, nil
 }
 
@@ -1949,44 +1840,6 @@ func (p *Server) resolveUserProviderAPIKeysForProvider(
 		userKeys,
 	)
 	return keys, nil
-}
-
-func (p *Server) resolveUserProviderAPIKeysForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, error) {
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
-	return keys, err
-}
-
-func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, nil, err
-		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
-			return keys, &provider, nil
-		}
-	}
-	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, err
-	}
-	return keys, nil, nil
 }
 
 func (p *Server) resolveUserProviderAPIKeys(
@@ -2327,14 +2180,14 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		// Subagent chats skip turn status labels and generated
 		// summaries, but a successful turn's final report doubles as
 		// the chat summary so subagents are not summary-less.
-		if status == database.ChatStatusWaiting {
+		if turnFinished(status) {
 			p.storeSubagentReportSummaryAsync(ctx, chat, logger)
 		}
 		return
 	}
 
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
@@ -2408,7 +2261,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	runResult runChatResult,
 	logger slog.Logger,
 ) string {
-	if status != database.ChatStatusWaiting {
+	if !turnFinished(status) {
 		return fallbackTurnStatusLabel(status)
 	}
 

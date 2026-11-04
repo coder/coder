@@ -5,6 +5,7 @@ import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -16,7 +17,7 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
-	side?: React.ComponentProps<typeof TooltipContent>["side"];
+	side?: TooltipSide;
 	children: React.ReactNode;
 };
 
@@ -46,7 +47,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 
 	return (
 		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
-			<Tooltip>
+			<Tooltip interactive>
 				<TooltipTrigger
 					type="button"
 					aria-label={ariaLabel}

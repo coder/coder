@@ -7,12 +7,12 @@ title: Administration
 These guides contain information on managing the Coder control plane and [authoring templates](./templates/index.md).
 
 First time viewers looking to set up control plane access can start with the [configuration guide](./setup/index.md).
-If you're a team lead looking to design environments for your developers, check out our [templates guides](./templates/index.md).
+If you're a team lead looking to design environments for your developers, refer to our [templates guides](./templates/index.md).
 If you are a developer using Coder, we recommend the [user guides](../user-guides/index.md).
 
 For automation and scripting workflows, see our [CLI](../reference/cli/index.md) and [API](../reference/api/index.md) docs.
 
-For any information not strictly contained in these sections, check out our [Tutorials](../tutorials/index.md) and [FAQs](../tutorials/faqs.md).
+For any information not strictly contained in these sections, refer to our [Tutorials](../tutorials/index.md) and [frequently asked questions (FAQs)](../tutorials/faqs.md).
 
 ## What is an image, template, dev container, or workspace
 
@@ -26,7 +26,7 @@ For any information not strictly contained in these sections, check out our [Tut
 ### Template
 
 - [Templates](./templates/index.md) include infrastructure-level dependencies for the workspace.
-  For example, a template can include Kubernetes PersistentVolumeClaims, Docker containers, or EC2 VMs.
+  For example, a template can include Kubernetes PersistentVolumeClaims, Docker containers, or Amazon Elastic Compute Cloud (EC2) VMs.
 - Managed by: Template administrators from within the Coder deployment.
 
 ### Startup scripts
@@ -44,7 +44,7 @@ For any information not strictly contained in these sections, check out our [Tut
 ### Development containers (dev containers)
 
 - A [Development Container](./integrations/devcontainers/index.md) is an open-source specification for defining development environments (called dev containers).
-  It is generally stored in VCS alongside associated source code.
+  It is generally stored in a version control system (VCS) alongside associated source code.
   It can reference an existing base image, or a custom Dockerfile that will be built on-demand.
 - Managed by: Dev Teams
 

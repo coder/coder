@@ -15,21 +15,6 @@ const CENT_MICROS = MICROS_PER_DOLLAR / 100;
 export const formatSessionCost = (micros: number) =>
 	micros > 0 && micros < CENT_MICROS ? "<$0.01" : formatCostMicros(micros);
 
-const PROMPT_PREVIEW_MAX_CHARS = 500;
-
-/** Cuts a prompt to a short preview for the sessions list. */
-export const truncatePromptPreview = (prompt: string) => {
-	if (prompt.length <= PROMPT_PREVIEW_MAX_CHARS) {
-		return prompt;
-	}
-	// Slice by code point to avoid splitting emoji.
-	const codePoints = Array.from(prompt);
-	if (codePoints.length <= PROMPT_PREVIEW_MAX_CHARS) {
-		return prompt;
-	}
-	return `${codePoints.slice(0, PROMPT_PREVIEW_MAX_CHARS).join("").trimEnd()}…`;
-};
-
 export const roundDurationDisplay = (duration: number) => {
 	if (duration >= 1000) {
 		return `${(duration / 1000).toFixed(1)}s`;

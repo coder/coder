@@ -9,7 +9,7 @@ children:
     path: ./ai-coder/ai-gateway/setup.md
     state: [premium]
   - title: Standalone deployment
-    description: Deploy and operate AI Gateway as a standalone service
+    description: Deploy and operate AI Gateway as a standalone service.
     path: ./ai-coder/ai-gateway/standalone.md
     state: [premium]
   - title: Authentication

@@ -12,7 +12,10 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withAuthProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 import {
 	type SessionColumnSettings,
@@ -58,7 +61,7 @@ const meta: Meta<typeof ListSessionsPageView> = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 	},
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	// Column settings persist in local storage, so isolate each story.
 	beforeEach: () => {
 		localStorage.removeItem(storageKey);
