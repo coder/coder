@@ -11,17 +11,11 @@ import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { TimezoneCombobox } from "#/components/TimezoneCombobox/TimezoneCombobox";
 import { getFormHelpers } from "#/utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "#/utils/schedule";
-import { getPreferredTimezone, timeZones } from "#/utils/timeZones";
+import { getPreferredTimezone } from "#/utils/timeZones";
 
 type ScheduleFormValues = {
 	time: string;
@@ -121,24 +115,14 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
 					/>
 					<div className="flex flex-col gap-2 min-w-0">
 						<Label htmlFor={timezoneId}>Timezone</Label>
-						<Select
+						<TimezoneCombobox
+							id={timezoneId}
 							value={form.values.timezone}
 							onValueChange={(value) => {
 								void form.setFieldValue("timezone", value);
 							}}
 							disabled={fieldsDisabled}
-						>
-							<SelectTrigger id={timezoneId}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{timeZones.map((zone) => (
-									<SelectItem key={zone} value={zone}>
-										{zone}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						/>
 						{timezoneField.error && (
 							<span className="text-xs text-content-destructive">
 								{timezoneField.helperText}
