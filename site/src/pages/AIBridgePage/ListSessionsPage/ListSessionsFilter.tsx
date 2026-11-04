@@ -1,8 +1,8 @@
 import {
-	BrainIcon,
+	BoxIcon,
 	Building2Icon,
-	CloudIcon,
-	TerminalIcon,
+	CloudCogIcon,
+	SquareTerminalIcon,
 	UserIcon,
 } from "lucide-react";
 import { useQueryClient } from "react-query";
@@ -56,19 +56,19 @@ export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 		{
 			key: "provider_name",
 			label: "Provider",
-			icon: <CloudIcon />,
+			icon: <CloudCogIcon />,
 			getOptions: (query) => getProviderFilterOptions(query, queryClient),
 		},
 		{
 			key: "client",
 			label: "Client",
-			icon: <TerminalIcon />,
+			icon: <SquareTerminalIcon />,
 			getOptions: (query) => getClientFilterOptions(query, queryClient),
 		},
 		{
 			key: "model",
 			label: "Model",
-			icon: <BrainIcon />,
+			icon: <BoxIcon />,
 			getOptions: (query) => getModelFilterOptions(query, queryClient),
 		},
 		...(showOrganizations
