@@ -218,9 +218,9 @@ func (p *Server) SendMessage(
 			// last in the inserted slice.
 			result.Message = sendResult.InsertedMessages[len(sendResult.InsertedMessages)-1]
 		}
-		// A queued send on an errored chat can also promote the
-		// previous queue head into history; report those inserts so
-		// clients can update their caches.
+		// A send to an errored or paused chat can also insert queued
+		// messages; report those inserts so clients can update their
+		// caches.
 		result.InsertedMessages = sendResult.InsertedMessages
 		promotedQueuedAt = sendResult.PromotedQueuedAt
 		finishedInterruption = sendResult.FinishedInterruption

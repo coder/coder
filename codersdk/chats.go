@@ -1050,8 +1050,11 @@ type EditChatMessageRequest struct {
 type CreateChatMessageResponse struct {
 	Message *ChatMessage `json:"message,omitempty"`
 	// Messages contains all user-visible messages inserted by the send, in
-	// insertion order. A queued send on an errored chat may promote the
-	// previous queue head, so clients must upsert the full batch.
+	// insertion order. A send to an errored or paused chat can also insert
+	// queued messages: a steer send inserts the queued steer messages
+	// before the new message, and a queue send to an errored chat inserts
+	// the steer lane, or the first queue message when that lane is empty.
+	// Clients must upsert the full batch.
 	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`

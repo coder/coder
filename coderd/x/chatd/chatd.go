@@ -474,8 +474,11 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	// InsertedMessages holds every message the send inserted, in
-	// insertion order. A queued send on an errored chat can still
-	// insert messages by promoting the previous queue head.
+	// insertion order. A send to an errored or paused chat can also
+	// insert queued messages: a steer send inserts the queued steer
+	// messages before the new message, and a queue send to an errored
+	// chat inserts the steer lane, or the first queue message when that
+	// lane is empty.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
 	// FirstUserTurn reports that the send inserted the first

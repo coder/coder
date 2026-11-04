@@ -94,7 +94,8 @@ A "Context cleared" marker shows where the reset happened.
 Users can send follow-up messages while the agent is actively working.
 Messages are queued in the database and delivered before the agent's next model call.
 API and MCP clients can set `busy_behavior` to `queue` to deliver a message when the current turn ends (the full sequence of steps until the model stops calling tools).
-To stop the current turn first, interrupt the agent and then send the message.
+To redirect the agent, send a message.
+Interrupt the agent only to stop it.
 There is no need to wait for a response before providing additional context or redirecting the agent.
 
 ## Tool execution
@@ -234,7 +235,7 @@ All chat data is stored in the control plane database, not in the workspace.
 - **Compressed context**:
   when the agent compacts the conversation, summaries are stored with a compression flag so the original context budget is preserved.
 - **Queued messages**:
-  follow-up messages sent while the agent is working are held in a queue and delivered in order.
+  follow-up messages sent while the agent is working are held until a delivery point: `steer` messages go in before the next model call, and `queue` messages go in after the turn ends.
 
 Because state lives in the database:
 
