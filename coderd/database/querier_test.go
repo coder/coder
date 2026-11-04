@@ -19723,10 +19723,16 @@ func TestGetUnpricedAIModels(t *testing.T) {
 		anthropic    database.AIProvider
 		anthropicDev database.AIProvider
 		openaiCompat database.AIProvider
+		// Usage is attributed to orgA or orgB through groupA or groupB.
+		orgA, orgB     database.Organization
+		groupA, groupB database.Group
 	}
 	type usage struct {
 		provider database.AIProvider
 		model    string
+		// group is the effective group the usage was attributed to, and zero
+		// means none.
+		group database.Group
 		// startedAt is when the interception started, and zero means createdAt.
 		startedAt time.Time
 		createdAt time.Time
@@ -19755,13 +19761,14 @@ func TestGetUnpricedAIModels(t *testing.T) {
 			StartedAt:    startedAt,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, f.db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: interception.ID,
-			InputTokens:    u.inputTokens,
-			OutputTokens:   u.outputTokens,
-			CreatedAt:      u.createdAt,
-			ProviderModel:  sql.NullString{String: u.providerModel, Valid: u.providerModel != ""},
-			PricedModel:    sql.NullString{String: u.pricedModel, Valid: u.pricedModel != ""},
-			CostMicros:     sql.NullInt64{Int64: u.cost, Valid: u.cost != 0},
+			InterceptionID:   interception.ID,
+			EffectiveGroupID: uuid.NullUUID{UUID: u.group.ID, Valid: u.group.ID != uuid.Nil},
+			InputTokens:      u.inputTokens,
+			OutputTokens:     u.outputTokens,
+			CreatedAt:        u.createdAt,
+			ProviderModel:    sql.NullString{String: u.providerModel, Valid: u.providerModel != ""},
+			PricedModel:      sql.NullString{String: u.pricedModel, Valid: u.pricedModel != ""},
+			CostMicros:       sql.NullInt64{Int64: u.cost, Valid: u.cost != 0},
 		})
 	}
 	priceSiteWide := func(t *testing.T, f fixture, providerType database.AIProviderType, model string) {
@@ -19776,6 +19783,18 @@ func TestGetUnpricedAIModels(t *testing.T) {
 			Source: database.AIModelPriceSourceCustom,
 		}))
 	}
+	// configureOrgModel sets an organization config for the model on the
+	// provider, priced only when price is set.
+	configureOrgModel := func(t *testing.T, f fixture, org database.Organization, provider database.AIProvider, model string, price sql.NullInt64) {
+		t.Helper()
+		require.NoError(t, f.db.UpsertOrganizationAIProviderModelConfig(f.ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID,
+			ProviderID:     provider.ID,
+			Model:          model,
+			InputPrice:     price,
+		}))
+	}
+	orgInputPrice := sql.NullInt64{Int64: 3_000_000, Valid: true}
 	unpricedModel := func(provider database.AIProvider, model string, tokens int64) database.GetUnpricedAIModelsRow {
 		return database.GetUnpricedAIModelsRow{
 			ProviderName:        provider.Name,
@@ -19787,199 +19806,400 @@ func TestGetUnpricedAIModels(t *testing.T) {
 		}
 	}
 
-	tests := []struct {
-		name  string
-		given func(t *testing.T, f fixture)
-		want  func(f fixture) []database.GetUnpricedAIModelsRow
-	}{
-		{
-			// Given usage of models without a price on two providers of the
-			// same type, then each provider lists its models, most used first.
-			name: "UnpricedUsageIsListedPerProviderMostUsedFirst",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 120, outputTokens: 80})
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
-				recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-			},
-			want: func(f fixture) []database.GetUnpricedAIModelsRow {
-				return []database.GetUnpricedAIModelsRow{
-					unpricedModel(f.anthropic, "model-a", 300),
-					unpricedModel(f.anthropicDev, "model-a", 100),
-					unpricedModel(f.anthropic, "model-b", 50),
-				}
-			},
-		},
-		{
-			// Given models with the same usage, then they are sorted by
-			// provider name, then by model ignoring case.
-			name: "TiesSortedByProviderNameThenModel",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "Model-C", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-			},
-			want: func(f fixture) []database.GetUnpricedAIModelsRow {
-				return []database.GetUnpricedAIModelsRow{
-					unpricedModel(f.anthropicDev, "model-a", 100),
-					unpricedModel(f.anthropic, "model-b", 100),
-					unpricedModel(f.anthropic, "Model-C", 100),
-				}
-			},
-		},
-		{
-			// Given usage priced when it was recorded, then the model is not
-			// listed.
-			name: "PricedUsageIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-a", cost: 10})
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given usage priced through the model reported by the provider,
-			// then the requested model is not listed, even though it has no
-			// price of its own.
-			name: "UsagePricedThroughProviderModelIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-y", cost: 10})
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given usage whose price was found but whose cost could not be
-			// computed, then the model is not listed, since it is not missing a
-			// price.
-			name: "UsageWithUncomputableCostIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-a"})
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given unpriced usage of a model that was priced site-wide since,
-			// then the model is not listed.
-			name: "ModelPricedSinceIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-a")
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given unpriced usage of a model whose provider model was priced
-			// since, then the requested model is still listed, since the
-			// provider may not serve that model next time.
-			name: "ModelWhoseProviderModelWasPricedSinceIsListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-y")
-			},
-			want: func(f fixture) []database.GetUnpricedAIModelsRow {
-				return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)}
-			},
-		},
-		{
-			// Given prices that match only the provider type or only the
-			// model, then the model is still listed.
-			name: "PriceMustMatchProviderTypeAndModel",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				priceSiteWide(t, f, database.AIProviderTypeOpenai, "model-a")
-				priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-b")
-			},
-			want: func(f fixture) []database.GetUnpricedAIModelsRow {
-				return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
-			},
-		},
-		{
-			// Given unpriced usage recorded before the period and at its
-			// exclusive end, then neither is listed.
-			name: "UsageOutsidePeriodIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: periodStart.Add(-time.Second), inputTokens: 60, outputTokens: 40})
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: periodEnd, inputTokens: 60, outputTokens: 40})
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given unpriced usage recorded in the period by an interception
-			// that started before it, then the model is listed, since the
-			// period applies to when the usage was recorded.
-			name: "UsageRecordedInPeriodIsListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", startedAt: periodStart.Add(-time.Hour), createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-			},
-			want: func(f fixture) []database.GetUnpricedAIModelsRow {
-				return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
-			},
-		},
-		{
-			// Given unpriced usage on an openai-compat provider, which cannot be
-			// priced, then the model is not listed.
-			name: "UnpriceableProviderIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.openaiCompat, model: "llama-4", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given unpriced usage on a provider deleted since, then the model
-			// is not listed.
-			name: "DeletedProviderIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
-				require.NoError(t, f.db.DeleteAIProviderByID(f.ctx, f.anthropic.ID))
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
-		{
-			// Given an interception without token usage, then its model is not
-			// listed, since nothing was used.
-			name: "InterceptionWithoutUsageIsNotListed",
-			given: func(t *testing.T, f fixture) {
-				dbgen.AIBridgeInterception(t, f.db, database.InsertAIBridgeInterceptionParams{
-					InitiatorID:  dbgen.User(t, f.db, database.User{}).ID,
-					Provider:     string(f.anthropic.Type),
-					ProviderName: f.anthropic.Name,
-					Model:        "model-a",
-					StartedAt:    inPeriod,
-				}, nil)
-			},
-			want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
-		},
+	newFixture := func(t *testing.T) fixture {
+		db, _ := dbtestutil.NewDB(t)
+		orgA := dbgen.Organization(t, db, database.Organization{})
+		orgB := dbgen.Organization(t, db, database.Organization{})
+		return fixture{
+			ctx: testutil.Context(t, testutil.WaitLong),
+			db:  db,
+			anthropic: dbgen.AIProvider(t, db, database.AIProvider{
+				Name: "anthropic-prod", Type: database.AIProviderTypeAnthropic, Icon: "/icon/anthropic.svg",
+			}),
+			anthropicDev: dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-dev", Type: database.AIProviderTypeAnthropic}),
+			openaiCompat: dbgen.AIProvider(t, db, database.AIProvider{Name: "self-hosted", Type: database.AIProviderTypeOpenaiCompat}),
+			orgA:         orgA,
+			orgB:         orgB,
+			groupA:       dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID}),
+			groupB:       dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID}),
+		}
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			db, _ := dbtestutil.NewDB(t)
-			f := fixture{
-				ctx: testutil.Context(t, testutil.WaitLong),
-				db:  db,
-				anthropic: dbgen.AIProvider(t, db, database.AIProvider{
-					Name: "anthropic-prod", Type: database.AIProviderTypeAnthropic, Icon: "/icon/anthropic.svg",
-				}),
-				anthropicDev: dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-dev", Type: database.AIProviderTypeAnthropic}),
-				openaiCompat: dbgen.AIProvider(t, db, database.AIProvider{Name: "self-hosted", Type: database.AIProviderTypeOpenaiCompat}),
-			}
-			tc.given(t, f)
-
-			// When listing the unpriced models of the period.
-			got, err := db.GetUnpricedAIModels(f.ctx, database.GetUnpricedAIModelsParams{
-				PeriodStart: periodStart,
-				PeriodEnd:   periodEnd,
-				PriceableProviders: []string{
-					string(database.AIProviderTypeAnthropic),
-					string(database.AIProviderTypeOpenai),
-				},
-			})
-			require.NoError(t, err)
-
-			// Then only the expected models are listed.
-			require.Equal(t, tc.want(f), got)
+	listUnpricedModels := func(t *testing.T, f fixture, org uuid.NullUUID) []database.GetUnpricedAIModelsRow {
+		t.Helper()
+		got, err := f.db.GetUnpricedAIModels(f.ctx, database.GetUnpricedAIModelsParams{
+			OrganizationID: org,
+			PeriodStart:    periodStart,
+			PeriodEnd:      periodEnd,
+			PriceableProviders: []string{
+				string(database.AIProviderTypeAnthropic),
+				string(database.AIProviderTypeOpenai),
+			},
 		})
+		require.NoError(t, err)
+		return got
 	}
+
+	t.Run("AllOrganizations", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			given func(t *testing.T, f fixture)
+			want  func(f fixture) []database.GetUnpricedAIModelsRow
+		}{
+			{
+				// Given usage of models without a price on two providers of the
+				// same type, then each provider lists its models, most used first.
+				name: "UnpricedUsageIsListedPerProviderMostUsedFirst",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 120, outputTokens: 80})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
+					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{
+						unpricedModel(f.anthropic, "model-a", 300),
+						unpricedModel(f.anthropicDev, "model-a", 100),
+						unpricedModel(f.anthropic, "model-b", 50),
+					}
+				},
+			},
+			{
+				// Given models with the same usage, then they are sorted by
+				// provider name, then by model ignoring case.
+				name: "TiesSortedByProviderNameThenModel",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "Model-C", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{
+						unpricedModel(f.anthropicDev, "model-a", 100),
+						unpricedModel(f.anthropic, "model-b", 100),
+						unpricedModel(f.anthropic, "Model-C", 100),
+					}
+				},
+			},
+			{
+				// Given usage priced when it was recorded, then the model is not
+				// listed.
+				name: "PricedUsageIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-a", cost: 10})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given usage priced through the model reported by the provider,
+				// then the requested model is not listed, even though it has no
+				// price of its own.
+				name: "UsagePricedThroughProviderModelIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-y", cost: 10})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given usage whose price was found but whose cost could not be
+				// computed, then the model is not listed, since it is not missing a
+				// price.
+				name: "UsageWithUncomputableCostIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-a"})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage of a model that was priced site-wide since,
+				// then the model is not listed.
+				name: "ModelPricedSinceIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-a")
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage of a model whose provider model was priced
+				// since, then the requested model is still listed, since the
+				// provider may not serve that model next time.
+				name: "ModelWhoseProviderModelWasPricedSinceIsListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-y")
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)}
+				},
+			},
+			{
+				// Given prices that match only the provider type or only the
+				// model, then the model is still listed.
+				name: "PriceMustMatchProviderTypeAndModel",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					priceSiteWide(t, f, database.AIProviderTypeOpenai, "model-a")
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-b")
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
+				},
+			},
+			{
+				// Given unpriced usage recorded before the period and at its
+				// exclusive end, then neither is listed.
+				name: "UsageOutsidePeriodIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: periodStart.Add(-time.Second), inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-b", createdAt: periodEnd, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage recorded in the period by an interception
+				// that started before it, then the model is listed, since the
+				// period applies to when the usage was recorded.
+				name: "UsageRecordedInPeriodIsListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", startedAt: periodStart.Add(-time.Hour), createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) []database.GetUnpricedAIModelsRow {
+					return []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-a", 100)}
+				},
+			},
+			{
+				// Given unpriced usage on an openai-compat provider, which cannot be
+				// priced, then the model is not listed.
+				name: "UnpriceableProviderIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.openaiCompat, model: "llama-4", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given unpriced usage on a provider deleted since, then the model
+				// is not listed.
+				name: "DeletedProviderIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-a", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					require.NoError(t, f.db.DeleteAIProviderByID(f.ctx, f.anthropic.ID))
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+			{
+				// Given an interception without token usage, then its model is not
+				// listed, since nothing was used.
+				name: "InterceptionWithoutUsageIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					dbgen.AIBridgeInterception(t, f.db, database.InsertAIBridgeInterceptionParams{
+						InitiatorID:  dbgen.User(t, f.db, database.User{}).ID,
+						Provider:     string(f.anthropic.Type),
+						ProviderName: f.anthropic.Name,
+						Model:        "model-a",
+						StartedAt:    inPeriod,
+					}, nil)
+				},
+				want: func(fixture) []database.GetUnpricedAIModelsRow { return nil },
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newFixture(t)
+				tc.given(t, f)
+
+				// When listing the unpriced models of the period for every
+				// organization.
+				got := listUnpricedModels(t, f, uuid.NullUUID{})
+
+				// Then only the expected models are listed.
+				require.Equal(t, tc.want(f), got)
+			})
+		}
+	})
+
+	t.Run("OrganizationPrices", func(t *testing.T) {
+		t.Parallel()
+
+		// unpricedModelsByScope is the unpriced models listed for every
+		// organization, for orgA, and for orgB.
+		type unpricedModelsByScope struct {
+			all, orgA, orgB []database.GetUnpricedAIModelsRow
+		}
+		tests := []struct {
+			name  string
+			given func(t *testing.T, f fixture)
+			want  func(f fixture) unpricedModelsByScope
+		}{
+			{
+				// Given unpriced usage in orgA only, then it is listed for every
+				// organization and orgA only.
+				name: "UsageIsListedOnlyForItsOrganization",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given unpriced usage without an effective group, then it is
+				// listed for every organization only, since it belongs to none.
+				name: "UsageWithoutEffectiveGroupIsListedOnlyForAllOrganizations",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: nil,
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given orgA priced the model after using it unpriced, then it is not
+				// listed, since it now has a price.
+				name: "ModelPricedInOrganizationSinceIsNotListed",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", orgInputPrice)
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  nil,
+						orgA: nil,
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given orgA priced the model and orgB did not, and both used it,
+				// then it is listed for every organization and orgB only.
+				name: "ModelPricedInOneOrganizationIsListedForTheOther",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", orgInputPrice)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-x", cost: 10})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupB, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: nil,
+						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+					}
+				},
+			},
+			{
+				// Given orgA priced the provider model and orgB did not, and the
+				// provider served it for both, then the requested model is listed for
+				// every organization and orgB only.
+				name: "UsagePricedThroughProviderModelInOneOrganizationIsListedForTheOther",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-y", orgInputPrice)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40, pricedModel: "model-y", cost: 10})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupB, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgA: nil,
+						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+					}
+				},
+			},
+			{
+				// Given unpriced usage in both organizations whose provider model was
+				// priced site-wide after the usage, then the requested model is still
+				// listed for each of them.
+				name: "ModelWhoseProviderModelWasPricedSinceIsListedForEachOrganization",
+				given: func(t *testing.T, f fixture) {
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", providerModel: "model-y", group: f.groupB, createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
+					priceSiteWide(t, f, database.AIProviderTypeAnthropic, "model-y")
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 150)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100)},
+						orgB: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 50)},
+					}
+				},
+			},
+			{
+				// Given orgA priced the model on one provider only, then its usage
+				// on the other provider of the same type is still listed.
+				name: "OrganizationPriceMustMatchProvider",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", orgInputPrice)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropicDev, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropicDev, "model-x", 100)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropicDev, "model-x", 100)},
+						orgB: nil,
+					}
+				},
+			},
+			{
+				// Given orgA configured the model without any price, or priced it
+				// and deleted the config since, then it is still listed.
+				name: "OrganizationConfigWithoutPriceIsListed",
+				given: func(t *testing.T, f fixture) {
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-x", sql.NullInt64{})
+					configureOrgModel(t, f, f.orgA, f.anthropic, "model-y", orgInputPrice)
+					_, err := f.db.DeleteOrganizationAIProviderModelConfig(f.ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+						OrganizationID: f.orgA.ID, ProviderID: f.anthropic.ID, Model: "model-y",
+					})
+					require.NoError(t, err)
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-x", group: f.groupA, createdAt: inPeriod, inputTokens: 60, outputTokens: 40})
+					recordTokenUsage(t, f, usage{provider: f.anthropic, model: "model-y", group: f.groupA, createdAt: inPeriod, inputTokens: 30, outputTokens: 20})
+				},
+				want: func(f fixture) unpricedModelsByScope {
+					return unpricedModelsByScope{
+						all:  []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)},
+						orgA: []database.GetUnpricedAIModelsRow{unpricedModel(f.anthropic, "model-x", 100), unpricedModel(f.anthropic, "model-y", 50)},
+						orgB: nil,
+					}
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newFixture(t)
+				tc.given(t, f)
+
+				// When listing the unpriced models of the period for every
+				// organization, for orgA, and for orgB.
+				want := tc.want(f)
+				for _, scope := range []struct {
+					name string
+					org  uuid.NullUUID
+					want []database.GetUnpricedAIModelsRow
+				}{
+					{name: "AllOrganizations", want: want.all},
+					{name: "OrgA", org: uuid.NullUUID{UUID: f.orgA.ID, Valid: true}, want: want.orgA},
+					{name: "OrgB", org: uuid.NullUUID{UUID: f.orgB.ID, Valid: true}, want: want.orgB},
+				} {
+					got := listUnpricedModels(t, f, scope.org)
+
+					// Then only the expected models are listed.
+					require.Equal(t, scope.want, got, scope.name)
+				}
+			})
+		}
+	})
 }
 
 func TestGetAIModelPrices(t *testing.T) {

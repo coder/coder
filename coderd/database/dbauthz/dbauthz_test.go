@@ -7733,6 +7733,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(database.GetUnpricedAIModelsParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
+	s.Run("Organization/GetUnpricedAIModels", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.GetUnpricedAIModelsParams{OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true}}
+		db.EXPECT().GetUnpricedAIModels(gomock.Any(), arg).Return([]database.GetUnpricedAIModelsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAiModelPrice.InOrg(org.ID), policy.ActionRead)
+	}))
+
 	s.Run("GetOrganizationGroupsAISpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		row1 := testutil.Fake(s.T(), faker, database.GetOrganizationGroupsAISpendRow{OrganizationID: org.ID})
