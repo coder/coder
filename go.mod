@@ -135,9 +135,11 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    through each provider's file part converter (Anthropic documents,
 //    Chat Completions user file parts, native Responses outputs) and add
 //    a filename. Chat Completions file parts refuse text files, as
-//    Responses does.
-// See: https://github.com/coder/fantasy/commits/04dc16d83662
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103061125-04dc16d83662
+//    Responses does. Since coder/fantasy#84, a text part ahead of the
+//    media in the Chat Completions user message names the tool call and
+//    marks the media as tool output.
+// See: https://github.com/coder/fantasy/commits/a82a0b8fb9f5
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261104063314-a82a0b8fb9f5
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
