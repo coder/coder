@@ -298,8 +298,8 @@ export function useConversationEditingState(deps: {
 	// followed by the compose draft if the user changed it during the edit's
 	// failed request, and in follow mode it does not load a newly marked row.
 	// If an unchanged edit's target goes away, the pre-edit draft comes back
-	// and the composer follows the row the server marks, unless the composer
-	// mode was already set to draft, as a refused Edit does.
+	// and the composer follows the marked row, unless the composer mode was
+	// already set to draft, as a refused Edit does.
 	// The pre-edit draft is captured once per session. A queued row with
 	// saved text typed against its current content loads that text, which
 	// counts as changed against the row's content. When that edit ends, the
