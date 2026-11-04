@@ -66,6 +66,8 @@ Spend is shown where it is actionable:
 - **Chat summary panel**:
   the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
+- **Chat overview card**:
+  the same chat tree cost, in the card at the top right of a wide chat.
 
 For organization spend exports, refer to [AI Gateway spend export](../../ai-gateway/cost-controls.md#spend-export).
 

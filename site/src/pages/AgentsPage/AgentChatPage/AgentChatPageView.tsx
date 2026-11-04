@@ -31,6 +31,7 @@ import {
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import { ChatOverviewCard } from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -48,6 +49,7 @@ import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useChatOverview } from "../hooks/useChatOverview";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -304,6 +306,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const { observeChat, ...overview } = useChatOverview({
+		isRightPanelOpen: showSidebarPanel,
+	});
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -778,7 +783,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<DesktopPanelContext value={desktopPanelCtx}>
-				<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
+				<div
+					ref={observeChat}
+					className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]"
+				>
 					<div
 						className={cn(
 							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
@@ -795,6 +803,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onToggleSidebar: () =>
 										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
+								overviewToggle={overview.toggle}
 							/>
 							{modelCatalogError != null && (
 								<ErrorAlert error={modelCatalogError} />
@@ -826,6 +835,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 								}}
 							/>
+							{overview.isCardShown && (
+								<ChatOverviewCard
+									chat={chat}
+									store={store}
+									repositories={gitWatcher.repositories}
+									hasMoreMessages={hasMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									onOpenTarget={(target) => activateRightPanelTab(target.tabId)}
+								/>
+							)}
 						</div>
 						<ChatWorkspaceContext
 							value={{

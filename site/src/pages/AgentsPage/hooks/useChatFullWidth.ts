@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-const KEY = "agents.chat-full-width";
+/** Holds "true" while the chat transcript uses the full width. */
+export const chatFullWidthStorageKey = "agents.chat-full-width";
 
 // In-tab subscribers. The native "storage" event only fires
 // cross-tab, so we maintain our own listener set for same-tab
@@ -12,7 +13,7 @@ function subscribe(callback: () => void): () => void {
 
 	// Cross-tab changes via the native storage event.
 	const onStorage = (e: StorageEvent) => {
-		if (e.key === KEY) {
+		if (e.key === chatFullWidthStorageKey) {
 			callback();
 		}
 	};
@@ -25,7 +26,7 @@ function subscribe(callback: () => void): () => void {
 }
 
 function getSnapshot(): boolean {
-	return localStorage.getItem(KEY) === "true";
+	return localStorage.getItem(chatFullWidthStorageKey) === "true";
 }
 
 /**
@@ -45,7 +46,7 @@ export function useChatFullWidth(): [boolean, (v: boolean) => void] {
 	const enabled = useSyncExternalStore(subscribe, getSnapshot);
 
 	const setEnabled = (value: boolean) => {
-		localStorage.setItem(KEY, String(value));
+		localStorage.setItem(chatFullWidthStorageKey, String(value));
 		for (const fn of listeners) {
 			fn();
 		}
