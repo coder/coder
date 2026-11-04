@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests for doc-check-stop-review.sh against a fake curl, sleep, and date
 # on PATH. The fake sleep and date share a virtual clock, which slow fake
-# requests also advance, so no case waits in real time and the timing cases
-# hold on a loaded machine. No CI job runs this file.
+# requests also advance, so no case waits in real time and every timing
+# assertion counts virtual seconds. A case that polls past CLOCK_LIMIT
+# virtual seconds fails. No CI job runs this file.
 #
 # Run: bash .github/scripts/doc-check-stop-review.test.sh
 
@@ -12,12 +13,23 @@ SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/doc-check-stop-review.sh"
 WORK=$(mktemp -d)
 trap 'rm -rf "${WORK}"' EXIT
 
+readonly CLOCK_START=1000
+readonly CLOCK_LIMIT=$((CLOCK_START + 3000))
+# Real seconds. Only a loop that never sleeps reaches this, because the
+# fake sleep ends polling at CLOCK_LIMIT.
+readonly REAL_SECONDS_LIMIT=600
+
 mkdir -p "${WORK}/bin"
 REAL_DATE=$(command -v date)
 cat >"${WORK}/bin/sleep" <<'EOF'
 #!/usr/bin/env bash
 echo "SLEEP $1" >>"${STATE}/calls"
-echo $(($(cat "${STATE}/clock") + $1)) >"${STATE}/clock"
+clock=$(($(cat "${STATE}/clock") + $1))
+echo "${clock}" >"${STATE}/clock"
+if ((clock > CLOCK_LIMIT)); then
+	touch "${STATE}/clock-limit"
+	exit 1
+fi
 EOF
 cat >"${WORK}/bin/date" <<EOF
 #!/usr/bin/env bash
@@ -30,13 +42,16 @@ EOF
 
 # The fake API. State lives in ${STATE}/state.json:
 #   chats       id -> {status, workspace_id, children, queued,
-#               queue_on_interrupt}; an interrupt queues the
-#               queue_on_interrupt messages once
+#               queue_on_interrupt, promote_after_read}; an interrupt
+#               queues the queue_on_interrupt messages once, and the next
+#               queue read after promote_after_read is set drops the first
+#               queued message, as a turn that ends after the read would
 #   list        chat IDs the label lookup returns
 #   stuck       chat IDs that ignore interrupts
 #   workspaces  id -> {name, transition, statuses, after_stop}; each read
-#               takes the next status and keeps the last, and a stop
-#               applies after_stop when it is set
+#               takes the next status and keeps the last, a stop answers
+#               409 while the last status read is a build in progress, and
+#               a stop applies after_stop when it is set
 #   fail        paths that answer with an HTTP error
 #   fail_seq    path -> list of booleans, one a call, keeping the last;
 #               true answers with an HTTP error
@@ -102,6 +117,7 @@ GET\ /api/v2/chats/*/messages)
 	id="${path#/api/v2/chats/}"
 	id="${id%/messages}"
 	jq -c --arg id "${id}" '{messages: [], queued_messages: [.chats[$id].queued[] | {id: .}]}' "${st}"
+	update --arg id "${id}" 'if .chats[$id].promote_after_read then .chats[$id].queued |= .[1:] | .chats[$id].promote_after_read = false else . end'
 	;;
 DELETE\ /api/v2/chats/*/queue/*)
 	rest="${path#/api/v2/chats/}"
@@ -153,8 +169,11 @@ GET\ /api/v2/chats/*)
 POST\ /api/v2/workspaces/*/builds)
 	id="${path#/api/v2/workspaces/}"
 	id="${id%/builds}"
+	if jq -e --arg id "${id}" '.workspaces[$id] | (.current // .statuses[0]) | IN("pending", "starting", "stopping", "canceling", "deleting")' "${st}" >/dev/null; then
+		fail
+	fi
 	echo "STATE active chats: $(jq '[.chats[] | select(.status | IN("running", "requires_action", "interrupting"))] | length' "${st}")" >>"${STATE}/calls"
-	update --arg id "${id}" '.workspaces[$id] += ({transition: "stop", statuses: ["stopping", "stopping", "stopped"]} + (.workspaces[$id].after_stop // {}))'
+	update --arg id "${id}" '.workspaces[$id] += ({transition: "stop", statuses: ["stopping", "stopping", "stopped"]} + (.workspaces[$id].after_stop // {})) | .workspaces[$id].current = .workspaces[$id].statuses[0]'
 	echo '{}'
 	;;
 GET\ /api/v2/workspaces/*)
@@ -165,7 +184,7 @@ GET\ /api/v2/workspaces/*)
 		fail
 	fi
 	jq -c --arg id "${id}" '.workspaces[$id] | {id: $id, name, latest_build: {transition, status: .statuses[0]}}' "${st}"
-	update --arg id "${id}" 'if (.workspaces[$id].statuses | length) > 1 then .workspaces[$id].statuses |= .[1:] else . end'
+	update --arg id "${id}" '.workspaces[$id].current = .workspaces[$id].statuses[0] | if (.workspaces[$id].statuses | length) > 1 then .workspaces[$id].statuses |= .[1:] else . end'
 	;;
 *)
 	echo "fake curl: unhandled ${method} ${path}" >&2
@@ -190,18 +209,21 @@ run_case() {
 	: >"${STATE}/calls"
 	# The clock starts away from zero, so a case shows that the script counts
 	# from its own start.
-	echo 1000 >"${STATE}/clock"
+	echo "${CLOCK_START}" >"${STATE}/clock"
 	jq -n "{chats: {}, list: [], stuck: [], workspaces: {}, fail: [], fail_seq: {}, slow: {}} + ($3)" >"${STATE}/state.json"
 	local code=0
-	# A loop that never ends fails its case instead of hanging the suite.
 	local -a limit=()
-	command -v timeout >/dev/null && limit=(timeout 60)
-	OUT=$(env PATH="${WORK}/bin:${PATH}" CODER_URL="https://coder.example.com/" CODER_TOKEN="token" \
+	command -v timeout >/dev/null && limit=(timeout "${REAL_SECONDS_LIMIT}")
+	OUT=$(env PATH="${WORK}/bin:${PATH}" CLOCK_LIMIT="${CLOCK_LIMIT}" \
+		CODER_URL="https://coder.example.com/" CODER_TOKEN="token" \
 		PR_URL="$2" WORKFLOW_NAME="AI Documentation Check" GITHUB_REPOSITORY="coder/coder" \
 		"${@:4}" "${limit[@]}" bash "${SCRIPT}" 2>&1) || code=$?
 	CALLS=$(cat "${STATE}/calls")
 	if [[ "${code}" != 0 ]]; then
 		fail_case "exited ${code}"
+	fi
+	if [[ -e "${STATE}/clock-limit" ]]; then
+		fail_case "polled past ${CLOCK_LIMIT} on the virtual clock"
 	fi
 }
 
@@ -226,6 +248,19 @@ expect_calls() {
 	local want="$1" pattern="$2" got
 	got=$(grep -cF -- "${pattern}" <<<"${CALLS}" || true)
 	[[ "${got}" == "${want}" ]] || fail_case "want ${want} calls matching '${pattern}', got ${got}"
+}
+
+# Counts the matching calls in the first sweep, before the first poll.
+expect_first_sweep_calls() {
+	local want="$1" pattern="$2" got
+	got=$(sed '/^SLEEP/q' <<<"${CALLS}" | grep -cF -- "${pattern}" || true)
+	[[ "${got}" == "${want}" ]] || fail_case "want ${want} calls matching '${pattern}' before the first poll, got ${got}"
+}
+
+expect_warnings() {
+	local got
+	got=$(grep -cF -- "::warning::" <<<"${OUT}" || true)
+	[[ "${got}" == "$1" ]] || fail_case "want $1 warnings, got ${got}"
 }
 
 expect_before() {
@@ -259,6 +294,7 @@ expect_calls 0 "/builds"
 expect_calls 0 "SLEEP"
 expect_no_output "::warning::"
 expect_no_output "are stopped"
+expect_no_output "Stopped workspace"
 
 run_case running-review "https://github.com/coder/coder/issues/12" '{
 	list: ["r1"],
@@ -313,6 +349,35 @@ run_case full-queue "https://github.com/coder/coder/pull/12" '{
 }'
 expect_calls 20 "DELETE /api/v2/chats/r1/queue/"
 expect_before "DELETE /api/v2/chats/r1/queue/20" "POST /api/v2/chats/r1/interrupt"
+expect_no_output "::warning::"
+
+# Past 20 deletes, the script warns that the chat will restart, and leaves
+# the rest to the next sweep.
+run_case queue-overflow "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	chats: {r1: {status: "running", workspace_id: null, children: [], queued: [range(1; 22)]}}
+}'
+expect_first_sweep_calls 20 "DELETE /api/v2/chats/r1/queue/"
+expect_output "::warning::Chat r1 still has queued messages after 20 deletes. When its interruption finishes, the next queued message starts it again."
+
+# A failed queue read warns once a sweep and goes on to the interrupt.
+run_case queue-read-fails "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	fail: ["/api/v2/chats/r1/messages"],
+	chats: {r1: {status: "running", workspace_id: null, children: [], queued: [11]}}
+}'
+expect_first_sweep_calls 1 "GET /api/v2/chats/r1/messages"
+expect_first_sweep_calls 1 "POST /api/v2/chats/r1/interrupt"
+expect_output "::warning::Could not read the queue of chat r1. When its interruption finishes, the next queued message starts it again."
+
+# A delete answers 404 for a message that chatd promoted after the read,
+# so the script reads the queue again and drops the rest without a warning.
+run_case queue-promoted "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	chats: {r1: {status: "running", workspace_id: null, children: [], queued: [11, 12], promote_after_read: true}}
+}'
+expect_calls 1 "DELETE /api/v2/chats/r1/queue/11"
+expect_before "DELETE /api/v2/chats/r1/queue/12" "POST /api/v2/chats/r1/interrupt"
 expect_no_output "::warning::"
 
 # The interrupt returns c1 to running, and a message arrives in its queue
@@ -416,12 +481,37 @@ run_case chat-read-lost "https://github.com/coder/coder/pull/12" '{
 expect_calls 1 "POST /api/v2/chats/r1/interrupt"
 expect_output "::warning::Could not read review chat r1. It may still be running in Coder."
 
-run_case build-in-progress "https://github.com/coder/coder/pull/12" '{
-	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting", "starting", "running"]}}
+# A failed interrupt, like the 409 for a chat that ended its turn after the
+# read, does not warn, and the next sweep tries again.
+run_case interrupt-fails "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	fail_seq: {"/api/v2/chats/r1/interrupt": [true, false]},
+	chats: {r1: {status: "running", workspace_id: null, children: [], queued: []}}
 }'
-expect_calls 1 "POST /api/v2/workspaces/w1/builds"
-expect_before "GET /api/v2/workspaces/w1" "POST /api/v2/workspaces/w1/builds"
-expect_output "Stopped workspace doc-check-pr-12."
+expect_calls 2 "POST /api/v2/chats/r1/interrupt"
+expect_output "Could not interrupt chat r1. The next sweep checks it again."
+expect_output "Review chat r1 and its sub-agents are stopped."
+expect_no_output "::warning::"
+
+# coderd answers a stop with 409 while a build is in progress, so a start
+# build gets its stop after it ends, and a stop or delete build gets none.
+for build in "start pending running" "start starting running" "start canceling canceled" \
+	"stop stopping stopped" "delete deleting deleted"; do
+	read -r transition status final <<<"${build}"
+	run_case "build-${status}" "https://github.com/coder/coder/pull/12" "{
+		workspaces: {w1: {name: \"doc-check-pr-12\", transition: \"${transition}\",
+			statuses: [\"${status}\", \"${status}\", \"${final}\"]}}
+	}"
+	expect_no_output "::warning::"
+	if [[ "${transition}" == "start" ]]; then
+		expect_before "SLEEP" "POST /api/v2/workspaces/w1/builds"
+		expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+		expect_output "Stopped workspace doc-check-pr-12."
+	else
+		expect_calls 0 "/builds"
+		expect_no_output "Stopped workspace"
+	fi
+done
 
 # A poll starts only while more than 5 seconds are left, so a 20-second
 # budget reads at 0, 5, 10, and 15 seconds.
@@ -485,7 +575,7 @@ run_case two-workspaces "https://github.com/coder/coder/pull/12" '{
 		w1: {name: "review-12", transition: "start", statuses: ["starting"]},
 		w2: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}
 	}
-}'
+}' STOP_BUDGET_SECONDS=30
 expect_before "POST /api/v2/workspaces/w2/builds" "SLEEP"
 expect_output "Stopped workspace doc-check-pr-12."
 expect_output "::warning::Workspace review-12 did not finish its build"
@@ -499,6 +589,7 @@ run_case deleted-workspace "https://github.com/coder/coder/pull/12" '{
 expect_calls 1 "GET /api/v2/workspaces/w1"
 expect_calls 0 "/builds"
 expect_no_output "::warning::"
+expect_no_output "Stopped workspace"
 
 # The workspace name has only the PR number, so a PR in another
 # repository must not stop this repository's workspace.
@@ -543,7 +634,16 @@ run_case workspace-read-fails "https://github.com/coder/coder/pull/12" '{
 	chats: {r1: {status: "waiting", workspace_id: "w1", children: [], queued: []}},
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
 }'
-expect_output "::warning::Could not read workspace w1."
+expect_output "::warning::Could not read workspace w1, so this run could not confirm it stopped. It may still be running in Coder."
+
+# A workspace that could be read at first but not later may still be
+# running.
+run_case workspace-read-lost "https://github.com/coder/coder/pull/12" '{
+	fail_seq: {"/api/v2/workspaces/w1": [false, true]},
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting"]}}
+}' STOP_BUDGET_SECONDS=30
+expect_output "::warning::Could not read workspace doc-check-pr-12, so this run could not confirm it stopped."
+expect_warnings 1
 
 run_case workspace-read-recovers "https://github.com/coder/coder/pull/12" '{
 	fail_seq: {"/api/v2/workspaces/w1": [true, false]},
@@ -553,17 +653,41 @@ expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 expect_output "Stopped workspace doc-check-pr-12."
 expect_no_output "::warning::"
 
+# A failed stop is retried after a new read on every poll, and warns once,
+# at the end. With a 30-second budget, the polls read at 5 to 25 seconds.
 run_case stop-fails "https://github.com/coder/coder/pull/12" '{
 	fail: ["/api/v2/workspaces/w1/builds"],
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
+}' STOP_BUDGET_SECONDS=30
+expect_calls 6 "GET /api/v2/workspaces/w1"
+expect_calls 6 "POST /api/v2/workspaces/w1/builds"
+expect_output "::warning::Could not stop workspace doc-check-pr-12. It stops at its autostop deadline instead."
+expect_warnings 1
+
+run_case stop-recovers "https://github.com/coder/coder/pull/12" '{
+	fail_seq: {"/api/v2/workspaces/w1/builds": [true, false]},
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
 }'
-expect_output "::warning::Could not stop workspace doc-check-pr-12."
+expect_calls 2 "POST /api/v2/workspaces/w1/builds"
+expect_output "Stopped workspace doc-check-pr-12."
+expect_no_output "::warning::"
+
+# A build that starts after a failed stop request, as the 409 for that
+# request means, is reported as a build that did not finish.
+run_case stop-fails-then-build "https://github.com/coder/coder/pull/12" '{
+	fail: ["/api/v2/workspaces/w1/builds"],
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running", "starting"]}}
+}' STOP_BUDGET_SECONDS=30
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+expect_output "::warning::Workspace doc-check-pr-12 did not finish its build within the 30-second budget."
+expect_warnings 1
 
 run_case queue-delete-fails "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
 	fail: ["/api/v2/chats/r1/queue/11"],
 	chats: {r1: {status: "running", workspace_id: null, children: [], queued: [11]}}
 }'
+expect_first_sweep_calls 1 "DELETE /api/v2/chats/r1/queue/11"
 expect_output "::warning::Could not drop queued message 11 on chat r1."
 
 # A value written on Windows can carry a trailing carriage return.
