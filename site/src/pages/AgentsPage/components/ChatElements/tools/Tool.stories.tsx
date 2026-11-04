@@ -1019,6 +1019,13 @@ export const WaitAgentFailedWhileChildRunning: Story = {
 	},
 };
 
+export const WaitAgentErrorOverridesCompletedStatus: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		status: "completed",
+	},
+};
+
 export const MessageAgentFailedWhileChildRunning: Story = {
 	args: {
 		...WaitAgentFailedWhileChildRunning.args,
