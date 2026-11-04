@@ -27,7 +27,7 @@ Without `API_BASE_URL`, Coder defaults to `https://api.github.com`.
 Clone and push still work (they use `AUTH_URL` and `TOKEN_URL` directly), but the diff viewer silently fails because Coder builds its URL-matching patterns from the API base URL.
 
 > [!NOTE]
-> If you have both a `github.com` and a GHE external auth config, only the GHE config needs `API_BASE_URL`.
+> If you have both a `github.com` and a GitHub Enterprise (GHE) external auth config, only the GHE config needs `API_BASE_URL`.
 
 ## GitLab configuration
 

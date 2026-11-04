@@ -4,7 +4,7 @@ description: Change parameters based on the roles and groups of the user creatin
 ---
 
 Identity-aware parameters change based on the roles and groups of the user filling in the workspace creation form.
-Use them to set governance policy directly in the form, rather than creating multiple templates to manage RBAC.
+Use them to set governance policy directly in the form, rather than creating multiple templates to manage role-based access control (RBAC).
 
 User identity is referenced in Terraform by reading the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 Coder fills in this data source with the current user's identity each time the form renders, unlike other `data` sources, which Coder reads once at template import.

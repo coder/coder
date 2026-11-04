@@ -23646,6 +23646,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatProjectGroup"
                     }
                 },
+                "owner": {
+                    "description": "Owner is the project owner, who is never listed in Users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
                 "users": {
                     "type": "array",
                     "items": {
@@ -24871,6 +24879,18 @@ const docTemplate = `{
                 },
                 "oauth2_client_id": {
                     "type": "string"
+                },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
                 },
                 "oauth2_client_secret": {
                     "type": "string"
@@ -27725,6 +27745,9 @@ const docTemplate = `{
                     "description": "OAuth2 fields (only populated for admins).",
                     "type": "string"
                 },
+                "oauth2_client_registration": {
+                    "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                },
                 "oauth2_resource": {
                     "type": "string"
                 },
@@ -27885,6 +27908,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.MCPServerOAuth2ClientRegistration": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "dynamic"
+            ],
+            "x-enum-varnames": [
+                "MCPServerOAuth2ClientRegistrationManual",
+                "MCPServerOAuth2ClientRegistrationDynamic"
+            ]
         },
         "codersdk.MCPServerOAuth2DisconnectResponse": {
             "type": "object",
@@ -33305,6 +33339,18 @@ const docTemplate = `{
                 },
                 "oauth2_client_id": {
                     "type": "string"
+                },
+                "oauth2_client_registration": {
+                    "description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config ignores empty and unchanged values for\nthe client ID, client secret, auth URL, and token URL. Other values\nfail unless the request also sets \"manual\".",
+                    "enum": [
+                        "manual",
+                        "dynamic"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+                        }
+                    ]
                 },
                 "oauth2_client_secret": {
                     "type": "string"

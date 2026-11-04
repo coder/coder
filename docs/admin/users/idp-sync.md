@@ -404,11 +404,11 @@ After you change the settings, a user's memberships will update when they log ou
 
    Analyzing the JSON payload:
 
-   | Field                       | Explanation                                                                                                                                                                                                                                                                              |
-   |:----------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-   | field                       | If this field is the empty string `""`, then org-sync is disabled. <br /> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
-   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. <br /> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
-   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. <br /> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
+   | Field                       | Explanation                                                                                                                                                                                                                                                                                                     |
+   |:----------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   | field                       | If this field is the empty string `""`, then org-sync is disabled. <br /> Org memberships must be manually configured through the UI or API.                                                                                                                                                                    |
+   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by universally unique identifier (UUID). <br /> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you. |
+   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. <br /> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims.                        |
 
 </div>
 
@@ -491,7 +491,7 @@ The application '<oidc_application>' asked for scope 'groups' that doesn't exist
 ```
 
 This can happen because the identity provider has a different name for the scope.
-For example, Azure AD uses `GroupMember.Read.All` instead of `groups`.
+For example, Azure Active Directory (AD) uses `GroupMember.Read.All` instead of `groups`.
 You can find the correct scope name in the IdP's documentation.
 Some IdPs allow configuring the name of this scope.
 
@@ -522,7 +522,7 @@ Steps to troubleshoot.
 ### Active Directory Federation Services (ADFS)
 
 > [!NOTE]
-> Tested on ADFS 4.0, Windows Server 2019
+> Tested on Active Directory Federation Services (ADFS) 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
 
@@ -552,7 +552,7 @@ Steps to troubleshoot.
      {"resource":"$CLIENT_ID"}
      ```
 
-     Where `$CLIENT_ID` is the Client ID from step 1. Consult the Microsoft [AD FS OpenID Connect/OAuth flows and Application Scenarios documentation](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional) for more information.
+     Where `$CLIENT_ID` is the Client ID from step 1. Consult the Microsoft [Active Directory Federation Services (AD FS) OpenID Connect/OAuth flows and Application Scenarios documentation](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional) for more information.
 
      This is required for the upstream OIDC provider to return the requested claims.
 
@@ -561,7 +561,7 @@ Steps to troubleshoot.
 1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims) on your Federation Server to send the following claims:
 
    - `preferred_username`: You can use, for example, "Display Name" as required.
-   - `email`: You can use, for example, the LDAP attribute "E-Mail-Addresses" as required.
+   - `email`: You can use, for example, the Lightweight Directory Access Protocol (LDAP) attribute "E-Mail-Addresses" as required.
    - `email_verified`: Create a custom claim rule:
 
      ```json
