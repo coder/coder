@@ -21,6 +21,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { preload } from "react-dom";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	InputGroup,
@@ -36,15 +37,6 @@ import {
 import { EMOJI_SHEET } from "./emojiSheet";
 
 const emojiData = buildEmojiData();
-
-// Fetch the emoji spritesheet and the icon SVGs as soon as the picker chunk
-// loads, so tiles do not render empty while they download.
-new Image().src = EMOJI_SHEET.url;
-for (const entry of emojiData.emojis) {
-	if (entry.category === ICONS_CATEGORY) {
-		new Image().src = entry.emoji;
-	}
-}
 
 const categoryIcons: Record<number, React.ReactNode> = {
 	0: <SmileIcon />,
@@ -156,6 +148,15 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 	const viewportRef = useRef<HTMLDivElement>(null);
 	const [search, setSearch] = useState("");
 	const [activeCategory, setActiveCategory] = useState(0);
+
+	// Fetch the emoji spritesheet and the icon SVGs as soon as the picker chunk
+	// loads, so tiles do not render empty while they download.
+	preload(EMOJI_SHEET.url, { as: "image" });
+	for (const entry of emojiData.emojis) {
+		if (entry.category === ICONS_CATEGORY) {
+			preload(entry.emoji, { as: "image" });
+		}
+	}
 
 	const categoryElements = () =>
 		Array.from(
