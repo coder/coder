@@ -172,7 +172,7 @@ export const SendsAndClearsInput: Story = {
 		await userEvent.click(sendButton);
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -193,7 +193,7 @@ export const EnterSendsByDefault: Story = {
 		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -230,7 +230,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 
 		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -307,6 +307,33 @@ export const Streaming: Story = {
 		initialValue: "",
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingWithDraftShowsAfterTurnShortcut: Story = {
+	args: {
+		...Streaming.args,
+		initialValue: "Then run the linter",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(await canvas.findByRole("button", { name: "Send" }));
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const AfterTurnShortcutWhenModifierRequired: Story = {
+	...StreamingWithDraftShowsAfterTurnShortcut,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: {
+					...MockUserPreferenceSettings,
+					agent_chat_send_shortcut: "modifier_enter",
+				},
+			},
+		],
 	},
 };
 

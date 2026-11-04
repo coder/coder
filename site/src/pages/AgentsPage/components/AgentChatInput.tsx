@@ -57,6 +57,7 @@ import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
+	coarsePointerMediaQuery,
 	isBelowMdViewport,
 	isMobileViewport,
 	mobileViewportMediaQuery,
@@ -69,8 +70,8 @@ import {
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
 import {
+	enterSendsAgentChatMessage,
 	getAgentChatSendShortcut,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
@@ -134,7 +135,8 @@ const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	// busyBehavior is set only for an After turn send while the chat is busy.
+	onSend: (message: string, busyBehavior?: TypesGen.ChatBusyBehavior) => void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
@@ -619,6 +621,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 	const [chatFullWidth] = useChatFullWidth();
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
+	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
@@ -1204,10 +1207,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const submit = (busyBehavior?: TypesGen.ChatBusyBehavior) => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
 		if (
+			!busyBehavior &&
 			!text &&
 			!hasUploadedAttachments &&
 			!hasChips &&
@@ -1233,12 +1237,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		onSend(text, busyBehavior);
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
+	const handleSubmit = () => submit();
+	// An edit has no lane to choose.
+	const canSendAfterTurn = isStreaming && !isEditingMessage;
+	const handleSubmitAfterTurn = canSendAfterTurn
+		? () => submit("queue")
+		: undefined;
 	const handleStartRecording = () => {
 		resetPromptCycle();
 		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
@@ -1386,20 +1396,24 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const showSendButton =
 		!isReadOnlyView &&
 		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
+	const enterSends = enterSendsAgentChatMessage(sendShortcut, isCoarsePointer);
 	// Mobile viewports advertise no send shortcut.
 	const sendShortcutLabel = isMobile
 		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Cmd/Ctrl+Enter"
-			: "Enter";
+		: enterSends
+			? "Enter"
+			: "Cmd/Ctrl+Enter";
 	const sendButtonKeyShortcuts = isMobile
 		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Control+Enter Meta+Enter"
-			: "Enter";
+		: enterSends
+			? "Enter"
+			: "Control+Enter Meta+Enter";
 	const sendButtonTooltip = sendShortcutLabel
 		? `${sendButtonLabel}: ${sendShortcutLabel}`
 		: sendButtonLabel;
+	const sendAfterTurnShortcutLabel = enterSends
+		? "Cmd/Ctrl+Enter"
+		: "Option/Alt+Enter";
 
 	const content = (
 		<div
@@ -1554,6 +1568,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onChange={handleContentChange}
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
+						onSendAfterTurn={handleSubmitAfterTurn}
 						sendShortcut={sendShortcut}
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
@@ -2025,9 +2040,16 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									</Button>
 								</TooltipTrigger>
 								<TooltipContent side="top">
-									{speech.isRecording
-										? "Accept voice input"
-										: sendButtonTooltip}
+									{speech.isRecording ? (
+										"Accept voice input"
+									) : (
+										<>
+											{sendButtonTooltip}
+											{canSendAfterTurn && !isMobile && (
+												<div>After turn: {sendAfterTurnShortcutLabel}</div>
+											)}
+										</>
+									)}
 								</TooltipContent>
 							</Tooltip>
 						)}

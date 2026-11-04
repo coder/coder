@@ -23,7 +23,11 @@ import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserPreferenceSettings,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
@@ -35,6 +39,7 @@ import {
 } from "#/testHelpers/skills";
 import {
 	belowMdViewportMediaQuery,
+	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
@@ -597,6 +602,142 @@ describe("AgentChatInput", () => {
 		);
 	});
 
+	it.each([
+		[
+			"Cmd/Ctrl+Enter sends the draft for after the turn",
+			"enter",
+			false,
+			{},
+			"queue",
+		],
+		[
+			"Alt+Enter sends the draft for after the turn when Cmd/Ctrl+Enter sends",
+			"modifier_enter",
+			false,
+			{},
+			"queue",
+		],
+		[
+			"Alt+Enter sends the draft for after the turn on a coarse pointer",
+			"enter",
+			true,
+			{},
+			"queue",
+		],
+		[
+			"the After turn shortcut saves an edit without a busy behavior",
+			"enter",
+			false,
+			{ editingKind: "queued" },
+			undefined,
+		],
+	] satisfies Array<
+		[
+			string,
+			TypesGen.AgentChatSendShortcut,
+			boolean,
+			Partial<React.ComponentProps<typeof AgentChatInput>>,
+			TypesGen.ChatBusyBehavior | undefined,
+		]
+	>)(
+		"on a busy chat, %s",
+		async (_name, shortcut, coarsePointer, props, busyBehavior) => {
+			stubViewport(coarsePointer, coarsePointerMediaQuery);
+			vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue({
+				...MockUserPreferenceSettings,
+				agent_chat_send_shortcut: shortcut,
+			});
+			const user = userEvent.setup();
+			const onSend = vi.fn();
+
+			renderInput(
+				<AgentChatInput
+					onSend={onSend}
+					isDisabled={false}
+					isLoading={false}
+					isStreaming
+					onInterrupt={vi.fn()}
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+					initialValue=""
+					onContentChange={vi.fn()}
+					planModeEnabled={false}
+					onPlanModeToggle={vi.fn()}
+					isModelCatalogLoading={false}
+					{...props}
+				/>,
+			);
+
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.paste("Run the tests after this");
+			const enterSends = shortcut === "enter" && !coarsePointer;
+			await waitFor(() => {
+				expect(
+					screen.getByRole("button", { name: /^(Send|Save Edit)$/ }),
+				).toHaveAttribute(
+					"aria-keyshortcuts",
+					enterSends ? "Enter" : "Control+Enter Meta+Enter",
+				);
+			});
+			await user.keyboard(
+				enterSends ? "{Control>}{Enter}{/Control}" : "{Alt>}{Enter}{/Alt}",
+			);
+			expect(onSend).toHaveBeenCalledWith(
+				"Run the tests after this",
+				busyBehavior,
+			);
+		},
+	);
+
+	it("on a busy chat, the After turn shortcut sends nothing from an empty composer", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				isDisabled={false}
+				isLoading={false}
+				isStreaming
+				onInterrupt={vi.fn()}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+			/>,
+		);
+
+		// The Send button shows the loaded shortcut preference only while
+		// the composer holds a draft.
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("draft");
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "Send" })).toHaveAttribute(
+				"aria-keyshortcuts",
+				"Enter",
+			);
+		});
+		await user.keyboard("{Control>}a{/Control}{Backspace}");
+		await screen.findByRole("button", { name: "Stop" });
+		await user.keyboard("{Control>}{Enter}{/Control}");
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+	});
+
 	it("swaps Stop for the Send button once a draft is entered while streaming", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
@@ -638,7 +779,7 @@ describe("AgentChatInput", () => {
 
 		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSend).toHaveBeenCalledWith("Also update the docs");
+		expect(onSend).toHaveBeenCalledWith("Also update the docs", undefined);
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 
 		inputRef.current?.clear();

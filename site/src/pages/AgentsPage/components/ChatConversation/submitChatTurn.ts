@@ -40,6 +40,8 @@ export type SubmitChatTurnParams = {
 	editingTarget?: EditingTarget;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
+	// Omitted, the server uses steer.
+	busyBehavior?: TypesGen.ChatBusyBehavior;
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
@@ -282,6 +284,7 @@ export async function submitChatTurn(
 		editingTarget,
 		composerParts,
 		clearPlanMode = false,
+		busyBehavior,
 		isSubmissionPending,
 		hasModelOptions,
 		personalSkills,
@@ -434,6 +437,7 @@ export async function submitChatTurn(
 		reasoning_effort: effectiveReasoningEffort,
 		mcp_server_ids: [...mcpServerIds],
 		...planModeFieldsForCreateMessage(clearPlanMode),
+		busy_behavior: busyBehavior,
 	};
 	clearChatErrorReason(agentId);
 	store.clearStreamError();
