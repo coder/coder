@@ -62,6 +62,8 @@ import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasMoreMessages,
+	selectMessagesByID,
+	selectQueuedMessages,
 	useChatSelector,
 	useChatStore,
 } from "../components/ChatConversation/chatStore";
@@ -555,7 +557,7 @@ const AgentChatPage: React.FC = () => {
 	};
 
 	// A failed request shows the row again, so the error is not rethrown.
-	const handleDeleteQueuedMessage = async (id: number) => {
+	const requestDeleteQueuedMessage = async (id: number) => {
 		try {
 			await store.runPendingAction(
 				{ kind: "deleteQueued", queuedMessageID: id },
@@ -565,7 +567,7 @@ const AgentChatPage: React.FC = () => {
 		} catch {}
 	};
 
-	const handlePromoteQueuedMessage = async (id: number) => {
+	const requestPromoteQueuedMessage = async (id: number) => {
 		store.clearClientError();
 		clearChatErrorReason(agentId);
 		try {
@@ -579,29 +581,46 @@ const AgentChatPage: React.FC = () => {
 		}
 	};
 
+	// Reports a failed queued-message edit and rethrows it.
+	const reportQueuedEditError = async (
+		request: () => Promise<unknown>,
+		failureMessage: string,
+	) => {
+		try {
+			await request();
+		} catch (error) {
+			toast.error(
+				getErrorStatus(error) === 404
+					? "Queued message was already sent or removed."
+					: getErrorMessage(error, failureMessage),
+			);
+			throw error;
+		}
+	};
 	const saveQueuedMessage = (
 		id: number,
 		req: TypesGen.EditChatQueuedMessageRequest,
 	) =>
-		runEditQueuedMessage({
-			id,
-			req,
-			store,
-			editQueuedMessage: requestQueuedMessageSave,
-			failureMessage: "Failed to save the queued message.",
-			onError: toast.error,
-		});
+		reportQueuedEditError(
+			() => requestQueuedMessageSave({ queuedMessageId: id, req }),
+			"Failed to save the queued message.",
+		);
 	const setQueuedMessageEditing = (id: number, editing: boolean) =>
-		runEditQueuedMessage({
-			id,
-			req: { editing },
-			store,
-			editQueuedMessage: requestQueuedMessageEditing,
-			failureMessage: editing
-				? "Failed to start editing the queued message."
-				: "Failed to cancel the edit.",
-			onError: toast.error,
-		});
+		store.runPendingAction(
+			{ kind: "editQueued", queuedMessageID: id, editing },
+			liveChatStatus,
+			() =>
+				reportQueuedEditError(
+					() =>
+						requestQueuedMessageEditing({
+							queuedMessageId: id,
+							req: { editing },
+						}),
+					editing
+						? "Failed to start editing the queued message."
+						: "Failed to cancel the edit.",
+				),
+		);
 
 	const isOwner = chat !== undefined && !isViewerNotOwner;
 	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
@@ -628,10 +647,10 @@ const AgentChatPage: React.FC = () => {
 			return undefined;
 		}
 		if (composerTarget.kind === "queued") {
-			return s.queuedMessages.find((row) => row.id === composerTarget.id)
+			return selectQueuedMessages(s).find((row) => row.id === composerTarget.id)
 				?.content;
 		}
-		return s.messagesByID.get(composerTarget.id)?.content;
+		return selectMessagesByID(s).get(composerTarget.id)?.content;
 	});
 
 	const editing = useConversationEditingState({
@@ -686,7 +705,15 @@ const AgentChatPage: React.FC = () => {
 	};
 
 	const handleBeginHistoryEdit = (messageId: number) => {
+		if (editing.isRequestInFlight()) {
+			return;
+		}
 		setComposerMode({ kind: "history", id: messageId });
+	};
+	const handleEditQueuedMessageWhenIdle = (id: number) => {
+		if (!editing.isRequestInFlight()) {
+			handleEditQueuedMessage(id);
+		}
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -845,7 +872,7 @@ const AgentChatPage: React.FC = () => {
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
-					editing={{ ...editing, handleBeginHistoryEdit }}
+					editing={{ ...editing, handleBeginHistoryEdit, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={(model) => {
 						setSelectedModel(model);
@@ -888,7 +915,7 @@ const AgentChatPage: React.FC = () => {
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-					handleEditQueuedMessage={handleEditQueuedMessage}
+					handleEditQueuedMessage={handleEditQueuedMessageWhenIdle}
 					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					onImplementPlan={handleImplementPlan}

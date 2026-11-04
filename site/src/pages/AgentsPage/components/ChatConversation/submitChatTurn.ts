@@ -27,6 +27,7 @@ import {
 	type ChatStore,
 	type PendingAction,
 	selectMessagesByID,
+	selectQueuedMessages,
 } from "./chatStore";
 import type { EditingTarget } from "./types";
 
@@ -60,6 +61,10 @@ export type SubmitChatTurnParams = {
 		messageId: number;
 		req: TypesGen.EditChatMessageRequest;
 	}) => Promise<unknown>;
+	saveQueuedMessage: (
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	) => Promise<unknown>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
@@ -277,6 +282,43 @@ export async function submitChatTurn(
 			compact,
 			clearChatContext,
 		});
+		return;
+	}
+
+	if (editingTarget?.kind === "queued") {
+		const queuedMessageID = editingTarget.id;
+		// A queued row keeps its model and effort unless the user changes
+		// them during this edit; the picker otherwise shows the chat's model,
+		// not the row's.
+		const request: TypesGen.EditChatQueuedMessageRequest = {
+			content,
+			model_config_id: isEditModelDirtyRef.current
+				? effectiveSelectedModel || undefined
+				: undefined,
+			reasoning_effort: isEditReasoningEffortDirtyRef.current
+				? effectiveReasoningEffort
+				: undefined,
+			editing: false,
+		};
+		const row = selectQueuedMessages(store.getSnapshot()).find(
+			(queued) => queued.id === queuedMessageID,
+		);
+		await store.runPendingAction(
+			{
+				kind: "editQueued",
+				queuedMessageID,
+				editing: false,
+				content:
+					row &&
+					buildOptimisticEditedMessage({
+						requestContent: content,
+						originalMessage: { ...row, role: "user" },
+						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+					}).content,
+			},
+			chatStatus,
+			() => saveQueuedMessage(queuedMessageID, request),
+		);
 		return;
 	}
 
