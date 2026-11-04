@@ -1499,7 +1499,8 @@ func convertCallResult(
 // with the canonical extension of mediaType appended when the name's own
 // extension does not map to mediaType, because providers such as OpenAI
 // detect the file type from the extension. The name follows the rule for
-// uploaded file names, chatfiles.NormalizeStoredFileName. It returns "" when
+// uploaded file names, chatfiles.NormalizeStoredFileName, but truncation
+// shortens only the stem so that the extension stays. It returns "" when
 // the URI does not name a file or mediaType has no known extension.
 func resourceFilename(uri, mediaType string) string {
 	u, err := url.Parse(uri)
@@ -1514,19 +1515,26 @@ func resourceFilename(uri, mediaType string) string {
 	if err != nil {
 		return ""
 	}
+	ext := path.Ext(name)
 	// TypeByExtension adds a charset parameter to text types.
-	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name))); err == nil && extType == baseType {
-		return chatfiles.NormalizeStoredFileName(name)
-	}
-	ext := ".pdf"
-	if baseType != "application/pdf" {
+	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(ext)); err == nil && extType == baseType {
+		name = strings.TrimSuffix(name, ext)
+	} else if baseType == "application/pdf" {
+		ext = ".pdf"
+	} else {
 		exts, err := mime.ExtensionsByType(baseType)
 		if err != nil || len(exts) == 0 {
 			return ""
 		}
 		ext = exts[0]
 	}
-	return chatfiles.NormalizeStoredFileName(name + ext)
+	// NormalizeStoredFileName returns valid UTF-8, so ToValidUTF8 drops only
+	// a rune that the cut splits.
+	stem := chatfiles.NormalizeStoredFileName(name)
+	if limit := chatfiles.MaxStoredFileNameBytes - len(ext); len(stem) > limit {
+		stem = strings.ToValidUTF8(stem[:limit], "")
+	}
+	return stem + ext
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
