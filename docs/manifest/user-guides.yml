@@ -1,4 +1,4 @@
-title: User guides
+title: Workspaces
 description: Guides for Coder end users on accessing, managing, and personalizing their workspaces.
 path: ./user-guides/index.md
 icon_path: ./images/icons/users.svg
@@ -13,6 +13,10 @@ children:
     description: Let multiple users securely connect to a single Coder workspace to program and debug together.
     path: ./user-guides/shared-workspaces.md
     icon_path: ./images/icons/generic.svg
+  - title: Persistent shared workspaces
+    description: Set up long-lived shared workspaces with service accounts and workspace sharing.
+    path: ./user-guides/persistent-shared-workspaces.md
+    state: [premium]
   - title: Manage workspace schedules
     description: Control cloud costs by scheduling when your Coder workspaces automatically start and stop.
     path: ./user-guides/workspace-scheduling.md
@@ -30,3 +34,9 @@ children:
     description: Store secret values in Coder and automatically inject them into workspaces.
     path: ./user-guides/user-secrets.md
     icon_path: ./images/icons/secrets.svg
+  - title: Cloning Git repositories
+    description: Learn how to automatically clone Git repositories into your Coder workspaces on startup.
+    path: ./user-guides/cloning-git-repositories.md
+  - title: Speed up your workspaces
+    description: Speed up Coder template builds and workspace startup with practical optimizations.
+    path: ./user-guides/speed-up-templates.md

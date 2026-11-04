@@ -29,7 +29,7 @@ Substitute the usernames, group names, and template to match your use case.
 
 - A running Coder deployment (v2.32+) with workspace sharing enabled.
   Sharing is on by default for open source software (OSS).
-  Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
+  Premium deployments may require [admin configuration](shared-workspaces.md#policies).
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
 - [OpenID Connect (OIDC) authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate single sign-on (SSO) identity.
@@ -51,7 +51,7 @@ coder users create \
 ```
 
 Git in the workspace uses the service account's identity and credentials for every shared user.
-To set up repository access and let users commit as themselves, refer to [Git identity and credentials](../user-guides/shared-workspaces.md#git-identity-and-credentials).
+To set up repository access and let users commit as themselves, refer to [Git identity and credentials](./shared-workspaces.md#git-identity-and-credentials).
 
 ## 2. Generate an API token for the service account
 
@@ -87,7 +87,7 @@ coder create oncall-sre/oncall-workspace \
 > [!TIP]
 > Design a dedicated template for the workspace with the tools your team needs pre-installed (for example, monitoring dashboards for on-call, test runners for QA).
 > Set `subdomain = true` on workspace apps so that shared users can access web-based tools without a 404.
-> See [Access workspace apps in shared workspaces](../user-guides/shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
+> See [Access workspace apps in shared workspaces](shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
 
 ## 4. Share the workspace
 
@@ -232,8 +232,8 @@ See [Troubleshooting group sync](../admin/users/idp-sync.md#troubleshooting-grou
 
 ## Next steps
 
-- [Shared Workspaces](../user-guides/shared-workspaces.md): full reference for workspace sharing features and UI
+- [Shared Workspaces](shared-workspaces.md): full reference for workspace sharing features and UI
 - [IdP Sync](../admin/users/idp-sync.md): group, role, and organization sync configuration
-- [Configuring Okta](./configuring-okta.md): Okta-specific OIDC setup with custom claims and scopes
-- [Security Best Practices](./best-practices/security-best-practices.md): deployment-wide security hardening
+- [Configuring Okta](../admin/users/oidc-auth/configuring-okta.md): Okta-specific OIDC setup with custom claims and scopes
+- [Security Best Practices](../admin/security/security-best-practices.md): deployment-wide security hardening
 - [Sessions and Tokens](../admin/users/sessions-tokens.md): API token management and scoping

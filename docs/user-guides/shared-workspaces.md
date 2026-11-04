@@ -103,7 +103,7 @@ Sharing a workspace grants SSH and terminal access to other users.
 However, workspace apps like code-server may return a **404 page** for non-owners depending on how the app is routed.
 
 By default, workspace apps that don't set `subdomain = true` use **path-based routing** (for example, `coder.example.com/@user/workspace/apps/code-server/`).
-Path-based apps share the same origin as the Coder dashboard, so Coder blocks non-owners from accessing them to prevent [cross-site scripting risks](../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
+Path-based apps share the same origin as the Coder dashboard, so Coder blocks non-owners from accessing them to prevent [cross-site scripting risks](../admin/security/security-best-practices.md#disable-path-based-apps).
 This restriction applies even when the user has been granted access through workspace sharing.
 
 To allow other users to access workspace apps, configure subdomain-based access:
@@ -170,7 +170,7 @@ If the template sets the commit identity from the workspace owner, commits show 
 To give the workspace access to repositories, run `coder publickey` as the service account, then add the key to a dedicated machine account on your Git provider.
 Grant that account only the repository access the shared work needs.
 
-For a complete setup, refer to [Persistent shared workspaces with service accounts](../tutorials/persistent-shared-workspaces.md).
+For a complete setup, refer to [Persistent shared workspaces with service accounts](./persistent-shared-workspaces.md).
 
 ### Commit and push as yourself
 
