@@ -15008,6 +15008,32 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
+	t.Run("SteerMessageDeliveredBeforeModelCall", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		started, release := make(chan struct{}), make(chan struct{})
+		toolCall := chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("list_templates", `{}`))
+		h := newHarness(t, blockFirstStream(started, release, toolCall))
+		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
+		testutil.TryReceive(ctx, t, started)
+		sent, err := h.server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			CreatedBy:    h.user.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("next")},
+			BusyBehavior: chatd.SendMessageBusyBehaviorSteer,
+		})
+		require.NoError(t, err)
+		require.True(t, sent.Queued)
+		close(release)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+		index := waitForTurns(ctx, t, h.recorder, 2)
+
+		turns := index[string(chatloop.StageChatTurn)]
+		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
+	})
+
 	// The promotion and its queue_wait happen only after the interruption
 	// finishes.
 	t.Run("PromoteQueuedWhileRunning", func(t *testing.T) {

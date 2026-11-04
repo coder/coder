@@ -1711,6 +1711,9 @@ type DeliverSteerMessagesInput struct{}
 type DeliverSteerMessagesResult struct {
 	// DeliveredMessages contains steer messages in position order.
 	DeliveredMessages []database.ChatMessage
+	// PromotedQueuedAt is the enqueue time of the first delivered
+	// message. It is zero when no message was delivered.
+	PromotedQueuedAt time.Time
 }
 
 // DeliverSteerMessages moves the steer lane into history in position
@@ -1746,7 +1749,10 @@ func (tx *Tx) DeliverSteerMessages(_ DeliverSteerMessagesInput) (DeliverSteerMes
 	if err != nil {
 		return DeliverSteerMessagesResult{}, err
 	}
-	return DeliverSteerMessagesResult{DeliveredMessages: d.delivered}, nil
+	return DeliverSteerMessagesResult{
+		DeliveredMessages: d.delivered,
+		PromotedQueuedAt:  d.queuedAt,
+	}, nil
 }
 
 // RecordRetryStateInput configures [Tx.RecordRetryState].

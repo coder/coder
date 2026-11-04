@@ -1463,6 +1463,7 @@ func (s *taskStarter) beginAssistantGenerationAttempt(
 ) (attempt generationAttempt, delivered bool, err error) {
 	var number int64
 	var committed database.Chat
+	var promotedQueuedAt time.Time
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -1473,6 +1474,7 @@ func (s *taskStarter) beginAssistantGenerationAttempt(
 		}
 		if len(result.DeliveredMessages) > 0 {
 			delivered = true
+			promotedQueuedAt = result.PromotedQueuedAt
 			committed, err = store.GetChatByID(ctx, input.ChatID)
 			if err != nil {
 				return xerrors.Errorf("load committed chat: %w", err)
@@ -1486,6 +1488,7 @@ func (s *taskStarter) beginAssistantGenerationAttempt(
 		return generationAttempt{}, false, normalizeTaskTransitionError(err, "begin assistant generation attempt")
 	}
 	if delivered {
+		s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
 		s.routeStateHint(ctx, stateUpdateFromChat(committed))
 		return generationAttempt{}, true, nil
 	}
