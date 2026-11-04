@@ -177,6 +177,14 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			)
 
 			require.Greater(t, workspace.LatestBuild.Deadline.Time, updatedAfter)
+			require.NotNil(t, workspace.LatestBuild.DeadlineChange)
+			require.Equal(t, codersdk.WorkspaceBuildDeadlineReasonActivity, workspace.LatestBuild.DeadlineChange.Reason)
+			require.Nil(t, workspace.LatestBuild.DeadlineChange.ChangedBy)
+			require.Equal(t, []codersdk.WorkspaceBuildDeadlineSource{{
+				Type:        codersdk.WorkspaceBuildDeadlineSourceTypeConnection,
+				AgentID:     new(workspace.LatestBuild.Resources[0].Agents[0].ID),
+				DisplayName: "Open connection",
+			}}, workspace.LatestBuild.DeadlineChange.Sources)
 
 			// If the workspace has a max deadline, the deadline must not exceed
 			// it.

@@ -284,6 +284,33 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
 	},
 };
 
+export const WithDeadlineExtendedByActivity: Story = {
+	args: {
+		workspace: {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				get deadline() {
+					return dayjs().add(55, "minute").toISOString();
+				},
+				deadline_change: {
+					reason: "activity",
+					get changed_at() {
+						return dayjs().subtract(2, "minute").toISOString();
+					},
+					changed_by: null,
+					sources: [{ type: "chat", display_name: "Coder Agents" }],
+				},
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
+		await screen.findByRole("tooltip");
+	},
+};
+
 export const WithQuotaNoOrgs: Story = {
 	parameters: {
 		showOrganizations: false,

@@ -36,6 +36,25 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "build",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "type": "session_app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -299,6 +318,25 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "build",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "type": "session_app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1148,6 +1186,25 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "build",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "type": "session_app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1522,6 +1579,25 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "build",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "type": "session_app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1766,6 +1842,20 @@ Status Code **200**
 | `» created_at`                        | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `» daily_cost`                        | integer                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `» deadline`                          | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `» deadline_change`                   | [codersdk.WorkspaceBuildDeadlineChange](schemas.md#codersdkworkspacebuilddeadlinechange)                           | false    |              | Deadline change explains the last change to Deadline, or is nil if it is unknown.                                                                                                                                                                                      |
+| `»» changed_at`                       | string(date-time)                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» changed_by`                       | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» avatar_url`                      | string(uri)                                                                                                        | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» id`                              | string(uuid)                                                                                                       | true     |              |                                                                                                                                                                                                                                                                        |
+| `»»» name`                            | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» username`                        | string                                                                                                             | true     |              |                                                                                                                                                                                                                                                                        |
+| `»» reason`                           | [codersdk.WorkspaceBuildDeadlineReason](schemas.md#codersdkworkspacebuilddeadlinereason)                           | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» sources`                          | array                                                                                                              | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» agent_id`                        | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» app_id`                          | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» app_name`                        | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» display_name`                    | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» type`                            | [codersdk.WorkspaceBuildDeadlineSourceType](schemas.md#codersdkworkspacebuilddeadlinesourcetype)                   | false    |              |                                                                                                                                                                                                                                                                        |
 | `» has_external_agent`                | boolean                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `» id`                                | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `» initiator_id`                      | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1943,11 +2033,11 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                                                                                                                                                                                              |
 |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `reason`                     | `activity`, `autostart`, `autostop`, `autostop_disabled`, `build`, `initiator`, `template_schedule`, `user_changed`                                                                                                                                   |
+| `type`                       | `chat`, `chat_upload`, `connection`, `session_app`, `template_version_dry_run`, `template_version_import`, `workspace_app`, `workspace_build`                                                                                                         |
 | `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                                   |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
 | `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `skipped`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout` |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                              |
-| `reason`                     | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                                  |
 | `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                    |
 | `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                                  |
 | `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                                    |
@@ -2034,6 +2124,25 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "deadline_change": {
+    "changed_at": "2019-08-24T14:15:22Z",
+    "changed_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
+    "reason": "build",
+    "sources": [
+      {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+        "app_name": "string",
+        "display_name": "string",
+        "type": "session_app"
+      }
+    ]
+  },
   "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",

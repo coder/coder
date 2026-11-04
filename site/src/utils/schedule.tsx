@@ -6,7 +6,11 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import { Link as RouterLink } from "react-router";
-import type { Template, Workspace } from "#/api/typesGenerated";
+import type {
+	Template,
+	Workspace,
+	WorkspaceBuildDeadlineChange,
+} from "#/api/typesGenerated";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import type { WorkspaceActivityStatus } from "#/modules/workspaces/activity";
@@ -146,15 +150,21 @@ export const autostopDisplay = (
 				</span>
 			);
 		}
+		const deadlineChange = workspace.latest_build.deadline_change;
+		const changeMessage =
+			deadlineChange && deadlineChangeMessage(deadlineChange, template);
 		return {
 			message: `Stop ${deadline.fromNow()}`,
 			tooltip: (
-				<span data-pixel="ignore">
-					{title}
-					This workspace will be stopped on{" "}
-					{deadline.format("MMMM D [at] h:mm A")}
-					{reason}
-				</span>
+				<>
+					<span data-pixel="ignore">
+						{title}
+						This workspace will be stopped on{" "}
+						{deadline.format("MMMM D [at] h:mm A")}
+						{reason}
+					</span>
+					{changeMessage && <span className="mt-2 block">{changeMessage}</span>}
+				</>
 			),
 			danger: isShutdownSoon(workspace),
 		};
@@ -172,6 +182,44 @@ export const autostopDisplay = (
 	return {
 		message: `Stop ${duration.humanize()} after start`,
 	};
+};
+
+const maxNamedActivitySources = 3;
+
+/**
+ * Explains the last change to a build's deadline, or returns undefined for the
+ * build reason. Names up to three activity sources, counting the rest as
+ * "N more".
+ */
+export const deadlineChangeMessage = (
+	change: WorkspaceBuildDeadlineChange,
+	template: Pick<Template, "name" | "display_name">,
+): string | undefined => {
+	const when = dayjs(change.changed_at).fromNow();
+	const actor = change.changed_by?.username ?? "A user";
+	switch (change.reason) {
+		case "activity": {
+			const sources = change.sources.map((source) => source.display_name);
+			if (sources.length === 0) {
+				return `Activity extended this deadline ${when}.`;
+			}
+			const listItems = sources.slice(0, maxNamedActivitySources);
+			if (sources.length > listItems.length) {
+				listItems.push(`${sources.length - listItems.length} more`);
+			}
+			return `Activity from ${new Intl.ListFormat("en-US", { type: "conjunction" }).format(listItems)} extended this deadline ${when}.`;
+		}
+		case "user_changed":
+			return `${actor} changed this deadline ${when}.`;
+		case "autostop_disabled":
+			return `${actor} turned off autostop ${when}.`;
+		case "template_schedule": {
+			const by = change.changed_by ? ` by ${change.changed_by.username}` : "";
+			return `A schedule change${by} on the ${template.display_name || template.name} template set this deadline ${when}.`;
+		}
+		case "build":
+			return undefined;
+	}
 };
 
 const isShutdownSoon = (workspace: Workspace): boolean => {
