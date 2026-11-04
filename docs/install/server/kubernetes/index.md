@@ -123,7 +123,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.38.0
+        --version 2.39.0
     ```
 
   - **Open Container Initiative (OCI) Registry**
@@ -134,7 +134,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.38.0
+        --version 2.39.0
     ```
 
 - **Stable** Coder release:
@@ -147,7 +147,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.37.5
+        --version 2.38.6
     ```
 
   - **OCI Registry**
@@ -158,7 +158,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.37.5
+        --version 2.38.6
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`.

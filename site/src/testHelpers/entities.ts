@@ -3417,6 +3417,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 	],
 };
 
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
+};
+
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
 	users: [{ ...MockUserMember, role: "read" }],
 	groups: [
