@@ -416,14 +416,14 @@ func TestSpeaker_unaryRPC_sendLoop(t *testing.T) {
 	require.Nil(t, resp)
 }
 
-func setupSpeakers(t *testing.T) (
+func setupSpeakers(t *testing.T, sinks ...slog.Sink) (
 	context.Context, *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage], *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage],
 ) {
 	mp, tp := net.Pipe()
 	t.Cleanup(func() { _ = mp.Close() })
 	t.Cleanup(func() { _ = tp.Close() })
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := testutil.Logger(t)
+	logger := testutil.Logger(t).AppendSinks(sinks...)
 
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	var mgr *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]
