@@ -271,26 +271,19 @@ describe("getAppHref", () => {
 	});
 });
 
-type SessionTokenDestinationCase = {
-	name: string;
-	url: string;
-	trusted: boolean;
-	origin?: string;
-};
-
 describe("isSessionTokenDestinationTrusted", () => {
 	// cli/open_internal_test.go runs the same cases against `coder open app`.
-	const cases: SessionTokenDestinationCase[] =
-		sessionTokenDestinationCases.cases;
-
-	it.each(cases)("$name", ({ url, trusted, origin }) => {
-		expect(
-			isSessionTokenDestinationTrusted(
-				url,
-				origin ?? sessionTokenDestinationCases.origin,
-			),
-		).toBe(trusted);
-	});
+	it.each(sessionTokenDestinationCases.cases)(
+		"$name (trusted: $trusted)",
+		({ url, trusted, origin }) => {
+			expect(
+				isSessionTokenDestinationTrusted(
+					url,
+					origin ?? sessionTokenDestinationCases.origin,
+				),
+			).toBe(trusted);
+		},
+	);
 
 	it("allows links to the current origin", () => {
 		const url = `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`;

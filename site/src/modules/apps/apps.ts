@@ -205,9 +205,8 @@ export const isSessionTokenLinkBlocked = (
  * deployment (the current origin or `accessUrl`), and the placeholder is its
  * only `token`.
  *
- * `coder open app` runs the same check in cli/open.go. Add new cases to
- * sessionTokenDestinationCases.json, which both test suites run, so the
- * dashboard and the CLI keep trusting the same links.
+ * `coder open app` mirrors this check in cli/open.go. Add cases to
+ * sessionTokenDestinationCases.json, which both test suites run.
  */
 export const isSessionTokenDestinationTrusted = (
 	appUrl: string,

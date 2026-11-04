@@ -264,22 +264,22 @@
 			"trusted": false
 		},
 		{
-			"name": "NonASCIIHostFoldingToTrustedHost/cod\u0130ng.com",
-			"url": "vscode://coder.coder-remote/open?url=https://cod\u0130ng.com&token=$SESSION_TOKEN",
+			"name": "NonASCIIHostFoldingToTrustedHost/cod\u0130ng.example.com",
+			"url": "vscode://coder.coder-remote/open?url=https://cod\u0130ng.example.com&token=$SESSION_TOKEN",
 			"trusted": false,
-			"origin": "https://coding.com"
+			"origin": "https://coding.example.com"
 		},
 		{
 			"name": "NonASCIIHostFoldingToTrustedHost/COD\u0130NG.com",
 			"url": "vscode://coder.coder-remote/open?url=https://COD\u0130NG.com&token=$SESSION_TOKEN",
 			"trusted": false,
-			"origin": "https://coding.com"
+			"origin": "https://coding.example.com"
 		},
 		{
-			"name": "NonASCIIHostFoldingToTrustedHost/cod%C4%B0ng.com",
-			"url": "vscode://coder.coder-remote/open?url=https://cod%C4%B0ng.com&token=$SESSION_TOKEN",
+			"name": "NonASCIIHostFoldingToTrustedHost/cod%C4%B0ng.example.com",
+			"url": "vscode://coder.coder-remote/open?url=https://cod%C4%B0ng.example.com&token=$SESSION_TOKEN",
 			"trusted": false,
-			"origin": "https://coding.com"
+			"origin": "https://coding.example.com"
 		}
 	]
 }
