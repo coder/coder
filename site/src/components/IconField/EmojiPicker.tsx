@@ -36,7 +36,6 @@ import {
 import { EMOJI_SHEET } from "./emojiSheet";
 
 const emojiData = buildEmojiData();
-const resolveEmojiData = () => emojiData;
 
 // Fetch the emoji spritesheet and the icon SVGs as soon as the picker chunk
 // loads, so tiles do not render empty while they download.
@@ -190,7 +189,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 		<Frimousse.Root
 			className="isolate flex h-[400px] w-fit flex-col"
 			columns={9}
-			resolveEmojiData={resolveEmojiData}
+			resolveEmojiData={() => emojiData}
 			onEmojiSelect={({ emoji }) => onEmojiSelect(emojiToValue(emoji))}
 		>
 			<nav
