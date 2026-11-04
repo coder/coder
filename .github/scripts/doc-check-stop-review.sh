@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stops a pull request's doc-check review: drops queued messages on the
-# review chat and its sub-agents, interrupts each one that is active, and
+# review chat and its sub-agents, interrupts each one that is running, and
 # stops the review workspace.
 #
 # Environment:
@@ -15,15 +15,17 @@
 #                         by default. The chats get the first third of it,
 #                         and the workspaces the rest.
 #
-# Every chat gets its queue dropped and a first interrupt, and every
-# workspace a first read and, if it needs one, a stop, even after its phase
-# ends. After that, a poll starts only when a full poll interval and the
-# read after it fit in the phase. Each request is limited to the time left
-# in its phase, but to no less than 1 second, so the script can run a few
-# seconds past the budget.
+# The chat phase runs first, so a review gets its interrupts, and has
+# usually gone idle, before its workspace stops. Each phase first sweeps
+# every item once: a chat sweep drops queued messages and interrupts what
+# is running, and a workspace sweep sends the stop that the workspace can
+# take. The phase then sweeps the items that have not settled until its
+# deadline. Each request gets the time left in its phase, at least 1 second
+# and at most 30, so the deadline bounds the polling but not the first
+# sweep, and a slow deployment can push the script past the budget.
 #
-# A failure prints a warning and exits 0, and the review keeps running.
-# Tested by doc-check-stop-review.test.sh.
+# Needs bash 4.4 or later. A failure prints a warning and exits 0, and the
+# review keeps running. Tested by doc-check-stop-review.test.sh.
 
 set -uo pipefail
 
@@ -37,13 +39,19 @@ readonly INTERRUPTS_PER_CHAT=3
 # The most deletes in one clear_queue call. It matches the server's
 # default limit of 20 queued messages a chat.
 readonly DELETES_PER_CLEAR=20
-readonly STARTED_AT="${SECONDS}"
 
-# The second, counted from STARTED_AT, at which the current phase ends. main
-# sets it for each phase.
+now() {
+	date +%s
+}
+
+STARTED_AT=$(now)
+readonly STARTED_AT
+# The second, counted from STARTED_AT, at which the current phase ends.
 deadline=0
-# Interrupts sent so far, by chat ID.
-declare -A interrupts=()
+
+# Per-item state that sweeps keep between polls.
+declare -A interrupts=() chat_sweeps=() chat_read_ok=()
+declare -A ws_name=() ws_stop_sent=() ws_read_ok=()
 
 warn() {
 	echo "::warning::$*"
@@ -51,10 +59,10 @@ warn() {
 
 # Prints the seconds left in the current phase, which can be zero or less.
 time_left() {
-	echo $((deadline - (SECONDS - STARTED_AT)))
+	echo $((deadline - ($(now) - STARTED_AT)))
 }
 
-# Sleeps one poll interval if the interval and the read after it fit in the
+# Sleeps one poll interval if the interval and a sweep after it fit in the
 # phase, and fails otherwise.
 sleep_if_time() {
 	(($(time_left) > POLL_SECONDS)) || return 1
@@ -80,9 +88,8 @@ chat_tree() {
 	jq -r '(., .children[]?) | "\(.id) \(.status)"' <<<"${chat}"
 }
 
-# Drops every queued message, because finishing an interruption promotes
-# the next one and starts the chat again. Deleting one can promote the
-# next, so this reads the queue again after each delete.
+# Drops every queued message on a chat. Deleting one can promote the next,
+# so this reads the queue again after each delete.
 clear_queue() {
 	local id="$1" messages qid n
 	local restarts="When its interruption finishes, the next queued message starts it again."
@@ -111,17 +118,32 @@ clear_queue() {
 	warn "Chat ${id} still has queued messages after ${DELETES_PER_CLEAR} deletes. ${restarts}"
 }
 
-# Reports whether any chat in a chat_tree listing is running, waiting on a
-# tool result (requires_action), or finishing an interruption.
-any_active() {
-	grep -qE ' (running|requires_action|interrupting)$' <<<"$1"
-}
-
-# Interrupts each chat in a chat_tree listing that is running or waiting on
-# a tool result, up to INTERRUPTS_PER_CHAT times per chat. Before a repeat
-# interrupt, it drops the chat's queue again.
-interrupt_active() {
-	local id status sent
+# Sweeps a review chat once, and returns 0 when it and its sub-agents are
+# idle. Finishing an interruption or leaving a pause promotes the next
+# queued message and starts the chat again, so every chat that is not idle
+# gets its queue dropped first. Then each running chat, or one waiting on a
+# tool result, gets an interrupt, up to INTERRUPTS_PER_CHAT per chat. An
+# interrupted chat in requires_action returns to running, so a later sweep
+# interrupts it again.
+sweep_chat() {
+	local root="$1" tree id status sent
+	chat_sweeps["${root}"]=$((${chat_sweeps["${root}"]:-0} + 1))
+	if ! tree=$(chat_tree "${root}"); then
+		chat_read_ok["${root}"]=false
+		return 1
+	fi
+	chat_read_ok["${root}"]=true
+	if ! grep -qE ' (running|requires_action|interrupting|paused)$' <<<"${tree}"; then
+		if ((chat_sweeps["${root}"] > 1)); then
+			echo "Review chat ${root} and its sub-agents are stopped."
+		fi
+		return 0
+	fi
+	while read -r id status <&3; do
+		case "${status}" in
+		running | requires_action | interrupting | paused) clear_queue "${id}" ;;
+		esac
+	done 3<<<"${tree}"
 	while read -r id status <&3; do
 		case "${status}" in
 		running | requires_action) ;;
@@ -132,121 +154,97 @@ interrupt_active() {
 			continue
 		fi
 		interrupts["${id}"]=$((sent + 1))
-		if ((sent > 0)); then
-			clear_queue "${id}"
-		fi
 		echo "Interrupting chat ${id} (${status})."
 		api POST "/api/v2/chats/${id}/interrupt" >/dev/null ||
 			warn "Could not interrupt chat ${id}."
-	done 3<<<"$1"
+	done 3<<<"${tree}"
+	return 1
 }
 
-# Stops each review chat and its sub-agents. Every chat first gets its
-# queue dropped and its first interrupt, so the chat phase's deadline limits
-# only the waiting. An interrupted chat in requires_action returns to
-# running, and dropping a paused chat's queue can start it, so each poll
-# interrupts whatever is running again.
-stop_chats() {
-	local root tree id status poll polls=$((deadline / POLL_SECONDS))
-	local -A waiting_on=() read_ok=()
-	for root in "$@"; do
-		waiting_on["${root}"]=1
-		read_ok["${root}"]=false
-		tree=$(chat_tree "${root}") || continue
-		while read -r id status <&3; do
-			clear_queue "${id}"
-		done 3<<<"${tree}"
-		# Dropping a queue can start a paused chat, so read the tree again.
-		tree=$(chat_tree "${root}") || continue
-		read_ok["${root}"]=true
-		if any_active "${tree}"; then
-			interrupt_active "${tree}"
-		else
-			unset "waiting_on[${root}]"
-		fi
-	done
+report_chat() {
+	if [[ "${chat_read_ok["$1"]}" == "true" ]]; then
+		warn "Review chat $1 did not stop in time. It may still be running in Coder."
+	else
+		warn "Could not read review chat $1. It may still be running in Coder."
+	fi
+}
 
-	for ((poll = 1; poll <= polls; poll++)); do
-		if ((${#waiting_on[@]} == 0)) || ! sleep_if_time; then
-			break
+# Sweeps a workspace once, and returns 0 when it is stopped or nothing more
+# can be done. A build in progress finishes first; any other state gets a
+# stop: a running workspace, or one whose last build failed or was canceled
+# and may have left it up. A stop this run sent is not retried.
+sweep_workspace() {
+	local id="$1" workspace name transition status
+	# coderd answers 410 Gone for a deleted workspace without include_deleted.
+	if ! workspace=$(api GET "/api/v2/workspaces/${id}?include_deleted=true"); then
+		ws_read_ok["${id}"]=false
+		return 1
+	fi
+	ws_read_ok["${id}"]=true
+	name=$(jq -r '.name' <<<"${workspace}")
+	ws_name["${id}"]="${name}"
+	transition=$(jq -r '.latest_build.transition' <<<"${workspace}")
+	status=$(jq -r '.latest_build.status' <<<"${workspace}")
+	case "${transition}/${status}" in
+	*/pending | */starting | */stopping | */canceling | */deleting)
+		return 1
+		;;
+	stop/stopped | delete/deleted)
+		if [[ -n "${ws_stop_sent["${id}"]:-}" ]]; then
+			echo "Stopped workspace ${name}."
 		fi
-		for root in "$@"; do
-			[[ -n "${waiting_on["${root}"]:-}" ]] || continue
-			if ! tree=$(chat_tree "${root}"); then
-				read_ok["${root}"]=false
-				continue
-			fi
-			read_ok["${root}"]=true
-			if any_active "${tree}"; then
-				interrupt_active "${tree}"
-			else
-				unset "waiting_on[${root}]"
-				echo "Review chat ${root} and its sub-agents are stopped."
-			fi
+		return 0
+		;;
+	*)
+		if [[ -n "${ws_stop_sent["${id}"]:-}" && "${transition}" == "start" ]]; then
+			warn "A start build of workspace ${name} began after this run stopped it, and the workspace is now ${status}. A review chat that did not stop may still be running on it."
+			return 0
+		fi
+		if [[ -n "${ws_stop_sent["${id}"]:-}" ]]; then
+			warn "The ${transition} build of workspace ${name} ended with status ${status}. The next review may run on this workspace with an expired GitHub token."
+			return 0
+		fi
+		;;
+	esac
+	echo "Stopping workspace ${name} (${transition} build ${status})."
+	if ! api POST "/api/v2/workspaces/${id}/builds" \
+		-H "Content-Type: application/json" \
+		-d '{"transition":"stop"}' >/dev/null; then
+		warn "Could not stop workspace ${name}. It stops at its autostop deadline instead."
+		return 0
+	fi
+	ws_stop_sent["${id}"]=1
+	return 1
+}
+
+report_workspace() {
+	local name="${ws_name["$1"]:-$1}"
+	if [[ "${ws_read_ok["$1"]}" == "true" ]]; then
+		warn "Workspace ${name} did not finish its build within the ${BUDGET_SECONDS}-second budget."
+	else
+		warn "Could not read workspace ${name}."
+	fi
+}
+
+# Sweeps every item once, then sweeps the items that have not settled until
+# no poll fits before the deadline, and reports the ones left.
+run_phase() {
+	local sweep="$1" report="$2" item
+	shift 2
+	local -a pending=() unsettled=()
+	for item in "$@"; do
+		"${sweep}" "${item}" || pending+=("${item}")
+	done
+	while ((${#pending[@]} > 0)) && sleep_if_time; do
+		unsettled=()
+		for item in "${pending[@]}"; do
+			"${sweep}" "${item}" || unsettled+=("${item}")
 		done
+		pending=("${unsettled[@]}")
 	done
-
-	for root in "$@"; do
-		[[ -n "${waiting_on["${root}"]:-}" ]] || continue
-		if [[ "${read_ok["${root}"]}" == "true" ]]; then
-			warn "Review chat ${root} did not stop in time. It may still be running in Coder."
-		else
-			warn "Could not read review chat ${root}. It may still be running in Coder."
-		fi
+	for item in "${pending[@]}"; do
+		"${report}" "${item}"
 	done
-	return 0
-}
-
-# Stops the workspace and waits for the stop to finish, so the next run can
-# start it fresh. A build in progress finishes first.
-stop_workspace() {
-	local id="$1" name="" workspace transition status stop_sent=false
-	local poll polls=$((deadline / POLL_SECONDS))
-	for ((poll = 0; poll <= polls; poll++)); do
-		if ((poll > 0)) && ! sleep_if_time; then
-			break
-		fi
-		# A deleted workspace answers 410 Gone without include_deleted.
-		workspace=$(api GET "/api/v2/workspaces/${id}?include_deleted=true") || {
-			warn "Could not read workspace ${name:-${id}}."
-			return 0
-		}
-		name=$(jq -r '.name' <<<"${workspace}")
-		transition=$(jq -r '.latest_build.transition' <<<"${workspace}")
-		status=$(jq -r '.latest_build.status' <<<"${workspace}")
-		case "${transition}/${status}" in
-		*/pending | */starting | */stopping | */canceling | */deleting)
-			continue
-			;;
-		stop/stopped | delete/deleted)
-			[[ "${stop_sent}" == "true" ]] && echo "Stopped workspace ${name}."
-			return 0
-			;;
-		*)
-			# Any other state gets a stop: a running workspace, or one whose
-			# last build failed or was canceled and may have left it up. A
-			# stop this run sent is not retried.
-			if [[ "${stop_sent}" == "true" && "${transition}" == "start" ]]; then
-				warn "A start build of workspace ${name} began after this run stopped it, and the workspace is now ${status}. A review chat that did not stop may still be running on it."
-				return 0
-			fi
-			if [[ "${stop_sent}" == "true" ]]; then
-				warn "The ${transition} build of workspace ${name} ended with status ${status}. The next review may run on this workspace with an expired GitHub token."
-				return 0
-			fi
-			;;
-		esac
-		echo "Stopping workspace ${name} (${transition} build ${status})."
-		api POST "/api/v2/workspaces/${id}/builds" \
-			-H "Content-Type: application/json" \
-			-d '{"transition":"stop"}' >/dev/null || {
-			warn "Could not stop workspace ${name}. It stops at its autostop deadline instead."
-			return 0
-		}
-		stop_sent=true
-	done
-	warn "Workspace ${name:-${id}} did not finish its build within the ${BUDGET_SECONDS}-second budget."
-	return 0
 }
 
 main() {
@@ -259,14 +257,12 @@ main() {
 	fi
 	local pr_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
 	local gh_target="${pr_repo}#${BASH_REMATCH[4]}"
-	local ws_name="doc-check-pr-${BASH_REMATCH[4]}"
-	local chats workspaces workspace_ids id
-	local -a roots=()
+	local pr_ws_name="doc-check-pr-${BASH_REMATCH[4]}"
+	local chats workspaces
+	local -a roots=() workspace_ids=()
 
-	# The chat phase: requests from here to the workspace phase below get
-	# the first third of the budget.
+	# Chat phase.
 	deadline="${CHAT_PHASE_SECONDS}"
-
 	# The same labels the action uses to find the pull request's chat. The
 	# list leaves out archived chats. Stop every match, not only the one the
 	# action would reuse.
@@ -278,12 +274,10 @@ main() {
 		chats='[]'
 	}
 	mapfile -t roots < <(jq -r '.[].id' <<<"${chats}")
-	stop_chats "${roots[@]}"
+	run_phase sweep_chat report_chat "${roots[@]}"
 
-	# The workspace phase: requests from here on, including the lookup, get
-	# the rest of the budget.
+	# Workspace phase.
 	deadline="${BUDGET_SECONDS}"
-
 	# The chats' own workspaces, plus the one named for the pull request.
 	# That name has only the number, so look it up only for this
 	# repository's pull requests. The name filter matches substrings, so keep
@@ -292,20 +286,18 @@ main() {
 	workspaces='{}'
 	if [[ "${pr_repo,,}" == "${this_repo,,}" ]]; then
 		workspaces=$(api GET /api/v2/workspaces -G \
-			--data-urlencode "q=owner:me name:${ws_name}") || {
-			warn "Could not look up workspace ${ws_name}."
+			--data-urlencode "q=owner:me name:${pr_ws_name}") || {
+			warn "Could not look up workspace ${pr_ws_name}."
 			workspaces='{}'
 		}
 	fi
-	workspace_ids=$(
+	mapfile -t workspace_ids < <(
 		{
 			jq -r '.[].workspace_id // empty' <<<"${chats}"
-			jq -r --arg name "${ws_name}" '.workspaces[]? | select(.name == $name) | .id' <<<"${workspaces}"
+			jq -r --arg name "${pr_ws_name}" '.workspaces[]? | select(.name == $name) | .id' <<<"${workspaces}"
 		} | sort -u
 	)
-	for id in ${workspace_ids}; do
-		stop_workspace "${id}"
-	done
+	run_phase sweep_workspace report_workspace "${workspace_ids[@]}"
 	return 0
 }
 

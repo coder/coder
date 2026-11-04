@@ -277,10 +277,10 @@ jobs:
       # starts the workspace fresh.
       - name: Stop the previous review and its workspace
         if: steps.checkout-scripts.outcome == 'success'
-        # The script plans to end within its STOP_BUDGET_SECONDS (270 by
-        # default) and can run a few seconds past it, which stays inside the
-        # 5 minutes GitHub gives an always() step after a cancel. This limit
-        # only catches a script that hangs.
+        # The script's polling ends within its STOP_BUDGET_SECONDS (270 by
+        # default), inside the 5 minutes GitHub gives an always() step after
+        # a cancel. Its first sweeps can run past that on a slow deployment,
+        # and this limit stops a script that hangs.
         timeout-minutes: 6
         env:
           CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
