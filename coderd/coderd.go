@@ -2194,7 +2194,7 @@ func New(options *Options) *API {
 		proxies := []*proxyhealth.ProxyHost{
 			{
 				Host:    api.AccessURL.Host,
-				AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.AppHostname),
+				AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.subdomainAppHost()),
 			},
 		}
 		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
