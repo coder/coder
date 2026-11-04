@@ -721,10 +721,11 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 			// threshold is met for activity bumping.
 			pastDeadline := dbtime.Now().Add(-30 * time.Minute)
 			err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          r.Build.ID,
-				UpdatedAt:   dbtime.Now(),
-				Deadline:    pastDeadline,
-				MaxDeadline: time.Time{},
+				DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+				ID:             r.Build.ID,
+				UpdatedAt:      dbtime.Now(),
+				Deadline:       pastDeadline,
+				MaxDeadline:    time.Time{},
 			})
 			require.NoError(t, err)
 
@@ -741,10 +742,11 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 
 				// Reset deadline to past again to meet 5% threshold for next bump.
 				err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          r.Build.ID,
-					UpdatedAt:   dbtime.Now(),
-					Deadline:    pastDeadline,
-					MaxDeadline: time.Time{},
+					DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+					ID:             r.Build.ID,
+					UpdatedAt:      dbtime.Now(),
+					Deadline:       pastDeadline,
+					MaxDeadline:    time.Time{},
 				})
 				require.NoError(t, err)
 			}

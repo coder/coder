@@ -7646,7 +7646,7 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 		clock: api.Clock,
 		report: func() {
 			api.WorkspaceUsageTracker.Add(workspace.ID)
-			workspacestats.ActivityBumpWorkspace(bumpCtx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, time.Time{}, workspacestats.ActivityBumpReasonChatWorkspaceUpload)
+			workspacestats.ActivityBumpWorkspace(bumpCtx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, time.Time{}, database.WorkspaceBuildDeadlineSource{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChatUpload})
 		},
 	}
 	body.reportNow()
