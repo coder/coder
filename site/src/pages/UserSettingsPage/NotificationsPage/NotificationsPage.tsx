@@ -45,7 +45,7 @@ import { pageTitle } from "#/utils/page";
 const NotificationsPage: React.FC = () => {
 	const { user, permissions } = useAuthenticated();
 	const [
-		disabledPreferences,
+		preferencesQuery,
 		systemTemplatesByGroup,
 		customTemplatesByGroup,
 		dispatchMethods,
@@ -66,14 +66,14 @@ const NotificationsPage: React.FC = () => {
 			notificationDispatchMethods(),
 		],
 	});
-	const pendingPreferences = useMutationState(
+	const pendingChanges = useMutationState(
 		pendingUserNotificationPreferences(user.id),
 	);
-	const effectivePreferences = { ...disabledPreferences.data };
-	for (const update of [...pendingPreferences].sort(
+	const disabledPreferences = { ...preferencesQuery.data };
+	for (const { changes } of pendingChanges.toSorted(
 		(a, b) => a.mutationId - b.mutationId,
 	)) {
-		Object.assign(effectivePreferences, update.preferences);
+		Object.assign(disabledPreferences, changes);
 	}
 
 	const queryClient = useQueryClient();
@@ -122,7 +122,7 @@ const NotificationsPage: React.FC = () => {
 	}, [searchParams, disabledId, disableMutation]);
 
 	const ready =
-		disabledPreferences.data &&
+		preferencesQuery.data &&
 		systemTemplatesByGroup.data &&
 		customTemplatesByGroup.data &&
 		dispatchMethods.data;
@@ -145,8 +145,8 @@ const NotificationsPage: React.FC = () => {
 
 			{ready ? (
 				<div className="flex flex-col gap-8">
-					{disabledPreferences.error && (
-						<ErrorAlert error={disabledPreferences.error} />
+					{preferencesQuery.error && (
+						<ErrorAlert error={preferencesQuery.error} />
 					)}
 					{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
 						if (!canSeeNotificationGroup(group, permissions)) {
@@ -154,7 +154,7 @@ const NotificationsPage: React.FC = () => {
 						}
 
 						const allDisabled = templates.some((tpl) => {
-							return notificationIsDisabled(effectivePreferences, tpl);
+							return notificationIsDisabled(disabledPreferences, tpl);
 						});
 
 						return (
@@ -189,7 +189,7 @@ const NotificationsPage: React.FC = () => {
 										const label = methodLabels[method];
 
 										const disabled = notificationIsDisabled(
-											effectivePreferences,
+											disabledPreferences,
 											tmpl,
 										);
 

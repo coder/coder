@@ -26,7 +26,7 @@ export const userNotificationPreferences = (userId: string) => {
 	};
 };
 
-/** Selects pending choices separately from confirmed notification preferences. */
+/** Selects pending edits without changing confirmed query data. */
 export const pendingUserNotificationPreferences = (userId: string) => ({
 	filters: {
 		mutationKey: userNotificationPreferencesKey(userId),
@@ -34,24 +34,10 @@ export const pendingUserNotificationPreferences = (userId: string) => ({
 		status: "pending",
 	} satisfies MutationFilters,
 	select: ({ mutationId, state }: Mutation) => {
-		const preferences: UpdateUserNotificationPreferences["template_disabled_map"] =
-			{};
-		const request = state.variables;
-		if (
-			request &&
-			typeof request === "object" &&
-			"template_disabled_map" in request
-		) {
-			const map = request.template_disabled_map;
-			if (map && typeof map === "object") {
-				for (const [id, disabled] of Object.entries(map)) {
-					if (typeof disabled === "boolean") {
-						preferences[id] = disabled;
-					}
-				}
-			}
-		}
-		return { mutationId, preferences };
+		// Only updateUserNotificationPreferences uses this exact mutation key.
+		// React Query's mutation cache does not retain its variable type.
+		const request = state.variables as UpdateUserNotificationPreferences;
+		return { mutationId, changes: request.template_disabled_map };
 	},
 });
 
