@@ -94,16 +94,7 @@ type ProjectAccessDialogProps = {
 	readonly mutationError: unknown;
 };
 
-/** Lets owners and admins change access; `onCloseAutoFocus` restores focus to the control that opened the dialog. */
-export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = (
-	props,
-) => <ProjectAccessDialogContent {...props} addTriggerId={useId()} />;
-
-type ProjectAccessDialogContentProps = ProjectAccessDialogProps & {
-	readonly addTriggerId: string;
-};
-
-const ProjectAccessDialogContent: React.FC<ProjectAccessDialogContentProps> = ({
+export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 	open,
 	onOpenChange,
 	entries,
@@ -119,126 +110,134 @@ const ProjectAccessDialogContent: React.FC<ProjectAccessDialogContentProps> = ({
 	onRemove,
 	pendingPrincipalId,
 	mutationError,
-	addTriggerId,
-}) => (
-	<Dialog open={open} onOpenChange={onOpenChange}>
-		<DialogContent
-			className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
-			onCloseAutoFocus={onCloseAutoFocus}
-		>
-			<DialogHeader className="px-6 pt-6">
-				<DialogTitle>{canManage ? "Manage access" : "View access"}</DialogTitle>
-			</DialogHeader>
-			<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
-				{canManage && entries && (
-					<AddAccessForm
-						triggerId={addTriggerId}
-						organizationId={organizationId}
-						exclude={[...entries, { id: currentUserId }]}
-						pendingPrincipalId={pendingPrincipalId}
-						onAdd={onAdd}
-					/>
-				)}
-				{Boolean(mutationError) && (
-					<Alert severity="error" prominent>
-						<AlertTitle>
-							{getErrorMessage(mutationError, "Failed to change access.")}
-						</AlertTitle>
-						<AlertDescription>
-							{/* The generic 403 detail is about viewing content, not sharing. */}
-							{getErrorStatus(mutationError) === 403
-								? "You don't have permission to change access to this project."
-								: getErrorDetail(mutationError)}
-						</AlertDescription>
-					</Alert>
-				)}
-				{Boolean(error) && (
-					<ErrorAlert
-						error={error}
-						showDebugDetail={false}
-						actions={
-							<RetryButton
-								size="sm"
-								variant="outline"
-								isRetrying={isRetrying}
-								onRetry={onRetry}
-							/>
-						}
-					/>
-				)}
-				{(entries || !error) && (
-					<Table
-						aria-label="Project access"
-						className="max-sm:block"
-						// Grows the scroll area instead of scrolling inside it.
-						wrapperClassName="shrink-0"
-					>
-						<TableHeader className="max-sm:sr-only">
-							<TableRow>
-								<TableHead className="w-full">User or group</TableHead>
-								<TableHead>Role</TableHead>
-								{canManage && (
-									<TableHead>
-										<span className="sr-only">Actions</span>
-									</TableHead>
-								)}
-							</TableRow>
-						</TableHeader>
-						{/* Phones stack each row's role and actions under its name. */}
-						<TableBody className="max-sm:block max-sm:rounded-md max-sm:border max-sm:border-border max-sm:border-solid max-sm:[&>tr:last-child]:border-b-0 max-sm:[&>tr>td:first-child]:col-span-full max-sm:[&>tr>td:not(:first-child)]:pt-0 max-sm:[&>tr>td]:border-0! max-sm:[&>tr]:grid max-sm:[&>tr]:grid-cols-[minmax(0,1fr)_auto]">
-							{entries ? (
-								entries.map((entry) => (
-									<AccessRow
-										key={`${entry.kind}:${entry.id}`}
-										entry={entry}
-										canManage={canManage}
-										isCurrentUser={
-											entry.kind === "user" && entry.id === currentUserId
-										}
-										disabled={pendingPrincipalId !== undefined}
-										onChangeRole={onChangeRole}
-										onRemove={onRemove}
-										onRemoved={() => focusById(addTriggerId)}
-									/>
-								))
-							) : (
-								<TableLoader />
-							)}
-						</TableBody>
-					</Table>
-				)}
-				<DialogDescription className="font-normal">
-					Chats in this project start private. Their creators can still share
-					them individually.
-				</DialogDescription>
-			</div>
-			<DialogFooter className="border-t border-border px-6 py-4">
-				<Button variant="outline" onClick={() => onOpenChange(false)}>
-					Close
-				</Button>
-			</DialogFooter>
-		</DialogContent>
-	</Dialog>
-);
+}) => {
+	const addTriggerRef = useRef<HTMLButtonElement>(null);
 
-// Returns focus to the add row after saving a change drops it.
-const focusById = (id: string) => document.getElementById(id)?.focus();
+	const focusAddTrigger = () => addTriggerRef.current?.focus();
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
+				<DialogHeader className="px-6 pt-6">
+					<DialogTitle>
+						{canManage ? "Manage access" : "View access"}
+					</DialogTitle>
+				</DialogHeader>
+				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
+					{canManage && entries && (
+						<AddAccessForm
+							triggerRef={addTriggerRef}
+							organizationId={organizationId}
+							exclude={[...entries, { id: currentUserId }]}
+							pendingPrincipalId={pendingPrincipalId}
+							onAdd={onAdd}
+							onSettled={focusAddTrigger}
+						/>
+					)}
+					{Boolean(mutationError) && (
+						<Alert severity="error" prominent>
+							<AlertTitle>
+								{getErrorMessage(mutationError, "Failed to change access.")}
+							</AlertTitle>
+							<AlertDescription>
+								{/* The generic 403 detail is about viewing content, not sharing. */}
+								{getErrorStatus(mutationError) === 403
+									? "You don't have permission to change access to this project."
+									: getErrorDetail(mutationError)}
+							</AlertDescription>
+						</Alert>
+					)}
+					{Boolean(error) && (
+						<ErrorAlert
+							error={error}
+							showDebugDetail={false}
+							actions={
+								<RetryButton
+									size="sm"
+									variant="outline"
+									isRetrying={isRetrying}
+									onRetry={onRetry}
+								/>
+							}
+						/>
+					)}
+					{(entries || !error) && (
+						<Table
+							aria-label="Project access"
+							className="max-sm:block"
+							// Grows the scroll area instead of scrolling inside it.
+							wrapperClassName="shrink-0"
+						>
+							<TableHeader className="max-sm:sr-only">
+								<TableRow>
+									<TableHead className="w-full">User or group</TableHead>
+									<TableHead>Role</TableHead>
+									{canManage && (
+										<TableHead>
+											<span className="sr-only">Actions</span>
+										</TableHead>
+									)}
+								</TableRow>
+							</TableHeader>
+							{/* Phones stack each row's role and actions under its name. */}
+							<TableBody className="max-sm:block max-sm:rounded-md max-sm:border max-sm:border-border max-sm:border-solid max-sm:[&>tr:last-child]:border-b-0 max-sm:[&>tr>td:first-child]:col-span-full max-sm:[&>tr>td:not(:first-child)]:pt-0 max-sm:[&>tr>td]:border-0! max-sm:[&>tr]:grid max-sm:[&>tr]:grid-cols-[minmax(0,1fr)_auto]">
+								{entries ? (
+									entries.map((entry) => (
+										<AccessRow
+											key={`${entry.kind}:${entry.id}`}
+											entry={entry}
+											canManage={canManage}
+											isCurrentUser={
+												entry.kind === "user" && entry.id === currentUserId
+											}
+											disabled={pendingPrincipalId !== undefined}
+											onChangeRole={onChangeRole}
+											onRemove={onRemove}
+											onRemoved={focusAddTrigger}
+										/>
+									))
+								) : (
+									<TableLoader />
+								)}
+							</TableBody>
+						</Table>
+					)}
+					<DialogDescription className="font-normal">
+						Chats in this project start private. Their creators can still share
+						them individually.
+					</DialogDescription>
+				</div>
+				<DialogFooter className="border-t border-border px-6 py-4">
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Close
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+};
 
 type AddAccessFormProps = {
-	readonly triggerId: string;
+	readonly triggerRef: React.Ref<HTMLButtonElement>;
 	readonly organizationId: string;
 	readonly exclude: { readonly id: string }[];
 	readonly pendingPrincipalId: string | undefined;
 	readonly onAdd: ProjectAccessDialogProps["onAdd"];
+	readonly onSettled: () => void;
 };
 
 const AddAccessForm: React.FC<AddAccessFormProps> = ({
-	triggerId,
+	triggerRef,
 	organizationId,
 	exclude,
 	pendingPrincipalId,
 	onAdd,
+	onSettled,
 }) => {
+	const triggerId = useId();
 	const [draft, setDraft] = useState<{
 		selection: UserOrGroupAutocompleteValue;
 		role: AssignableRole;
@@ -267,7 +266,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 									? { selection: null, role: "use" }
 									: current,
 							),
-						onSettled: () => focusById(triggerId),
+						onSettled,
 					},
 				);
 			}}
@@ -278,6 +277,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				</span>
 				<UserOrGroupAutocomplete
 					id={triggerId}
+					triggerRef={triggerRef}
 					// The name is the label, then the selection the trigger shows.
 					triggerAriaLabelledBy={`${triggerId}-label ${triggerId}`}
 					// Its clear control would nest a button inside the trigger button.

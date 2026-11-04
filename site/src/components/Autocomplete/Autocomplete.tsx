@@ -43,6 +43,7 @@ type AutocompleteProps<TOption> = {
 	triggerAriaInvalid?: boolean;
 	triggerAriaDescribedBy?: string;
 	triggerAriaLabelledBy?: string;
+	triggerRef?: React.Ref<HTMLButtonElement>;
 	id?: string;
 	"data-testid"?: string;
 };
@@ -72,6 +73,7 @@ export function Autocomplete<TOption>({
 	triggerAriaInvalid,
 	triggerAriaDescribedBy,
 	triggerAriaLabelledBy,
+	triggerRef,
 	id,
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
@@ -365,6 +367,7 @@ export function Autocomplete<TOption>({
 			<PopoverTrigger asChild disabled={disabled}>
 				<button
 					type="button"
+					ref={triggerRef}
 					id={id}
 					data-testid={testId}
 					aria-expanded={isOpen}
