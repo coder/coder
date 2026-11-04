@@ -129,15 +129,18 @@ export const ManagePendingChange: Story = {
 	args: { canManage: true, pendingPrincipalId: "sharee-2" },
 };
 
-const orgId = MockChatProject.organization_id;
-
 export const ManagePendingAdd: Story = {
 	args: { canManage: true, pendingPrincipalId: MockGroup3.id },
 	parameters: {
 		queries: [
-			{ key: getGroupsByOrganizationQueryKey(orgId), data: [MockGroup3] },
 			{
-				key: organizationMembersKey(orgId, { limit: 0 }),
+				key: getGroupsByOrganizationQueryKey(MockChatProject.organization_id),
+				data: [MockGroup3],
+			},
+			{
+				key: organizationMembersKey(MockChatProject.organization_id, {
+					limit: 0,
+				}),
 				data: { members: [], count: 0 },
 			},
 		],
