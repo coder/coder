@@ -34,7 +34,7 @@ The following tools require wildcard access URL:
 
 ## Configuration
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../../templates/index.md) on an absolute path.
 Set it to a wildcard hostname that resolves to Coder.
 The value must contain exactly one `*` at the beginning of the hostname.
 Coder replaces `*` with the generated application name, which stays within a single DNS label.

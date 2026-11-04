@@ -386,7 +386,7 @@ To keep a tool, choose the approach that matches who needs it:
   You can also install system packages with `apt-get`, as in [Add a programming language](./add-a-language.md), or bake the tool into the workspace image.
 
 The rule underneath all of these: a tool persists when it lives in a part of the workspace that persists.
-Refer to [Resource persistence](../../admin/templates/extending-templates/resource-persistence.md) for how Coder decides what survives a restart.
+Refer to [Resource persistence](../../templates/extending-templates/resource-persistence.md) for how Coder decides what survives a restart.
 
 ## Final code
 
@@ -884,5 +884,5 @@ Now that you can install your own tools, [clone private repositories](./authenti
 
 - [Homebrew documentation](https://brew.sh/) for the package manager
 - [mise documentation](https://mise.jdx.dev/) for the version manager
-- [Resource persistence](../../admin/templates/extending-templates/resource-persistence.md) in the Coder documentation
+- [Resource persistence](../../templates/extending-templates/resource-persistence.md) in the Coder documentation
 - [Dotfiles](../../user-guides/workspace-dotfiles.md) in the Coder documentation

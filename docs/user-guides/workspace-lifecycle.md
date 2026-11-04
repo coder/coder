@@ -14,7 +14,7 @@ Workspaces are composed of resources which may be _ephemeral_ or _persistent_.
 Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart.
 All resources are destroyed when a workspace is deleted.
 
-Template administrators can learn more about resource configuration in the [extending templates docs](../admin/templates/extending-templates/resource-persistence.md).
+Template administrators can learn more about resource configuration in the [extending templates docs](../templates/extending-templates/resource-persistence.md).
 
 ## Workspace States
 
@@ -31,13 +31,13 @@ If some error occurs during the above, a workspace may fall into one of the foll
 
 ## Workspace creation
 
-Workspaces are created from [templates](../admin/templates/index.md) via the CLI, API, or dashboard.
+Workspaces are created from [templates](../templates/index.md) via the CLI, API, or dashboard.
 
 By default, there is no limit on the number of workspaces a user may create, regardless of the template's resource demands.
 On Premium deployments, administrators can use [quotas](../admin/users/quotas.md) to limit each user's workspace spend in each organization, which prevents over provisioning and controls costs.
 
 When a user creates a workspace, they're sending a build request to the control plane.
-Coder takes this and uses [Terraform](https://www.terraform.io/) to provision a workspace defined by your [template](../admin/templates/index.md).
+Coder takes this and uses [Terraform](https://www.terraform.io/) to provision a workspace defined by your [template](../templates/index.md).
 Generally, templates define the resources and environment of a workspace.
 
 The resources that run the agent are described as _computational resources_, while those that don't are called _peripheral resources_.
@@ -47,7 +47,7 @@ The provisioned workspace's computational resources start the agent process, whi
 
 Once started, the Coder agent is responsible for running your workspace startup scripts.
 These may configure tools, service connections, or personalization with [dotfiles](./workspace-dotfiles.md).
-For complex initialization with multiple dependent scripts, see [Workspace Startup Coordination](../admin/templates/startup-coordination/index.md).
+For complex initialization with multiple dependent scripts, see [Workspace Startup Coordination](../templates/startup-coordination/index.md).
 
 Once these steps have completed, your workspace will now be in the `Running` state.
 You can access it via any of the [supported methods](./index.md), stop it when you're away, or delete it once it's no longer in use.
@@ -101,5 +101,5 @@ These include any [`coder_script`](https://registry.terraform.io/providers/coder
 ### Next steps
 
 - [Connecting to your workspace](./index.md)
-- [Creating templates](../admin/templates/index.md)
+- [Creating templates](../templates/index.md)
 - [Workspace scheduling](./workspace-scheduling.md)

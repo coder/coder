@@ -276,6 +276,259 @@
 			]
 		},
 		{
+			"title": "Templates",
+			"description": "Learn how to author, publish, and maintain the Coder templates that define your workspaces.",
+			"path": "./templates/index.md",
+			"icon_path": "./images/icons/picture.svg",
+			"children": [
+				{
+					"title": "Creating templates",
+					"description": "Create a Coder template with Terraform to define the infrastructure for your workspaces.",
+					"path": "./templates/creating-templates.md"
+				},
+				{
+					"title": "Write a template from scratch",
+					"description": "Learn how to write a Coder template from scratch with Terraform, step by step.",
+					"path": "./templates/template-from-scratch.md"
+				},
+				{
+					"title": "Work with templates",
+					"description": "Learn how to edit, version, and manage Coder templates, along with recommended best practices.",
+					"path": "./templates/managing-templates/index.md",
+					"children": [
+						{
+							"title": "Image management",
+							"description": "Learn how to build and manage the container images that back your Coder templates.",
+							"path": "./templates/managing-templates/image-management.md"
+						},
+						{
+							"title": "Change management",
+							"description": "Manage Coder template changes with source control, versioning, and CI/CD publishing.",
+							"path": "./templates/managing-templates/change-management.md"
+						},
+						{
+							"title": "Envbuilder",
+							"description": "Use Envbuilder to shift workspace environment definitions from templates into your Git repositories.",
+							"path": "./templates/managing-templates/envbuilder.md"
+						},
+						{
+							"title": "Template dependencies",
+							"description": "Manage provider and module dependencies in your Coder templates to keep builds reproducible.",
+							"path": "./templates/managing-templates/dependencies.md"
+						},
+						{
+							"title": "Workspace scheduling",
+							"description": "Configure template settings that control how workspaces autostart, autostop, and stay available.",
+							"path": "./templates/managing-templates/schedule.md"
+						},
+						{
+							"title": "External workspaces",
+							"description": "Connect externally managed servers and machines to Coder as external workspaces.",
+							"path": "./templates/managing-templates/external-workspaces.md",
+							"state": ["premium", "early access"]
+						}
+					]
+				},
+				{
+					"title": "Extend templates",
+					"description": "Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.",
+					"path": "./templates/extending-templates/index.md",
+					"children": [
+						{
+							"title": "Agent metadata",
+							"description": "Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.",
+							"path": "./templates/extending-templates/agent-metadata.md"
+						},
+						{
+							"title": "Parameters",
+							"description": "Prompt users for values, such as a region or instance size, to customize each workspace.",
+							"path": "./templates/extending-templates/parameters/index.md",
+							"children": [
+								{
+									"title": "Form types and styling",
+									"description": "Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.",
+									"path": "./templates/extending-templates/parameters/form-types.md"
+								},
+								{
+									"title": "Validation",
+									"description": "Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.",
+									"path": "./templates/extending-templates/parameters/validation.md"
+								},
+								{
+									"title": "Conditional parameters",
+									"description": "Show, hide, or change parameters based on the user's other selections in the workspace creation form.",
+									"path": "./templates/extending-templates/parameters/conditional-parameters.md"
+								},
+								{
+									"title": "Identity-aware parameters",
+									"description": "Change parameters based on the roles and groups of the user creating the workspace.",
+									"path": "./templates/extending-templates/parameters/identity-aware-parameters.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Workspace presets",
+									"description": "Bundle commonly used parameter values into a single option in the workspace creation form.",
+									"path": "./templates/extending-templates/parameters/workspace-presets.md"
+								},
+								{
+									"title": "Compatibility mode",
+									"description": "Find templates that use the deprecated classic parameter flow and upgrade them.",
+									"path": "./templates/extending-templates/parameters/compatibility-mode.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Diagnose and resolve common problems with parameter forms.",
+									"path": "./templates/extending-templates/parameters/troubleshooting.md"
+								}
+							]
+						},
+						{
+							"title": "Prebuilt workspaces",
+							"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters.",
+							"path": "./templates/extending-templates/prebuilt-workspaces.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Icons",
+							"description": "Customize your Coder templates and resources with built-in or custom icons.",
+							"path": "./templates/extending-templates/icons.md"
+						},
+						{
+							"title": "Resource metadata",
+							"description": "Expose key workspace resource information to your users in the Coder dashboard with metadata.",
+							"path": "./templates/extending-templates/resource-metadata.md"
+						},
+						{
+							"title": "Resource monitoring",
+							"description": "Monitor workspace resource usage and alert on thresholds from the Coder dashboard.",
+							"path": "./templates/extending-templates/resource-monitoring.md"
+						},
+						{
+							"title": "UI resource ordering",
+							"description": "Control the order that resources and parameters appear in the workspace creation UI.",
+							"path": "./templates/extending-templates/resource-ordering.md"
+						},
+						{
+							"title": "Resource persistence",
+							"description": "Control which workspace resources persist across restarts and which are recreated on each build.",
+							"path": "./templates/extending-templates/resource-persistence.md"
+						},
+						{
+							"title": "Environment variables",
+							"description": "Inject environment variables into Coder workspaces using the coder_env Terraform resource.",
+							"path": "./templates/extending-templates/environment-variables.md"
+						},
+						{
+							"title": "Terraform template-wide variables",
+							"description": "Use Terraform template-wide variables to parameterize and manage your Coder templates.",
+							"path": "./templates/extending-templates/variables.md"
+						},
+						{
+							"title": "Reuse template code",
+							"description": "Reuse Terraform code across your Coder templates with shared, versioned modules.",
+							"path": "./templates/extending-templates/modules.md"
+						},
+						{
+							"title": "Web IDEs in templates",
+							"description": "Add and configure web IDEs in your Coder templates as coder_app resources.",
+							"path": "./templates/extending-templates/web-ides.md"
+						},
+						{
+							"title": "Pre-install JetBrains IDEs",
+							"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
+							"path": "./templates/extending-templates/jetbrains-preinstall.md"
+						},
+						{
+							"title": "JetBrains IDEs in an air-gapped environment",
+							"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
+							"path": "./templates/extending-templates/jetbrains-airgapped.md"
+						},
+						{
+							"title": "Docker in workspaces",
+							"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
+							"path": "./templates/extending-templates/docker-in-workspaces.md"
+						},
+						{
+							"title": "Workspace tags",
+							"description": "Route workspace builds to specific provisioners using workspace tags and parameters.",
+							"path": "./templates/extending-templates/workspace-tags.md"
+						},
+						{
+							"title": "Provider authentication",
+							"description": "Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.",
+							"path": "./templates/extending-templates/provider-authentication.md"
+						},
+						{
+							"title": "Dev Containers",
+							"description": "Extend your Coder templates with containerized dev container development environments.",
+							"path": "./templates/extending-templates/devcontainers.md"
+						},
+						{
+							"title": "Improve agent resiliency",
+							"description": "Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.",
+							"path": "./templates/extending-templates/process-priority.md"
+						},
+						{
+							"title": "Workspace process logging",
+							"description": "Log all system-level process activity inside workspaces for security and auditing.",
+							"path": "./templates/extending-templates/process-logging.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Script ordering",
+							"description": "Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.",
+							"path": "./templates/extending-templates/script-ordering.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Workspace startup coordination",
+							"description": "Coordinate units of work within startup scripts using experimental coder exp sync commands.",
+							"path": "./templates/startup-coordination/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Usage",
+									"description": "Declare units and dependencies with coder exp sync to coordinate your workspace startup scripts.",
+									"path": "./templates/startup-coordination/usage.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Diagnose and resolve common problems with workspace startup coordination and coder exp sync.",
+									"path": "./templates/startup-coordination/troubleshooting.md"
+								},
+								{
+									"title": "Examples",
+									"description": "A complete, production-ready example of coordinating workspace startup scripts with sync units.",
+									"path": "./templates/startup-coordination/example.md"
+								}
+							]
+						}
+					]
+				},
+				{
+					"title": "Open in Coder",
+					"description": "Add an Open in Coder button to your repositories and wikis so users can create workspaces fast.",
+					"path": "./templates/open-in-coder.md"
+				},
+				{
+					"title": "Permissions",
+					"description": "Control which users and groups can use, edit, and administer each Coder template.",
+					"path": "./templates/template-permissions.md",
+					"state": ["premium"]
+				},
+				{
+					"title": "Test templates through CI/CD",
+					"description": "Test and publish your Coder templates automatically through a CI/CD pipeline.",
+					"path": "./templates/testing-templates.md"
+				},
+				{
+					"title": "Troubleshoot templates",
+					"description": "Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.",
+					"path": "./templates/troubleshooting.md"
+				}
+			]
+		},
+		{
 			"title": "User guides",
 			"description": "Guides for Coder end users on accessing, managing, and personalizing their workspaces.",
 			"path": "./user-guides/index.md",
@@ -562,249 +815,6 @@
 					]
 				},
 				{
-					"title": "Templates",
-					"description": "Learn how to author, publish, and maintain the Coder templates that define your workspaces.",
-					"path": "./admin/templates/index.md",
-					"icon_path": "./images/icons/picture.svg",
-					"children": [
-						{
-							"title": "Creating templates",
-							"description": "Create a Coder template with Terraform to define the infrastructure for your workspaces.",
-							"path": "./admin/templates/creating-templates.md"
-						},
-						{
-							"title": "Work with templates",
-							"description": "Learn how to edit, version, and manage Coder templates, along with recommended best practices.",
-							"path": "./admin/templates/managing-templates/index.md",
-							"children": [
-								{
-									"title": "Image management",
-									"description": "Learn how to build and manage the container images that back your Coder templates.",
-									"path": "./admin/templates/managing-templates/image-management.md"
-								},
-								{
-									"title": "Change management",
-									"description": "Manage Coder template changes with source control, versioning, and CI/CD publishing.",
-									"path": "./admin/templates/managing-templates/change-management.md"
-								},
-								{
-									"title": "Envbuilder",
-									"description": "Use Envbuilder to shift workspace environment definitions from templates into your Git repositories.",
-									"path": "./admin/templates/managing-templates/envbuilder.md"
-								},
-								{
-									"title": "Template dependencies",
-									"description": "Manage provider and module dependencies in your Coder templates to keep builds reproducible.",
-									"path": "./admin/templates/managing-templates/dependencies.md"
-								},
-								{
-									"title": "Workspace scheduling",
-									"description": "Configure template settings that control how workspaces autostart, autostop, and stay available.",
-									"path": "./admin/templates/managing-templates/schedule.md"
-								},
-								{
-									"title": "External workspaces",
-									"description": "Connect externally managed servers and machines to Coder as external workspaces.",
-									"path": "./admin/templates/managing-templates/external-workspaces.md",
-									"state": ["premium", "early access"]
-								}
-							]
-						},
-						{
-							"title": "Extend templates",
-							"description": "Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.",
-							"path": "./admin/templates/extending-templates/index.md",
-							"children": [
-								{
-									"title": "Agent metadata",
-									"description": "Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.",
-									"path": "./admin/templates/extending-templates/agent-metadata.md"
-								},
-								{
-									"title": "Parameters",
-									"description": "Prompt users for values, such as a region or instance size, to customize each workspace.",
-									"path": "./admin/templates/extending-templates/parameters/index.md",
-									"children": [
-										{
-											"title": "Form types and styling",
-											"description": "Choose the input control for each parameter, such as a dropdown, slider, multi-select, or text area.",
-											"path": "./admin/templates/extending-templates/parameters/form-types.md"
-										},
-										{
-											"title": "Validation",
-											"description": "Constrain parameter values with ranges, regular expressions, and rules that depend on other parameters.",
-											"path": "./admin/templates/extending-templates/parameters/validation.md"
-										},
-										{
-											"title": "Conditional parameters",
-											"description": "Show, hide, or change parameters based on the user's other selections in the workspace creation form.",
-											"path": "./admin/templates/extending-templates/parameters/conditional-parameters.md"
-										},
-										{
-											"title": "Identity-aware parameters",
-											"description": "Change parameters based on the roles and groups of the user creating the workspace.",
-											"path": "./admin/templates/extending-templates/parameters/identity-aware-parameters.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Workspace presets",
-											"description": "Bundle commonly used parameter values into a single option in the workspace creation form.",
-											"path": "./admin/templates/extending-templates/parameters/workspace-presets.md"
-										},
-										{
-											"title": "Compatibility mode",
-											"description": "Find templates that use the deprecated classic parameter flow and upgrade them.",
-											"path": "./admin/templates/extending-templates/parameters/compatibility-mode.md"
-										},
-										{
-											"title": "Troubleshooting",
-											"description": "Diagnose and resolve common problems with parameter forms.",
-											"path": "./admin/templates/extending-templates/parameters/troubleshooting.md"
-										}
-									]
-								},
-								{
-									"title": "Prebuilt workspaces",
-									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters.",
-									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Icons",
-									"description": "Customize your Coder templates and resources with built-in or custom icons.",
-									"path": "./admin/templates/extending-templates/icons.md"
-								},
-								{
-									"title": "Resource metadata",
-									"description": "Expose key workspace resource information to your users in the Coder dashboard with metadata.",
-									"path": "./admin/templates/extending-templates/resource-metadata.md"
-								},
-								{
-									"title": "Resource monitoring",
-									"description": "Monitor workspace resource usage and alert on thresholds from the Coder dashboard.",
-									"path": "./admin/templates/extending-templates/resource-monitoring.md"
-								},
-								{
-									"title": "UI resource ordering",
-									"description": "Control the order that resources and parameters appear in the workspace creation UI.",
-									"path": "./admin/templates/extending-templates/resource-ordering.md"
-								},
-								{
-									"title": "Resource persistence",
-									"description": "Control which workspace resources persist across restarts and which are recreated on each build.",
-									"path": "./admin/templates/extending-templates/resource-persistence.md"
-								},
-								{
-									"title": "Environment variables",
-									"description": "Inject environment variables into Coder workspaces using the coder_env Terraform resource.",
-									"path": "./admin/templates/extending-templates/environment-variables.md"
-								},
-								{
-									"title": "Terraform template-wide variables",
-									"description": "Use Terraform template-wide variables to parameterize and manage your Coder templates.",
-									"path": "./admin/templates/extending-templates/variables.md"
-								},
-								{
-									"title": "Reuse template code",
-									"description": "Reuse Terraform code across your Coder templates with shared, versioned modules.",
-									"path": "./admin/templates/extending-templates/modules.md"
-								},
-								{
-									"title": "Web IDEs in templates",
-									"description": "Add and configure web IDEs in your Coder templates as coder_app resources.",
-									"path": "./admin/templates/extending-templates/web-ides.md"
-								},
-								{
-									"title": "Pre-install JetBrains IDEs",
-									"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
-									"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
-								},
-								{
-									"title": "JetBrains IDEs in an air-gapped environment",
-									"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
-									"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
-								},
-								{
-									"title": "Docker in workspaces",
-									"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
-									"path": "./admin/templates/extending-templates/docker-in-workspaces.md"
-								},
-								{
-									"title": "Workspace tags",
-									"description": "Route workspace builds to specific provisioners using workspace tags and parameters.",
-									"path": "./admin/templates/extending-templates/workspace-tags.md"
-								},
-								{
-									"title": "Provider authentication",
-									"description": "Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.",
-									"path": "./admin/templates/extending-templates/provider-authentication.md"
-								},
-								{
-									"title": "Dev Containers",
-									"description": "Extend your Coder templates with containerized dev container development environments.",
-									"path": "./admin/templates/extending-templates/devcontainers.md"
-								},
-								{
-									"title": "Improve agent resiliency",
-									"description": "Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.",
-									"path": "./admin/templates/extending-templates/process-priority.md"
-								},
-								{
-									"title": "Workspace process logging",
-									"description": "Log all system-level process activity inside workspaces for security and auditing.",
-									"path": "./admin/templates/extending-templates/process-logging.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Script ordering",
-									"description": "Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.",
-									"path": "./admin/templates/extending-templates/script-ordering.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Workspace startup coordination",
-									"description": "Coordinate units of work within startup scripts using experimental coder exp sync commands.",
-									"path": "./admin/templates/startup-coordination/index.md",
-									"state": ["early access"],
-									"children": [
-										{
-											"title": "Usage",
-											"description": "Declare units and dependencies with coder exp sync to coordinate your workspace startup scripts.",
-											"path": "./admin/templates/startup-coordination/usage.md"
-										},
-										{
-											"title": "Troubleshooting",
-											"description": "Diagnose and resolve common problems with workspace startup coordination and coder exp sync.",
-											"path": "./admin/templates/startup-coordination/troubleshooting.md"
-										},
-										{
-											"title": "Examples",
-											"description": "A complete, production-ready example of coordinating workspace startup scripts with sync units.",
-											"path": "./admin/templates/startup-coordination/example.md"
-										}
-									]
-								}
-							]
-						},
-						{
-							"title": "Open in Coder",
-							"description": "Add an Open in Coder button to your repositories and wikis so users can create workspaces fast.",
-							"path": "./admin/templates/open-in-coder.md"
-						},
-						{
-							"title": "Permissions",
-							"description": "Control which users and groups can use, edit, and administer each Coder template.",
-							"path": "./admin/templates/template-permissions.md",
-							"state": ["premium"]
-						},
-						{
-							"title": "Troubleshoot templates",
-							"description": "Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.",
-							"path": "./admin/templates/troubleshooting.md"
-						}
-					]
-				},
-				{
 					"title": "External authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
 					"path": "./admin/external-auth.md",
@@ -1055,438 +1065,424 @@
 			]
 		},
 		{
-			"title": "Run AI coding agents in Coder",
-			"description": "Run and manage AI coding agents like Claude Code and Codex in Coder workspaces, alongside your existing development environments.",
-			"path": "./ai-coder/index.md",
+			"title": "Coder Agents",
+			"description": "Delegate development work to coding agents in your deployment with Coder Agents, a chat interface and API.",
+			"path": "./coder-agents/index.md",
 			"icon_path": "./images/icons/wand.svg",
 			"children": [
 				{
-					"title": "Best practices",
-					"description": "Cultural and technical best practices for introducing AI coding agents into your organization.",
-					"path": "./ai-coder/best-practices.md"
+					"title": "Getting started",
+					"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent.",
+					"path": "./coder-agents/getting-started.md"
 				},
 				{
-					"title": "In the IDE",
-					"description": "Run in-IDE AI coding assistants and agents while backing their compute with Coder workspaces.",
-					"path": "./ai-coder/ide-agents.md"
+					"title": "Architecture",
+					"description": "Learn how the Coder Agents control-plane agent communicates with your workspaces.",
+					"path": "./coder-agents/architecture.md"
 				},
 				{
-					"title": "Coder Agents",
-					"description": "Delegate development work to coding agents in your deployment with Coder Agents, a chat interface and API.",
-					"path": "./ai-coder/agents/index.md",
+					"title": "Platform controls",
+					"description": "Learn how platform teams control Coder Agents behavior, models, spend, and policies.",
+					"path": "./coder-agents/platform-controls/index.md",
 					"children": [
 						{
-							"title": "Getting started",
-							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent.",
-							"path": "./ai-coder/agents/getting-started.md"
+							"title": "Template optimization",
+							"description": "Best practices for creating templates that are discoverable and useful to Coder Agents.",
+							"path": "./coder-agents/platform-controls/template-optimization.md"
 						},
 						{
-							"title": "Architecture",
-							"description": "Learn how the Coder Agents control-plane agent communicates with your workspaces.",
-							"path": "./ai-coder/agents/architecture.md"
+							"title": "Organization scope",
+							"description": "Learn which Coder Agents settings belong to an organization, what an upgrade migrates, and who can change them.",
+							"path": "./coder-agents/platform-controls/organizations.md"
 						},
 						{
-							"title": "Platform controls",
-							"description": "Learn how platform teams control Coder Agents behavior, models, spend, and policies.",
-							"path": "./ai-coder/agents/platform-controls/index.md",
-							"children": [
-								{
-									"title": "Template optimization",
-									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents.",
-									"path": "./ai-coder/agents/platform-controls/template-optimization.md"
-								},
-								{
-									"title": "Organization scope",
-									"description": "Learn which Coder Agents settings belong to an organization, what an upgrade migrates, and who can change them.",
-									"path": "./ai-coder/agents/platform-controls/organizations.md"
-								},
-								{
-									"title": "Network isolation",
-									"description": "Run Coder Agents in a separate sandbox with a two-Pod Kubernetes template.",
-									"path": "./ai-coder/agents/platform-controls/agent-isolation.md",
-									"state": ["early access"]
-								},
-								{
-									"title": "MCP servers",
-									"description": "Configure external MCP servers that provide additional tools for agent chat sessions.",
-									"path": "./ai-coder/agents/platform-controls/mcp-servers.md"
-								},
-								{
-									"title": "Spend management",
-									"description": "Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.",
-									"path": "./ai-coder/agents/platform-controls/spend-management.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Git providers",
-									"description": "Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.",
-									"path": "./ai-coder/agents/platform-controls/git-providers.md"
-								},
-								{
-									"title": "Conversation data retention",
-									"description": "Configure automatic cleanup of old Coder Agents conversation data to manage database size.",
-									"path": "./ai-coder/agents/platform-controls/chat-retention.md"
-								},
-								{
-									"title": "Chat debug data retention",
-									"description": "Configure automatic cleanup of old Coder Agents chat debug data to manage database size.",
-									"path": "./ai-coder/agents/platform-controls/chat-debug-retention.md"
-								},
-								{
-									"title": "Conversation auto-archive",
-									"description": "Automatically archive long-inactive Coder Agents conversations to keep chat lists tidy.",
-									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md"
-								},
-								{
-									"title": "Advisor",
-									"description": "Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.",
-									"path": "./ai-coder/agents/platform-controls/advisor.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Virtual desktop",
-									"description": "Give Coder Agents a graphical virtual desktop inside workspaces for GUI-based tasks.",
-									"path": "./ai-coder/agents/platform-controls/virtual-desktop.md",
-									"state": ["early access"]
-								},
-								{
-									"title": "Chat debug logging",
-									"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
-									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md"
-								}
-							]
-						},
-						{
-							"title": "Extending agents",
-							"description": "Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.",
-							"path": "./ai-coder/agents/extending-agents.md"
-						},
-						{
-							"title": "Bring your own MCP servers",
-							"description": "Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.",
-							"path": "./ai-coder/agents/bring-your-own-mcp-servers.md"
-						},
-						{
-							"title": "ACP subagents",
-							"description": "Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.",
-							"path": "./ai-coder/agents/acp-subagents.md",
+							"title": "Network isolation",
+							"description": "Run Coder Agents in a separate sandbox with a two-Pod Kubernetes template.",
+							"path": "./coder-agents/platform-controls/agent-isolation.md",
 							"state": ["early access"]
 						},
 						{
-							"title": "Models",
-							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
-							"path": "./ai-coder/agents/models.md"
+							"title": "MCP servers",
+							"description": "Configure external MCP servers that provide additional tools for agent chat sessions.",
+							"path": "./coder-agents/platform-controls/mcp-servers.md"
 						},
 						{
-							"title": "Tools",
-							"description": "How Coder Agents uses tool calls to select templates and create workspaces.",
-							"path": "./ai-coder/agents/tools.md"
+							"title": "Spend management",
+							"description": "Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.",
+							"path": "./coder-agents/platform-controls/spend-management.md",
+							"state": ["premium"]
 						},
 						{
-							"title": "Chat sharing",
-							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
-							"path": "./ai-coder/agents/chat-sharing.md"
+							"title": "Git providers",
+							"description": "Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.",
+							"path": "./coder-agents/platform-controls/git-providers.md"
 						},
 						{
-							"title": "Projects",
-							"description": "Group Coder Agents chats into projects with shared instructions, skills, and memory.",
-							"path": "./ai-coder/agents/projects.md",
+							"title": "Conversation data retention",
+							"description": "Configure automatic cleanup of old Coder Agents conversation data to manage database size.",
+							"path": "./coder-agents/platform-controls/chat-retention.md"
+						},
+						{
+							"title": "Chat debug data retention",
+							"description": "Configure automatic cleanup of old Coder Agents chat debug data to manage database size.",
+							"path": "./coder-agents/platform-controls/chat-debug-retention.md"
+						},
+						{
+							"title": "Conversation auto-archive",
+							"description": "Automatically archive long-inactive Coder Agents conversations to keep chat lists tidy.",
+							"path": "./coder-agents/platform-controls/chat-auto-archive.md"
+						},
+						{
+							"title": "Advisor",
+							"description": "Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.",
+							"path": "./coder-agents/platform-controls/advisor.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Virtual desktop",
+							"description": "Give Coder Agents a graphical virtual desktop inside workspaces for GUI-based tasks.",
+							"path": "./coder-agents/platform-controls/virtual-desktop.md",
 							"state": ["early access"]
 						},
 						{
-							"title": "Conversation search syntax",
-							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
-							"path": "./ai-coder/agents/chat-search-syntax.md"
-						},
-						{
-							"title": "Licensing & usage",
-							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
-							"path": "./ai-coder/agents/licensing-usage.md"
-						},
-						{
-							"title": "Migrate from the Tasks API to the Chats API",
-							"description": "Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.",
-							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
+							"title": "Chat debug logging",
+							"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
+							"path": "./coder-agents/platform-controls/chat-debug-logging.md"
 						}
 					]
 				},
 				{
-					"title": "Agent Relay",
-					"description": "Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.",
-					"path": "./ai-coder/agent-relay/index.md",
-					"state": ["premium", "beta"],
-					"children": [
-						{
-							"title": "Set up",
-							"description": "Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.",
-							"path": "./ai-coder/agent-relay/setup.md"
-						},
-						{
-							"title": "Claude Code",
-							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
-							"path": "./ai-coder/agent-relay/claude-code.md"
-						},
-						{
-							"title": "Cursor",
-							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
-							"path": "./ai-coder/agent-relay/cursor.md"
-						},
-						{
-							"title": "Slack",
-							"description": "Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.",
-							"path": "./ai-coder/agent-relay/slack.md"
-						},
-						{
-							"title": "Monitor",
-							"description": "Trace sessions and failures with Agent Relay logs and Prometheus metrics.",
-							"path": "./ai-coder/agent-relay/monitoring/index.md",
-							"children": [
-								{
-									"title": "Send logs to a SIEM",
-									"description": "Ingest Agent Relay logs into a SIEM, with the record shape, fields, parsing rules, and log-based alerts.",
-									"path": "./ai-coder/agent-relay/monitoring/siem.md"
-								}
-							]
-						},
-						{
-							"title": "Troubleshoot",
-							"description": "Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.",
-							"path": "./ai-coder/agent-relay/troubleshooting.md"
-						},
-						{
-							"title": "Configuration reference",
-							"description": "Every Agent Relay option, pool field, and Helm chart value for the beta.",
-							"path": "./ai-coder/agent-relay/configuration.md"
-						}
-					]
+					"title": "Extending agents",
+					"description": "Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.",
+					"path": "./coder-agents/extending-agents.md"
 				},
 				{
-					"title": "AI Governance",
-					"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
-					"path": "./ai-coder/ai-governance.md",
+					"title": "Bring your own MCP servers",
+					"description": "Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.",
+					"path": "./coder-agents/bring-your-own-mcp-servers.md"
+				},
+				{
+					"title": "ACP subagents",
+					"description": "Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.",
+					"path": "./coder-agents/acp-subagents.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Models",
+					"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
+					"path": "./coder-agents/models.md"
+				},
+				{
+					"title": "Tools",
+					"description": "How Coder Agents uses tool calls to select templates and create workspaces.",
+					"path": "./coder-agents/tools.md"
+				},
+				{
+					"title": "Chat sharing",
+					"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
+					"path": "./coder-agents/chat-sharing.md"
+				},
+				{
+					"title": "Projects",
+					"description": "Group Coder Agents chats into projects with shared instructions, skills, and memory.",
+					"path": "./coder-agents/projects.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "Conversation search syntax",
+					"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
+					"path": "./coder-agents/chat-search-syntax.md"
+				},
+				{
+					"title": "Licensing & usage",
+					"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
+					"path": "./coder-agents/licensing-usage.md"
+				},
+				{
+					"title": "Migrate from the Tasks API to the Chats API",
+					"description": "Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.",
+					"path": "./coder-agents/tasks-to-chats-migration.md"
+				}
+			]
+		},
+		{
+			"title": "AI Governance",
+			"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
+			"path": "./ai-governance/index.md",
+			"icon_path": "./images/icons/ai_intelligence.svg",
+			"state": ["premium"],
+			"children": [
+				{
+					"title": "Agent Firewall",
+					"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
+					"path": "./ai-governance/agent-firewall/index.md",
 					"state": ["premium"],
 					"children": [
 						{
-							"title": "Agent Firewall",
-							"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
-							"path": "./ai-coder/agent-firewall/index.md",
-							"state": ["premium"],
+							"title": "NsJail jail type",
+							"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
+							"path": "./ai-governance/agent-firewall/nsjail/index.md",
 							"children": [
 								{
-									"title": "NsJail jail type",
-									"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
-									"path": "./ai-coder/agent-firewall/nsjail/index.md",
-									"children": [
-										{
-											"title": "NsJail on Docker",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
-											"path": "./ai-coder/agent-firewall/nsjail/docker.md"
-										},
-										{
-											"title": "NsJail on Kubernetes",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
-											"path": "./ai-coder/agent-firewall/nsjail/k8s.md"
-										},
-										{
-											"title": "NsJail on ECS",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
-											"path": "./ai-coder/agent-firewall/nsjail/ecs.md"
-										}
-									]
+									"title": "NsJail on Docker",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
+									"path": "./ai-governance/agent-firewall/nsjail/docker.md"
 								},
 								{
-									"title": "Landjail jail type",
-									"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
-									"path": "./ai-coder/agent-firewall/landjail.md"
+									"title": "NsJail on Kubernetes",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
+									"path": "./ai-governance/agent-firewall/nsjail/k8s.md"
 								},
 								{
-									"title": "Rules engine",
-									"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
-									"path": "./ai-coder/agent-firewall/rules-engine.md"
-								},
-								{
-									"title": "Example policy",
-									"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
-									"path": "./ai-coder/agent-firewall/example-policy.md"
-								},
-								{
-									"title": "Version requirements",
-									"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
-									"path": "./ai-coder/agent-firewall/version.md"
+									"title": "NsJail on ECS",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
+									"path": "./ai-governance/agent-firewall/nsjail/ecs.md"
 								}
 							]
 						},
 						{
-							"title": "AI Gateway",
-							"description": "Govern and observe AI coding traffic with AI Gateway.",
-							"path": "./ai-coder/ai-gateway/index.md",
-							"icon_path": "./images/icons/api.svg",
+							"title": "Landjail jail type",
+							"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
+							"path": "./ai-governance/agent-firewall/landjail.md"
+						},
+						{
+							"title": "Rules engine",
+							"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
+							"path": "./ai-governance/agent-firewall/rules-engine.md"
+						},
+						{
+							"title": "Example policy",
+							"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
+							"path": "./ai-governance/agent-firewall/example-policy.md"
+						},
+						{
+							"title": "Version requirements",
+							"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
+							"path": "./ai-governance/agent-firewall/version.md"
+						}
+					]
+				},
+				{
+					"title": "AI Gateway",
+					"description": "Govern and observe AI coding traffic with AI Gateway.",
+					"path": "./ai-governance/ai-gateway/index.md",
+					"icon_path": "./images/icons/api.svg",
+					"state": ["premium"],
+					"children": [
+						{
+							"title": "Setup",
+							"description": "Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.",
+							"path": "./ai-governance/ai-gateway/setup.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Standalone deployment",
+							"description": "Deploy and operate AI Gateway as a standalone service.",
+							"path": "./ai-governance/ai-gateway/standalone.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Authentication",
+							"description": "Authenticate AI coding tools against AI Gateway using your Coder API token.",
+							"path": "./ai-governance/ai-gateway/auth.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Client configuration",
+							"description": "Configure your AI coding tools to route their model requests through AI Gateway.",
+							"path": "./ai-governance/ai-gateway/clients/index.md",
+							"state": ["premium"],
+							"children": [
+								{
+									"title": "Claude Code",
+									"description": "Configure Claude Code to route requests through AI Gateway using environment variables.",
+									"path": "./ai-governance/ai-gateway/clients/claude-code.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Codex",
+									"description": "Configure the Codex CLI to route requests through AI Gateway with a custom model provider.",
+									"path": "./ai-governance/ai-gateway/clients/codex.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Xum",
+									"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/xum.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "OpenCode",
+									"description": "Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/opencode.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Factory",
+									"description": "Configure Factory's Droid agent to route its model requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/factory.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Cline",
+									"description": "Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/cline.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Kilo Code",
+									"description": "Configure Kilo Code to route its model requests through AI Gateway from the UI.",
+									"path": "./ai-governance/ai-gateway/clients/kilo-code.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "VS Code",
+									"description": "Configure VS Code to route its AI model requests through Coder's AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/vscode.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "JetBrains",
+									"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/jetbrains.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Junie",
+									"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+									"path": "./ai-governance/ai-gateway/clients/junie.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "Zed",
+									"description": "Configure the Zed editor's language models to route requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/zed.md",
+									"state": ["premium"]
+								},
+								{
+									"title": "GitHub Copilot",
+									"description": "Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.",
+									"path": "./ai-governance/ai-gateway/clients/copilot.md",
+									"state": ["premium"]
+								}
+							]
+						},
+						{
+							"title": "MCP tools injection",
+							"description": "Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.",
+							"path": "./ai-governance/ai-gateway/mcp.md"
+						},
+						{
+							"title": "AI Gateway Proxy",
+							"description": "Use AI Gateway Proxy to route AI tools that don't support base URL overrides through AI Gateway.",
+							"path": "./ai-governance/ai-gateway/ai-gateway-proxy/index.md",
 							"state": ["premium"],
 							"children": [
 								{
 									"title": "Setup",
-									"description": "Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.",
-									"path": "./ai-coder/ai-gateway/setup.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Standalone deployment",
-									"description": "Deploy and operate AI Gateway as a standalone service.",
-									"path": "./ai-coder/ai-gateway/standalone.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Authentication",
-									"description": "Authenticate AI coding tools against AI Gateway using your Coder API token.",
-									"path": "./ai-coder/ai-gateway/auth.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Client configuration",
-									"description": "Configure your AI coding tools to route their model requests through AI Gateway.",
-									"path": "./ai-coder/ai-gateway/clients/index.md",
-									"state": ["premium"],
-									"children": [
-										{
-											"title": "Claude Code",
-											"description": "Configure Claude Code to route requests through AI Gateway using environment variables.",
-											"path": "./ai-coder/ai-gateway/clients/claude-code.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Codex",
-											"description": "Configure the Codex CLI to route requests through AI Gateway with a custom model provider.",
-											"path": "./ai-coder/ai-gateway/clients/codex.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Xum",
-											"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/xum.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "OpenCode",
-											"description": "Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/opencode.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Factory",
-											"description": "Configure Factory's Droid agent to route its model requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/factory.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Cline",
-											"description": "Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/cline.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Kilo Code",
-											"description": "Configure Kilo Code to route its model requests through AI Gateway from the UI.",
-											"path": "./ai-coder/ai-gateway/clients/kilo-code.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "VS Code",
-											"description": "Configure VS Code to route its AI model requests through Coder's AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/vscode.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "JetBrains",
-											"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/jetbrains.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Junie",
-											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
-											"path": "./ai-coder/ai-gateway/clients/junie.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "Zed",
-											"description": "Configure the Zed editor's language models to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/zed.md",
-											"state": ["premium"]
-										},
-										{
-											"title": "GitHub Copilot",
-											"description": "Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.",
-											"path": "./ai-coder/ai-gateway/clients/copilot.md",
-											"state": ["premium"]
-										}
-									]
-								},
-								{
-									"title": "MCP tools injection",
-									"description": "Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.",
-									"path": "./ai-coder/ai-gateway/mcp.md"
-								},
-								{
-									"title": "AI Gateway Proxy",
-									"description": "Use AI Gateway Proxy to route AI tools that don't support base URL overrides through AI Gateway.",
-									"path": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md",
-									"state": ["premium"],
-									"children": [
-										{
-											"title": "Setup",
-											"description": "Enable and configure AI Gateway Proxy inside the Coder control plane, with no extra compute.",
-											"path": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md",
-											"state": ["premium"]
-										}
-									]
-								},
-								{
-									"title": "Provider configuration",
-									"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
-									"path": "./ai-coder/ai-gateway/providers.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Audit AI sessions",
-									"description": "Audit AI coding sessions and threads captured by AI Gateway for governance and review.",
-									"path": "./ai-coder/ai-gateway/audit.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Monitoring",
-									"description": "Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.",
-									"path": "./ai-coder/ai-gateway/monitoring.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "AI Governance cost control",
-									"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
-									"path": "./ai-coder/ai-gateway/cost-controls.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Reference",
-									"description": "Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.",
-									"path": "./ai-coder/ai-gateway/reference.md",
-									"state": ["premium"]
-								},
-								{
-									"title": "Rebranding migration",
-									"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
-									"path": "./ai-coder/ai-gateway/rebranding-migration.md",
+									"description": "Enable and configure AI Gateway Proxy inside the Coder control plane, with no extra compute.",
+									"path": "./ai-governance/ai-gateway/ai-gateway-proxy/setup.md",
 									"state": ["premium"]
 								}
 							]
+						},
+						{
+							"title": "Provider configuration",
+							"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
+							"path": "./ai-governance/ai-gateway/providers.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Audit AI sessions",
+							"description": "Audit AI coding sessions and threads captured by AI Gateway for governance and review.",
+							"path": "./ai-governance/ai-gateway/audit.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Monitoring",
+							"description": "Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.",
+							"path": "./ai-governance/ai-gateway/monitoring.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "AI Governance cost control",
+							"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
+							"path": "./ai-governance/ai-gateway/cost-controls.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Reference",
+							"description": "Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.",
+							"path": "./ai-governance/ai-gateway/reference.md",
+							"state": ["premium"]
+						},
+						{
+							"title": "Rebranding migration",
+							"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
+							"path": "./ai-governance/ai-gateway/rebranding-migration.md",
+							"state": ["premium"]
+						}
+					]
+				}
+			]
+		},
+		{
+			"title": "Agent Relay",
+			"description": "Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.",
+			"path": "./agent-relay/index.md",
+			"icon_path": "./images/icons/link.svg",
+			"state": ["premium", "beta"],
+			"children": [
+				{
+					"title": "Set up",
+					"description": "Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.",
+					"path": "./agent-relay/setup.md"
+				},
+				{
+					"title": "Claude Code",
+					"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
+					"path": "./agent-relay/claude-code.md"
+				},
+				{
+					"title": "Cursor",
+					"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
+					"path": "./agent-relay/cursor.md"
+				},
+				{
+					"title": "Slack",
+					"description": "Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.",
+					"path": "./agent-relay/slack.md"
+				},
+				{
+					"title": "Monitor",
+					"description": "Trace sessions and failures with Agent Relay logs and Prometheus metrics.",
+					"path": "./agent-relay/monitoring/index.md",
+					"children": [
+						{
+							"title": "Send logs to a SIEM",
+							"description": "Ingest Agent Relay logs into a SIEM, with the record shape, fields, parsing rules, and log-based alerts.",
+							"path": "./agent-relay/monitoring/siem.md"
 						}
 					]
 				},
 				{
-					"title": "MCP server",
-					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
-					"path": "./ai-coder/mcp-server.md",
-					"state": ["beta"]
+					"title": "Troubleshoot",
+					"description": "Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.",
+					"path": "./agent-relay/troubleshooting.md"
+				},
+				{
+					"title": "Configuration reference",
+					"description": "Every Agent Relay option, pool field, and Helm chart value for the beta.",
+					"path": "./agent-relay/configuration.md"
 				}
 			]
+		},
+		{
+			"title": "MCP server",
+			"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
+			"path": "./mcp-server.md",
+			"icon_path": "./images/icons/plug.svg",
+			"state": ["beta"]
 		},
 		{
 			"title": "Tutorials",
@@ -1500,11 +1496,6 @@
 					"path": "./get-started/index.md"
 				},
 				{
-					"title": "Write a template from scratch",
-					"description": "Learn how to write a Coder template from scratch with Terraform, step by step.",
-					"path": "./tutorials/template-from-scratch.md"
-				},
-				{
 					"title": "Use an external database",
 					"description": "Configure Coder to use an external PostgreSQL database for production deployments.",
 					"path": "./tutorials/external-database.md"
@@ -1512,7 +1503,7 @@
 				{
 					"title": "Image management",
 					"description": "Learn how to build and manage the container images that back your Coder templates.",
-					"path": "./admin/templates/managing-templates/image-management.md"
+					"path": "./templates/managing-templates/image-management.md"
 				},
 				{
 					"title": "Configure custom claims/scopes with Okta for group/role",
@@ -1571,11 +1562,6 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
-					"title": "Test templates through CI/CD",
-					"description": "Test and publish your Coder templates automatically through a CI/CD pipeline.",
-					"path": "./tutorials/testing-templates.md"
-				},
-				{
 					"title": "Apache reverse proxy",
 					"description": "Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
 					"path": "./tutorials/reverse-proxy-apache.md"
@@ -1593,12 +1579,12 @@
 				{
 					"title": "Pre-install JetBrains IDEs",
 					"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
-					"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
+					"path": "./templates/extending-templates/jetbrains-preinstall.md"
 				},
 				{
 					"title": "JetBrains IDEs in an air-gapped environment",
 					"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
-					"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
+					"path": "./templates/extending-templates/jetbrains-airgapped.md"
 				},
 				{
 					"title": "FAQs",

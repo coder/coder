@@ -25,7 +25,7 @@ Agents and developers share the same workspace infrastructure.
 
 ## Coder Agents
 
-[Coder Agents](./ai-coder/agents/index.md) is a native AI coding agent built into Coder.
+[Coder Agents](./coder-agents/index.md) is a native AI coding agent built into Coder.
 The agent loop runs in the Coder control plane on your infrastructure, not in the workspace and not in a vendor's cloud.
 Developers interact with agents through the web UI or the Representational State Transfer (REST) API for programmatic and continuous integration (CI)-driven workflows.
 
@@ -127,7 +127,7 @@ The [Coder Registry](https://registry.coder.com/templates) provides production-r
 Workspaces can include more than just compute.
 Terraform can add storage buckets, secrets, sidecars, and [other resources](https://developer.hashicorp.com/terraform/tutorials).
 
-See the [templates documentation](./admin/templates/index.md) for details.
+See the [templates documentation](./templates/index.md) for details.
 
 ## What Coder is not
 
@@ -153,7 +153,7 @@ See the [templates documentation](./admin/templates/index.md) for details.
 
 ## Learn more
 
-- [Coder Agents](./ai-coder/agents/index.md)
-- [Templates](./admin/templates/index.md)
+- [Coder Agents](./coder-agents/index.md)
+- [Templates](./templates/index.md)
 - [Installing Coder](./install/index.md)
 - [Quickstart tutorial](./get-started/index.md)

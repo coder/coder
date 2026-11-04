@@ -22,7 +22,7 @@ This transition established Tasks as a stable automation and job-execution primi
 
 > [!NOTE]
 > Coder Tasks has since been deprecated and is no longer available in current releases.
-> [Coder Agents](../../../ai-coder/agents/index.md) is the long-term replacement.
+> [Coder Agents](../../../coder-agents/index.md) is the long-term replacement.
 
 ### AI Gateway
 
@@ -34,7 +34,7 @@ It solves three key problems:
 - Secure communication between the Coder control plane and upstream AI APIs
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts, token usage, and tool invocations.
-For more information, read our documentation [here](../../../ai-coder/ai-gateway/index.md).
+For more information, read our documentation [here](../../../ai-governance/ai-gateway/index.md).
 
 ### Agent Firewall
 
@@ -42,7 +42,7 @@ Agent Firewall was introduced in 2.27 and is currently in Early Access.
 Agent Firewall is a process-level firewall in Coder that restricts and audits what autonomous programs (like AI agents) can access and do within a workspace.
 They provide network policy enforcement, blocking specific domains and HTTP verbs to prevent data exfiltration, and write logs to the workspace for auditability.
 Agent Firewall supports any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module.
-For more information, read our documentation [here](../../../ai-coder/agent-firewall/index.md).
+For more information, read our documentation [here](../../../ai-governance/agent-firewall/index.md).
 
 ### Performance Enhancements
 
@@ -77,9 +77,9 @@ The following are changes introduced after 2.24.X that might break workflows, or
 | CLI session tokens stored in plaintext file                        | CLI session tokens stored in OS keyring (macOS/Windows)                                                | Update scripts, automation, or single sign-on (SSO) flows that read/modify the token file, or use `--use-keyring=false`. See [Sessions & API Tokens](https://coder.com/docs/admin/users/sessions-tokens) and [`coder login` CLI reference](https://coder.com/docs/reference/cli/login). |
 | `task_app_id` field available in `codersdk.WorkspaceBuild`         | `task_app_id` removed from `codersdk.WorkspaceBuild`                                                   | Migrate integrations to use `Task.WorkspaceAppID` instead. See [Representational State Transfer (REST) API reference](https://coder.com/docs/reference/api).                                                                                                                            |
 | OpenID Connect (OIDC) session handling more permissive             | Sessions expire when access tokens expire (typically 1&nbsp;hour) unless refresh tokens are configured | Add `offline_access` to `CODER_OIDC_SCOPES` (e.g., `openid,profile,email,offline_access`); Google requires `CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline","prompt":"consent"}'`. See [OIDC Refresh Tokens](https://coder.com/docs/admin/users/oidc-auth/refresh-tokens).         |
-| Devcontainer agent selection is random when multiple agents exist  | Devcontainer agent selection requires explicit choice                                                  | Update automated workflows to explicitly specify agent selection. See [Dev Containers Integration](https://coder.com/docs/user-guides/devcontainers) and [Configure a template for dev containers](https://coder.com/docs/admin/templates/extending-templates/devcontainers).           |
-| Terraform execution uses clean directories per build               | Terraform workflows use persistent or cached directories when enabled                                  | Update templates that rely on clean execution directories or per-build isolation. See [External Provisioners](https://coder.com/docs/install/operate/provisioners) and [Template Dependencies](https://coder.com/docs/admin/templates/managing-templates/dependencies).                 |
-| Agent and task lifecycle behaviors more permissive                 | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering  | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](https://coder.com/docs/user-guides/workspace-lifecycle) and [Extending Templates](https://coder.com/docs/admin/templates/extending-templates).                        |
+| Devcontainer agent selection is random when multiple agents exist  | Devcontainer agent selection requires explicit choice                                                  | Update automated workflows to explicitly specify agent selection. See [Dev Containers Integration](https://coder.com/docs/user-guides/devcontainers) and [Configure a template for dev containers](../../../templates/extending-templates/devcontainers.md).                            |
+| Terraform execution uses clean directories per build               | Terraform workflows use persistent or cached directories when enabled                                  | Update templates that rely on clean execution directories or per-build isolation. See [External Provisioners](https://coder.com/docs/install/operate/provisioners) and [Template Dependencies](../../../templates/managing-templates/dependencies.md).                                  |
+| Agent and task lifecycle behaviors more permissive                 | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering  | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](https://coder.com/docs/user-guides/workspace-lifecycle) and [Extending Templates](../../../templates/extending-templates/index.md).                                   |
 
 <a id="upgrading"></a>
 
