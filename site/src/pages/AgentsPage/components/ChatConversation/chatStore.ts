@@ -115,7 +115,15 @@ export type PendingAction =
 	| { kind: "edit"; editedMessageID: number; message?: TypesGen.ChatMessage }
 	| { kind: "send"; message: TypesGen.ChatMessage }
 	| { kind: "deleteQueued"; queuedMessageID: number }
-	| { kind: "promoteQueued"; queuedMessageID: number };
+	| { kind: "promoteQueued"; queuedMessageID: number }
+	// A queued-message edit: editing begins or ends the row's edit, and
+	// content is set for a save.
+	| {
+			kind: "editQueued";
+			queuedMessageID: number;
+			editing: boolean;
+			content?: readonly TypesGen.ChatMessagePart[];
+	  };
 
 type QueueEdit = (
 	rows: readonly TypesGen.ChatQueuedMessage[],
@@ -151,10 +159,12 @@ type PendingEntry = {
 	syncedVersion: number;
 	// Set for a delete.
 	isRowGone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
-	// The message a send or promote adds, in the transcript or the queue.
+	// The message a send, promote or queued-message edit adds, in the
+	// transcript or the queue.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
 	editedMessage?: TypesGen.ChatMessage;
-	// The queue change of a delete, promote, edit or errored-chat send.
+	// The queue change of a delete, promote, edit, queued-message edit or
+	// errored-chat send.
 	queue?: QueueEdit;
 	// Hides the history from the edited message on.
 	history?: { fromID: number };
@@ -726,9 +736,9 @@ const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - maxPendingActions;
  */
 export const isPendingRowID = (id: number) => id > pendingRowIDFloor;
 
-// pendingEntry places a request's message as chatstate SendMessage and
-// PromoteQueuedMessage do, but by the state shown at the click. The server
-// uses the state the request finds, which can differ.
+// pendingEntry places a request's message as chatstate SendMessage,
+// PromoteQueuedMessage and EditQueuedMessage do, but by the state shown at
+// the click. The server uses the state the request finds, which can differ.
 const pendingEntry = (
 	id: number,
 	action: PendingAction,
@@ -804,6 +814,51 @@ const pendingEntry = (
 					!rows.some((row) => row.id === action.queuedMessageID),
 				queue: withoutRow(action.queuedMessageID),
 			};
+		case "editQueued": {
+			const target = view.queuedMessages.find(
+				(row) => row.id === action.queuedMessageID,
+			);
+			if (!target) {
+				return { id };
+			}
+			const content = action.content ?? target.content;
+			if (action.editing) {
+				const editingSince = target.editing_since ?? new Date().toISOString();
+				// A chat has at most one row under edit.
+				return {
+					id,
+					queue: (rows) =>
+						rows.map((row) => {
+							if (row.id === target.id) {
+								return { ...row, editing_since: editingSince };
+							}
+							return row.editing_since
+								? { ...row, editing_since: undefined }
+								: row;
+						}),
+				};
+			}
+			// Ending the edit of a paused chat's head resumes the chat, which
+			// sends the head.
+			if (status === "paused" && view.queuedMessages[0] === target) {
+				return {
+					id,
+					message: {
+						shown: sentQueuedMessage(pendingRowID, { ...target, content }),
+					},
+					queue: withoutRow(target.id),
+				};
+			}
+			return {
+				id,
+				queue: (rows) =>
+					rows.map((row) =>
+						row.id === target.id
+							? { ...row, content, editing_since: undefined }
+							: row,
+					),
+			};
+		}
 	}
 };
 

@@ -604,7 +604,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
 		queuedMessages[0].id !== queuedMessageUnderEditID &&
-		canSendQueuedMessageNow(queuedMessages[0].busy_behavior);
+		!isPendingRowID(queuedMessages[0].id);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -1197,8 +1197,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	// Enter, Send now and Remove check it, so each queued row has at most
-	// one request in flight.
+	// Enter, Send now, Remove and Cancel edit check it, so each queued row has
+	// at most one request in flight.
 	const [busyRows, setBusyRows] = useState<
 		ReadonlyMap<number, QueuedRowAction>
 	>(new Map());
@@ -1237,9 +1237,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			queuedMessages.length > 0 &&
-			!queuedMessages[0].editing_since &&
-			!isPendingRowID(queuedMessages[0].id) &&
+			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
 			void runRowAction(
@@ -1445,6 +1443,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					onPromote={(id) =>
 						void runRowAction(id, "promote", onPromoteQueuedMessage)
 					}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={(id) =>
+						void runRowAction(id, "end_edit", onEndQueuedMessageEdit)
+					}
+					isChatPaused={isChatPaused}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					composerQueuedMessageID={composerQueuedMessageID}
+					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>
 			)}

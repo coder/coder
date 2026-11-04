@@ -897,6 +897,26 @@ describe("pending actions", () => {
 		await expect(run).rejects.toThrow("failed");
 		expect(visible(store).queue).toEqual(["q10"]);
 	});
+
+	it("a failed queued edit shows the queue as before and drops no row", async () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10"), underEdit(makeQueuedMessage(11, "q11"))],
+			"running",
+		);
+		const request = createDeferred<undefined>();
+		const run = store.runPendingAction(
+			{ kind: "editQueued", queuedMessageID: 10, editing: true },
+			"running",
+			() => request.promise,
+		);
+		expect(visible(store).queue).toEqual(["q10 (editing)", "q11"]);
+
+		request.reject(new Error("not found"));
+
+		await expect(run).rejects.toThrow("not found");
+		expect(visible(store).queue).toEqual(["q10", "q11 (editing)"]);
+	});
 });
 
 // Each scenario applies the same stream updates to a store that acted (with
@@ -1102,6 +1122,77 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			),
 		statusAfter: "error",
 	},
+	{
+		name: "begin a queued edit while another row is under edit",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [
+			makeQueuedMessage(10, "q10"),
+			underEdit(makeQueuedMessage(11, "q11")),
+		],
+		status: "running",
+		action: { kind: "editQueued", queuedMessageID: 10, editing: true },
+		stream: (store) =>
+			store.setQueuedMessages(
+				[underEdit(makeQueuedMessage(10, "q10")), makeQueuedMessage(11, "q11")],
+				2,
+			),
+		statusAfter: "running",
+	},
+	{
+		name: "end a queued edit",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [underEdit(makeQueuedMessage(10, "q10"))],
+		status: "running",
+		action: { kind: "editQueued", queuedMessageID: 10, editing: false },
+		stream: (store) =>
+			store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2),
+		statusAfter: "running",
+	},
+	{
+		name: "save a queued edit",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [underEdit(makeQueuedMessage(10, "q10"))],
+		status: "running",
+		action: {
+			kind: "editQueued",
+			queuedMessageID: 10,
+			editing: false,
+			content: [{ type: "text", text: "q10 saved" }],
+		},
+		stream: (store) =>
+			store.setQueuedMessages([makeQueuedMessage(10, "q10 saved")], 2),
+		statusAfter: "running",
+	},
+	...[undefined, "q10 saved"].map(
+		(saved): ConvergenceScenario => ({
+			name: `${saved ? "save" : "end"} the edit of a paused chat's head`,
+			messages: [makeMessage(1, "user", "first")],
+			queue: [
+				underEdit(makeQueuedMessage(10, "q10")),
+				makeQueuedMessage(11, "q11"),
+			],
+			status: "paused",
+			action: {
+				kind: "editQueued",
+				queuedMessageID: 10,
+				editing: false,
+				content: saved ? [{ type: "text", text: saved }] : undefined,
+			},
+			stream: (store) => {
+				store.upsertDurableMessages(
+					[
+						{
+							...makeMessage(2, "user", saved ?? "q10"),
+							queued_message_id: 10,
+						},
+					],
+					2,
+				);
+				store.setQueuedMessages([makeQueuedMessage(11, "q11")], 2);
+			},
+			statusAfter: "running",
+		}),
+	),
 	{
 		name: "another tab's message replaces the pending one",
 		messages: [makeMessage(1, "user", "first")],
