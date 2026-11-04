@@ -43,6 +43,7 @@ SUBCOMMANDS:
     reset-password     Directly connect to the database to reset a user's
                        password
     restart            Restart a workspace
+    run                Run a command on prepared template capacity
     schedule           Schedule automated start and stop times for workspaces
     secret             Manage secrets
     server             Start a Coder server

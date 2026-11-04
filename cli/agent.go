@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/reaper"
+	"github.com/coder/coder/v2/agent/x/agentworkload"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
@@ -64,6 +65,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		blockLocalPortForwarding        bool
 		agentHeaderCommand              string
 		agentHeader                     []string
+		workloadConfig                  string
 		devcontainers                   bool
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
@@ -299,6 +301,16 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			contextConfig := agentcontextconfig.ReadEnvConfig()
 			agentcontextconfig.ClearEnvVars()
 
+			var workloadHandler http.Handler
+			if workloadConfig != "" {
+				supervisor, err := agentworkload.NewFromFile(ctx, workloadConfig)
+				if err != nil {
+					return xerrors.Errorf("initialize workload host: %w", err)
+				}
+				defer supervisor.Close()
+				workloadHandler = supervisor
+			}
+
 			var (
 				lastOwnerID uuid.UUID
 				lastErr     error
@@ -346,6 +358,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					BlockReversePortForwarding: blockReversePortForwarding,
 					BlockLocalPortForwarding:   blockLocalPortForwarding,
 					Execer:                     execer,
+					WorkloadHandler:            workloadHandler,
 					Devcontainers:              devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
 						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
@@ -539,6 +552,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
+		},
+		{
+			Flag:        "workload-config",
+			Env:         "CODER_AGENT_WORKLOAD_CONFIG",
+			Description: "Path to a private JSON configuration for the experimental workload host. Requires a dedicated Linux Docker daemon and prepared image.",
+			Value:       serpent.StringOf(&workloadConfig),
 		},
 		{
 			Flag:        "devcontainers-enable",

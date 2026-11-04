@@ -120,6 +120,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
+		r.run(),
 		r.secrets(),
 		r.sharing(),
 		r.state(),
@@ -226,7 +227,11 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 	if err != nil {
 		panic(err)
 	}
-	err = cmd.Invoke().WithOS().Run()
+	inv := cmd.Invoke().WithOS()
+	// A root parsing error can occur before Serpent selects the run command.
+	// Inspect the original argv, not the partially parsed command or values.
+	omitRootFlagArguments := hasRunCommandFlag(cmd, inv.Args)
+	err = inv.Run()
 	if err != nil {
 		code := 1
 		var exitErr *exitError
@@ -242,13 +247,57 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			//nolint:revive,gocritic
 			os.Exit(code)
 		}
-		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
+		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose, omitRootFlagArguments: omitRootFlagArguments}
 		if err != nil {
 			f.Format(err)
 		}
 		//nolint:revive,gocritic
 		os.Exit(code)
 	}
+}
+
+// hasRunCommandFlag recognizes sensitive run flags even after an unknown flag.
+// Use command metadata to skip known flag values: a value can itself be --cmd.
+func hasRunCommandFlag(command *serpent.Command, args []string) bool {
+	flags := command.Options.FlagSet()
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--":
+			return false
+		case arg == "--cmd" || strings.HasPrefix(arg, "--cmd="), arg == "--env" || strings.HasPrefix(arg, "--env="):
+			return true
+		case strings.HasPrefix(arg, "--"):
+			name, _, hasValue := strings.Cut(arg[2:], "=")
+			if option := flags.Lookup(name); !hasValue && option != nil && option.NoOptDefVal == "" {
+				i++
+			}
+		case strings.HasPrefix(arg, "-"):
+			for j := 1; j < len(arg); j++ {
+				option := flags.ShorthandLookup(arg[j : j+1])
+				if option == nil {
+					break
+				}
+				if option.NoOptDefVal == "" {
+					// Any remaining characters are an attached flag value.
+					if j == len(arg)-1 {
+						i++
+					}
+					break
+				}
+			}
+		default:
+			for _, child := range command.Children {
+				if child.Name() == arg || slices.Contains(child.Aliases, arg) {
+					childFlags := child.Options.FlagSet()
+					childFlags.AddFlagSet(flags)
+					flags, command = childFlags, child
+					break
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
@@ -1416,20 +1465,24 @@ type PrettyErrorFormatter struct {
 	w io.Writer
 	// verbose turns on more detailed error logs, such as stack traces.
 	verbose bool
+	// omitRootFlagArguments protects command and env values before subcommand selection.
+	omitRootFlagArguments bool
 }
 
 // Format formats the error to the writer in PrettyErrorFormatter.
 // This error should be human readable.
 func (p *PrettyErrorFormatter) Format(err error) {
 	output, _ := cliHumanFormatError("", err, &formatOpts{
-		Verbose: p.verbose,
+		Verbose:               p.verbose,
+		OmitRootFlagArguments: p.omitRootFlagArguments,
 	})
 	// always trail with a newline
 	_, _ = p.w.Write([]byte(output + "\n"))
 }
 
 type formatOpts struct {
-	Verbose bool
+	Verbose               bool
+	OmitRootFlagArguments bool
 }
 
 const indent = "    "
@@ -1463,6 +1516,20 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 			return cliHumanFormatError(from, multiErrors[0], opts)
 		}
 		return formatMultiError(from, multiErrors, opts), true
+	}
+
+	// Serpent has no typed flag-parsing error and includes the entire argument
+	// vector in this wrapper. Omit it for run, or root failures whose original
+	// argv contains sensitive run flags. Keep the parser's cause and other errors.
+	if cause := errors.Unwrap(err); cause != nil && strings.HasPrefix(err.Error(), "parsing flags (") {
+		for _, command := range []string{"coder run", "coder"} {
+			if command == "coder" && !opts.OmitRootFlagArguments {
+				continue
+			}
+			if strings.HasSuffix(err.Error(), fmt.Sprintf(") for %q: %s", command, cause.Error())) {
+				return pretty.Sprint(headLineStyle(), fmt.Sprintf("parsing flags for %q: %s", command, cause.Error())), true
+			}
+		}
 	}
 
 	// First check for sentinel errors that we want to handle specially.

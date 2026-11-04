@@ -98,5 +98,9 @@ OPTIONS:
       --tailnet-listen-port int, $CODER_AGENT_TAILNET_LISTEN_PORT (default: 0)
           Specify a static port for Tailscale to use for listening.
 
+      --workload-config string, $CODER_AGENT_WORKLOAD_CONFIG
+          Path to a private JSON configuration for the experimental workload
+          host. Requires a dedicated Linux Docker daemon and prepared image.
+
 ———
 Run `coder --help` for a list of global options.

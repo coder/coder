@@ -2,6 +2,7 @@ package agent
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -78,7 +79,19 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
-	return r
+	// Workload authentication must run on every request, independently of the
+	// chat tool-call response cache and the host's interactive execution API.
+	workloads := http.NotFoundHandler()
+	if a.workloadHandler != nil {
+		workloads = http.StripPrefix("/api/v0/workloads", a.workloadHandler)
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/api/v0/workloads" || strings.HasPrefix(req.URL.Path, "/api/v0/workloads/") {
+			workloads.ServeHTTP(w, req)
+			return
+		}
+		r.ServeHTTP(w, req)
+	})
 }
 
 type ListeningPortsGetter interface {

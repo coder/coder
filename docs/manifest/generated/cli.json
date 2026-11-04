@@ -513,6 +513,11 @@
 		"path": "reference/cli/restart.md"
 	},
 	{
+		"title": "`run`",
+		"description": "Run a command on prepared template capacity.",
+		"path": "reference/cli/run.md"
+	},
+	{
 		"title": "`schedule`",
 		"description": "Schedule automated start and stop times for workspaces.",
 		"path": "reference/cli/schedule/index.md",

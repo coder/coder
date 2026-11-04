@@ -1,0 +1,39 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder run [flags]
+
+  Run a command on prepared template capacity
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+      --cmd string
+          Command to execute in the prepared environment. Required.
+
+      --cpu string
+          CPU quota as a positive whole number. Required; no template default is
+          used.
+
+      --env key=value
+          Set a container environment variable as KEY=value. Repeat for multiple
+          variables; the last value wins. Values are retained in admin-only run
+          history.
+
+  -i, --interactive bool
+          Forward stdin to the workload.
+
+      --ram string
+          Memory as integer MiB or GiB, at least 16MiB. Required; no template
+          default is used.
+
+      --template string
+          Template name or UUID. Required.
+
+  -t, --tty bool
+          Allocate a terminal and forward resize events. Requires --interactive
+          and a local terminal. Terminal output combines stdout and stderr.
+
+———
+Run `coder --help` for a list of global options.

@@ -1566,6 +1566,7 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				api.registerOrganizationChatRoutes(r)
+				api.registerWorkloadRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -1842,6 +1843,8 @@ func New(options *Options) *API {
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(workspaceAgentInfo)
+				r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkloads), httpmw.NoStore).
+					Get("/workload-stats", api.getWorkspaceAgentWorkloadStats)
 				r.Group(func(r chi.Router) {
 					r.Use(
 						// Override the request_type for agent rpc traffic.
@@ -2322,6 +2325,7 @@ type API struct {
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 	workspaceAppServer    *workspaceapps.Server
 	agentProvider         workspaceapps.AgentProvider
+	workloads             workloadRegistry
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

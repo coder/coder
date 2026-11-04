@@ -224,6 +224,10 @@ func prefixLines(prefix, s []byte) []byte {
 	return ss.Bytes()
 }
 
+// privateRequestBodyKey prevents sensitive API payloads from entering optional
+// SDK request/response body logs without mutating a shared client.
+type privateRequestBodyKey struct{}
+
 // Request performs a HTTP request with the body provided. The caller is
 // responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
@@ -271,6 +275,9 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	c.mu.RLock()
 	logBodies := c.logBodies
 	c.mu.RUnlock()
+	if private, _ := ctx.Value(privateRequestBodyKey{}).(bool); private {
+		logBodies = false
+	}
 	if r != nil && logBodies {
 		reqBody, err := io.ReadAll(r)
 		if err != nil {

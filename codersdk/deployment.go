@@ -5501,6 +5501,7 @@ type Experiment string
 const (
 	// Add new experiments here!
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
+	ExperimentWorkloads                 Experiment = "workloads"                   // Enables the workspace-hosted workload prototype.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
@@ -5522,6 +5523,8 @@ func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentExample:
 		return "Example Experiment"
+	case ExperimentWorkloads:
+		return "Workspace-Hosted Workloads"
 	case ExperimentNotifications:
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
@@ -5561,6 +5564,7 @@ func (e Experiment) DisplayName() string {
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
 	ExperimentExample,
+	ExperimentWorkloads,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,

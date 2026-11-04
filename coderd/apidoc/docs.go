@@ -11430,6 +11430,395 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/organizations/{organization}/workload-hosts": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Register a managed workload host (experimental)",
+                "operationId": "register-a-managed-workload-host-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Host registration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RegisterWorkloadHostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RegisteredWorkloadHost"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/workload-hosts/{agent}": {
+            "delete": {
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Drain a managed workload host (experimental)",
+                "operationId": "drain-a-managed-workload-host-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/workload-hosts/{agent}/history": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Get workload host command history (experimental)",
+                "operationId": "get-workload-host-command-history-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "History offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, from 1 to 10 (default 10)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkloadHostHistory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/workload-hosts/{agent}/stats": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Get workload host statistics (experimental)",
+                "operationId": "get-workload-host-statistics-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkloadHostStats"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/workloads": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Create a workload on prepared capacity (experimental)",
+                "operationId": "create-a-workload-on-prepared-capacity-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Workload request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkloadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Workload"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Workload"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/workloads/{workload}": {
+            "get": {
+                "description": "Returns an output snapshot, or with follow=true streams bounded application/x-ndjson batches and 15-second blank-line heartbeats until a terminal batch with no events confirms all output is drained.",
+                "produces": [
+                    "application/json",
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Read workload output (experimental)",
+                "operationId": "read-workload-output-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Output event offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Stream output until the terminal empty batch",
+                        "name": "follow",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkloadOutput"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Cancel a workload (experimental)",
+                "operationId": "cancel-a-workload-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/workloads/{workload}/input": {
+            "get": {
+                "description": "Opens a WebSocket accepting JSON WorkloadInput messages. Disconnecting does not cancel the workload.",
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Connect to workload input (experimental)",
+                "operationId": "connect-to-workload-input-experimental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/prebuilds/settings": {
             "get": {
                 "produces": [
@@ -16376,6 +16765,34 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/workspaceagents/me/workload-stats": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get this agent's workload statistics (experimental)",
+                "operationId": "get-this-agents-workload-statistics-experimental",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkloadHostStats"
+                        }
                     }
                 },
                 "security": [
@@ -25439,6 +25856,46 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkloadRequest": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "cpu": {
+                    "type": "integer"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "memory_bytes": {
+                    "type": "integer"
+                },
+                "stdin": {
+                    "type": "boolean"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "tty": {
+                    "type": "boolean"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.CreateWorkspaceBuildOnSuccessRequest": {
             "type": "object",
             "required": [
@@ -26428,6 +26885,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
+                "workloads",
                 "notifications",
                 "workspace-usage",
                 "mcp-server-http",
@@ -26458,12 +26916,14 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentWorkloads": "Enables the workspace-hosted workload prototype.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
+                "Enables the workspace-hosted workload prototype.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
@@ -26482,6 +26942,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
+                "ExperimentWorkloads",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
@@ -30936,6 +31397,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.RegisterWorkloadHostRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.RegisteredWorkloadHost": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "info": {
+                    "$ref": "#/definitions/codersdk.WorkloadHostInfo"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.Replica": {
             "type": "object",
             "properties": {
@@ -31486,6 +31975,61 @@ const docTemplate = `{
                 },
                 "organization_id": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.StartHostWorkloadRequest": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "cpu": {
+                    "type": "integer"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "generation_id": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "memory_bytes": {
+                    "type": "integer"
+                },
+                "network": {
+                    "description": "Network preserves historical request metadata; it does not select networking.",
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "stdin": {
+                    "type": "boolean"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "tty": {
+                    "type": "boolean"
+                },
+                "width": {
+                    "type": "integer"
                 }
             }
         },
@@ -34522,6 +35066,214 @@ const docTemplate = `{
                 },
                 "p256dh_key": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.Workload": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "cleanup_pending": {
+                    "type": "boolean"
+                },
+                "cpu": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "failure": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "generation": {
+                    "$ref": "#/definitions/codersdk.WorkloadGeneration"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "memory_bytes": {
+                    "type": "integer"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "timings": {
+                    "$ref": "#/definitions/codersdk.WorkloadTimings"
+                }
+            }
+        },
+        "codersdk.WorkloadEvent": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "string",
+                    "format": "base64"
+                },
+                "stream": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkloadGeneration": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "repositories": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "workdir": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkloadHistoryEntry": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "$ref": "#/definitions/codersdk.StartHostWorkloadRequest"
+                },
+                "workload": {
+                    "$ref": "#/definitions/codersdk.Workload"
+                }
+            }
+        },
+        "codersdk.WorkloadHostHistory": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkloadHistoryEntry"
+                    }
+                },
+                "next_offset": {
+                    "description": "NextOffset is the offset after this page, not a sentinel. When it equals\nTotal, all currently retained admissions have been returned.",
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkloadHostInfo": {
+            "type": "object",
+            "properties": {
+                "available_cpu": {
+                    "type": "integer"
+                },
+                "available_memory_bytes": {
+                    "type": "integer"
+                },
+                "cpu": {
+                    "type": "integer"
+                },
+                "draining": {
+                    "type": "boolean"
+                },
+                "generation": {
+                    "$ref": "#/definitions/codersdk.WorkloadGeneration"
+                },
+                "memory_bytes": {
+                    "type": "integer"
+                },
+                "runtime": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkloadHostStats": {
+            "type": "object",
+            "properties": {
+                "canceled": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "succeeded": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkloadOutput": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkloadEvent"
+                    }
+                },
+                "next_offset": {
+                    "type": "integer"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "workload": {
+                    "$ref": "#/definitions/codersdk.Workload"
+                }
+            }
+        },
+        "codersdk.WorkloadTimings": {
+            "type": "object",
+            "properties": {
+                "exec_ns": {
+                    "type": "integer"
+                },
+                "host_connect_ns": {
+                    "type": "integer"
+                },
+                "host_connection_reused": {
+                    "type": "boolean"
+                },
+                "provision_ns": {
+                    "type": "integer"
                 }
             }
         },

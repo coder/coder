@@ -7799,6 +7799,42 @@ This is required on creation to enable a user-flow of validating a template work
 | `name`        | string  | false    |              |             |
 | `value`       | string  | false    |              |             |
 
+## codersdk.CreateWorkloadRequest
+
+```json
+{
+  "command": "string",
+  "cpu": 0,
+  "env": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "height": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "memory_bytes": 0,
+  "stdin": true,
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "tty": true,
+  "width": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `command`          | string  | false    |              |             |
+| `cpu`              | integer | false    |              |             |
+| `env`              | object  | false    |              |             |
+| » `[any property]` | string  | false    |              |             |
+| `height`           | integer | false    |              |             |
+| `id`               | string  | false    |              |             |
+| `memory_bytes`     | integer | false    |              |             |
+| `stdin`            | boolean | false    |              |             |
+| `template_id`      | string  | false    |              |             |
+| `tty`              | boolean | false    |              |             |
+| `width`            | integer | false    |              |             |
+
 ## codersdk.CreateWorkspaceBuildOnSuccessRequest
 
 ```json
@@ -10105,9 +10141,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workloads`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -14829,6 +14865,55 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------|-------------------------------------------------------------|----------|--------------|-------------|
 | `regions` | array of [codersdk.WorkspaceProxy](#codersdkworkspaceproxy) | false    |              |             |
 
+## codersdk.RegisterWorkloadHostRequest
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "token": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `agent_id` | string | false    |              |             |
+| `token`    | string | false    |              |             |
+
+## codersdk.RegisteredWorkloadHost
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "info": {
+    "available_cpu": 0,
+    "available_memory_bytes": 0,
+    "cpu": 0,
+    "draining": true,
+    "generation": {
+      "id": "string",
+      "repositories": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "workdir": "string"
+    },
+    "memory_bytes": 0,
+    "runtime": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name          | Type                                                   | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------|----------|--------------|-------------|
+| `agent_id`    | string                                                 | false    |              |             |
+| `info`        | [codersdk.WorkloadHostInfo](#codersdkworkloadhostinfo) | false    |              |             |
+| `template_id` | string                                                 | false    |              |             |
+
 ## codersdk.Replica
 
 ```json
@@ -15313,6 +15398,50 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `display_name`    | string | false    |              |             |
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
+
+## codersdk.StartHostWorkloadRequest
+
+```json
+{
+  "command": "string",
+  "cpu": 0,
+  "env": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "generation_id": "string",
+  "height": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "memory_bytes": 0,
+  "network": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "stdin": true,
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "tty": true,
+  "width": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                   |
+|--------------------|---------|----------|--------------|-------------------------------------------------------------------------------|
+| `command`          | string  | false    |              |                                                                               |
+| `cpu`              | integer | false    |              |                                                                               |
+| `env`              | object  | false    |              |                                                                               |
+| » `[any property]` | string  | false    |              |                                                                               |
+| `generation_id`    | string  | false    |              |                                                                               |
+| `height`           | integer | false    |              |                                                                               |
+| `id`               | string  | false    |              |                                                                               |
+| `memory_bytes`     | integer | false    |              |                                                                               |
+| `network`          | string  | false    |              | Network preserves historical request metadata; it does not select networking. |
+| `organization_id`  | string  | false    |              |                                                                               |
+| `owner_id`         | string  | false    |              |                                                                               |
+| `stdin`            | boolean | false    |              |                                                                               |
+| `template_id`      | string  | false    |              |                                                                               |
+| `tty`              | boolean | false    |              |                                                                               |
+| `width`            | integer | false    |              |                                                                               |
 
 ## codersdk.StatsCollectionConfig
 
@@ -19037,6 +19166,366 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `auth_key`   | string | false    |              |             |
 | `endpoint`   | string | false    |              |             |
 | `p256dh_key` | string | false    |              |             |
+
+## codersdk.Workload
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "cleanup_pending": true,
+  "cpu": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "exit_code": 0,
+  "failure": "string",
+  "finished_at": "2019-08-24T14:15:22Z",
+  "generation": {
+    "id": "string",
+    "repositories": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "workdir": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "memory_bytes": 0,
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "state": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "timings": {
+    "exec_ns": 0,
+    "host_connect_ns": 0,
+    "host_connection_reused": true,
+    "provision_ns": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                       | Required | Restrictions | Description |
+|-------------------|------------------------------------------------------------|----------|--------------|-------------|
+| `agent_id`        | string                                                     | false    |              |             |
+| `cleanup_pending` | boolean                                                    | false    |              |             |
+| `cpu`             | integer                                                    | false    |              |             |
+| `created_at`      | string                                                     | false    |              |             |
+| `exit_code`       | integer                                                    | false    |              |             |
+| `failure`         | string                                                     | false    |              |             |
+| `finished_at`     | string                                                     | false    |              |             |
+| `generation`      | [codersdk.WorkloadGeneration](#codersdkworkloadgeneration) | false    |              |             |
+| `id`              | string                                                     | false    |              |             |
+| `memory_bytes`    | integer                                                    | false    |              |             |
+| `organization_id` | string                                                     | false    |              |             |
+| `owner_id`        | string                                                     | false    |              |             |
+| `started_at`      | string                                                     | false    |              |             |
+| `state`           | string                                                     | false    |              |             |
+| `template_id`     | string                                                     | false    |              |             |
+| `timings`         | [codersdk.WorkloadTimings](#codersdkworkloadtimings)       | false    |              |             |
+
+## codersdk.WorkloadEvent
+
+```json
+{
+  "data": "string",
+  "stream": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+|----------|--------|----------|--------------|-------------|
+| `data`   | string | false    |              |             |
+| `stream` | string | false    |              |             |
+
+## codersdk.WorkloadGeneration
+
+```json
+{
+  "id": "string",
+  "repositories": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "workdir": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `id`               | string | false    |              |             |
+| `repositories`     | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+| `workdir`          | string | false    |              |             |
+
+## codersdk.WorkloadHistoryEntry
+
+```json
+{
+  "request": {
+    "command": "string",
+    "cpu": 0,
+    "env": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "generation_id": "string",
+    "height": 0,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "memory_bytes": 0,
+    "network": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "stdin": true,
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "tty": true,
+    "width": 0
+  },
+  "workload": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "cleanup_pending": true,
+    "cpu": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "exit_code": 0,
+    "failure": "string",
+    "finished_at": "2019-08-24T14:15:22Z",
+    "generation": {
+      "id": "string",
+      "repositories": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "workdir": "string"
+    },
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "memory_bytes": 0,
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "started_at": "2019-08-24T14:15:22Z",
+    "state": "string",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "timings": {
+      "exec_ns": 0,
+      "host_connect_ns": 0,
+      "host_connection_reused": true,
+      "provision_ns": 0
+    }
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                                                   | Required | Restrictions | Description |
+|------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `request`  | [codersdk.StartHostWorkloadRequest](#codersdkstarthostworkloadrequest) | false    |              |             |
+| `workload` | [codersdk.Workload](#codersdkworkload)                                 | false    |              |             |
+
+## codersdk.WorkloadHostHistory
+
+```json
+{
+  "items": [
+    {
+      "request": {
+        "command": "string",
+        "cpu": 0,
+        "env": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "generation_id": "string",
+        "height": 0,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "memory_bytes": 0,
+        "network": "string",
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "stdin": true,
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "tty": true,
+        "width": 0
+      },
+      "workload": {
+        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+        "cleanup_pending": true,
+        "cpu": 0,
+        "created_at": "2019-08-24T14:15:22Z",
+        "exit_code": 0,
+        "failure": "string",
+        "finished_at": "2019-08-24T14:15:22Z",
+        "generation": {
+          "id": "string",
+          "repositories": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "workdir": "string"
+        },
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "memory_bytes": 0,
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "started_at": "2019-08-24T14:15:22Z",
+        "state": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "timings": {
+          "exec_ns": 0,
+          "host_connect_ns": 0,
+          "host_connection_reused": true,
+          "provision_ns": 0
+        }
+      }
+    }
+  ],
+  "next_offset": 0,
+  "total": 0
+}
+```
+
+### Properties
+
+| Name          | Type                                                                    | Required | Restrictions | Description                                                                                                                            |
+|---------------|-------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `items`       | array of [codersdk.WorkloadHistoryEntry](#codersdkworkloadhistoryentry) | false    |              |                                                                                                                                        |
+| `next_offset` | integer                                                                 | false    |              | Next offset is the offset after this page, not a sentinel. When it equals Total, all currently retained admissions have been returned. |
+| `total`       | integer                                                                 | false    |              |                                                                                                                                        |
+
+## codersdk.WorkloadHostInfo
+
+```json
+{
+  "available_cpu": 0,
+  "available_memory_bytes": 0,
+  "cpu": 0,
+  "draining": true,
+  "generation": {
+    "id": "string",
+    "repositories": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "workdir": "string"
+  },
+  "memory_bytes": 0,
+  "runtime": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type                                                       | Required | Restrictions | Description |
+|--------------------------|------------------------------------------------------------|----------|--------------|-------------|
+| `available_cpu`          | integer                                                    | false    |              |             |
+| `available_memory_bytes` | integer                                                    | false    |              |             |
+| `cpu`                    | integer                                                    | false    |              |             |
+| `draining`               | boolean                                                    | false    |              |             |
+| `generation`             | [codersdk.WorkloadGeneration](#codersdkworkloadgeneration) | false    |              |             |
+| `memory_bytes`           | integer                                                    | false    |              |             |
+| `runtime`                | string                                                     | false    |              |             |
+
+## codersdk.WorkloadHostStats
+
+```json
+{
+  "canceled": 0,
+  "failed": 0,
+  "pending": 0,
+  "running": 0,
+  "succeeded": 0,
+  "total": 0,
+  "unknown": 0
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+|-------------|---------|----------|--------------|-------------|
+| `canceled`  | integer | false    |              |             |
+| `failed`    | integer | false    |              |             |
+| `pending`   | integer | false    |              |             |
+| `running`   | integer | false    |              |             |
+| `succeeded` | integer | false    |              |             |
+| `total`     | integer | false    |              |             |
+| `unknown`   | integer | false    |              |             |
+
+## codersdk.WorkloadOutput
+
+```json
+{
+  "events": [
+    {
+      "data": "string",
+      "stream": "string"
+    }
+  ],
+  "next_offset": 0,
+  "truncated": true,
+  "workload": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "cleanup_pending": true,
+    "cpu": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "exit_code": 0,
+    "failure": "string",
+    "finished_at": "2019-08-24T14:15:22Z",
+    "generation": {
+      "id": "string",
+      "repositories": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "workdir": "string"
+    },
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "memory_bytes": 0,
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "started_at": "2019-08-24T14:15:22Z",
+    "state": "string",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "timings": {
+      "exec_ns": 0,
+      "host_connect_ns": 0,
+      "host_connection_reused": true,
+      "provision_ns": 0
+    }
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                                      | Required | Restrictions | Description |
+|---------------|-----------------------------------------------------------|----------|--------------|-------------|
+| `events`      | array of [codersdk.WorkloadEvent](#codersdkworkloadevent) | false    |              |             |
+| `next_offset` | integer                                                   | false    |              |             |
+| `truncated`   | boolean                                                   | false    |              |             |
+| `workload`    | [codersdk.Workload](#codersdkworkload)                    | false    |              |             |
+
+## codersdk.WorkloadTimings
+
+```json
+{
+  "exec_ns": 0,
+  "host_connect_ns": 0,
+  "host_connection_reused": true,
+  "provision_ns": 0
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description |
+|--------------------------|---------|----------|--------------|-------------|
+| `exec_ns`                | integer | false    |              |             |
+| `host_connect_ns`        | integer | false    |              |             |
+| `host_connection_reused` | boolean | false    |              |             |
+| `provision_ns`           | integer | false    |              |             |
 
 ## codersdk.Workspace
 

@@ -126,6 +126,9 @@ type Options struct {
 	// StatsReportInterval is the interval for the connstats callback
 	// installed at statsReporter creation.
 	StatsReportInterval time.Duration
+	// WorkloadHandler serves the opt-in, independently authenticated workload
+	// supervisor. Its owner controls its lifetime across agent reconnects.
+	WorkloadHandler http.Handler
 }
 
 type Client interface {
@@ -242,6 +245,7 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
+		workloadHandler:                 options.WorkloadHandler,
 		devcontainers:                   options.Devcontainers,
 		containerAPIOptions:             options.DevcontainerAPIOptions,
 		gitAPIOptions:                   options.GitAPIOptions,
@@ -335,6 +339,8 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
+
+	workloadHandler http.Handler
 
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option

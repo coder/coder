@@ -4921,6 +4921,23 @@ export interface CreateUserSecretRequest {
 	readonly enabled?: boolean;
 }
 
+// From codersdk/workloads.go
+/**
+ * CreateWorkloadRequest is the normalized run request. ID is an idempotency key.
+ */
+export interface CreateWorkloadRequest {
+	readonly id: string;
+	readonly template_id: string;
+	readonly cpu: number;
+	readonly memory_bytes: number;
+	readonly command: string;
+	readonly env?: Record<string, string>;
+	readonly stdin?: boolean;
+	readonly tty?: boolean;
+	readonly width?: number;
+	readonly height?: number;
+}
+
 // From codersdk/workspaces.go
 /**
  * CreateWorkspaceBuildOnSuccessRequest queues a follow-up build that
@@ -5753,6 +5770,7 @@ export type Experiment =
 	| "mcp-server-http"
 	| "no_nats_pubsub"
 	| "notifications"
+	| "workloads"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5832,6 +5850,7 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"no_nats_pubsub",
 	"notifications",
+	"workloads",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
@@ -9275,6 +9294,26 @@ export interface RegionsResponse<R extends RegionTypes> {
 	readonly regions: readonly R[];
 }
 
+// From codersdk/workloads.go
+/**
+ * RegisterWorkloadHostRequest explicitly enrolls a managed service workspace.
+ * Token is a dedicated supervisor credential, never a workspace agent token.
+ */
+export interface RegisterWorkloadHostRequest {
+	readonly agent_id: string;
+	readonly token: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * RegisteredWorkloadHost identifies a validated host without exposing credentials.
+ */
+export interface RegisteredWorkloadHost {
+	readonly agent_id: string;
+	readonly template_id: string;
+	readonly info: WorkloadHostInfo;
+}
+
 // From codersdk/replicas.go
 export interface Replica {
 	/**
@@ -9981,6 +10020,20 @@ export interface SlimRole {
 	readonly name: string;
 	readonly display_name: string;
 	readonly organization_id?: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * StartHostWorkloadRequest pins placement before invoking the host supervisor.
+ */
+export interface StartHostWorkloadRequest extends CreateWorkloadRequest {
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly generation_id: string;
+	/**
+	 * Network preserves historical request metadata; it does not select networking.
+	 */
+	readonly network?: string;
 }
 
 // From codersdk/deployment.go
@@ -12206,6 +12259,131 @@ export interface WebsocketReport extends BaseReport {
 	readonly healthy: boolean;
 	readonly body: string;
 	readonly code: number;
+}
+
+// From codersdk/workloads.go
+/**
+ * Workload is a run's identity and observed execution outcome. Command text and
+ * environment values are deliberately omitted from responses and diagnostics.
+ */
+export interface Workload {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly template_id: string;
+	readonly agent_id: string;
+	readonly generation: WorkloadGeneration;
+	readonly cpu: number;
+	readonly memory_bytes: number;
+	readonly state: string;
+	readonly created_at: string;
+	readonly started_at?: string;
+	readonly finished_at?: string;
+	readonly exit_code?: number;
+	readonly failure?: string;
+	readonly cleanup_pending: boolean;
+	readonly timings: WorkloadTimings;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadEvent retains stdout and stderr separately without interpreting bytes.
+ */
+export interface WorkloadEvent {
+	readonly stream: string;
+	readonly data: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadGeneration identifies a prepared, immutable project environment.
+ */
+export interface WorkloadGeneration {
+	readonly id: string;
+	readonly repositories: Record<string, string>;
+	readonly workdir: string;
+}
+
+// From codersdk/workloadhistory.go
+/**
+ * WorkloadHistoryEntry includes the original admitted request and its observed
+ * outcome. Unlike ordinary workload responses, it contains command text and
+ * environment values and must only be exposed to authorized administrators.
+ */
+export interface WorkloadHistoryEntry {
+	readonly request: StartHostWorkloadRequest;
+	readonly workload: Workload;
+}
+
+// From codersdk/workloadhistory.go
+/**
+ * WorkloadHostHistory is a page of retained admissions ordered by creation time,
+ * then UUID, ascending. Pages contain at most 10 entries and may be smaller to
+ * fit the response size limit. Hosts retain at most 1024 admissions and refuse
+ * new admissions once full rather than evicting idempotency keys.
+ */
+export interface WorkloadHostHistory {
+	readonly items: readonly WorkloadHistoryEntry[];
+	readonly total: number;
+	/**
+	 * NextOffset is the offset after this page, not a sentinel. When it equals
+	 * Total, all currently retained admissions have been returned.
+	 */
+	readonly next_offset: number;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadHostInfo describes locally validated prepared capacity.
+ */
+export interface WorkloadHostInfo {
+	readonly generation: WorkloadGeneration;
+	readonly runtime: string;
+	readonly cpu: number;
+	readonly memory_bytes: number;
+	readonly available_cpu: number;
+	readonly available_memory_bytes: number;
+	readonly draining: boolean;
+}
+
+// From codersdk/workloadhistory.go
+/**
+ * WorkloadHostStats counts admitted workloads retained by a host supervisor.
+ * Rejected requests are not retained or counted. Pending includes requested,
+ * reserved, starting, and pending workloads.
+ */
+export interface WorkloadHostStats {
+	readonly total: number;
+	readonly pending: number;
+	readonly running: number;
+	readonly succeeded: number;
+	readonly failed: number;
+	readonly canceled: number;
+	readonly unknown: number;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOutput is a bounded, ordered batch; offsets count events, not bytes.
+ */
+export interface WorkloadOutput {
+	readonly workload: Workload;
+	readonly events: readonly WorkloadEvent[];
+	readonly next_offset: number;
+	readonly truncated: boolean;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadTimings records measured durations in nanoseconds. Missing fields
+ * indicate an unavailable measurement, not a zero duration. Connection timings
+ * belong to the server; provision and execution timings belong to the host.
+ */
+export interface WorkloadTimings {
+	readonly host_connect_ns?: number;
+	readonly host_connection_reused?: boolean;
+	readonly provision_ns?: number;
+	readonly exec_ns?: number;
 }
 
 // From codersdk/workspaces.go
