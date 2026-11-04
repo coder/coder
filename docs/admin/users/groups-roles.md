@@ -74,7 +74,7 @@ Coder ships the following organization roles:
 
 Organization Admin doesn't include SSH, application, or terminal access to workspaces other members own.
 A user with that role can read, build, stop, and delete those workspaces.
-Connecting to one requires access granted through [workspace sharing](../../user-guides/shared-workspaces.md).
+Connecting to one requires access granted through [workspace sharing](../../workspaces/shared-workspaces.md).
 
 Every member of an organization also holds an implicit organization membership role that the dashboard doesn't display.
 That role carries the smallest permission set a member needs, such as reading the organization and their own membership record.

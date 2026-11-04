@@ -10,7 +10,7 @@ Alternatively, you can view our [example templates](../../../examples/templates)
 ## Workspace agents
 
 For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
-The associated agent will facilitate [workspace connections](../../user-guides/workspace-access/index.md) via SSH, port forwarding, and IDEs.
+The associated agent will facilitate [workspace connections](../../workspaces/workspace-access/index.md) via SSH, port forwarding, and IDEs.
 The agent may also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
 
 ```tf
@@ -42,7 +42,7 @@ The resources you define in a template may be _ephemeral_ or _persistent_.
 Persistent resources stay provisioned when workspaces are stopped, where as ephemeral resources are destroyed and recreated on restart.
 All resources are destroyed when a workspace is deleted.
 
-You can read more about how resource behavior and workspace state in the [workspace lifecycle documentation](../../user-guides/workspace-lifecycle.md).
+You can read more about how resource behavior and workspace state in the [workspace lifecycle documentation](../../workspaces/workspace-lifecycle.md).
 
 Template resources follow the [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and can be further configured  using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
 

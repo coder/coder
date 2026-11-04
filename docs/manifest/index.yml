@@ -21,7 +21,7 @@ sections:
   - get-started.yml
   - install.yml
   - templates.yml
-  - user-guides.yml
+  - workspaces.yml
   - coder-agents.yml
   - ai-governance.yml
   - agent-relay.yml

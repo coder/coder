@@ -83,7 +83,7 @@ mise --version
 ```
 
 > [!NOTE]
-> If you manage `~/.bashrc` with [dotfiles](../../user-guides/workspace-dotfiles.md), add the `brew shellenv` and `mise activate` lines to the `.bashrc` in your dotfiles repository instead, so applying your dotfiles doesn't overwrite them.
+> If you manage `~/.bashrc` with [dotfiles](../../workspaces/workspace-dotfiles.md), add the `brew shellenv` and `mise activate` lines to the `.bashrc` in your dotfiles repository instead, so applying your dotfiles doesn't overwrite them.
 
 ## Step 2: Install a tool with each manager
 
@@ -885,4 +885,4 @@ Now that you can install your own tools, [clone private repositories](./authenti
 - [Homebrew documentation](https://brew.sh/) for the package manager
 - [mise documentation](https://mise.jdx.dev/) for the version manager
 - [Resource persistence](../../templates/extending-templates/resource-persistence.md) in the Coder documentation
-- [Dotfiles](../../user-guides/workspace-dotfiles.md) in the Coder documentation
+- [Dotfiles](../../workspaces/workspace-dotfiles.md) in the Coder documentation

@@ -7,7 +7,7 @@ title: Agent Relay
 > To try it, [request a Premium trial](https://coder.com/trial).
 > Test it in a staging deployment before you roll it out to production users.
 
-Agent Relay connects a cloud-hosted AI coding agent's sessions to self-hosted [Coder workspaces](../user-guides/workspace-management.md).
+Agent Relay connects a cloud-hosted AI coding agent's sessions to self-hosted [Coder workspaces](../workspaces/workspace-management.md).
 Developers keep the cloud agent's client and workflow.
 Coder provides the workspace where the agent's tool calls run.
 

@@ -61,7 +61,7 @@ To choose the transport explicitly, set `type` to `stdio`, `http`, or `sse`.
 
 ### Keep tokens out of the file
 
-Store each token as a [user secret](../user-guides/user-secrets.md) with an environment variable target.
+Store each token as a [user secret](../workspaces/user-secrets.md) with an environment variable target.
 Coder injects user secrets into every workspace you own, and stdio servers inherit them from the agent.
 If the workspace is already running when you create the secret, restart the workspace so its servers get the new variable.
 
@@ -128,7 +128,7 @@ chmod 600 "$WORKDIR/.mcp.json"
 
 Run the script from one of these places:
 
-- **Dotfiles**: save it as `install.sh` in your [dotfiles repository](../user-guides/workspace-dotfiles.md), or call it from your existing install script.
+- **Dotfiles**: save it as `install.sh` in your [dotfiles repository](../workspaces/workspace-dotfiles.md), or call it from your existing install script.
   Run `chmod +x install.sh` before you commit it, because `coder dotfiles` runs only an executable script.
   The template must run `coder dotfiles`, usually through the [dotfiles module](https://registry.coder.com/modules/dotfiles).
 - **Personalize script**: save it as `~/personalize`, then run `chmod +x ~/personalize`.
@@ -211,5 +211,5 @@ An MCP-only change doesn't mark a chat out of date, so you don't need to refresh
 
 - [Workspace MCP tools](./extending-agents.md#workspace-mcp-tools)
 - [MCP servers](./platform-controls/mcp-servers.md) for administrators
-- [User secrets](../user-guides/user-secrets.md)
-- [Dotfiles](../user-guides/workspace-dotfiles.md)
+- [User secrets](../workspaces/user-secrets.md)
+- [Dotfiles](../workspaces/workspace-dotfiles.md)

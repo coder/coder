@@ -108,7 +108,7 @@ When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on t
 
 Configure the proxy in VS Code's remote settings:
 
-1. [Connect to your Coder workspace](../../../user-guides/workspace-access/vscode.md)
+1. [Connect to your Coder workspace](../../../workspaces/workspace-access/vscode.md)
 1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
 1. Select the **Remote** tab
 1. Search for `HTTP: Proxy`

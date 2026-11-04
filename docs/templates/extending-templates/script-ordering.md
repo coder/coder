@@ -313,7 +313,7 @@ If Coder skips a script, its log names the prerequisites that failed, timed out,
 These messages use each prerequisite's display name, or its Terraform resource address if no display name is set.
 Cancellation logs distinguish scripts canceled before starting from scripts canceled while running.
 
-The [**Build timeline**](../../user-guides/speed-up-templates.md#workspace-build-timeline) shows skipped and canceled startup scripts.
+The [**Build timeline**](../../workspaces/speed-up-templates.md#workspace-build-timeline) shows skipped and canceled startup scripts.
 A script that never started has zero execution duration.
 The agent logs include output from shutdown scripts.
 

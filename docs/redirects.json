@@ -21,7 +21,7 @@
   },
   {
     "source": "/docs/ai-coder/ide-agents",
-    "destination": "/docs/user-guides/workspace-access"
+    "destination": "/docs/workspaces/workspace-access"
   },
   {
     "source": "/docs/ai-coder/ai-governance",
@@ -77,11 +77,11 @@
   },
   {
     "source": "/docs/tutorials/best-practices/speed-up-templates",
-    "destination": "/docs/user-guides/speed-up-templates"
+    "destination": "/docs/workspaces/speed-up-templates"
   },
   {
     "source": "/docs/tutorials/cloning-git-repositories",
-    "destination": "/docs/user-guides/cloning-git-repositories"
+    "destination": "/docs/workspaces/cloning-git-repositories"
   },
   {
     "source": "/docs/tutorials/configuring-okta",
@@ -105,7 +105,7 @@
   },
   {
     "source": "/docs/tutorials/persistent-shared-workspaces",
-    "destination": "/docs/user-guides/persistent-shared-workspaces"
+    "destination": "/docs/workspaces/persistent-shared-workspaces"
   },
   {
     "source": "/docs/tutorials/postgres-ssl",
@@ -134,5 +134,13 @@
   {
     "source": "/docs/about",
     "destination": "/docs"
+  },
+  {
+    "source": "/docs/user-guides",
+    "destination": "/docs/workspaces"
+  },
+  {
+    "source": "/docs/user-guides/:path*",
+    "destination": "/docs/workspaces/:path*"
   }
 ]

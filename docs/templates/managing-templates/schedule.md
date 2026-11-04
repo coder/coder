@@ -11,12 +11,12 @@ You can also manage the lifecycle of failed or inactive workspaces.
 
 Template [admins](../../admin/users/index.md) may define these default values:
 
-- [**Default autostop**](../../user-guides/workspace-scheduling.md#autostop): How long a workspace runs without user activity before Coder automatically stops it.
+- [**Default autostop**](../../workspaces/workspace-scheduling.md#autostop): How long a workspace runs without user activity before Coder automatically stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace restarts to apply template updates regardless of user activity.
 - **Activity bump**:
   The duration by which to extend a workspace's deadline when activity is detected (default: 1&nbsp;hour).
   The workspace will be considered inactive when no sessions are detected (VSCode, JetBrains, Terminal, or SSH).
-  For details on what counts as activity, see the [user guide on activity detection](../../user-guides/workspace-scheduling.md#activity-detection).
+  For details on what counts as activity, see the [user guide on activity detection](../../workspaces/workspace-scheduling.md#activity-detection).
 - **Dormancy**:
   This allows automatic deletion of unused workspaces to reduce spend on idle resources.
 

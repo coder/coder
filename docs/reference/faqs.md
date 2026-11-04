@@ -470,7 +470,7 @@ Agent API capabilities, such as file operations performed by AI agents in Coder 
 The `sftp` subsystem is blocked in full, not just the `sftp` command, so any workflow that moves files over SSH File Transfer Protocol (SFTP) stops working.
 This includes IDE remote file browsers that rely on it.
 
-[Coder Desktop file sync](../user-guides/desktop/desktop-connect-sync.md) also stops working, though for a different reason.
+[Coder Desktop file sync](../workspaces/desktop/desktop-connect-sync.md) also stops working, though for a different reason.
 File sync runs Mutagen over SSH, and Mutagen installs its remote agent binary with `scp`, which is on the block list.
 
 Confirm which workflows your developers depend on before you enable this setting.

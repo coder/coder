@@ -8,7 +8,7 @@ These guides contain information on managing the Coder control plane and [author
 
 First time viewers looking to set up control plane access can start with the [configuration guide](./setup/index.md).
 If you're a team lead looking to design environments for your developers, refer to our [templates guides](../templates/index.md).
-If you are a developer using Coder, we recommend the [user guides](../user-guides/index.md).
+If you are a developer using Coder, we recommend the [user guides](../workspaces/index.md).
 
 For automation and scripting workflows, see our [CLI](../reference/cli/index.md) and [API](../reference/api/index.md) docs.
 
@@ -37,8 +37,8 @@ For any information not strictly contained in these sections, refer to our [freq
 
 ### Workspace
 
-- A [workspace](../user-guides/workspace-management.md) is the environment that a developer works in.
-  Developers on a team each work from their own workspace and can use [multiple IDEs](../user-guides/workspace-access/index.md).
+- A [workspace](../workspaces/workspace-management.md) is the environment that a developer works in.
+  Developers on a team each work from their own workspace and can use [multiple IDEs](../workspaces/workspace-access/index.md).
 - Managed by: Developers
 
 ### Development containers (dev containers)
@@ -51,7 +51,7 @@ For any information not strictly contained in these sections, refer to our [freq
 ### Dotfiles / personalization
 
 - Users may have their own specific preferences relating to shell prompt, custom keybindings, color schemes, and more.
-  Users can leverage Coder's [dotfiles support](../user-guides/workspace-dotfiles.md) or create their own script to personalize their workspace.
+  Users can leverage Coder's [dotfiles support](../workspaces/workspace-dotfiles.md) or create their own script to personalize their workspace.
   Be aware that users with root permissions in their workspace can override almost all of the previous configuration.
 - Managed by: Individual Users
 
