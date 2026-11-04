@@ -22,7 +22,7 @@ However, there are often benefits to running external provisioner daemons:
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
+Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://coder.com/downloads).
 Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
