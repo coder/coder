@@ -87,6 +87,8 @@ type QueueState struct {
 	HasRows bool
 	// Paused is [queuePaused] for the head: the "P" suffix.
 	Paused bool
+	// HeadSteer reports that the head is a steer message.
+	HeadSteer bool
 }
 
 // queuePaused reports whether the queue head must not be promoted.
@@ -108,7 +110,11 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 	if err != nil {
 		return QueueState{}, xerrors.Errorf("get queue head: %w", err)
 	}
-	return QueueState{HasRows: true, Paused: queuePaused(head)}, nil
+	return QueueState{
+		HasRows:   true,
+		Paused:    queuePaused(head),
+		HeadSteer: head.BusyBehavior == database.ChatBusyBehaviorSteer,
+	}, nil
 }
 
 // ClassifyExecutionState turns the chat row, queue state, and whether

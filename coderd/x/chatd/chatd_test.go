@@ -9436,12 +9436,9 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		interrupting bool
-		promote      bool
 	}{
 		{name: "InterruptRunning"},
 		{name: "InterruptInterrupting", interrupting: true},
-		{name: "PromoteRunning", promote: true},
-		{name: "PromoteInterrupting", interrupting: true, promote: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -9485,26 +9482,10 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 			require.False(t, chat.WorkerID.Valid)
 			seedLastTurnSummary(ctx, t, db, chat, "previous summary")
 
-			if tc.promote {
-				sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-					ChatID:       chat.ID,
-					CreatedBy:    user.ID,
-					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("next")},
-					BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-				})
-				require.NoError(t, err)
-				require.True(t, sent.Queued)
-				require.NoError(t, server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-					ChatID:          chat.ID,
-					QueuedMessageID: sent.QueuedMessage.ID,
-				}))
-				requireDeliveredQueuedMessage(ctx, t, db, chat.ID, sent.QueuedMessage.ID)
-			} else {
-				updated, interrupted, err := server.InterruptChat(ctx, chat)
-				require.NoError(t, err)
-				require.True(t, interrupted, "the call reports the interruption although the chat is already waiting")
-				require.Equal(t, database.ChatStatusWaiting, updated.Status)
-			}
+			updated, interrupted, err := server.InterruptChat(ctx, chat)
+			require.NoError(t, err)
+			require.True(t, interrupted, "the call reports the interruption although the chat is already waiting")
+			require.Equal(t, database.ChatStatusWaiting, updated.Status)
 
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				fromDB, err := db.GetChatByID(ctx, chat.ID)

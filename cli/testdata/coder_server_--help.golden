@@ -296,8 +296,8 @@ Configure the background chat processing daemon.
 
       --chat-max-queued-messages-per-chat int, $CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT (default: 20)
           Maximum number of messages that can be queued in a chat. Sending a
-          message to a chat whose queue is full fails with HTTP 429. Must be at
-          least 1.
+          message that would make a full queue longer fails with HTTP 429. Must
+          be at least 1.
 
       --chat-max-steps-per-turn int, $CODER_CHAT_MAX_STEPS_PER_TURN (default: 1200)
           Maximum number of steps in a chat turn. Each model response is one

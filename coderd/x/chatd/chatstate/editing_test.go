@@ -66,21 +66,28 @@ func TestEditing_WhileRunning(t *testing.T) {
 }
 
 // TestEditing_SendCapacityInPausedStates fills the queue of each paused
-// state. A queued send is refused.
+// state. A queue send is refused. A steer send to E1P or P behind a queue
+// head is delivered at once, so it fits; behind a steer head, or in a
+// busy state, it waits and is refused.
 func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	for _, tc := range []struct {
-		state chatstate.ExecutionState
-		seed  func(t *testing.T) seededChat
+		state     chatstate.ExecutionState
+		seed      func(t *testing.T) seededChat
+		steerFits bool
 	}{
-		{chatstate.StateE1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateE1, 1) }},
-		{chatstate.StateA1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateA1, 1) }},
-		{chatstate.StateP, func(t *testing.T) seededChat { return seedPaused(t, f, 1) }},
-		{chatstate.StateR1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateR1, 1) }},
-		{chatstate.StateI1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateI1, 1) }},
+		{chatstate.StateE1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateE1, 1) }, true},
+		{chatstate.StateE1P, func(t *testing.T) seededChat { return seedSteerHeadUnderEdit(t, f, chatstate.StateE1P) }, false},
+		{chatstate.StateA1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateA1, 1) }, false},
+		{chatstate.StateP, func(t *testing.T) seededChat { return seedPaused(t, f, 1) }, true},
+		{chatstate.StateP, func(t *testing.T) seededChat {
+			return pauseSeeded(t, f, seedSteerHeadUnderEdit(t, f, chatstate.StateR1P))
+		}, false},
+		{chatstate.StateR1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateR1, 1) }, false},
+		{chatstate.StateI1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateI1, 1) }, false},
 	} {
 		seeded := tc.seed(t)
 		chat := f.readChat(ctx, t, seeded.chatID)
@@ -90,8 +97,28 @@ func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 		full := int64(len(seeded.queuedMessageIDs))
 
 		var queueFull *chatstate.MessageQueueFullError
-		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, full, int(full))
-		require.ErrorAs(t, err, &queueFull, "%s: a queued send to a full queue", tc.state)
+		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, chatstate.BusyBehaviorQueue, full, int(full))
+		require.ErrorAs(t, err, &queueFull, "%s: a queue send to a full queue", tc.state)
+		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, chatstate.BusyBehaviorSteer, full, int(full))
+		var sent chatstate.SendMessageResult
+		sendErr := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			var err error
+			sent, err = tx.SendMessage(chatstate.SendMessageInput{
+				Message:      userTextMessage("steer at the cap", f.User.ID, f.Model.ID),
+				BusyBehavior: chatstate.BusyBehaviorSteer,
+				MaxQueueSize: int(full),
+			})
+			return err
+		})
+		if tc.steerFits {
+			require.NoError(t, err, "%s: a steer send behind a queue head", tc.state)
+			require.NoError(t, sendErr, "%s: a steer send behind a queue head", tc.state)
+			require.Nil(t, sent.QueuedMessage, "%s: the steer send is delivered at once", tc.state)
+			require.NotEmpty(t, sent.InsertedMessages)
+		} else {
+			require.ErrorAs(t, err, &queueFull, "%s: a steer send that waits", tc.state)
+			require.ErrorAs(t, sendErr, &queueFull, "%s: a steer send that waits", tc.state)
+		}
 	}
 }
 

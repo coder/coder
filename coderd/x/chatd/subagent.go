@@ -512,8 +512,10 @@ func (p *Server) subagentTools(
 			"Send a follow-up message to a previously spawned child "+
 				"agent. If the agent is idle, it starts a new turn on the "+
 				"message. If it is busy, the message is delivered before its "+
-				"next model call, and its current work continues. Use "+
-				"wait_agent to collect the child's response. A handoff is "+
+				"next model call, and its current work continues. Use it "+
+				"to correct or redirect a busy child; do not interrupt the "+
+				"child first. Use wait_agent to collect the child's "+
+				"response. A handoff is "+
 				"acknowledged only when wait_agent returns the child's "+
 				"response to your handoff message; a message_agent result is "+
 				"not an acknowledgment.",
@@ -539,7 +541,9 @@ func (p *Server) subagentTools(
 				"status may briefly read interrupting before transitioning "+
 				"to waiting, running if there are queued messages, or "+
 				"paused if its owner is editing its next queued message. "+
-				"Resume with message_agent or leave it idle.",
+				"Use it only to stop the child. To redirect it, call "+
+				"message_agent instead: an interrupt cancels the reply to "+
+				"a message that was already delivered.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil

@@ -592,7 +592,11 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 	}
-	if err := sendMessageQueueCapacityError(from, queuedCount, input.MaxQueueSize); err != nil {
+	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("load queue state: %w", err)
+	}
+	if err := sendMessageQueueCapacityError(from, queue, input.BusyBehavior, queuedCount, input.MaxQueueSize); err != nil {
 		return SendMessageResult{}, err
 	}
 	if err := LinkFiles(tx.ctx, tx.store, tx.chatID, input.FileIDs, input.MaxFileLinks); err != nil {
@@ -617,28 +621,32 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 // sendMessageGrowsQueue reports whether SendMessage from the state can
 // make the queue longer. W and E0 insert the message into history. E1
 // queues the message, but it also delivers at least one queued message
-// in the same transaction. E1P and P can deliver nothing when a message
-// under edit blocks the delivery.
-func sendMessageGrowsQueue(from ExecutionState) bool {
+// in the same transaction. In E1P and P the head is under edit. A queue
+// send waits behind it. A steer send waits behind it only when the head
+// is a steer message; behind a queue head, the steer lane holds only
+// the new message, which is delivered at once.
+func sendMessageGrowsQueue(from ExecutionState, queue QueueState, busy BusyBehavior) bool {
 	switch from {
 	case StateW, StateE0, StateE1:
 		return false
+	case StateE1P, StateP:
+		return busy != BusyBehaviorSteer || queue.HeadSteer
 	default:
 		return true
 	}
 }
 
 // CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
-// SendMessage from chat, with the given queue state and queuedCount
-// queued messages, would add to a full queue. [Tx.SendMessage] runs the
-// same check under the row lock; callers outside a transaction can call
-// it first to reject a send early.
-func CheckSendMessageQueueCapacity(chat database.Chat, queue QueueState, queuedCount int64, maxQueueSize int) error {
-	return sendMessageQueueCapacityError(ClassifyExecutionState(chat, queue, true), queuedCount, maxQueueSize)
+// SendMessage from chat, with the given queue state, busy behavior, and
+// queuedCount queued messages, would add to a full queue.
+// [Tx.SendMessage] runs the same check under the row lock; callers
+// outside a transaction can call it first to reject a send early.
+func CheckSendMessageQueueCapacity(chat database.Chat, queue QueueState, busy BusyBehavior, queuedCount int64, maxQueueSize int) error {
+	return sendMessageQueueCapacityError(ClassifyExecutionState(chat, queue, true), queue, busy, queuedCount, maxQueueSize)
 }
 
-func sendMessageQueueCapacityError(from ExecutionState, queuedCount int64, maxQueueSize int) error {
-	if !sendMessageGrowsQueue(from) {
+func sendMessageQueueCapacityError(from ExecutionState, queue QueueState, busy BusyBehavior, queuedCount int64, maxQueueSize int) error {
+	if !sendMessageGrowsQueue(from, queue, busy) {
 		return nil
 	}
 	if maxQueueSize <= 0 {
