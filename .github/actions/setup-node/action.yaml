@@ -7,6 +7,10 @@ inputs:
       The directory to run the setup in.
     required: false
     default: "site"
+  use-cache:
+    description: "Whether to restore and save the pnpm store cache."
+    required: false
+    default: "true"
 runs:
   using: "composite"
   steps:
@@ -18,7 +22,7 @@ runs:
       with:
         node-version: 22.19.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
-        cache: "pnpm"
+        cache: ${{ inputs.use-cache == 'true' && 'pnpm' || '' }}
         cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml
 
     - name: Install root node_modules
