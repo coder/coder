@@ -24,7 +24,7 @@ EOF
 #               takes the next status and keeps the last, and a stop
 #               applies after_stop when it is set
 #   fail        paths that answer with an HTTP error
-#   slow        seconds each request takes
+#   slow        seconds each request takes, or path -> seconds
 # An interrupted chat reads as interrupting twice, and a stopping
 # workspace reads as stopping twice, so a case shows whether the script
 # waits for them.
@@ -61,7 +61,7 @@ fail() {
 if jq -e --arg p "${path}" '.fail | index($p)' "${st}" >/dev/null; then
 	fail
 fi
-slow=$(jq -r '.slow // 0' "${st}")
+slow=$(jq -r --arg p "${path}" 'if (.slow | type) == "object" then .slow[$p] // 0 else .slow // 0 end' "${st}")
 if [[ "${slow}" != 0 ]]; then
 	/bin/sleep "${slow}"
 fi
@@ -131,8 +131,8 @@ POST\ /api/v2/workspaces/*/builds)
 	;;
 GET\ /api/v2/workspaces/*)
 	id="${path#/api/v2/workspaces/}"
-	# A deleted workspace answers 410 Gone unless the read includes deleted
-	# workspaces, as in coderd.
+	# coderd answers 410 Gone for a deleted workspace unless the read
+	# includes deleted workspaces. The fake answers an HTTP error.
 	if [[ "$(jq -r --arg id "${id}" '.workspaces[$id].transition' "${st}")" == "delete" && "${qs}" != *include_deleted=true* ]]; then
 		fail
 	fi
@@ -323,16 +323,21 @@ expect_output "::warning::Review chat r1 did not stop in time. It may still be r
 # The workspace still stops, which ends the stuck chat's tool calls.
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 
-# Slow requests end the chat polls at the chat share of the budget, which
-# leaves the rest for the workspaces.
+# A slow queue read uses up the chat share of the budget. The deadline
+# limits only the waiting, so the second review still gets its first
+# interrupt, no chat poll starts, and the workspace still stops.
 run_case chat-budget "https://github.com/coder/coder/pull/12" '{
-	slow: 1,
-	list: ["r1"],
+	slow: {"/api/v2/chats/r1/messages": 5},
+	list: ["r1", "r2"],
 	stuck: ["r1"],
-	chats: {r1: {status: "running", workspace_id: "w1", children: [], queued: []}},
+	chats: {
+		r1: {status: "running", workspace_id: "w1", children: [], queued: []},
+		r2: {status: "running", workspace_id: "w1", children: [], queued: []}
+	},
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"], after_stop: {statuses: ["stopped"]}}}
 }' STOP_BUDGET_SECONDS=15
 expect_calls 1 "POST /api/v2/chats/r1/interrupt"
+expect_calls 1 "POST /api/v2/chats/r2/interrupt"
 expect_output "::warning::Review chat r1 did not stop in time."
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 expect_output "Stopped workspace doc-check-pr-12."
@@ -366,7 +371,7 @@ expect_output "::warning::Workspace doc-check-pr-12 did not finish its build wit
 # budget still gets 1 second, and a workspace reached after the budget still
 # gets one read, but no more polls.
 run_case budget-caps-requests "https://github.com/coder/coder/pull/12" '{
-	slow: 3,
+	slow: {"/api/v2/workspaces": 6},
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting"]}}
 }' STOP_BUDGET_SECONDS=5
 expect_calls 1 "GET /api/v2/chats label=coder-agents-chat-action:true label=gh-target:coder/coder#12 label=coder-agents-chat-action-workflow:AI Documentation Check max=1"
