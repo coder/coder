@@ -7,11 +7,18 @@ import {
 } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	notificationLaunchParam,
 	openChatListFirst,
 	useOpenNotificationChat,
 } from "./notificationWindow";
 
 const chatPath = "/agents/8f3a6131-1ce8-46f5-9ba8-4a36beb2a1c4";
+
+const withLaunchMarker = (path: string) => {
+	const url = new URL(path, window.location.origin);
+	url.searchParams.set(notificationLaunchParam, "1");
+	return `${url.pathname}${url.search}${url.hash}`;
+};
 
 // jsdom keeps one session history per test file, so each test fakes the
 // window it opens: its first entry, its history length, its display mode and
@@ -85,7 +92,9 @@ describe("notification window", () => {
 					"cancelAnimationFrame",
 				],
 			});
-			openWindow(`${chatPath}?archived=false#latest`, { userMetadata });
+			openWindow(withLaunchMarker(`${chatPath}?archived=false#latest`), {
+				userMetadata,
+			});
 
 			openChatListFirst();
 			const router = createAgentsRouter();
@@ -115,7 +124,7 @@ describe("notification window", () => {
 				"cancelAnimationFrame",
 			],
 		});
-		openWindow(chatPath);
+		openWindow(withLaunchMarker(chatPath));
 
 		openChatListFirst();
 		const router = createAgentsRouter(true);
@@ -137,7 +146,7 @@ describe("notification window", () => {
 				"cancelAnimationFrame",
 			],
 		});
-		openWindow(chatPath);
+		openWindow(withLaunchMarker(chatPath));
 
 		openChatListFirst();
 		const router = createAgentsRouter(true);
@@ -150,6 +159,11 @@ describe("notification window", () => {
 	});
 
 	it.each([
+		{
+			name: "a window the service worker opened",
+			path: chatPath,
+			launchMarker: false,
+		},
 		{ name: "a browser tab", path: chatPath, standalone: false },
 		{ name: "a window with a back entry", path: chatPath, historyLength: 2 },
 		{ name: "a signed-out visitor", path: chatPath, userMetadata: "" },
@@ -158,12 +172,15 @@ describe("notification window", () => {
 		{ name: "an agent settings page", path: "/agents/settings/general" },
 		{ name: "an embedded chat", path: `${chatPath}/embed` },
 		{ name: "another page", path: "/workspaces" },
-	])("leaves the history of $name alone", ({ path, ...options }) => {
-		openWindow(path, options);
-		const before = currentEntry();
+	])(
+		"leaves the history of $name alone",
+		({ path, launchMarker = true, ...options }) => {
+			openWindow(launchMarker ? withLaunchMarker(path) : path, options);
+			const { state } = window.history;
 
-		openChatListFirst();
+			openChatListFirst();
 
-		expect(currentEntry()).toEqual(before);
-	});
+			expect(currentEntry()).toEqual({ url: path, state });
+		},
+	);
 });

@@ -4,6 +4,13 @@ import type { WebpushMessage } from "#/api/typesGenerated";
 
 declare const self: ServiceWorkerGlobalScope;
 
+// Copy of notificationLaunchParam in
+// pages/AgentsPage/utils/notificationWindow.ts, which documents it. The
+// worker cannot import it: the build moves a module that both the worker and
+// the app import into a shared chunk, and the worker, registered as a classic
+// script, then fails to evaluate its import statement.
+const notificationLaunchParam = "notification";
+
 const notificationTargetUrl = (data: WebpushMessage["data"]): string =>
 	data?.url || "/agents";
 
@@ -54,15 +61,17 @@ self.addEventListener("push", (event) => {
 				// instead, and a back swipe to its first page closes it and
 				// leaves the blank one on screen. Browsers without Declarative Web
 				// Push ignore the member.
+				const navigate = new URL(
+					notificationTargetUrl(payload.data),
+					self.location.origin,
+				);
+				navigate.searchParams.set(notificationLaunchParam, "1");
 				const options: NotificationOptions & { navigate: string } = {
 					body: payload.body || "",
 					icon: payload.icon || "/favicon.ico",
 					data: payload.data,
 					tag: payload.tag,
-					navigate: new URL(
-						notificationTargetUrl(payload.data),
-						self.location.origin,
-					).href,
+					navigate: navigate.href,
 				};
 				return self.registration.showNotification(payload.title, options);
 			}),

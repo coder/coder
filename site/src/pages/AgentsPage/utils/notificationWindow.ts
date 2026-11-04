@@ -2,6 +2,13 @@ import { useEffect } from "react";
 import { matchPath, useNavigate } from "react-router";
 import { isStandaloneDisplayMode } from "#/utils/platform";
 
+/**
+ * Query parameter that marks a page Safari opened for a notification's
+ * navigate URL (Declarative Web Push), instead of the service worker opening
+ * it with clients.openWindow().
+ */
+export const notificationLaunchParam = "notification";
+
 let pendingChatPath: string | null = null;
 
 // Read through functions: in a hook, the React Compiler replaced a local
@@ -21,29 +28,43 @@ const isRenderedSignedOut = () =>
 		?.getAttribute("content") === "";
 
 /**
- * When a standalone window opens on a chat as its only history entry, as a
- * push notification click does, makes the chat list the window's first
- * entry. useOpenNotificationChat then opens the chat on top of it, so the
- * back swipe (the iOS edge swipe) returns to the list. Pushing the list
- * instead would not: WebKit's back swipe skips entries that JavaScript
- * pushed without user activation, down to the first entry
- * (WebBackForwardList::goBackItemSkippingItemsWithoutUserGesture), which is
- * the chat. Does nothing in a browser tab, in a window with more than one
- * history entry, on a path other than /agents/:agentId (agent settings
- * excluded), or for a signed-out visitor, whose sign-in redirect must keep
- * the chat. Call before createBrowserRouter reads the location.
+ * When Safari opens a standalone window on a chat as its only history entry
+ * for a notification's navigate URL (marked with notificationLaunchParam),
+ * makes the chat list the window's first entry. useOpenNotificationChat then
+ * opens the chat on top of it, so the back swipe (the iOS edge swipe)
+ * returns to the list. Pushing the list instead would not: WebKit's back
+ * swipe skips entries that JavaScript pushed without user activation, down
+ * to the first entry, which is the chat
+ * (WebBackForwardList::goBackItemSkippingItemsWithoutUserGesture).
+ *
+ * Unmarked windows are left alone. In a window from clients.openWindow(),
+ * iOS closes the window once a back swipe reaches its first entry and leaves
+ * a blank screen, so giving that swipe a target makes it worse. Marked
+ * windows only lose the marker in a browser tab, with more than one history
+ * entry, on a path other than /agents/:agentId (agent settings excluded), or
+ * for a signed-out visitor, whose sign-in redirect must keep the chat. Call
+ * before createBrowserRouter reads the location.
  */
 export function openChatListFirst(): void {
+	const url = new URL(window.location.href);
+	if (!url.searchParams.has(notificationLaunchParam)) {
+		return;
+	}
+	url.searchParams.delete(notificationLaunchParam);
+	const { pathname, search, hash } = url;
+	const chatMatch = matchPath("/agents/:agentId", pathname);
 	if (
 		window.history.length !== 1 ||
 		!isStandaloneDisplayMode() ||
-		isRenderedSignedOut()
+		isRenderedSignedOut() ||
+		!chatMatch ||
+		chatMatch.params.agentId === "settings"
 	) {
-		return;
-	}
-	const { pathname, search, hash } = window.location;
-	const chatMatch = matchPath("/agents/:agentId", pathname);
-	if (!chatMatch || chatMatch.params.agentId === "settings") {
+		window.history.replaceState(
+			window.history.state,
+			"",
+			`${pathname}${search}${hash}`,
+		);
 		return;
 	}
 	pendingChatPath = `${pathname}${search}${hash}`;
