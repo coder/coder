@@ -135,3 +135,18 @@ export const Unpriced: Story = {
 		hasUnpricedUsage: true,
 	},
 };
+
+// No usage was recorded, for example because the request failed, so there is
+// nothing to price.
+export const NoUsage: Story = {
+	args: {
+		...Anthropic.args,
+		pricedModel: undefined,
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+		costMicros: 0,
+		hasUnpricedUsage: false,
+	},
+};

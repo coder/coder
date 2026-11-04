@@ -3,7 +3,7 @@ title: Icons
 ---
 
 Coder uses icons in several places, including ones that can be configured throughout the app, or specified in your Terraform.
-They're specified by a URL, which can be to an image hosted on a CDN of your own, or one of the icons that come bundled with your Coder deployment.
+They're specified by a URL, which can be to an image hosted on a content delivery network (CDN) of your own, or one of the icons that come bundled with your Coder deployment.
 
 - **Template Icons**:
 
@@ -62,7 +62,8 @@ You can also embed an image by using data: URLs.
 
 - Only the https: and data: protocols are supported in icon URLs (not http:)
 
-- Be careful when using images hosted by someone else; they might disappear or change!
+- Be careful when using images hosted by someone else.
+  They might disappear or change!
 
 - Be careful when using data: URLs.
   They can get rather large, and can negatively impact loading times for pages and queries they appear in.

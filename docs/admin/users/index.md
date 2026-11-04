@@ -3,14 +3,14 @@ title: Users
 ---
 
 By default, Coder is accessible via password authentication.
-For production deployments, we recommend using an SSO authentication provider with multi-factor authentication (MFA).
+For production deployments, we recommend using a single sign-on (SSO) authentication provider with multi-factor authentication (MFA).
 It is your responsibility to ensure the auth provider enforces MFA correctly.
 
 <a id="configuring-sso"></a>
 
 ## Configure SSO
 
-- [OpenID Connect](./oidc-auth/index.md) (for example, Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (for example, Okta, KeyCloak, PingFederate, Azure Active Directory (AD))
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups
@@ -79,7 +79,8 @@ coder users create
 
 When prompted, provide the **username** and **email** for the new user.
 
-You'll receive a response that includes the following; share the instructions with the user so that they can log into Coder:
+You'll receive a response that includes the following.
+Share the instructions with the user so that they can log into Coder:
 
 ```console
 Download the Coder command line for your operating system:
@@ -138,7 +139,8 @@ To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
 2. Find the user whose password you want to reset, select the vertical ellipsis to the right, and select **Reset password**.
-3. Coder displays a temporary password that you can send to the user; copy the password and select **Reset password**.
+3. Coder displays a temporary password that you can send to the user.
+   Copy the password and select **Reset password**.
 
 Coder will prompt the user to change their temporary password immediately after logging in.
 

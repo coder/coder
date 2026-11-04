@@ -129,10 +129,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC215WithRole connects to the Agent API v2.15. The workspace
+	// ConnectRPC216WithRole connects to the Agent API v2.16. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC215WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC216WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -1017,7 +1017,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC215WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC216WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1376,6 +1376,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 
 				dur := time.Since(start).Seconds()
+				// Probe ACP harnesses before announcing readiness so the first
+				// context snapshot already includes their capabilities or errors.
+				a.acpManager.RunDiscovery()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 					if errors.Is(err, agentscripts.ErrTimeout) {
@@ -1399,7 +1402,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// re-trigger a push once up, so we don't block readiness
 				// on them.
 				a.contextManager.SetReady()
-				a.acpManager.RunDiscovery()
 
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
@@ -1538,11 +1540,14 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// and then merge them with the current environment.
 	envs := map[string]string{
 		// Set env vars indicating we're inside a Coder workspace.
-		"CODER":                      "true",
-		"CODER_WORKSPACE_NAME":       manifest.WorkspaceName,
-		"CODER_WORKSPACE_AGENT_NAME": manifest.AgentName,
-		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
-		"CODER_WORKSPACE_ID":         manifest.WorkspaceID.String(),
+		"CODER":                         "true",
+		"CODER_WORKSPACE_NAME":          manifest.WorkspaceName,
+		"CODER_WORKSPACE_AGENT_NAME":    manifest.AgentName,
+		"CODER_WORKSPACE_OWNER_NAME":    manifest.OwnerName,
+		"CODER_WORKSPACE_ID":            manifest.WorkspaceID.String(),
+		"CODER_WORKSPACE_BUILD_ID":      manifest.WorkspaceBuildID.String(),
+		"CODER_WORKSPACE_TEMPLATE_ID":   manifest.TemplateID.String(),
+		"CODER_WORKSPACE_TEMPLATE_NAME": manifest.TemplateName,
 
 		// Specific Coder subcommands require the agent token exposed!
 		"CODER_AGENT_TOKEN": a.client.GetSessionToken(),
@@ -1560,11 +1565,6 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// using its basepath to construct a path based port proxy.
 	if manifest.VSCodePortProxyURI != "" {
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
-	}
-
-	// Older servers do not send the build ID.
-	if manifest.WorkspaceBuildID != uuid.Nil {
-		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
 	}
 
 	// Allow any of the current env to override what we defined above.

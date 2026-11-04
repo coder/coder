@@ -77,6 +77,15 @@ export const UnpricedUsageTooltip: Story = {
 	},
 };
 
+export const CostInfoTooltip: Story = {
+	args: Default.args,
+	play: async ({ canvas }) => {
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Approximate cost" }),
+		);
+	},
+};
+
 export const NoCacheTokens: Story = {
 	args: {
 		...Default.args,
@@ -109,10 +118,16 @@ export const NetworkDisabledKeyboard: Story = {
 		// Earlier rows, such as the token usage badges, are also focusable.
 		const info = canvas.getByRole("button", { name: "More info" });
 		while (document.activeElement !== info) {
+			// Storybook's user-event tabs from the keydown target, so it cannot
+			// follow focus out of an open interactive tooltip such as the cost
+			// info. Escape closes it and returns focus to its trigger.
+			if (document.activeElement?.closest("[role=dialog]")) {
+				await userEvent.keyboard("{Escape}");
+			}
 			await userEvent.tab();
 		}
 		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent(
+			expect(screen.getByRole("dialog")).toHaveTextContent(
 				"Network request monitoring was not active for this session.",
 			),
 		);

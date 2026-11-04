@@ -21,22 +21,26 @@ When you select **New Template** on the **Templates** page, the builder opens au
 The builder guides you through up to five steps:
 
 1. **Select base infrastructure**:
-   Choose a starter template for your target platform (for example, Docker, AWS EC2, Kubernetes).
+   Choose a starter template for your target platform (for example, Docker, AWS Elastic Compute Cloud (EC2), Kubernetes).
+
    Each base template provides a working foundation with the Coder agent pre-configured.
 
    ![Select a base infrastructure template in the template builder](../../images/templatebuilder_01_bases.png)
 
 1. **Base template parameters** *(optional)*: If the selected base template declares configurable variables, you can supply values for them here.
+
    If the base template has no parameters, this step is skipped automatically.
 
 1. **Select modules**:
    Pick from a curated list of [registry modules](https://registry.coder.com) to add IDEs, AI agents, source control integrations, and other tools.
+
    Modules are grouped by category and filtered for compatibility with the selected base template's operating system.
    You can select multiple modules.
 
    ![Select modules to add to your template](../../images/templatebuilder_02_modules.png)
 
 1. **Module settings** *(optional)*: Configure variables for the modules you selected.
+
    Required variables without defaults must be filled in before you can proceed.
    Modules that require secrets (such as API keys) display a notice that developers will be prompted for the value at workspace creation time.
 
@@ -48,7 +52,7 @@ The builder guides you through up to five steps:
    ![Set template display name, description, and other metadata](../../images/templatebuilder_04_customizations.png)
 
 After you select **Create Template**, Coder composes the Terraform configuration server-side, validates it with `terraform init` and `terraform validate`, and creates the template.
-The generated template is standard Terraform HCL that you can edit later through the dashboard or CLI.
+The generated template is standard Terraform HashiCorp Configuration Language (HCL) that you can edit later through the dashboard or CLI.
 
 > [!NOTE]
 > The template builder requires outbound access to `registry.coder.com` so that `terraform init` can resolve module sources.
@@ -81,7 +85,7 @@ The template builder's first step also links to alternative creation paths:
 
 ### CLI
 
-You can use the [Coder CLI](../../install/cli.md) to manage templates for Coder.
+You can use the [Coder CLI](../../reference/cli/templates/index.md) to manage templates for Coder.
 
 After [logging in](../../reference/cli/login/index.md) to your deployment, create a folder to store your templates:
 

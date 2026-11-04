@@ -8,11 +8,6 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Screenshots",
-					"description": "See screenshots of the Coder platform, including browser-based workspace access and the admin dashboard.",
-					"path": "./about/screenshots.md"
-				},
-				{
 					"title": "Support",
 					"description": "Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.",
 					"path": "./support/index.md",
@@ -62,12 +57,6 @@
 			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
-				{
-					"title": "Coder CLI",
-					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.",
-					"path": "./install/cli.md",
-					"icon_path": "./images/icons/terminal.svg"
-				},
 				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
@@ -767,8 +756,14 @@
 									"state": ["premium"]
 								},
 								{
+									"title": "Script ordering",
+									"description": "Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.",
+									"path": "./admin/templates/extending-templates/script-ordering.md",
+									"state": ["beta"]
+								},
+								{
 									"title": "Workspace startup coordination",
-									"description": "Coordinate workspace startup scripts with dependency management so they run in the right order.",
+									"description": "Coordinate units of work within startup scripts using experimental coder exp sync commands.",
 									"path": "./admin/templates/startup-coordination/index.md",
 									"state": ["early access"],
 									"children": [
@@ -931,6 +926,13 @@
 									]
 								}
 							]
+						},
+						{
+							"title": "Nix(OS)",
+							"description": "Define reproducible environments with Nix flakes, with or without NixOS.",
+							"path": "./admin/integrations/nix.md",
+							"icon_path": "./images/icons/nix.svg",
+							"state": ["early access"]
 						}
 					]
 				},
@@ -1000,6 +1002,11 @@
 							"description": "Monitor SSH, app, and agent connections to your workspaces with the connection log.",
 							"path": "./admin/monitoring/connection-logs.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Trace workspace connections",
+							"description": "Correlate client, coderd, and agent logs by session ID for SSH, IDE, and web terminal connections.",
+							"path": "./admin/monitoring/trace-connections.md"
 						},
 						{
 							"title": "Notifications",
@@ -1134,7 +1141,7 @@
 									"title": "Advisor",
 									"description": "Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.",
 									"path": "./ai-coder/agents/platform-controls/advisor.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Virtual desktop",
@@ -1151,8 +1158,19 @@
 						},
 						{
 							"title": "Extending agents",
-							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
+							"description": "Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.",
 							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "Bring your own MCP servers",
+							"description": "Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.",
+							"path": "./ai-coder/agents/bring-your-own-mcp-servers.md"
+						},
+						{
+							"title": "ACP subagents",
+							"description": "Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.",
+							"path": "./ai-coder/agents/acp-subagents.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Models",
@@ -1168,6 +1186,12 @@
 							"title": "Chat sharing",
 							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
 							"path": "./ai-coder/agents/chat-sharing.md"
+						},
+						{
+							"title": "Projects",
+							"description": "Group Coder Agents chats into projects with shared instructions, skills, and memory.",
+							"path": "./ai-coder/agents/projects.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Conversation search syntax",
@@ -1190,19 +1214,49 @@
 					"title": "Agent Relay",
 					"description": "Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.",
 					"path": "./ai-coder/agent-relay/index.md",
-					"state": ["early access"],
+					"state": ["premium", "beta"],
 					"children": [
 						{
-							"title": "Agent Relay for Cursor",
-							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
-							"path": "./ai-coder/agent-relay/cursor.md",
-							"state": ["early access"]
+							"title": "Set up",
+							"description": "Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.",
+							"path": "./ai-coder/agent-relay/setup.md"
 						},
 						{
-							"title": "Agent Relay for Claude Code",
+							"title": "Claude Code",
 							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
-							"path": "./ai-coder/agent-relay/claude-code.md",
-							"state": ["early access"]
+							"path": "./ai-coder/agent-relay/claude-code.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/cursor.md"
+						},
+						{
+							"title": "Slack",
+							"description": "Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.",
+							"path": "./ai-coder/agent-relay/slack.md"
+						},
+						{
+							"title": "Monitor",
+							"description": "Trace sessions and failures with Agent Relay logs and Prometheus metrics.",
+							"path": "./ai-coder/agent-relay/monitoring/index.md",
+							"children": [
+								{
+									"title": "Send logs to a SIEM",
+									"description": "Ingest Agent Relay logs into a SIEM, with the record shape, fields, parsing rules, and log-based alerts.",
+									"path": "./ai-coder/agent-relay/monitoring/siem.md"
+								}
+							]
+						},
+						{
+							"title": "Troubleshoot",
+							"description": "Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.",
+							"path": "./ai-coder/agent-relay/troubleshooting.md"
+						},
+						{
+							"title": "Configuration reference",
+							"description": "Every Agent Relay option, pool field, and Helm chart value for the beta.",
+							"path": "./ai-coder/agent-relay/configuration.md"
 						}
 					]
 				},

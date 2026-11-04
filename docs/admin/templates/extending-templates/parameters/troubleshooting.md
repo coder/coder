@@ -46,7 +46,8 @@ Module 'jetbrains' in file "main.tf:149,1-19" cannot be resolved. This module wi
 ```
 
 This happens for template versions published before Coder started archiving modules for parameter evaluation.
-**Workspace builds still succeed**, since Terraform fetches modules from their original sources during the build regardless of the cache; only the form's ability to evaluate module-backed parameter values is affected.
+**Workspace builds still succeed**, since Terraform fetches modules from their original sources during the build regardless of the cache.
+Only the form's ability to evaluate module-backed parameter values is affected.
 To fix it, [publish a new template version](../../managing-templates/index.md#refresh-template-data), which re-runs `terraform init` and populates the archive for that version.
 
 This archive is the same one Coder reuses across workspace builds to avoid re-downloading modules.

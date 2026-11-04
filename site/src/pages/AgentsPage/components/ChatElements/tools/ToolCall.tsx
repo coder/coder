@@ -117,6 +117,8 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCallAriaLabel;
+	/** At the transcript's end, expanding also resumes following new output. */
+	revealEndOnExpand?: boolean;
 };
 
 /**
@@ -137,6 +139,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 	expanded: expandedProp,
 	onExpandedChange,
 	ariaLabel,
+	revealEndOnExpand = false,
 	className,
 	...divProps
 }) => {
@@ -156,7 +159,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
-		userLayoutIntent(event.currentTarget);
+		userLayoutIntent(event.currentTarget, {
+			revealEnd: revealEndOnExpand && !expanded,
+		});
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
@@ -440,6 +445,17 @@ const Content: React.FC<ToolCallContentProps> = ({ children }) => {
 	return children;
 };
 
+type ToolCallErrorDetailProps = {
+	children: string;
+};
+
+/** Shows a failed call's error message in the expanded row body. */
+const ErrorDetail: React.FC<ToolCallErrorDetailProps> = ({ children }) => (
+	<pre className="m-0 mt-1.5 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+		{children}
+	</pre>
+);
+
 type ToolCallScrollableProps = Omit<
 	React.ComponentProps<typeof ScrollArea>,
 	| "viewportAriaLabel"
@@ -514,5 +530,6 @@ export const ToolCall = {
 	State,
 	Header,
 	Content,
+	ErrorDetail,
 	Scrollable,
 };

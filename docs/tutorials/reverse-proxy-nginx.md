@@ -52,6 +52,7 @@ This example assumes Coder is running locally on `127.0.0.1:3000` and that you'r
 ## Install and configure LetsEncrypt Certbot
 
 1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal&tab=wildcard).
+
    Be sure to pick the wildcard tab and select your DNS provider for instructions to install the necessary DNS plugin.
 
 ## Create DNS provider credentials

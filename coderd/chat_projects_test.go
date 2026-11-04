@@ -572,25 +572,6 @@ WHERE datname = current_database()
 		}
 	})
 
-	t.Run("ExperimentDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		project := dbgen.ChatProject(t, api.Database, database.ChatProject{
-			OrganizationID: firstUser.OrganizationID,
-			OwnerID:        firstUser.UserID,
-		})
-		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
-
-		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "chat projects experiment is not enabled", sdkErr.Message)
-		requireChatProjectID(ctx, t, client, chat.ID, nil)
-	})
-
 	t.Run("PublishesProjectChange", func(t *testing.T) {
 		t.Parallel()
 
@@ -711,32 +692,6 @@ func chatIDs(chats []codersdk.Chat) []uuid.UUID {
 	return ids
 }
 
-func TestChatProjectsExperimentDisabled(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-	// The project routes bypass the experiment in development builds, so
-	// seed the row directly and exercise chat creation, which does not.
-	project := dbgen.ChatProject(t, db, database.ChatProject{
-		OrganizationID: firstUser.OrganizationID,
-		OwnerID:        firstUser.UserID,
-		Name:           "Off",
-	})
-
-	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		ProjectID:      &project.ID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "experiment off"}},
-	})
-	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
-
-	_, err = client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &project.ID})
-	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
-}
-
 func newChatProjectClient(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
 	client, api := newChatProjectClientWithAPI(t, overrides...)
@@ -748,7 +703,7 @@ func newChatProjectClientWithAPI(t testing.TB, overrides ...func(*coderdtest.Opt
 	return newChatClientWithAPI(t, append([]func(*coderdtest.Options){
 		func(options *coderdtest.Options) {
 			options.DeploymentValues.Experiments = serpent.StringArray{
-				string(codersdk.ExperimentChatProjects),
+				string(codersdk.ExperimentChatProjectSharing),
 			}
 		},
 		withChatWorkerDisabled,

@@ -20,7 +20,7 @@ The [template builder](../creating-templates.md#template-builder) is the recomme
 It guides you through selecting a base infrastructure template, adding modules (IDEs, tools, integrations), and configuring template settings without writing Terraform.
 
 Starter templates for common cloud providers (AWS, Azure) and orchestrators (Kubernetes, Docker) are available as base templates within the builder.
-You can modify the generated template to use your own images, VPC, cloud credentials, and so on.
+You can modify the generated template to use your own images, Amazon Virtual Private Cloud (VPC), cloud credentials, and so on.
 Coder supports all Terraform resources and properties.
 
 If you prefer to use Coder on the [command line](../../../reference/cli/index.md), use `coder templates init` to pull a starter template, then `coder templates push` to upload it.
@@ -149,6 +149,9 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Dev Containers integration](../../integrations/devcontainers/integration.md) (recommended)
-- [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (alternative for environments without Docker)
+- [Dev Containers CLI integration](../../integrations/devcontainers/integration.md)
+- [Nix(OS)](../../integrations/nix.md) (more flexible alternative to Dev Containers using Nix flakes)
 - [Change management](./change-management.md)
+
+> [!TIP]
+> If you're unsure about which dependency management technology to use, join the [Coder community](https://coder.com/community) to be guided towards the best approach.

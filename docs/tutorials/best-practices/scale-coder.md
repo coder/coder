@@ -107,7 +107,9 @@ Although the control plane persists no internal state, it operates as a proxy fo
 
 1. As an HTTP proxy when they access workspace applications in their browser via the Coder Dashboard.
 
-1. As a DERP proxy when establishing tunneled connections with CLI tools like `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
+1. As a Designated Encrypted Relay for Packets (DERP) proxy for tunneled connections.
+
+   The tunneled connections come from CLI tools like `coder ssh` and `coder port-forward`, and from desktop IDEs.
 
 Stopping a control plane instance will (momentarily) disconnect any users currently connecting through that instance.
 Adding a new instance is not disruptive, but you should remove instances and perform upgrades during a maintenance window to minimize disruption.
@@ -127,7 +129,7 @@ We recommend deploying provisioner daemons within the same cluster as the worksp
 
 - This gives them a low-latency connection to the APIs they will use to provision workspaces and can speed builds.
 
-- It allows provisioner daemons to use in-cluster mechanisms (for example Kubernetes service account tokens, AWS IAM Roles, and others) to authenticate with the infrastructure APIs.
+- It allows provisioner daemons to use in-cluster mechanisms (for example Kubernetes service account tokens, AWS Identity and Access Management (IAM) Roles, and others) to authenticate with the infrastructure APIs.
 
 - If you deploy workspaces in multiple clusters, run multiple provisioner daemon deployments and use template tags to select the correct set of provisioner daemons.
 
@@ -195,7 +197,8 @@ Monitor these metrics to understand your connection pool behavior:
   If this is 0, control plane performance will start to degrade.
   This just provides a point-in-time view of the connections, however.
 
-  For a more systematic view, consider running `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long each Coder replica spent waiting on the connection pool (that is, no free connections); `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many connections were waited for.
+  For a more systematic view, consider running `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long each Coder replica spent waiting on the connection pool (that is, no free connections).
+  `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many connections were waited for.
 
   If either of these values seem unacceptably high, try tuning the above settings.
 - **Churn**:

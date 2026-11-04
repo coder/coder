@@ -2,8 +2,8 @@
 title: FAQs
 ---
 
-Frequently asked questions on Coder OSS and licensed deployments.
-These FAQs come from our community and customers, feel free to [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
+Frequently asked questions on Coder open source software (OSS) and licensed deployments.
+These frequently asked questions (FAQs) come from our community and customers, feel free to [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
 For other community resources, see our [GitHub discussions](https://github.com/coder/coder/discussions), or join our [Discord server](https://discord.gg/coder).
 
@@ -27,13 +27,13 @@ Visit <https://coder.com/trial> or contact [sales@coder.com](mailto:sales@coder.
 
    ![Add a license from the licenses screen](../images/admin/licenses/licenses-nolicense.png)
 
-1. On the **Add a license** screen, drag your `.jwt` license file into the **Upload Your License** section, or paste your license in the **Paste Your License** text box, then select **Upload License**:
+1. On the **Add a license** screen, drag your `.jwt` file into **Upload Your License** or paste it into **Paste Your License**, then select **Upload License**:
 
    ![Add a license screen](../images/admin/licenses/add-license-ui.png)
 
 ### Coder CLI
 
-1. Ensure you have the [Coder CLI](../install/cli.md) installed.
+1. Make sure you have the [Coder CLI](https://coder.com/downloads) installed.
 1. Save your license key to disk and make note of the path.
 1. Open a terminal.
 1. Log in to your Coder deployment:
@@ -67,18 +67,18 @@ Visit the [licensing documentation](../install/prepare/licensing.md) for more in
 The primary developer use case is a local IDE connecting over SSH to a Coder workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or [Direct connection](../admin/networking/index.md#direct-connections) between the local IDE and the workspace.
-However, this requires some additional protocols like UDP and being able to reach a STUN server to echo the IP addresses of the local IDE machine and workspace, for sharing using a Wireguard Coordination Server.
+However, this requires some additional protocols like User Datagram Protocol (UDP) and being able to reach a Session Traversal Utilities for Network Address Translation (STUN) server to echo the IP addresses of the local IDE machine and workspace, for sharing using a Wireguard Coordination Server.
 By default, Coder assumes Internet and attempts to reach Google's STUN servers to perform this IP echo.
 
 Operators experimenting with Coder may run into networking issues if UDP (which STUN requires) or the STUN servers are unavailable, potentially resulting in lengthy local IDE and SSH connection times as the Coder control plane attempts to establish these direct connections.
 
 Setting the following flags as shown disables this logic to simplify troubleshooting.
 
-| Flag                                                                                                | Value       | Meaning                               |
-|-----------------------------------------------------------------------------------------------------|-------------|---------------------------------------|
-| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                                | Value       | Meaning                                                                        |
+|-----------------------------------------------------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections                                                      |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                                                                  |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale Designated Encrypted Relay for Packets (DERP) |
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -386,7 +386,9 @@ An example use case is the user should decide if they want a browser-based IDE l
     fi
     ```
 
-3. Add a Terraform meta-argument [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) in the `coder_app` resource so it will only create the resource if the `coder_parameter` is `true`
+3. Add a Terraform meta-argument [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) in the `coder_app` resource.
+
+    This creates the resource only if the `coder_parameter` is `true`.
 
     ```tf
     # code-server
@@ -412,14 +414,14 @@ An example use case is the user should decide if they want a browser-based IDE l
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
 
-It is because, more than likely, the supported OS of either the container image or VM/VPS doesn't have the proper C libraries to run the VS Code Server.
+It is because, more than likely, the supported OS of either the container image or VM/virtual private server (VPS) doesn't have the proper C libraries to run the VS Code Server.
 For instance, Alpine is not supported at all.
 If so, you need to find a container image or supported OS for the VS Code Server.
 For more information on OS prerequisites for Linux, look at the VSCode docs. <https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
 
 ## How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
-If your JetBrains IDE is disconnected for a long period of time due to a network change (for example turning off a VPN), you may find that the IDE will not reconnect once the network is re-established (for example turning a VPN back on).
+If your JetBrains IDE is disconnected for a long period of time due to a network change (for example turning off a virtual private network (VPN)), you may find that the IDE will not reconnect once the network is re-established (for example turning a VPN back on).
 When this happens a persistent message will appear similar to the below:
 
 ```console
@@ -465,7 +467,7 @@ The primary purpose of this feature is to warn and discourage users from downloa
 
 Agent API capabilities, such as file operations performed by AI agents in Coder Agents chat (including chat file uploads into the workspace), are not affected by this setting because they do not go through the SSH transfer path.
 
-The `sftp` subsystem is blocked in full, not just the `sftp` command, so any workflow that moves files over SFTP stops working.
+The `sftp` subsystem is blocked in full, not just the `sftp` command, so any workflow that moves files over SSH File Transfer Protocol (SFTP) stops working.
 This includes IDE remote file browsers that rely on it.
 
 [Coder Desktop file sync](../user-guides/desktop/desktop-connect-sync.md) also stops working, though for a different reason.
@@ -483,7 +485,7 @@ To change the access URL associated with your control plane, you can edit any of
 
 - CLI using the `--access-url` flag
 - YAML using the `accessURL` option
-- or ENV using the `CODER_ACCESS_URL` environmental variable.
+- or the `CODER_ACCESS_URL` environment variable.
 
 For example, if you're using an environment file to configure your control plane, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
 

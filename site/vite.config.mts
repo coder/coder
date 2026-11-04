@@ -178,13 +178,11 @@ export default defineConfig({
 		],
 	},
 	resolve: {
-		alias: {
-			// In profiling builds, swap the usual reconciler for the profiling
-			// variant so that <Profiler> receives actual timing data.
-			...(isProfilingBuild
-				? { "react-dom/client": "react-dom/profiling" }
-				: {}),
-		},
+		// In profiling builds, swap the usual reconciler for the profiling
+		// variant so that <Profiler> receives actual timing data.
+		alias: isProfilingBuild
+			? { "react-dom/client": "react-dom/profiling" }
+			: {},
 	},
 	test: {
 		silent: "passed-only",

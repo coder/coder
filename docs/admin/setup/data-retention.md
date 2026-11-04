@@ -157,13 +157,13 @@ ai_gateway:
 
 Common compliance frameworks have varying retention requirements:
 
-- **SOC 2**:
+- **System and Organization Controls (SOC) 2**:
   Typically requires 1&nbsp;year of audit logs.
-- **HIPAA**:
+- **Health Insurance Portability and Accountability Act (HIPAA)**:
   Requires 6&nbsp;years for certain records.
-- **PCI DSS**:
+- **Payment Card Industry Data Security Standard (PCI DSS)**:
   Requires 1&nbsp;year of audit logs, with 3&nbsp;months immediately available.
-- **GDPR**:
+- **General Data Protection Regulation (GDPR)**:
   Requires data minimization but does not specify maximum retention.
 
 ### External Log Aggregation
@@ -202,6 +202,6 @@ To monitor retention activity, enable debug logging or search your logs for entr
 
 - [Audit Logs](../security/audit-logs.md): Learn about Audit Logs and manual purge procedures.
 - [Connection Logs](../monitoring/connection-logs.md): Learn about Connection Logs and monitoring.
-- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for centralized LLM and MCP proxy management.
+- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for centralized large language model (LLM) and Model Context Protocol (MCP) proxy management.
 - [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention): Configure AI Gateway data retention.
 - [AI Gateway Monitoring](../../ai-coder/ai-gateway/monitoring.md): Monitor AI Gateway usage and metrics.

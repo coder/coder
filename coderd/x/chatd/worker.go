@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -108,26 +107,6 @@ func (w *chatWorker) Wake() {
 	w.mu.Unlock()
 	if wakeCh != nil {
 		wake(wakeCh)
-	}
-}
-
-// WaitIdle waits until the worker has no active or cleaning runners.
-func (w *chatWorker) WaitIdle(ctx context.Context) error {
-	for {
-		w.mu.Lock()
-		manager := w.manager
-		w.mu.Unlock()
-		if manager == nil || manager.idle() {
-			return nil
-		}
-		timer := w.opts.Clock.NewTimer(10*time.Millisecond, "chatworker", "wait-idle")
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		}
-		timer.Stop()
 	}
 }
 
@@ -270,11 +249,11 @@ func (w *chatWorker) acquireCandidate(
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
+		queue, err := chatstate.LoadQueueState(ctx, store, chatID)
 		if err != nil {
-			return xerrors.Errorf("count queue: %w", err)
+			return xerrors.Errorf("load queue state: %w", err)
 		}
-		if !chatstate.ClassifyExecutionState(chat, queueCount > 0, true).IsRunnable() || chat.Archived {
+		if !chatstate.ClassifyExecutionState(chat, queue, true).IsRunnable() || chat.Archived {
 			return errSkipAcquire
 		}
 		if chat.WorkerID.Valid && chat.RunnerID.Valid {

@@ -1,10 +1,11 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
 import { mergeACPTranscriptDelta } from "../ChatElements/tools/acpTranscript";
-import { appendTextBlock } from "./blockUtils";
+import { appendResponseText, appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
+	isHiddenProviderExecutedPart,
 	markTextBeforeProviderTool,
 	parseToolResultIsError,
 } from "./messageParsing";
@@ -28,9 +29,8 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			const blocks = appendTextBlock(
+			const blocks = appendResponseText(
 				nextState.blocks,
-				"response",
 				part.text,
 				part.narration,
 			);
@@ -53,10 +53,8 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-call": {
-			// Provider-executed tool calls (e.g. web_search) are
-			// handled natively by the provider — skip rendering them
-			// as tool cards.
-			if (part.provider_executed) {
+			// Hidden provider-executed calls render no card.
+			if (isHiddenProviderExecutedPart(part)) {
 				const blocks = markTextBeforeProviderTool(nextState.blocks);
 				const startedAt = nextState.startedAt ?? part.created_at;
 				return blocks === nextState.blocks && startedAt === nextState.startedAt
@@ -101,15 +99,18 @@ export const applyMessagePartToStreamState = (
 						modelIntent,
 						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 						startedAt: part.created_at ?? existing?.startedAt,
+						providerExecuted:
+							part.provider_executed ?? existing?.providerExecuted,
+						foundPages: existing?.foundPages,
 					},
 				},
 			};
 		}
 		case "tool-result": {
-			// Provider-executed results render no card, but the search they end
-			// is a step. Recording it may create an empty state, which still
-			// shows the Thinking indicator.
-			if (part.provider_executed) {
+			// Hidden provider-executed results render no card, but the call
+			// they end is a step. Recording it may create an empty state,
+			// which still shows the Thinking indicator.
+			if (isHiddenProviderExecutedPart(part)) {
 				return nextState.providerToolRan
 					? nextState
 					: { ...nextState, providerToolRan: true };
@@ -212,6 +213,30 @@ export const applyMessagePartToStreamState = (
 			if (!part.url) {
 				return prev;
 			}
+			// A tagged page whose call has not streamed falls through to
+			// the source row instead of being dropped.
+			const call = part.tool_call_id
+				? nextState.toolCalls[part.tool_call_id]
+				: undefined;
+			if (call) {
+				const foundPages = call.foundPages ?? [];
+				if (foundPages.some(({ url }) => url === part.url)) {
+					return prev;
+				}
+				return {
+					...nextState,
+					toolCalls: {
+						...nextState.toolCalls,
+						[call.id]: {
+							...call,
+							foundPages: [
+								...foundPages,
+								{ url: part.url, title: part.title ?? "" },
+							],
+						},
+					},
+				};
+			}
 			const source = { url: part.url, title: part.title || part.url };
 			// Still populate the flat list for backward compat.
 			if (nextState.sources.some((s) => s.url === part.url)) {
@@ -300,6 +325,8 @@ export const buildStreamTools = (
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
 			startedAt: call.startedAt,
+			providerExecuted: call.providerExecuted,
+			foundPages: call.foundPages,
 		});
 	}
 

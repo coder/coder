@@ -62,4 +62,8 @@ children:
     description: Log all system-level process activity inside workspaces for security and auditing.
     path: ./admin/templates/extending-templates/process-logging.md
     state: [premium]
+  - title: Script ordering
+    description: Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.
+    path: ./admin/templates/extending-templates/script-ordering.md
+    state: [beta]
   - include: admin/templates/extending-templates/startup-coordination.yml

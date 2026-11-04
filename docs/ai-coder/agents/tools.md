@@ -13,7 +13,9 @@ Each turn of a conversation follows the same loop:
 1. You send a message.
 2. The model decides whether it needs a tool and calls it with structured arguments.
    For example, `list_templates` with `{"query": "docker"}`.
-3. Coder executes the tool in the control plane using your identity and permissions, and returns a JSON result to the model.
+3. Coder executes the tool in the control plane and returns a JSON result to the model.
+
+   The tool runs with your identity and permissions.
 4. The model uses the result to decide what to do next: call another tool or reply to you.
 
 Tool calls and their results are visible in the chat timeline, so you can always inspect what the agent did and why.
@@ -21,7 +23,7 @@ Tool calls and their results are visible in the chat timeline, so you can always
 Two properties hold for every built-in tool:
 
 - **Your permissions apply.**
-  Tools run with the chat owner's RBAC identity.
+  Tools run with the chat owner's role-based access control (RBAC) identity.
   The agent cannot list templates or create workspaces that you could not access yourself.
 - **Results carry instructions.**
   Where a decision matters, the tool result includes a `next_step` field containing a fixed instruction for the agent, such as asking you to choose between similar templates.
@@ -31,7 +33,7 @@ Two properties hold for every built-in tool:
 
 A chat can start without a workspace.
 When the conversation and available tools are sufficient, the agent answers without provisioning one.
-If missing tools, skills, MCP integrations, or context block progress, or the task needs workspace file access or execution, the agent provisions a workspace.
+If missing tools, skills, Model Context Protocol (MCP) integrations, or context block progress, or the task needs workspace file access or execution, the agent provisions a workspace.
 You don't need to request a workspace separately for setup needed to complete your task.
 The agent uses three tools to provision a workspace:
 
@@ -91,7 +93,8 @@ affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
 - `active_developers`: developers in the organization with an active workspace on the template, excluding unclaimed prebuilt workspaces.
 
 Personal usage carries ten times the weight of organization popularity, and popularity grows logarithmically so heavily used templates do not drown out your own history.
-Each template is scored independently from its own signals; one template's usage never affects another's score.
+Each template is scored independently from its own signals.
+One template's usage never affects another's score.
 The score is internal and only determines ordering and the recommendation.
 The response carries the raw evidence instead: `active_developers`, `your_workspace_count`, and `last_used_by_you` appear on each template when they are non-zero.
 
@@ -170,7 +173,7 @@ For templates that work with defaults, the agent skips straight to `create_works
 
 | Argument      | Type   | Description                                                                        |
 |---------------|--------|------------------------------------------------------------------------------------|
-| `template_id` | string | Required. The template UUID from `list_templates`                                  |
+| `template_id` | string | Required. The template universally unique identifier (UUID) from `list_templates`  |
 | `name`        | string | Optional workspace name. One is generated if omitted                               |
 | `parameters`  | object | Optional template parameter values from `read_template`                            |
 | `preset_id`   | string | Optional preset UUID. Applies preset parameters and may claim a prebuilt workspace |

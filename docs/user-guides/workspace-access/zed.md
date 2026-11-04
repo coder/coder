@@ -11,8 +11,6 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 1. [Install Zed](https://zed.dev/docs/)
 1. Install Coder CLI:
 
-   <!-- copied from docs/install/cli.md - make changes there -->
-
    <div class="tabs">
 
    ### Linux/macOS
@@ -39,7 +37,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
    </div>
 
-   Consult the [Coder CLI documentation](../../install/cli.md) for more options.
+   For more ways to install the CLI, refer to [Install the CLI](./index.md#install-the-cli).
 
 1. Log in to your Coder deployment and authenticate when prompted:
 

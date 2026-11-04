@@ -43,7 +43,8 @@ It does not know about the value already set by the workspace's image or host, s
 An `append` or `prepend` builds its value from `coder_env` resources alone, and that value replaces whatever the host had set for that variable.
 
 To extend a variable that the host already sets, reference it directly in one of the values (for example, `$PATH`), so the agent expands it against the real environment at startup.
-Only one resource in the chain needs the reference; the rest can use plain values.
+Only one resource in the chain needs the reference.
+The rest can use plain values.
 The next example covers this.
 
 ### Example: Appending to PATH
@@ -127,3 +128,26 @@ resource "coder_env" "extra_path" {
 ```
 
 See the [Coder Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) for the complete `coder_env` reference.
+
+## Variables the agent sets
+
+The Coder agent sets these environment variables for every command it runs, including scripts and SSH sessions:
+
+| Variable                        | Value                                            |
+|---------------------------------|--------------------------------------------------|
+| `CODER`                         | `true`                                           |
+| `CODER_WORKSPACE_NAME`          | Name of the workspace                            |
+| `CODER_WORKSPACE_OWNER_NAME`    | Username of the workspace owner                  |
+| `CODER_WORKSPACE_AGENT_NAME`    | Name of the agent                                |
+| `CODER_WORKSPACE_ID`            | ID of the workspace                              |
+| `CODER_WORKSPACE_BUILD_ID`      | ID of the workspace build that created the agent |
+| `CODER_WORKSPACE_TEMPLATE_ID`   | ID of the workspace's template                   |
+| `CODER_WORKSPACE_TEMPLATE_NAME` | Name of the workspace's template                 |
+
+Template names are unique only within an organization, and a template can be renamed.
+To identify a template reliably, use `CODER_WORKSPACE_TEMPLATE_ID`.
+
+After a template, workspace, or user is renamed, commands that are already running keep the old name until the workspace restarts.
+New commands get the new name once the agent reconnects to Coder (for example, after a workspace restart).
+
+A `coder_env` resource or the agent's `env` block that sets one of these variables overrides its value.

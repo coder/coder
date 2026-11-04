@@ -71,6 +71,7 @@ endif
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/theme/icons.json \
@@ -596,24 +597,25 @@ $(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VE
 		--chart $* \
 		--output "$@"
 
-node_modules/.installed: package.json pnpm-lock.yaml
+node_modules/.installed: package.json pnpm-lock.yaml pnpm-workspace.yaml
 	./scripts/pnpm_install.sh
 	touch "$@"
 
-offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml
+offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml offlinedocs/pnpm-workspace.yaml
 	(cd offlinedocs/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
+site/node_modules/.installed: site/package.json site/pnpm-lock.yaml site/pnpm-workspace.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
+scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml scripts/apidocgen/pnpm-workspace.yaml
 	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
 	touch "$@"
 
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -1224,6 +1226,7 @@ gen/mark-fresh:
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
 		codersdk/dbenums_gen.go \
+		site/src/api/appFamiliesGenerated.ts \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1433,6 +1436,9 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 	# Generate SDK constants for external API key scopes.
 	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
+
+site/src/api/appFamiliesGenerated.ts: site/node_modules/.installed scripts/typegen/appfamilies.tstmpl scripts/typegen/main.go codersdk/appname.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen appfamilies,./scripts/biome_format.sh)
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.

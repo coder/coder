@@ -1,13 +1,24 @@
 title: Agent Relay
 description: Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.
 path: ./ai-coder/agent-relay/index.md
-state: [early access]
+state: [premium, beta]
 children:
-  - title: Agent Relay for Cursor
-    description: Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.
-    path: ./ai-coder/agent-relay/cursor.md
-    state: [early access]
-  - title: Agent Relay for Claude Code
+  - title: Set up
+    description: Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.
+    path: ./ai-coder/agent-relay/setup.md
+  - title: Claude Code
     description: Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.
     path: ./ai-coder/agent-relay/claude-code.md
-    state: [early access]
+  - title: Cursor
+    description: Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.
+    path: ./ai-coder/agent-relay/cursor.md
+  - title: Slack
+    description: Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.
+    path: ./ai-coder/agent-relay/slack.md
+  - include: ai-coder/agent-relay/monitoring.yml
+  - title: Troubleshoot
+    description: Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.
+    path: ./ai-coder/agent-relay/troubleshooting.md
+  - title: Configuration reference
+    description: Every Agent Relay option, pool field, and Helm chart value for the beta.
+    path: ./ai-coder/agent-relay/configuration.md

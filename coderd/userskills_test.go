@@ -202,6 +202,26 @@ func TestSkillsCRUD(t *testing.T) {
 			require.NoError(t, owner.delete(ctx, "crud-skill"))
 			_, err = owner.get(ctx, "crud-skill")
 			requireSDKErrorStatus(t, err, http.StatusNotFound)
+
+			// The frontmatter key sets the default only on create; an
+			// explicit model_invocable wins, and updates keep the stored value.
+			manualOnlyContent := func(name, body string) string {
+				return fmt.Sprintf("---\nname: %s\ndescription: Manual only\ndisable-model-invocation: true\n---\n\n%s\n", name, body)
+			}
+			flagged, err := owner.create(ctx, codersdk.CreateSkillRequest{Content: manualOnlyContent("flagged-skill", "Body.")})
+			require.NoError(t, err)
+			assert.False(t, flagged.ModelInvocable)
+			explicit, err := owner.create(ctx, codersdk.CreateSkillRequest{
+				Content:        manualOnlyContent("explicit-skill", "Body."),
+				ModelInvocable: ptr.Ref(true),
+			})
+			require.NoError(t, err)
+			assert.True(t, explicit.ModelInvocable)
+			explicit, err = owner.update(ctx, "explicit-skill", codersdk.UpdateSkillRequest{
+				Content: ptr.Ref(manualOnlyContent("explicit-skill", "Updated body.")),
+			})
+			require.NoError(t, err)
+			assert.True(t, explicit.ModelInvocable)
 		})
 	}
 }

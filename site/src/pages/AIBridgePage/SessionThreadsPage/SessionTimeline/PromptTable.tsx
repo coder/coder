@@ -51,13 +51,18 @@ const ModelPrices: React.FC<ModelPricesProps> = ({ pricedModel }) => {
 type ModelBadgeProps = {
 	model: string;
 	pricedModel?: AIBridgePricedModel;
+	hasUnpricedUsage: boolean;
 };
 
-const ModelBadge: React.FC<ModelBadgeProps> = ({ model, pricedModel }) => {
+const ModelBadge: React.FC<ModelBadgeProps> = ({
+	model,
+	pricedModel,
+	hasUnpricedUsage,
+}) => {
 	let warning: string | undefined;
-	if (!pricedModel) {
+	if (!pricedModel && hasUnpricedUsage) {
 		warning = "No price was recorded for this model.";
-	} else if (pricedModel.model !== model) {
+	} else if (pricedModel && pricedModel.model !== model) {
 		warning = `Priced as ${pricedModel.model}, the model reported by the provider.`;
 	}
 
@@ -146,7 +151,11 @@ export const PromptTable: React.FC<PromptTableProps> = ({
 			<div className="flex items-center justify-between">
 				<dt className="shrink-0 whitespace-nowrap">Model</dt>
 				<dd className="ml-4 min-w-0 truncate flex justify-end">
-					<ModelBadge model={model} pricedModel={pricedModel} />
+					<ModelBadge
+						model={model}
+						pricedModel={pricedModel}
+						hasUnpricedUsage={hasUnpricedUsage}
+					/>
 				</dd>
 			</div>
 

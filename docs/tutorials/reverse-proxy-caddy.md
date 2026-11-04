@@ -97,7 +97,7 @@ To use Caddy to generate TLS certificates, you'll need a domain name that resolv
    }
    ```
 
-   Here;
+   Here:
 
    - `coder:7080` is the address of the Coder container on the Docker network.
    - `coder.example.com` is the domain name you're using for Coder.

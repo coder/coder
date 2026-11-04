@@ -25,7 +25,7 @@ The orchestrator keeps the same fields through verification and posting.
 ```
 
 `quote` is copied from the file, never paraphrased.
-A finding whose `quote` does not appear at `file:line` is dropped by the verifier.
+A finding whose `quote` does not appear at `file:line` is dropped before verification.
 
 ## Where findings go
 
