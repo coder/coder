@@ -125,12 +125,7 @@ const ChatMessageItem = memo<{
 	liveBlocks?: readonly RenderBlock[];
 	liveTools?: readonly MergedTool[];
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	turnAttachments?: readonly MessageAttachment[];
@@ -308,6 +303,7 @@ const ChatMessageItem = memo<{
 							}
 							onImageClick={openImagePreview}
 							onTextFileClick={openTextPreview}
+							urlTransform={urlTransform}
 						/>
 					) : (
 						<Message className="w-full">
@@ -387,12 +383,7 @@ type ConversationTimelineProps = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	subagentTitles: Map<string, string>;
 	subagentVariants: Map<string, SubagentVariant>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;

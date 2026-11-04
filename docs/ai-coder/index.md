@@ -17,11 +17,11 @@ In cases where the IDE is secondary, such as prototyping, research, or long-runn
 
 Coder Agents is a native AI coding agent built into Coder.
 The agent loop runs in the Coder control plane on your infrastructure rather than inside the workspace, so workspaces can be completely network isolated.
-Developers interact with agents through the web UI or the REST API.
+Developers interact with agents through the web UI or the Representational State Transfer (REST) API.
 
 ![Coder Agents chat interface with git diff sidebar](../images/agents-hero-image.png)
 
-[Learn more about Coder Agents](./agents/index.md) for architecture details, supported LLM providers, and how to get started.
+[Learn more about Coder Agents](./agents/index.md) for architecture details, supported large language model (LLM) providers, and how to get started.
 
 ## Agent Relay
 
@@ -30,7 +30,7 @@ The provider's orchestration and AI inference stay cloud-hosted.
 A worker process inside the workspace executes the agent's tool calls.
 [Cursor Cloud Agents](https://cursor.com/cloud) and [Claude Code](https://claude.ai/code) are the supported providers.
 
-Agent Relay is in [early access](../reference/feature-stages.md#early-access-features) and is in closed preview with select customers.
+Agent Relay is in [beta](../reference/feature-stages.md#beta).
 
 [Learn more about Agent Relay](./agent-relay/index.md) for architecture details and supported providers.
 

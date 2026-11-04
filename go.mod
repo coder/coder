@@ -131,8 +131,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    the toolset tool definition, ComputerUseToolVersionForModel, and
 //    mapping of toolset member calls to and from the computer tool.
 //    Since coder/fantasy#82, unknown model IDs take computer_20251124.
-// See: https://github.com/coder/fantasy/commits/7882f906a89a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261102054736-7882f906a89a
+// See: https://github.com/coder/fantasy/commits/647b1ef66f42
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261103005632-647b1ef66f42
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -185,7 +185,7 @@ require (
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.15.0
-	github.com/coder/terraform-provider-coder/v2 v2.19.0
+	github.com/coder/terraform-provider-coder/v2 v2.20.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -213,7 +213,7 @@ require (
 	github.com/gohugoio/hugo v0.163.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
-	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
+	github.com/gomarkdown/markdown v0.0.0-20260724235538-61af6e1e6971
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/go-github/v61 v61.0.0
@@ -250,7 +250,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.26.2
@@ -264,7 +264,7 @@ require (
 	github.com/tidwall/gjson v1.19.0
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
-	github.com/valyala/fasthttp v1.75.0
+	github.com/valyala/fasthttp v1.77.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.2.0
 	go.nhat.io/otelsql v0.16.0
@@ -590,6 +590,7 @@ require (
 
 require (
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 

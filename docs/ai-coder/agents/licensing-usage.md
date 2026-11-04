@@ -56,7 +56,7 @@ Coder sends deployment administrators an in-app soft warning as the deployment a
 ## Agent Time usage reporting
 
 Coder reports Agent Time usage to Tallyman, a Coder-managed server used for billing and reporting.
-Coder sends the total Coder Agents runtime consumed per UTC hour, in milliseconds, with your deployment ID.
+Coder sends the total Coder Agents runtime consumed per Coordinated Universal Time (UTC) hour, in milliseconds, with your deployment ID.
 Coder doesn't send user-identifiable information or additional chat data to Tallyman.
 Coder also shares the reported usage with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based billing and reporting.
 
@@ -71,7 +71,7 @@ A successful request produces a debug log similar to the following example when 
 [debu] published usage events to tallyman accepted=1 rejected=0
 ```
 
-Coder sends the license JWT and deployment ID as request headers.
+Coder sends the license JSON Web Token (JWT) and deployment ID as request headers.
 The request body contains one `hb_agent_runtime_v1` event for each UTC hour.
 The `runtime_ms` value is the total Agent Time recorded during that hour.
 Idle hours have a value of `0`.

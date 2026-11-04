@@ -21,7 +21,7 @@ We encourage the latter approach where supported:
 Generally, you can set up an environment to provide credentials to Coder in these ways:
 
 - A well-known location on disk.
-  For example, `~/.aws/credentials` for AWS on POSIX systems.
+  For example, `~/.aws/credentials` for AWS on Portable Operating System Interface (POSIX) systems.
 - Environment variables.
 
 It is usually sufficient to authenticate using the CLI or SDK for the provider before running Coder, but check the Terraform provider's documentation for details.
@@ -38,7 +38,7 @@ These platforms have Terraform providers that support authenticated environments
 
 There are two ways to use a remote Docker host for authentication:
 
-- Configure the Docker provider to use a [remote host over SSH or TCP](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts).
+- Configure the Docker provider to use a [remote host over SSH or Transmission Control Protocol (TCP)](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts).
 - Run an [external provisioner](../../../install/operate/provisioners/index.md) on the remote docker host.
 
 Other providers might also support authenticated environments.

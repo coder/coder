@@ -58,12 +58,6 @@
 			"icon_path": "./images/icons/download.svg",
 			"children": [
 				{
-					"title": "Coder CLI",
-					"description": "Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.",
-					"path": "./install/cli.md",
-					"icon_path": "./images/icons/terminal.svg"
-				},
-				{
 					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
 					"path": "./install/plan/index.md",
@@ -1168,6 +1162,11 @@
 							"path": "./ai-coder/agents/extending-agents.md"
 						},
 						{
+							"title": "Bring your own MCP servers",
+							"description": "Add your own MCP servers to Coder Agents chats with a workspace .mcp.json file, without admin registration.",
+							"path": "./ai-coder/agents/bring-your-own-mcp-servers.md"
+						},
+						{
 							"title": "ACP subagents",
 							"description": "Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.",
 							"path": "./ai-coder/agents/acp-subagents.md",
@@ -1215,19 +1214,49 @@
 					"title": "Agent Relay",
 					"description": "Connect supported cloud-hosted AI agents to self-hosted Coder workspaces with Agent Relay.",
 					"path": "./ai-coder/agent-relay/index.md",
-					"state": ["early access"],
+					"state": ["premium", "beta"],
 					"children": [
 						{
-							"title": "Agent Relay for Cursor",
-							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
-							"path": "./ai-coder/agent-relay/cursor.md",
-							"state": ["early access"]
+							"title": "Set up",
+							"description": "Deploy Agent Relay against your Coder deployment with a service account, provisioners, and the Helm chart.",
+							"path": "./ai-coder/agent-relay/setup.md"
 						},
 						{
-							"title": "Agent Relay for Claude Code",
+							"title": "Claude Code",
 							"description": "Run Claude Code's cloud sessions inside self-hosted Coder workspaces with Agent Relay.",
-							"path": "./ai-coder/agent-relay/claude-code.md",
-							"state": ["early access"]
+							"path": "./ai-coder/agent-relay/claude-code.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Run Cursor's cloud agent sessions inside self-hosted Coder workspaces with Agent Relay.",
+							"path": "./ai-coder/agent-relay/cursor.md"
+						},
+						{
+							"title": "Slack",
+							"description": "Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.",
+							"path": "./ai-coder/agent-relay/slack.md"
+						},
+						{
+							"title": "Monitor",
+							"description": "Trace sessions and failures with Agent Relay logs and Prometheus metrics.",
+							"path": "./ai-coder/agent-relay/monitoring/index.md",
+							"children": [
+								{
+									"title": "Send logs to a SIEM",
+									"description": "Ingest Agent Relay logs into a SIEM, with the record shape, fields, parsing rules, and log-based alerts.",
+									"path": "./ai-coder/agent-relay/monitoring/siem.md"
+								}
+							]
+						},
+						{
+							"title": "Troubleshoot",
+							"description": "Diagnose Agent Relay startup, pool, build, session, and Slack problems for Claude Code and Cursor.",
+							"path": "./ai-coder/agent-relay/troubleshooting.md"
+						},
+						{
+							"title": "Configuration reference",
+							"description": "Every Agent Relay option, pool field, and Helm chart value for the beta.",
+							"path": "./ai-coder/agent-relay/configuration.md"
 						}
 					]
 				},

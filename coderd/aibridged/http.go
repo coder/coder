@@ -88,6 +88,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if delegated {
 		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+		if attr, ok := agplaibridge.DelegatedAttributionFromContext(ctx); ok && attr.DelegatedOrganizationID != uuid.Nil {
+			authReq.DelegatedOrganizationId = attr.DelegatedOrganizationID.String()
+		}
 	} else {
 		authReq = &proto.IsAuthorizedRequest{Key: key}
 	}

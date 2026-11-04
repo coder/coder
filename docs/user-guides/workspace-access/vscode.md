@@ -76,7 +76,7 @@ Most users should keep the default values.
 The extension includes commands for collecting diagnostics from VS Code:
 
 - **Coder: Export Telemetry** exports only local telemetry.
-  Choose a date range and JSON or OTLP JSON zip format, then review the file before sharing it.
+  Choose a date range and JSON or OpenTelemetry Protocol (OTLP) JSON zip format, then review the file before sharing it.
 - **Coder: Create Support Bundle** runs `coder support bundle` and adds local extension logs, proxy and Remote-SSH logs, selected settings, and telemetry under `vscode-logs/`.
   Only configured values for `coder.globalFlags`, `coder.headerCommand`, and `coder.tlsCertRefreshCommand` are masked.
   Review other settings before sharing.
