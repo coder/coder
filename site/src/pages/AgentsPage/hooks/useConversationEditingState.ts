@@ -38,6 +38,12 @@ type LoadedTarget = {
 
 const noFileBlocks: readonly ChatMessagePart[] = [];
 
+// The compose draft that ending an edit gives back.
+type DraftBeforeEdit = ParsedDraft & {
+	// Set when the user changed the draft during the edit's failed request.
+	typedDuringRequest?: ComposerContent;
+};
+
 /** Text typed in a queued edit, saved until the edit ends. */
 type SavedQueuedEdit = {
 	// The row content it was typed against.
@@ -101,15 +107,18 @@ type ComposerContent = {
 const hasContent = (content: ComposerContent) =>
 	Boolean(content.text.trim()) || content.hasFileReferences;
 
-// The composer content a failed send restores: the sent message, followed by
-// what was typed during the request.
-const restoredDraft = (send: RequestInFlight, typed: ComposerContent) => {
+// The composer content a failed send or edit restores: the failed message,
+// followed by what was typed during the request.
+const restoredDraft = (
+	failed: Pick<RequestInFlight, "message" | "editorState">,
+	typed: ComposerContent,
+) => {
 	if (!hasContent(typed)) {
-		return { text: send.message, editorState: send.editorState };
+		return { text: failed.message, editorState: failed.editorState };
 	}
 	return {
-		text: `${send.message}\n\n${typed.text}`,
-		editorState: joinEditorStates(send.editorState, typed.editorState),
+		text: `${failed.message}\n\n${typed.text}`,
+		editorState: joinEditorStates(failed.editorState, typed.editorState),
 	};
 };
 
@@ -201,9 +210,8 @@ export function useConversationEditingState(deps: {
 	}, [editorInitialValue, inputValueRef]);
 
 	const [loadedTarget, setLoadedTarget] = useState<LoadedTarget | null>(null);
-	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
-		null,
-	);
+	const [draftBeforeEdit, setDraftBeforeEdit] =
+		useState<DraftBeforeEdit | null>(null);
 
 	// The content last loaded into the editor: the stored draft, a target's
 	// text, a restored draft, or the empty editor after a send. The composer
@@ -286,11 +294,12 @@ export function useConversationEditingState(deps: {
 	// the load must land before paint. Whether the editor changed is checked
 	// only when the target changes, so text typed and deleted again does not
 	// count. A changed editor, like one with a request in flight, keeps its
-	// content: if its target goes away it stays as a new-message draft, and in
-	// follow mode it does not load a newly marked row. If an unchanged edit's
-	// target goes away, the pre-edit draft comes back and the composer follows
-	// the row the server marks, unless the composer mode was already set to
-	// draft, as a refused Edit does.
+	// content: if its target goes away it stays as a new-message draft,
+	// followed by the compose draft if the user changed it during the edit's
+	// failed request, and in follow mode it does not load a newly marked row.
+	// If an unchanged edit's target goes away, the pre-edit draft comes back
+	// and the composer follows the row the server marks, unless the composer
+	// mode was already set to draft, as a refused Edit does.
 	// The pre-edit draft is captured once per session. A queued row with
 	// saved text typed against its current content loads that text, which
 	// counts as changed against the row's content. When that edit ends, the
@@ -313,6 +322,20 @@ export function useConversationEditingState(deps: {
 			if (loadedTarget !== null) {
 				onLoadedTargetChange?.();
 				setLoadedTarget(null);
+				const typed = draftBeforeEdit?.typedDuringRequest;
+				if (typed && hasContent(typed)) {
+					const kept = restoredDraft(
+						{
+							message: inputValueRef.current,
+							editorState: serializedEditorStateRef.current,
+						},
+						typed,
+					);
+					const hasFileReferences =
+						hasFileReferencesRef.current || typed.hasFileReferences;
+					loadEditorText(kept.text, kept.editorState);
+					hasFileReferencesRef.current = hasFileReferences;
+				}
 				setDraftBeforeEdit(null);
 				persistDraft();
 			}
@@ -417,6 +440,7 @@ export function useConversationEditingState(deps: {
 				setDraftBeforeEdit({
 					text: shown.text,
 					editorState: shown.editorState,
+					typedDuringRequest: isEditorChanged() ? shown : undefined,
 				});
 				loadEditorText(snapshot.message, snapshot.editorState);
 				hasFileReferencesRef.current = snapshot.hasFileReferences;
