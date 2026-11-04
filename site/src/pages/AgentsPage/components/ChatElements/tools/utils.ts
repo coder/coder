@@ -145,6 +145,7 @@ export const mapSubagentStatusToToolStatus = (
 	switch (normalized) {
 		case "waiting":
 		case "terminated":
+		case "paused":
 			return "completed";
 		case "error":
 			return "error";

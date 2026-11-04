@@ -58,7 +58,7 @@ Sub-agent chats always follow their top-level chat.
 After a move, the chat's next turn uses the new project's instructions, skills, and memory.
 
 The API equivalent is `PATCH /api/v2/chats/{chat}` with `project_id`.
-Set `project_id` to the nil UUID (`00000000-0000-0000-0000-000000000000`) to remove a chat from its project.
+Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000-0000-0000-000000000000`) to remove a chat from its project.
 
 ## Instructions
 

@@ -84,6 +84,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -187,13 +188,18 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
-	// History editing state, owned by the parent.
-	isEditingHistoryMessage?: boolean;
-	onCancelHistoryEdit?: () => void;
+	isChatPaused?: boolean;
+	// Editing state, owned by the parent. The kind selects the banner text.
+	editingKind?: EditingTarget["kind"];
+	queuedMessageUnderEditID?: number | null;
+	composerQueuedMessageID?: number | null;
+	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
@@ -226,7 +232,6 @@ type AgentChatInputProps = {
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 	canConfigureAgentSetup: boolean;
@@ -240,6 +245,7 @@ type AgentChatInputProps = {
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
 	fillWidth?: boolean;
+	highlightKey?: string;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -254,6 +260,12 @@ export type AttachedWorkspaceInfo = {
 // label's natural width. Below the floor the +N overflow takes over.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+
+const pillFocusRingClasses =
+	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
+
+const pillFocusWithinRingClasses =
+	"has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-content-link";
 
 // Pills clamp to the popover width so a long name truncates instead
 // of pushing its X out of view.
@@ -301,10 +313,10 @@ const BadgeDismissButton: React.FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
+		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
-		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
+		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary group-focus-visible:bg-surface-tertiary group-focus-visible:text-content-primary">
 			<XIcon className="size-2.5!" />
 		</span>
 	</button>
@@ -338,6 +350,7 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					className={cn(
 						className,
 						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						pillFocusRingClasses,
 					)}
 				>
 					{servers.length === 0 ? (
@@ -400,6 +413,7 @@ const ToolBadge: React.FC<{
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		pillFocusWithinRingClasses,
 		className,
 	);
 
@@ -433,7 +447,7 @@ const ToolBadge: React.FC<{
 							to={badge.route}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline"
+							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline focus-visible:outline-hidden"
 						>
 							{badge.statusIcon}
 							<span className="truncate">{badge.name}</span>
@@ -549,10 +563,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	warning,
 	readOnlyNotice,
-	isEditingHistoryMessage = false,
-	onCancelHistoryEdit,
+	isChatPaused = false,
+	editingKind,
+	queuedMessageUnderEditID = null,
+	composerQueuedMessageID = null,
+	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -572,7 +591,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	workspace,
 	workspaceAgent,
 	chatId,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 	canConfigureAgentSetup,
@@ -582,7 +600,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 	fillWidth = false,
+	highlightKey,
 }) => {
+	const isEditingMessage = editingKind !== undefined;
+	const enterSendsHead =
+		!isEditingMessage &&
+		queuedMessages.length > 0 &&
+		queuedMessages[0].id !== queuedMessageUnderEditID;
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -603,6 +627,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	useEffect(() => {
+		if (highlightKey !== undefined) {
+			internalRef.current?.focus();
+		}
+	}, [highlightKey]);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -1174,8 +1203,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// If the input is empty and there are queued messages,
-		// promote the first one instead of submitting.
+		// An empty composer sends the queue head unless the head is under edit.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -1184,7 +1212,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			queuedMessages.length > 0 &&
+			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1236,10 +1264,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
+		// React bubbles keydown from portaled popovers (MCP servers, model
+		// selector) through the composer; Escape there only closes the popover.
+		if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) {
+			if (isEditingMessage) {
 				e.preventDefault();
-				onCancelHistoryEdit?.();
+				onCancelEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
@@ -1266,7 +1296,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isReadOnly || isLoading;
+			isEditingMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1329,17 +1359,21 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingHistoryMessage
-		? "Save Edit"
-		: isStreaming
-			? "Queue"
-			: "Send";
+	let sendButtonLabel = "Send";
+	if (isEditingMessage) {
+		sendButtonLabel = "Save Edit";
+	} else if (isStreaming || isChatPaused || queuedMessages[0]?.editing_since) {
+		// The server queues a send while a turn runs or the queue head is
+		// under edit.
+		sendButtonLabel = "Queue";
+	}
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
-	// recording also takes precedence over history editing.
+	// recording also takes precedence over history editing. A queued edit
+	// does not start a turn, so it takes the slot like a draft.
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
-	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const editingHoldsStop = editingKind === "history" && !speech.isRecording;
 	const canShowProjectActions =
 		showProjectActions &&
 		!isReadOnly &&
@@ -1378,7 +1412,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				fillWidth
 					? "max-w-full"
 					: [chatWidthClass(chatFullWidth), "pb-0 sm:pb-4"],
-				isEditingHistoryMessage && "pt-1",
+				isEditingMessage && "pt-1",
 			)}
 		>
 			{canShowProjectActions && chatOrganizationId && chatProjectId && (
@@ -1393,6 +1427,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={onEndQueuedMessageEdit}
+					isChatPaused={isChatPaused}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					composerQueuedMessageID={composerQueuedMessageID}
+					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>
 			)}
@@ -1426,7 +1466,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					(isEditingHistoryMessage || warning) &&
+					(isEditingMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 					isReadOnlyView && "border border-solid border-border",
 				)}
@@ -1435,6 +1475,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{highlightKey !== undefined && (
+					<span
+						key={highlightKey}
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-flash"
+					/>
+				)}
 				{warning && (
 					<div
 						id={warningId}
@@ -1444,19 +1491,24 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{warning}
 					</div>
 				)}
-				{isEditingHistoryMessage && (
+				{isEditingMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It is not sent until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"
 							variant="subtle"
 							size="icon"
-							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
+							aria-label={
+								editingKind === "queued" && isChatPaused
+									? "Cancel edit and send unchanged"
+									: "Cancel editing"
+							}
+							onClick={onCancelEdit}
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>
@@ -1748,7 +1800,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className={cn(pillSizingClasses, "md:h-auto")}
+								className={cn(
+									pillSizingClasses,
+									"md:h-auto focus-visible:ring-inset",
+								)}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1759,7 +1814,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{planModeEnabled && !shouldOverflowPlanningBadge && (
 							<span
 								data-testid="planning-badge"
-								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+								className={cn(
+									"hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex",
+									pillFocusWithinRingClasses,
+								)}
 							>
 								<PencilIcon className="size-3" />
 								Planning
@@ -1800,7 +1858,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												workspace={workspace}
 												agent={workspaceAgent}
 												chatId={chatId}
-												sshCommand={sshCommand}
 												folder={folder}
 												onRemoveWorkspace={removeWorkspaceHandler}
 											/>
@@ -1828,6 +1885,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										type="button"
 										className={cn(
 											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											pillFocusRingClasses,
 											overflowCount === 0 && "invisible",
 										)}
 										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
@@ -1870,7 +1928,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														workspace={workspace}
 														agent={workspaceAgent}
 														chatId={chatId}
-														sshCommand={sshCommand}
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
 														inOverflowPopover
@@ -1895,6 +1952,20 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
+						{contextUsage !== undefined && (
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported && !speech.error && "-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
+						)}
 						{speech.isSupported && !isReadOnlyView && (
 							<>
 								<Button
@@ -1929,20 +2000,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									</span>
 								)}
 							</>
-						)}
-						{contextUsage !== undefined && (
-							<div
-								className={cn(
-									"flex",
-									speech.isSupported && !speech.error && "-ml-2",
-								)}
-							>
-								<ContextUsageIndicator
-									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
-								/>
-							</div>
 						)}
 						{showSendButton && (
 							<Tooltip>

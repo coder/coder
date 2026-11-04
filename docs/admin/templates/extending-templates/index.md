@@ -112,7 +112,7 @@ resource "coder_app" "zed" {
 
 </div>
 
-Visit our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our OSS community.
+Visit our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our open source software (OSS) community.
 
 ## Environment variables
 

@@ -1317,20 +1317,16 @@ export const Addons: Addon[] = ["ai_governance"];
 // From codersdk/chats.go
 /**
  * AdvisorConfig is the deployment-wide runtime configuration for the
- * experimental chat advisor.
- *
- * EXPERIMENTAL: this type is experimental and is subject to change.
+ * chat advisor.
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
+	 * Enabled is always true and cannot be changed.
 	 */
 	readonly enabled: boolean;
 	/**
 	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
+	 * chat turn. 0 means unlimited.
 	 */
 	readonly max_uses_per_run: number;
 	/**
@@ -2328,15 +2324,6 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/chats.go
 export type ChatComputerUseProvider = "anthropic" | "openai";
 
-// From codersdk/chats.go
-/**
- * ChatComputerUseProviderResponse is the response for getting the computer use
- * provider setting.
- */
-export interface ChatComputerUseProviderResponse {
-	readonly provider: ChatComputerUseProvider;
-}
-
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 	"anthropic",
 	"openai",
@@ -3326,6 +3313,7 @@ export interface ChatModelOpenRouterProviderOptions {
 export type ChatModelOverrideContext =
 	| "advisor"
 	| "compaction"
+	| "computer_use"
 	| "explore"
 	| "general"
 	| "title_generation";
@@ -3333,6 +3321,7 @@ export type ChatModelOverrideContext =
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 	"advisor",
 	"compaction",
+	"computer_use",
 	"explore",
 	"general",
 	"title_generation",
@@ -3726,6 +3715,13 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	readonly reasoning_effort?: string;
+	/**
+	 * EditingSince is set while the owner edits the message. A message
+	 * under edit and every message behind it wait until the edit ends; a
+	 * turn that ends at a message under edit pauses the chat.
+	 */
+	readonly editing_since?: string;
 }
 
 // From codersdk/chats.go
@@ -3816,6 +3812,7 @@ export interface ChatSourcePart {
 export type ChatStatus =
 	| "error"
 	| "interrupting"
+	| "paused"
 	| "requires_action"
 	| "running"
 	| "waiting";
@@ -3823,6 +3820,7 @@ export type ChatStatus =
 export const ChatStatuses: ChatStatus[] = [
 	"error",
 	"interrupting",
+	"paused",
 	"requires_action",
 	"running",
 	"waiting",
@@ -4576,6 +4574,15 @@ export interface CreateMCPServerConfigRequest {
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
 	readonly custom_headers?: Record<string, string>;
+	/**
+	 * OAuth2ClientRegistration selects how Coder gets the OAuth2 client.
+	 * With "dynamic", Coder discovers the authorization server of URL and
+	 * registers a client (RFC 7591), so the client ID, client secret, auth
+	 * URL, and token URL must be empty. With "manual", the client ID, auth
+	 * URL, and token URL are required. When empty, Coder uses "dynamic" if
+	 * those three fields are empty, and "manual" otherwise.
+	 */
+	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
@@ -5661,6 +5668,32 @@ export interface EditChatMessageResponse {
 	readonly warnings?: readonly string[];
 }
 
+// From codersdk/chats.go
+/**
+ * EditChatQueuedMessageRequest edits a queued message. Omitted fields
+ * are left unchanged; a request with no fields is rejected.
+ */
+export interface EditChatQueuedMessageRequest {
+	/**
+	 * Content replaces the queued content. An empty array is rejected.
+	 */
+	readonly content?: readonly ChatInputPart[];
+	/**
+	 * ModelConfigID and ReasoningEffort require Content; sending either
+	 * without it returns 400. Omitted values keep the stored ones.
+	 */
+	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
+	/**
+	 * Editing begins (true) or ends (false) an edit of the message. A
+	 * chat has at most one message under edit; beginning another ends the
+	 * first. While the chat is paused, beginning an edit on another
+	 * message returns 409. Ending the edit of a paused chat's head sends
+	 * it.
+	 */
+	readonly editing?: boolean;
+}
+
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
 	| "azure-devops"
@@ -5711,7 +5744,6 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-acp-subagents"
-	| "chat-advisor"
 	| "chat-inline-mcp-servers"
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
@@ -5719,7 +5751,6 @@ export type Experiment =
 	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
-	| "mcp-tool-search"
 	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
@@ -5792,7 +5823,6 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-acp-subagents",
-	"chat-advisor",
 	"chat-inline-mcp-servers",
 	"chat-project-sharing",
 	"chat-stage-metrics",
@@ -5800,7 +5830,6 @@ export const Experiments: Experiment[] = [
 	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
-	"mcp-tool-search",
 	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",
@@ -6797,6 +6826,7 @@ export interface MCPServerConfig {
 	readonly oauth2_revocation_url?: string;
 	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
+	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	/**
 	 * API key fields (only populated for admins).
 	 */
@@ -6862,6 +6892,12 @@ export const MCPServerConfigRoles: MCPServerConfigRole[] = ["", "read"];
 export interface MCPServerConfigUser extends MinimalUser {
 	readonly role: MCPServerConfigRole;
 }
+
+// From codersdk/mcp.go
+export type MCPServerOAuth2ClientRegistration = "dynamic" | "manual";
+
+export const MCPServerOAuth2ClientRegistrations: MCPServerOAuth2ClientRegistration[] =
+	["dynamic", "manual"];
 
 // From codersdk/mcp.go
 /**
@@ -8171,9 +8207,45 @@ export interface OrganizationSkillGroup extends Group {
 }
 
 // From codersdk/skills.go
+/**
+ * OrganizationSkillPreferences is an organization member's choices about the
+ * organization skills that load into their chats. The choices apply only
+ * while MembersCanDisableSkills is true.
+ */
+export interface OrganizationSkillPreferences {
+	/**
+	 * MembersCanDisableSkills is the organization's setting.
+	 */
+	readonly members_can_disable_skills: boolean;
+	/**
+	 * AllSkillsDisabled turns off every organization skill, including
+	 * skills added later. DisabledSkillIDs is kept and applies again when it
+	 * is false.
+	 */
+	readonly all_skills_disabled: boolean;
+	/**
+	 * DisabledSkillIDs lists the organization skills the member turned off.
+	 */
+	readonly disabled_skill_ids: readonly string[];
+}
+
+// From codersdk/skills.go
 export type OrganizationSkillRole = "" | "read";
 
 export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillSettings is an organization's member opt-out setting for
+ * organization skills.
+ */
+export interface OrganizationSkillSettings {
+	/**
+	 * MembersCanDisableSkills lets each organization member turn off
+	 * organization skills for their own chats.
+	 */
+	readonly members_can_disable_skills: boolean;
+}
 
 // From codersdk/skills.go
 /**
@@ -10840,15 +10912,6 @@ export interface UpdateChatAutoArchiveDaysRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatComputerUseProviderRequest is the request to update the computer use
- * provider setting.
- */
-export interface UpdateChatComputerUseProviderRequest {
-	readonly provider: ChatComputerUseProvider;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
  * toggle whether users may opt into chat debug logging.
  */
@@ -11112,6 +11175,18 @@ export interface UpdateMCPServerConfigRequest {
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
 	readonly custom_headers?: Record<string, string>;
+	/**
+	 * OAuth2ClientRegistration changes how Coder gets the OAuth2 client.
+	 * When a request that sets the URL or an auth field omits it, Coder
+	 * uses "dynamic" if the resulting config has no client ID, auth URL,
+	 * and token URL, and keeps the stored value otherwise. Coder registers
+	 * a new client when the config becomes "dynamic" or when the URL of a
+	 * "dynamic" config changes. A new client deletes the stored user
+	 * tokens. A "dynamic" config ignores empty and unchanged values for
+	 * the client ID, client secret, auth URL, and token URL. Other values
+	 * fail unless the request also sets "manual".
+	 */
+	readonly oauth2_client_registration?: MCPServerOAuth2ClientRegistration;
 	readonly tool_allow_list?: string[];
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;
@@ -11166,6 +11241,30 @@ export interface UpdateOrganizationRequest {
 export interface UpdateOrganizationSkillACLRequest {
 	readonly user_roles?: Record<string, OrganizationSkillRole>;
 	readonly group_roles?: Record<string, OrganizationSkillRole>;
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillPreferencesRequest is a sparse update of an
+ * organization member's organization skill choices. At least one field must
+ * be set, and only the listed skills change.
+ */
+export interface UpdateOrganizationSkillPreferencesRequest {
+	readonly all_skills_disabled?: boolean;
+	/**
+	 * Skills maps an organization skill ID to whether the skill is enabled
+	 * for the member's chats.
+	 */
+	readonly skills?: Record<string, boolean>;
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillSettingsRequest is the payload for updating an
+ * organization's member opt-out setting for organization skills.
+ */
+export interface UpdateOrganizationSkillSettingsRequest {
+	readonly members_can_disable_skills: boolean;
 }
 
 // From codersdk/users.go

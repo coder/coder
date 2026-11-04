@@ -959,6 +959,29 @@ describe("ChatsSidebar move to project", () => {
 		expect(projectRequests).toBe(1);
 	});
 
+	it("moves a paused chat, whose queued edit blocks only archiving", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				status: "paused",
+			}),
+		]);
+
+		await selectMoveTarget(user, "Billing");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", {
+				project_id: mockBillingProject.id,
+			}),
+		);
+	});
+
 	it("shows the server message when the server refuses a move", async () => {
 		const user = userEvent.setup();
 		const toastError = vi.spyOn(toast, "error");
@@ -1807,30 +1830,39 @@ const toggleSubmenuOption = async (
 };
 
 describe("ChatsSidebar filters", () => {
-	it("applies the archived checkbox", async () => {
-		const user = userEvent.setup();
-		const onSidebarFiltersChange = vi.fn();
+	it.each([
+		["active", "Archived", "archived"],
+		["archived", "Active", "active"],
+	] as const)(
+		"switches from %s to %s chats",
+		async (initialStatus, label, archiveStatus) => {
+			const user = userEvent.setup();
+			const onSidebarFiltersChange = vi.fn();
 
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					sidebarFilters={defaultSidebarFilters}
-					onSidebarFiltersChange={onSidebarFiltersChange}
-				/>
-			</Wrapper>,
-		);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						sidebarFilters={{
+							...defaultSidebarFilters,
+							archiveStatus: initialStatus,
+						}}
+						onSidebarFiltersChange={onSidebarFiltersChange}
+					/>
+				</Wrapper>,
+			);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(
-			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
-		);
+			await user.click(screen.getByRole("button", { name: "Filter agents" }));
+			await user.click(
+				await screen.findByRole("menuitemradio", { name: label }),
+			);
 
-		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
-			...defaultSidebarFilters,
-			archiveStatus: "archived",
-		});
-	});
+			expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+				...defaultSidebarFilters,
+				archiveStatus,
+			});
+		},
+	);
 
 	it("clears only result filters when applied filters return no agents", async () => {
 		const user = userEvent.setup();
@@ -1933,7 +1965,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await toggleSubmenuOption(user, "Status", "Working");
+		await toggleSubmenuOption(user, "Chat status", "Working");
 		await toggleSubmenuOption(user, /Source/, "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
@@ -1991,7 +2023,9 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Reset filters" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -2030,6 +2064,11 @@ describe("ChatsSidebar filters", () => {
 							title: "Idle chat",
 							status: "waiting",
 						}),
+						buildChat({
+							id: "paused-chat",
+							title: "Paused chat",
+							status: "paused",
+						}),
 					]}
 					sidebarFilters={{
 						...defaultSidebarFilters,
@@ -2055,6 +2094,8 @@ describe("ChatsSidebar filters", () => {
 			"agents-tree-node-interrupting-chat",
 		);
 		const idleNode = screen.getByTestId("agents-tree-node-idle-chat");
+		const pausedSection = screen.getByTestId("agents-section-toggle-Paused");
+		const pausedNode = screen.getByTestId("agents-tree-node-paused-chat");
 
 		expect(
 			screen.queryByTestId("agents-section-toggle-Today"),
@@ -2069,6 +2110,8 @@ describe("ChatsSidebar filters", () => {
 			[interruptingSection, interruptingNode],
 			[interruptingNode, idleSection],
 			[idleSection, idleNode],
+			[idleNode, pausedSection],
+			[pausedSection, pausedNode],
 		] as const) {
 			expect(
 				before.compareDocumentPosition(after) &

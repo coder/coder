@@ -1,14 +1,28 @@
-import { QueryClient } from "react-query";
-import { describe, expect, it } from "vitest";
-import type { Skill } from "#/api/typesGenerated";
+import { MutationObserver, QueryClient } from "react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import type { OrganizationSkillPreferences, Skill } from "#/api/typesGenerated";
+import {
+	MockOrganizationSkillPreferences,
+	MockOrganizationSkillSettings,
+} from "#/testHelpers/skills";
 import {
 	deleteOrganizationSkill,
 	organizationSkill,
 	organizationSkillACL,
 	organizationSkillACLAvailable,
+	organizationSkillPreferences,
+	organizationSkillPreferencesKey,
+	organizationSkillSettingsKey,
 	organizationSkills,
 	updateOrganizationSkillACL,
+	updateOrganizationSkillPreferences,
+	updateOrganizationSkillSettings,
 } from "./organizationSkills";
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 const createTestQueryClient = (): QueryClient =>
 	new QueryClient({
@@ -86,5 +100,98 @@ describe("organization skill ACL queries", () => {
 			queryClient.getQueryState(organizationSkill("org", "alpha").queryKey)
 				?.isInvalidated,
 		).toBe(true);
+	});
+});
+
+describe("organization skill settings queries", () => {
+	it("stores the saved setting and invalidates member preferences", async () => {
+		const queryClient = createTestQueryClient();
+		const preferencesKey = organizationSkillPreferencesKey("org");
+		queryClient.setQueryData(preferencesKey, MockOrganizationSkillPreferences);
+		const mockSavedSettings = {
+			...MockOrganizationSkillSettings,
+			members_can_disable_skills: true,
+		};
+
+		await updateOrganizationSkillSettings(queryClient, "org").onSuccess(
+			mockSavedSettings,
+		);
+
+		expect(
+			queryClient.getQueryData(organizationSkillSettingsKey("org")),
+		).toEqual(mockSavedSettings);
+		expect(queryClient.getQueryState(preferencesKey)?.isInvalidated).toBe(true);
+	});
+});
+
+describe("organization skill preference queries", () => {
+	it("keeps a saved choice when an older read lands later", async () => {
+		const queryClient = createTestQueryClient();
+		const mockSavedPreferences: OrganizationSkillPreferences = {
+			...MockOrganizationSkillPreferences,
+			members_can_disable_skills: true,
+			all_skills_disabled: true,
+		};
+		let resolveRead: (preferences: OrganizationSkillPreferences) => void =
+			() => {};
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveRead = resolve;
+				}),
+		);
+		const read = queryClient.fetchQuery(organizationSkillPreferences("org"));
+
+		await updateOrganizationSkillPreferences(queryClient, "org").onSuccess(
+			mockSavedPreferences,
+		);
+		resolveRead(MockOrganizationSkillPreferences);
+		await expect(read).rejects.toThrow();
+
+		expect(
+			queryClient.getQueryData(organizationSkillPreferencesKey("org")),
+		).toEqual(mockSavedPreferences);
+	});
+
+	it("applies one organization's writes in order", async () => {
+		const queryClient = createTestQueryClient();
+		const mockFirstPreferences: OrganizationSkillPreferences = {
+			...MockOrganizationSkillPreferences,
+			members_can_disable_skills: true,
+			disabled_skill_ids: ["skill-a"],
+		};
+		const mockSecondPreferences: OrganizationSkillPreferences = {
+			...mockFirstPreferences,
+			disabled_skill_ids: ["skill-a", "skill-b"],
+		};
+		let resolveFirst: (preferences: OrganizationSkillPreferences) => void =
+			() => {};
+		const update = vi
+			.spyOn(API.experimental, "updateOrganizationSkillPreferences")
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveFirst = resolve;
+					}),
+			)
+			.mockResolvedValueOnce(mockSecondPreferences);
+		const options = updateOrganizationSkillPreferences(queryClient, "org");
+
+		const first = new MutationObserver(queryClient, options).mutate({
+			skills: { "skill-a": false },
+		});
+		const second = new MutationObserver(queryClient, options).mutate({
+			skills: { "skill-b": false },
+		});
+		await vi.waitFor(() => expect(update).toHaveBeenCalled());
+		resolveFirst(mockFirstPreferences);
+		await Promise.all([first, second]);
+
+		expect(
+			queryClient.getQueryData(organizationSkillPreferencesKey("org")),
+		).toEqual(mockSecondPreferences);
 	});
 });

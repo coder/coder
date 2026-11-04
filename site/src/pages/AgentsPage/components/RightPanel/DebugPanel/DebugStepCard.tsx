@@ -115,7 +115,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25"
+						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
 							<span className="shrink-0 text-xs font-medium text-content-tertiary">

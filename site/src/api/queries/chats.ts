@@ -70,6 +70,7 @@ export const CHAT_STATUS_FILTER_ORDER = [
 	"error",
 	"running",
 	"waiting",
+	"paused",
 ] as const satisfies readonly Exclude<TypesGen.ChatStatus, "interrupting">[];
 export const CHAT_STATUS_GROUP_ORDER = [
 	"requires_action",
@@ -77,6 +78,7 @@ export const CHAT_STATUS_GROUP_ORDER = [
 	"running",
 	"interrupting",
 	"waiting",
+	"paused",
 ] as const satisfies readonly TypesGen.ChatStatus[];
 type _Assert<T extends true> = T;
 type _ChatStatusFilterCovers = _Assert<
@@ -2777,6 +2779,27 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
+export type EditChatQueuedMessageVariables = {
+	queuedMessageId: number;
+	req: TypesGen.EditChatQueuedMessageRequest;
+};
+
+export const editChatQueuedMessage = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: ({ queuedMessageId, req }: EditChatQueuedMessageVariables) =>
+		API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
+	// Same-scope mutations run serially, also across useMutation instances, so
+	// an end or save never runs before its begin.
+	scope: { id: `chat-queued-messages-${chatId}` },
+	// Ending an edit can resume a paused chat. The queue itself arrives by
+	// queue_update.
+	onSettled: () => {
+		void invalidateChatEntity(queryClient, chatId);
+	},
+});
+
 export const chatDiffContentsKey = (
 	chatId: string,
 	ref?: TypesGen.DiffStatusRef,
@@ -2920,25 +2943,6 @@ export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatAdvisorConfigKey,
-		});
-	},
-});
-
-const chatComputerUseProviderKey = [
-	...chatConfigKey,
-	"computer-use-provider",
-] as const;
-
-export const chatComputerUseProvider = () => ({
-	queryKey: chatComputerUseProviderKey,
-	queryFn: () => API.experimental.getChatComputerUseProvider(),
-});
-
-export const updateChatComputerUseProvider = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatComputerUseProvider,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatComputerUseProviderKey,
 		});
 	},
 });

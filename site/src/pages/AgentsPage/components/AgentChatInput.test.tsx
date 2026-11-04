@@ -12,18 +12,27 @@ import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
 	renderWithRouter,
 } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import {
 	belowMdViewportMediaQuery,
 	mobileViewportMediaQuery,
@@ -168,6 +177,21 @@ describe("AgentChatInput", () => {
 		);
 	});
 
+	it("focuses the editor each time the highlight key changes", async () => {
+		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
+		const editor = screen.getByRole("textbox", { name: "Chat message" });
+
+		for (const highlightKey of ["first-click", "second-click"]) {
+			act(() => editor.blur());
+			rerender(
+				<AppProviders>
+					<AgentChatInput {...inputProps} highlightKey={highlightKey} />
+				</AppProviders>,
+			);
+			await waitFor(() => expect(editor).toHaveFocus());
+		}
+	});
+
 	it("accepts drafts without sending while submission is disabled", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
@@ -210,6 +234,10 @@ describe("AgentChatInput", () => {
 		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
 			{ ...MockSkill, name: "release-notes" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey("org-1"),
+			MockOrganizationSkillPreferences,
+		);
 
 		render(
 			<AppProviders queryClient={queryClient}>
@@ -253,6 +281,10 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
@@ -619,6 +651,41 @@ describe("AgentChatInput", () => {
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		["history", "Stop", "onInterrupt"],
+		["queued", "Save Edit", "onSend"],
+	] as const)(
+		"a %s edit while streaming puts %s in the footer slot",
+		async (editingKind, buttonName, calledHandler) => {
+			const user = userEvent.setup();
+			const handlers = { onSend: vi.fn(), onInterrupt: vi.fn() };
+
+			renderInput(
+				<AgentChatInput
+					{...handlers}
+					isDisabled={false}
+					isLoading={false}
+					isStreaming
+					editingKind={editingKind}
+					initialValue="Edited text"
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+					onContentChange={vi.fn()}
+					planModeEnabled={false}
+					onPlanModeToggle={vi.fn()}
+					isModelCatalogLoading={false}
+				/>,
+			);
+
+			await user.click(await screen.findByRole("button", { name: buttonName }));
+			expect(handlers[calledHandler]).toHaveBeenCalledTimes(1);
+		},
+	);
+
 	it("shows a disabled Queue button without a spinner while an interrupt is pending", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
@@ -737,13 +804,13 @@ describe("AgentChatInput", () => {
 	it("lets Escape on a chip's remove button cancel a history edit", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
-		const onCancelHistoryEdit = vi.fn();
+		const onCancelEdit = vi.fn();
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
 				inputRef={inputRef}
-				isEditingHistoryMessage
-				onCancelHistoryEdit={onCancelHistoryEdit}
+				editingKind="history"
+				onCancelEdit={onCancelEdit}
 			/>,
 		);
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
@@ -754,7 +821,56 @@ describe("AgentChatInput", () => {
 		act(() => remove.focus());
 
 		await user.keyboard("{Escape}");
-		expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		["cancel an edit", "onCancelEdit", { editingKind: "history" }],
+		["interrupt a streaming turn", "onInterrupt", { isStreaming: true }],
+	] as const)(
+		"lets Escape that closes a composer popover not %s",
+		async (_, callbackName, props) => {
+			const user = userEvent.setup();
+			const callback = vi.fn();
+			renderInput(
+				<AgentChatInput
+					{...inputProps}
+					{...props}
+					{...{ [callbackName]: callback }}
+					mcpServers={mockMCPServers}
+					selectedMCPServerIds={mockSelectedMCPServerIds}
+					onMCPSelectionChange={vi.fn()}
+				/>,
+			);
+
+			await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+			await screen.findByRole("dialog");
+			await user.keyboard("{Escape}");
+			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+			expect(callback).not.toHaveBeenCalled();
+
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.keyboard("{Escape}");
+			expect(callback).toHaveBeenCalledTimes(1);
+		},
+	);
+
+	it("names the cancel button of a queued edit on a paused chat for the send that follows", async () => {
+		const user = userEvent.setup();
+		const onCancelEdit = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				editingKind="queued"
+				isChatPaused
+				onCancelEdit={onCancelEdit}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Cancel edit and send unchanged" }),
+		);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
@@ -1106,5 +1222,62 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
+	});
+
+	it.each([
+		["sends the queue head when nothing is under edit", {}, true],
+		[
+			"does not send the queue head while the composer edits a message",
+			{ editingKind: "queued" },
+			false,
+		],
+		[
+			"does not send a queue head whose begin request is pending",
+			{ queuedMessageUnderEditID: MockChatQueuedMessage.id },
+			false,
+		],
+	] satisfies Array<
+		[string, Partial<React.ComponentProps<typeof AgentChatInput>>, boolean]
+	>)("Enter with an empty composer %s", async (_name, props, sendsHead) => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+				{...props}
+			/>,
+		);
+
+		// Plain Enter sends only once the shortcut preference has loaded.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
+			).toHaveAttribute("aria-keyshortcuts", "Enter");
+		});
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Enter}");
+		if (sendsHead) {
+			expect(onPromoteQueuedMessage).toHaveBeenCalledWith(
+				MockChatQueuedMessage.id,
+			);
+		} else {
+			expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		}
 	});
 });
