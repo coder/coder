@@ -3424,15 +3424,7 @@ func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, str
 // SubmitToolResults submits the results of dynamic tool calls for a chat
 // that is in requires_action status.
 func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/tool-results", chatID), req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/tool-results", chatID), req)
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest
