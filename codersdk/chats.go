@@ -1725,8 +1725,8 @@ type ChatModel struct {
 	// ReasoningEfforts lists selectable reasoning effort values through
 	// the model's configured maximum.
 	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
-	// ComputerUseProvider is the computer use tool flavor that chatd uses for
-	// this model. It is empty when computer use cannot run on the model.
+	// ComputerUseProvider names the computer use tool that Coder sends for
+	// this model. It is omitted when computer use can't run on the model.
 	ComputerUseProvider ChatComputerUseProvider `json:"computer_use_provider,omitempty"`
 	CreatedAt           time.Time               `json:"created_at" format:"date-time"`
 	UpdatedAt           time.Time               `json:"updated_at" format:"date-time"`

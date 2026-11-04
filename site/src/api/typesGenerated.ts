@@ -3144,8 +3144,8 @@ export interface ChatModel {
 	 */
 	readonly reasoning_efforts?: readonly string[];
 	/**
-	 * ComputerUseProvider is the computer use tool flavor that chatd uses for
-	 * this model. It is empty when computer use cannot run on the model.
+	 * ComputerUseProvider names the computer use tool that Coder sends for
+	 * this model. It is omitted when computer use can't run on the model.
 	 */
 	readonly computer_use_provider?: ChatComputerUseProvider;
 	readonly created_at: string;

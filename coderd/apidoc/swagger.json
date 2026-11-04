@@ -20779,7 +20779,7 @@
 					"type": "integer"
 				},
 				"computer_use_provider": {
-					"description": "ComputerUseProvider is the computer use tool flavor that chatd uses for\nthis model. It is empty when computer use cannot run on the model.",
+					"description": "ComputerUseProvider names the computer use tool that Coder sends for\nthis model. It is omitted when computer use can't run on the model.",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatComputerUseProvider"
