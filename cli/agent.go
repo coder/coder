@@ -65,6 +65,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		agentHeaderCommand              string
 		agentHeader                     []string
 		devcontainers                   bool
+		gitCredentialHelper             bool
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
 		socketServerEnabled             bool
@@ -263,6 +264,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			environmentVariables := map[string]string{
 				"GIT_ASKPASS": executablePath,
 			}
+			var gitCredentialHelperCommand string
+			if gitCredentialHelper {
+				gitCredentialHelperCommand = agent.GitCredentialHelperCommand(executablePath)
+			}
 
 			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
 			if enabled != "" && runtime.GOOS == "linux" {
@@ -337,6 +342,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
 					TailnetListenPort:    uint16(tailnetListenPort),
 					EnvironmentVariables: environmentVariables,
+					GitCredentialHelper:  gitCredentialHelperCommand,
 					IgnorePorts:          ignorePorts,
 					SSHMaxTimeout:        sshMaxTimeout,
 					Subsystems:           subsystems,
@@ -539,6 +545,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
+		},
+		{
+			Flag:        "git-credential-helper",
+			Default:     "true",
+			Env:         "CODER_AGENT_GIT_CREDENTIAL_HELPER",
+			Description: "Register a Git credential helper that provides external auth tokens, in addition to GIT_ASKPASS. This covers programs that disable askpass for the Git processes they run.",
+			Value:       serpent.BoolOf(&gitCredentialHelper),
 		},
 		{
 			Flag:        "devcontainers-enable",

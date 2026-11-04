@@ -124,6 +124,7 @@ Behind the scenes, Coder:
 
 - Stores your OAuth token securely in its database
 - Sets up `GIT_ASKPASS` at `/tmp/coder.<random-string>/coder` in your workspaces
+- Registers a [Git credential helper](#git-credential-helper) for programs that disable `GIT_ASKPASS`
 - Retrieves and injects the appropriate token when Git operations require authentication
 
 To manually access these tokens within a workspace:
@@ -131,6 +132,22 @@ To manually access these tokens within a workspace:
 ```sh
 coder external-auth access-token <USER_DEFINED_ID>
 ```
+
+### Git credential helper
+
+Some programs turn off `GIT_ASKPASS` for the Git commands they run, but leave Git credential helpers enabled.
+For example, Claude Code does this when it clones plugin marketplaces.
+To cover these programs, the agent also registers `coder gitcredential` as a Git credential helper.
+
+- The agent adds the helper through the `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, and `GIT_CONFIG_VALUE_<n>` environment variables (Git 2.31 or later), after any entries that are already set.
+  It doesn't change any Git config file.
+- Git reads these variables after your Git config files, so credential helpers that you configure, such as the one from `gh auth setup-git`, are tried first.
+- The helper picks the provider the same way `GIT_ASKPASS` does, and returns nothing for hosts that no provider serves.
+- If you haven't authenticated with the provider yet, the helper prints the authentication URL and returns no credentials instead of waiting.
+  `GIT_ASKPASS` still handles the interactive login flow.
+- When the token expiry is known, the helper returns it as `password_expiry_utc`, so caching helpers such as `git credential-cache` stop using a token once it expires.
+
+To turn off the credential helper, set `CODER_AGENT_GIT_CREDENTIAL_HELPER=false` in the environment where `coder agent` runs.
 
 ### SSH Authentication
 
