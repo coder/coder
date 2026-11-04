@@ -2,6 +2,7 @@ import type { Emoji as EmojibaseEmoji, SkinTone } from "emojibase";
 import emojibaseEmojis from "emojibase-data/en/data.json";
 import emojibaseMessages from "emojibase-data/en/messages.json";
 import type { EmojiData } from "frimousse";
+import capitalize from "lodash/capitalize";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
 import { EMOJI_SHEET } from "./emojiSheet";
@@ -153,7 +154,7 @@ export const buildEmojiData = (): EmojiData => {
 				.filter((group) => group.order !== COMPONENT_GROUP)
 				.map((group) => ({
 					index: group.order,
-					label: group.message.charAt(0).toUpperCase() + group.message.slice(1),
+					label: capitalize(group.message),
 				})),
 			{ index: ICONS_CATEGORY, label: "Icons" },
 		],
