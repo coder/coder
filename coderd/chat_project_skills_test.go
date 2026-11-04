@@ -67,7 +67,7 @@ func TestChatProjectSkills(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, updated.DisplayName)
-	for _, displayName := range []string{"Deploy\napp", strings.Repeat("é", codersdk.MaxSkillDisplayNameLength+1)} {
+	for _, displayName := range []string{"Deploy\napp", "Deploy\u2028app", "Deploy\u2029app", strings.Repeat("é", codersdk.MaxSkillDisplayNameLength+1)} {
 		_, err = client.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{
 			DisplayName: ptr.Ref(displayName),
 		})

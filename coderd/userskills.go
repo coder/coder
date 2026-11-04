@@ -483,6 +483,12 @@ func writeSkillDisplayNameNotAllowed(ctx context.Context, rw http.ResponseWriter
 	})
 }
 
+// breaksSkillDisplayName reports whether r is a control character or a line or
+// paragraph separator, which would break a display name across lines.
+func breaksSkillDisplayName(r rune) bool {
+	return unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp)
+}
+
 // readSkillDisplayName trims a requested display name and checks that it is
 // a single line of at most codersdk.MaxSkillDisplayNameLength characters. An
 // absent value stays unset. It writes the error response and returns false
@@ -494,7 +500,7 @@ func readSkillDisplayName(ctx context.Context, rw http.ResponseWriter, value *st
 	displayName := strings.TrimSpace(*value)
 	var detail string
 	switch {
-	case strings.ContainsFunc(displayName, unicode.IsControl):
+	case strings.ContainsFunc(displayName, breaksSkillDisplayName):
 		detail = "Display names must be a single line without control characters."
 	case utf8.RuneCountInString(displayName) > codersdk.MaxSkillDisplayNameLength:
 		detail = fmt.Sprintf("Display names can have at most %d characters.", codersdk.MaxSkillDisplayNameLength)
