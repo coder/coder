@@ -22057,6 +22057,17 @@ const docTemplate = `{
                 "ChatClientTypeAPI"
             ]
         },
+        "codersdk.ChatComputerUseProvider": {
+            "type": "string",
+            "enum": [
+                "anthropic",
+                "openai"
+            ],
+            "x-enum-varnames": [
+                "ChatComputerUseProviderAnthropic",
+                "ChatComputerUseProviderOpenAI"
+            ]
+        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -22957,6 +22968,14 @@ const docTemplate = `{
                 },
                 "compression_threshold": {
                     "type": "integer"
+                },
+                "computer_use_provider": {
+                    "description": "ComputerUseProvider is the computer use tool flavor that chatd uses for\nthis model. It is empty when computer use cannot run on the model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatComputerUseProvider"
+                        }
+                    ]
                 },
                 "context_limit": {
                     "type": "integer"

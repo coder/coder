@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -4239,6 +4240,46 @@ func TestListChatModelConfigs(t *testing.T) {
 			}
 		}
 		t.Fatal("bedrock provider descriptor not found")
+	})
+
+	t.Run("ComputerUseProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		anthropicProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+		bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeBedrock})
+		compatProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
+
+		want := map[uuid.UUID]codersdk.ChatComputerUseProvider{}
+		for _, tc := range []struct {
+			provider database.AIProvider
+			model    string
+			want     codersdk.ChatComputerUseProvider
+		}{
+			{provider: anthropicProvider, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+			{provider: bedrockProvider, model: "us.anthropic.claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+			{provider: bedrockProvider, model: "openai.gpt-5.4"},
+			{provider: compatProvider, model: "claude-opus-5-5"},
+		} {
+			config := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				AIProviderID:   uuid.NullUUID{UUID: tc.provider.ID, Valid: true},
+				Model:          tc.model,
+				OrganizationID: firstUser.OrganizationID,
+			})
+			want[config.ID] = tc.want
+		}
+
+		models, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		got := map[uuid.UUID]codersdk.ChatComputerUseProvider{}
+		for _, model := range models.Models {
+			if _, ok := want[model.ID]; ok {
+				got[model.ID] = model.ComputerUseProvider
+			}
+		}
+		require.Equal(t, want, got)
 	})
 }
 
@@ -16161,6 +16202,32 @@ func TestChatModelOverridesComputerUse(t *testing.T) {
 	update := func(req codersdk.UpdateChatModelOverrideRequest) (codersdk.ChatModelOverrideResponse, error) {
 		return adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextComputerUse, req)
 	}
+	// Bedrock providers require Bedrock settings and reject API keys.
+	createBedrockChatModel := func(t *testing.T, model string) codersdk.ChatModel {
+		t.Helper()
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "test-bedrock-" + uuid.NewString(),
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          model,
+					SmallFastModel: model,
+				},
+			},
+		})
+		require.NoError(t, err)
+		contextLimit := int64(4096)
+		created, err := adminClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
+			AIProviderID: &provider.ID,
+			ContextLimit: &contextLimit,
+			Model:        model,
+		})
+		require.NoError(t, err)
+		return created
+	}
 
 	for _, providerType := range []string{"anthropic", "openai"} {
 		t.Run("Accepts"+providerType, func(t *testing.T) {
@@ -16188,11 +16255,31 @@ func TestChatModelOverridesComputerUse(t *testing.T) {
 		model := createAdditionalChatModel(t, adminClient, coderdtest.TestChatProviderOpenAICompat, "computer-use-compat-"+uuid.NewString())
 		_, err = update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Computer use requires a model from an Anthropic or OpenAI AI provider.", sdkErr.Message)
+		require.Equal(t, "Computer use requires "+chatprovider.ComputerUseModelRequirement+".", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, `of type "openai-compat"`)
 		after, err := getRow()
 		require.NoError(t, err)
 		require.Equal(t, before.ModelConfigID, after.ModelConfigID)
+	})
+
+	t.Run("AcceptsBedrockClaude", func(t *testing.T) {
+		model := createBedrockChatModel(t, "us.anthropic.claude-opus-5-5")
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, model.ComputerUseProvider)
+		fetched, err := adminClient.ChatModel(ctx, firstUser.OrganizationID, model.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, fetched.ComputerUseProvider)
+		updated, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		require.NoError(t, err)
+		require.Equal(t, model.ID.String(), updated.ModelConfigID)
+	})
+
+	t.Run("RejectsBedrockNonClaude", func(t *testing.T) {
+		model := createBedrockChatModel(t, "openai.gpt-5.4")
+		require.Empty(t, model.ComputerUseProvider)
+		_, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Computer use requires "+chatprovider.ComputerUseModelRequirement+".", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, `of type "bedrock"`)
 	})
 
 	t.Run("RejectsMalformedID", func(t *testing.T) {

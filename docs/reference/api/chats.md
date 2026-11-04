@@ -4955,6 +4955,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -5354,6 +5355,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",

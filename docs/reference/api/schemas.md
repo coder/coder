@@ -2910,6 +2910,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------|
 | `api`, `ui` |
 
+## codersdk.ChatComputerUseProvider
+
+```json
+"anthropic"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `anthropic`, `openai` |
+
 ## codersdk.ChatConfig
 
 ```json
@@ -3857,6 +3871,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
@@ -4029,21 +4044,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                         | Required | Restrictions | Description                                                                                        |
-|-------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
-| `ai_provider_id`        | string                                                       | false    |              |                                                                                                    |
-| `compression_threshold` | integer                                                      | false    |              |                                                                                                    |
-| `context_limit`         | integer                                                      | false    |              |                                                                                                    |
-| `created_at`            | string                                                       | false    |              |                                                                                                    |
-| `display_name`          | string                                                       | false    |              |                                                                                                    |
-| `enabled`               | boolean                                                      | false    |              |                                                                                                    |
-| `id`                    | string                                                       | false    |              |                                                                                                    |
-| `is_default`            | boolean                                                      | false    |              |                                                                                                    |
-| `model`                 | string                                                       | false    |              |                                                                                                    |
-| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |                                                                                                    |
-| `organization_id`       | string                                                       | false    |              |                                                                                                    |
-| `reasoning_efforts`     | array of string                                              | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum. |
-| `updated_at`            | string                                                       | false    |              |                                                                                                    |
+| Name                    | Type                                                                 | Required | Restrictions | Description                                                                                                                                  |
+|-------------------------|----------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_provider_id`        | string                                                               | false    |              |                                                                                                                                              |
+| `compression_threshold` | integer                                                              | false    |              |                                                                                                                                              |
+| `computer_use_provider` | [codersdk.ChatComputerUseProvider](#codersdkchatcomputeruseprovider) | false    |              | Computer use provider is the computer use tool flavor that chatd uses for this model. It is empty when computer use cannot run on the model. |
+| `context_limit`         | integer                                                              | false    |              |                                                                                                                                              |
+| `created_at`            | string                                                               | false    |              |                                                                                                                                              |
+| `display_name`          | string                                                               | false    |              |                                                                                                                                              |
+| `enabled`               | boolean                                                              | false    |              |                                                                                                                                              |
+| `id`                    | string                                                               | false    |              |                                                                                                                                              |
+| `is_default`            | boolean                                                              | false    |              |                                                                                                                                              |
+| `model`                 | string                                                               | false    |              |                                                                                                                                              |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig)         | false    |              |                                                                                                                                              |
+| `organization_id`       | string                                                               | false    |              |                                                                                                                                              |
+| `reasoning_efforts`     | array of string                                                      | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum.                                           |
+| `updated_at`            | string                                                               | false    |              |                                                                                                                                              |
 
 ## codersdk.ChatModelACL
 
@@ -12800,6 +12816,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",

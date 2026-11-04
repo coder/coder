@@ -3143,6 +3143,11 @@ export interface ChatModel {
 	 * the model's configured maximum.
 	 */
 	readonly reasoning_efforts?: readonly string[];
+	/**
+	 * ComputerUseProvider is the computer use tool flavor that chatd uses for
+	 * this model. It is empty when computer use cannot run on the model.
+	 */
+	readonly computer_use_provider?: ChatComputerUseProvider;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
