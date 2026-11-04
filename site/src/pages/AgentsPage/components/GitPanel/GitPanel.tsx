@@ -14,7 +14,7 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import {
 	invalidateChatDiffContents,
@@ -53,6 +53,7 @@ import {
 	computeRepoStats,
 	type DiffStats,
 	type GitView,
+	type GitViewRequest,
 	repoBranchLabel,
 	repoLabel,
 	viewIdFor,
@@ -119,6 +120,17 @@ type GitPanelProps = {
 	 * file and then reverts it.
 	 */
 	everDirty: ReadonlySet<string>;
+	/**
+	 * A view to show. Each new request id switches the view once, mounted or
+	 * not, and the user can switch away after. A view that no longer exists
+	 * falls back like any other stale view.
+	 */
+	viewRequest?: GitViewRequest;
+	/**
+	 * Called once the panel shows `viewRequest`, so the owner can drop it and
+	 * a remounted panel does not show it again.
+	 */
+	onViewRequestApplied?: (id: number) => void;
 };
 
 type ViewItemBase = {
@@ -262,6 +274,8 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	primaryDiffStatus,
 	chatInputRef,
 	everDirty,
+	viewRequest,
+	onViewRequestApplied,
 }) => {
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
@@ -281,6 +295,19 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		}
 		return { type: "remote", refId: primaryRefId };
 	});
+	const [appliedRequestId, setAppliedRequestId] = useState<number>();
+	if (viewRequest && viewRequest.id !== appliedRequestId) {
+		setAppliedRequestId(viewRequest.id);
+		setView(viewRequest.view);
+	}
+	const reportViewRequestApplied = useEffectEvent((id: number) =>
+		onViewRequestApplied?.(id),
+	);
+	useEffect(() => {
+		if (appliedRequestId !== undefined) {
+			reportViewRequestApplied(appliedRequestId);
+		}
+	}, [appliedRequestId]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
