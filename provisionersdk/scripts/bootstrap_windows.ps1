@@ -20,6 +20,7 @@ while ($true) {
 	} catch {
 		Write-Output "$(Get-Date) error: unhandled exception fetching coder agent:"
 		Write-Output $_
+		Write-Output "$(Get-Date) See https://coder.com/docs/admin/templates/troubleshooting#agent-connection-issues"
 		Write-Output "$(Get-Date) trying again in 30 seconds..."
 		Start-Sleep -Seconds 30
 	}

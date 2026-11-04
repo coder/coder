@@ -24,6 +24,27 @@ While troubleshooting steps vary by resource, here are some general best practic
 - This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy.
   [Read our reverse-proxy docs](../../admin/setup/index.md#tls--reverse-proxy)
 
+### Agent download errors
+
+The init script downloads the agent binary from your access URL and retries every 30&nbsp;seconds until the download succeeds.
+On Linux and macOS, when the script recognizes the cause of a failure, it prints a `hint:` line that names the cause.
+To read the hints, open the logs of the resource, for example with `docker logs <container>` or `kubectl logs <pod>`.
+
+| Hint starts with                                 | Cause                                                       | Fix                                                                                                                |
+|--------------------------------------------------|-------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `Could not resolve the host`                     | The resource can't resolve the access URL hostname.         | Fix the DNS configuration of the resource, or use an access URL that the resource can resolve.                     |
+| `Could not connect to`                           | A firewall blocks the connection, or nothing listens there. | Allow traffic from the resource to Coder. Replace a `localhost` access URL with an address the resource can reach. |
+| `Timed out connecting to`                        | A firewall drops traffic from the resource.                 | Allow traffic from the resource to the Coder access URL.                                                           |
+| `TLS verification failed`                        | The resource doesn't trust the Coder TLS certificate.       | Add the CA certificate of Coder to the image of the resource.                                                      |
+| `The Coder server returned an HTTP error`        | The access URL is wrong, or Coder doesn't serve the binary. | Confirm the access URL, and confirm that Coder serves the agent binary for the operating system and architecture.  |
+| `A network error occurred`                       | `wget` can't reach the access URL.                          | Check the DNS and firewall configuration of the resource.                                                          |
+| `install curl in the workspace image`            | The image has no `curl`, `wget`, or `busybox`.              | Install `curl` in the image.                                                                                       |
+| `this workspace reports architecture`            | The `arch` of the `coder_agent` resource is wrong.          | Set `arch` on the `coder_agent` resource to the architecture of the resource, for example `amd64` or `arm64`.      |
+| `the download may have been replaced by a proxy` | A proxy or captive portal returned a page instead of Coder. | Allow the resource to reach the access URL directly, or exempt the access URL from the proxy.                      |
+
+The last 4 hints appear on Linux only.
+If the init script exits with an error, it sleeps for 24&nbsp;hours so that you can connect to the resource and investigate.
+
 ## Startup script issues
 
 Depending on the contents of the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1), and whether or not the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior-1) is set to blocking or non-blocking, you may notice issues related to the startup script.
