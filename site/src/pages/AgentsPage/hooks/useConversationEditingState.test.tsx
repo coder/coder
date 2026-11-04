@@ -1934,6 +1934,59 @@ describe("useConversationEditingState", () => {
 				expect(result.current.inputValueRef.current).toBe("queued edit");
 				unmount();
 			});
+
+			it.each(["before", "after"] as const)(
+				"a save that fails with its row dropped %s the failure keeps the edit followed by what was typed during the save as a new-message draft",
+				async (dropped) => {
+					const { result, unmount, onSend, beginEdit, markOnServer } =
+						renderEditing();
+					const save = createDeferred<undefined>();
+					onSend.mockReturnValueOnce(save.promise);
+					act(() => {
+						result.current.handleContentChange("draft", "draft", false);
+						beginEdit({ kind: "queued", id: 42 }, "queued text");
+					});
+					act(() => {
+						result.current.handleContentChange(
+							"queued edit",
+							"queued edit",
+							false,
+						);
+					});
+
+					let saved: Promise<void> = Promise.resolve();
+					act(() => {
+						saved = result.current.handleSendFromInput({
+							message: "queued edit",
+						});
+					});
+					act(() => {
+						result.current.handleContentChange(
+							"draft typed",
+							"draft typed",
+							false,
+						);
+					});
+					if (dropped === "before") {
+						markOnServer(null);
+					}
+					await act(async () => {
+						save.reject(new Error("gone"));
+						await saved.catch(() => undefined);
+					});
+					if (dropped === "after") {
+						markOnServer(null);
+					}
+
+					const kept = "queued edit\n\ndraft typed";
+					expect(result.current.editingTarget).toBeNull();
+					expect(result.current.composerMode).toBe("draft");
+					expect(result.current.editorInitialValue).toBe(kept);
+					expect(result.current.inputValueRef.current).toBe(kept);
+					expect(localStorage.getItem(expectedKey)).toBe(kept);
+					unmount();
+				},
+			);
 		});
 
 		it("Cancel restores the draft from before the edit and leaves the composer in draft mode", () => {
