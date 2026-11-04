@@ -1,11 +1,11 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	focusManager,
 	type QueryClient,
 	QueryClientProvider,
 } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import type {
@@ -16,6 +16,7 @@ import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
@@ -97,6 +98,12 @@ const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 };
 
 describe("ProjectDetailsPanel", () => {
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue(
+			MockChatProjectACL,
+		);
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 		focusManager.setFocused(undefined);
@@ -473,6 +480,33 @@ describe("ProjectDetailsPanel", () => {
 		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
+	it.each([
+		{ source: "the members section", role: "region", name: "Members" },
+		{ source: "the access dialog", role: "dialog", name: "View access" },
+	])("retries loading access from $source", async ({ role, name }) => {
+		mockInstructions(MockChatProjectInstructions);
+		const aclError = mockApiError({ message: "Failed to load." });
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockRejectedValueOnce(aclError)
+			.mockRejectedValueOnce(aclError)
+			.mockResolvedValue(MockChatProjectACL);
+		const { user } = renderPanel();
+
+		if (role === "dialog") {
+			await user.click(await screen.findByRole("button", { name }));
+		}
+		const scope = within(await screen.findByRole(role, { name }));
+		const retry = await scope.findByRole("button", { name: "Retry" });
+		await waitFor(() => expect(retry).toBeEnabled());
+		const callsBeforeRetry = getACL.mock.calls.length;
+		await user.click(retry);
+
+		await waitFor(() =>
+			expect(getACL).toHaveBeenCalledTimes(callsBeforeRetry + 1),
+		);
+	});
+
 	it("opens the project skills from the Skills row", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
@@ -508,7 +542,6 @@ describe("ProjectDetailsPanel", () => {
 
 	it("lets a non-owner turn a skill off when the project permits update", async () => {
 		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
 			MockSkills[0],
 		]);
@@ -554,5 +587,38 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(await screen.findByRole("button", { name: "Close" }));
 
 		await waitFor(() => expect(skillsButton).toHaveFocus());
+	});
+
+	it("opens the project access dialog from View access, refetches access, and returns focus when it closes", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockResolvedValue(MockChatProjectACL);
+		const { user } = renderPanel();
+		const accessButton = await screen.findByRole("button", {
+			name: "View access",
+		});
+
+		await user.click(accessButton);
+		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		await waitFor(() => expect(accessButton).toHaveFocus());
+		expect(getACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
+	});
+
+	it("shows an unknown owner for another user's project when the ACL fails", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockRejectedValue(
+			mockApiError({ message: "Failed to get chat project ACL." }),
+		);
+		renderPanel({ ...MockChatProject, owner_id: MockUserMember.id });
+
+		await within(screen.getByRole("region", { name: "Details" })).findByText(
+			"Unknown",
+		);
 	});
 });

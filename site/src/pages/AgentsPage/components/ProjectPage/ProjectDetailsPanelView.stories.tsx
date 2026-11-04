@@ -1,13 +1,51 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
+import type { ChatProjectACL, ChatProjectUser } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
+	MockEveryoneGroup,
+	MockGroup,
 	MockUnsetChatProjectInstructions,
+	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
+import { buildAccessEntries } from "./projectAccess";
+
+const mockSharees: ChatProjectUser[] = [
+	"Ada Lovelace",
+	"Grace Hopper",
+	"Alan Turing",
+	"Katherine Johnson",
+	"Linus Torvalds",
+	"Margaret Hamilton",
+	"Dennis Ritchie",
+	"Barbara Liskov",
+	"Ken Thompson",
+].map((name, index) => ({
+	...MockUserMember,
+	id: `sharee-${index}`,
+	username: name.toLowerCase().replace(" ", "."),
+	name,
+	role: index === 0 ? "admin" : "use",
+}));
+
+const mockACL: ChatProjectACL = {
+	...MockChatProjectACL,
+	users: mockSharees.slice(0, 2),
+	groups: [],
+};
+
+const mockMembers = {
+	entries: buildAccessEntries(mockACL),
+	error: undefined,
+	isRetrying: false,
+	onRetry: fn(),
+	onOpenAccess: fn(),
+};
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectDetailsPanelView",
@@ -30,6 +68,7 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 		error: undefined,
 		onRetry: fn(),
 		onEditInstructions: fn(),
+		members: mockMembers,
 	},
 };
 
@@ -68,16 +107,37 @@ export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
 };
 
+/** The ACL names the owner, so both load together. */
 export const OwnerLoading: Story = {
-	args: { ownerLabel: undefined },
+	args: {
+		ownerLabel: undefined,
+		members: { ...mockMembers, entries: undefined },
+	},
 };
 
 export const OtherOwner: Story = {
-	args: { ownerLabel: "Jane Doe" },
+	args: {
+		ownerLabel: "Jane Doe",
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				owner: { ...MockUserMember, name: "Jane Doe" },
+			}),
+		},
+	},
 };
 
+/** The ACL failed to load, so it could not name the owner. */
 export const OwnerUnknown: Story = {
-	args: { ownerLabel: "Unknown" },
+	args: {
+		ownerLabel: "Unknown",
+		members: {
+			...mockMembers,
+			entries: undefined,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
+	},
 };
 
 /** Long owner and organization names wrap so they stay readable. */
@@ -85,6 +145,17 @@ export const LongNames: Story = {
 	args: {
 		ownerLabel: "bartholomewmontgomeryfitzgerald1",
 		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				owner: {
+					...MockUserMember,
+					username: "bartholomewmontgomeryfitzgerald1",
+					name: "",
+				},
+			}),
+		},
 	},
 };
 
@@ -162,5 +233,181 @@ export const RefetchError: Story = {
 		error: mockApiError({
 			message: "Failed to get chat project instructions.",
 		}),
+	},
+};
+
+/** Chat sharing is disabled for the deployment, so the members are hidden. */
+export const SharingDisabled: Story = {
+	args: { members: undefined },
+};
+
+export const OwnerOnly: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: [],
+				groups: [],
+			}),
+		},
+	},
+};
+
+/** Entries past the visible limit collapse into a "+K" tile. */
+export const MembersOverflow: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: mockSharees,
+				groups: [],
+			}),
+		},
+	},
+};
+
+/** Keyboard focus on the "+K" tile lists the hidden members below the row. */
+export const MembersOverflowFocused: Story = {
+	args: MembersOverflow.args,
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "+3 more" }).focus();
+	},
+};
+
+/** A narrow card fits fewer tiles, so the "+K" tile covers more entries. */
+export const MembersOverflowNarrow: Story = {
+	args: MembersOverflow.args,
+	decorators: [
+		(Story) => (
+			<div className="w-[200px]">
+				<Story />
+			</div>
+		),
+	],
+};
+
+/** The "+K" tooltip names the first ten hidden entries and counts the rest. */
+export const MembersOverflowManyFocused: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: Array.from({ length: 24 }, (_, index) => ({
+					...MockUserMember,
+					id: `member-${index}`,
+					username: `member${index + 1}`,
+					name: `Member ${index + 1}`,
+					role: "use",
+				})),
+			}),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "+18 more" }).focus();
+	},
+};
+
+/** A full row shows every avatar instead of a "+1" tile. */
+export const MembersFullRow: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: mockSharees.slice(0, 7),
+				groups: [],
+			}),
+		},
+	},
+};
+
+/** Groups follow users and count separately in the heading. */
+export const MembersWithGroups: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: mockSharees.slice(0, 2),
+				groups: [
+					{ ...MockGroup, role: "use" },
+					{ ...MockEveryoneGroup, role: "use" },
+				],
+			}),
+		},
+	},
+};
+
+/** Hovering a member avatar shows the member's name. */
+export const MemberTooltip: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "Ada Lovelace" }),
+		);
+	},
+};
+
+const mockLongName =
+	"Augusta Ada King, Countess of Lovelace, Analyst of the Analytical Engine and Poet of Science";
+
+/** Long names wrap instead of running off narrow screens. */
+export const MemberTooltipLongName: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries({
+				...mockACL,
+				users: [
+					{
+						...mockSharees[0],
+						name: mockLongName,
+					},
+				],
+				groups: [],
+			}),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: mockLongName }),
+		);
+	},
+};
+
+export const MembersLoading: Story = {
+	args: { members: { ...mockMembers, entries: undefined } },
+};
+
+export const MembersLoadError: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: undefined,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
+	},
+};
+
+export const MembersRetrying: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: undefined,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+			isRetrying: true,
+		},
+	},
+};
+
+/** A failed refetch keeps the cached members and shows the error. */
+export const MembersRefetchError: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			error: mockApiError({ message: "Failed to get chat project ACL." }),
+		},
 	},
 };
