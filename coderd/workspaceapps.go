@@ -34,8 +34,14 @@ import (
 // @Deprecated use api/v2/regions and see the primary proxy.
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
-		Host: appurl.SubdomainAppHost(api.AppHostname, api.AccessURL),
+		Host: api.subdomainAppHost(),
 	})
+}
+
+// subdomainAppHost returns the primary wildcard app host, with the access URL
+// port when the wildcard has no port. The frontend frames apps on this host.
+func (api *API) subdomainAppHost() string {
+	return appurl.SubdomainAppHost(api.AppHostname, api.AccessURL)
 }
 
 // workspaceApplicationAuth is an endpoint on the main router that handles

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -66,4 +67,33 @@ func TestPostCSPViolations(t *testing.T) {
 			require.Equal(t, tt.expectedStatus, res.StatusCode)
 		})
 	}
+}
+
+func TestCSPFrameSrcAdmitsPrimaryRegion(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		AppHostname: "*.test.coder.com",
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	regions, err := client.Regions(ctx)
+	require.NoError(t, err)
+	require.Len(t, regions, 1)
+	primary := regions[0]
+	require.Equal(t, "*.test.coder.com:"+client.URL.Port(), primary.WildcardHostname)
+
+	res, err := client.Request(ctx, http.MethodGet, "/login", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	var frameSrc []string
+	for _, directive := range strings.Split(res.Header.Get("Content-Security-Policy"), ";") {
+		fields := strings.Fields(directive)
+		if len(fields) > 0 && fields[0] == "frame-src" {
+			frameSrc = fields[1:]
+		}
+	}
+	require.Contains(t, frameSrc, appurl.ConvertAppHostForCSP(client.URL.Host, primary.WildcardHostname))
 }

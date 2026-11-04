@@ -86,11 +86,16 @@ func TestCSP(t *testing.T) {
 			Host:    "example.com",
 			AppHost: "*.coder2.com",
 		},
+		{
+			// Host is added to frame-src once because it equals the app host.
+			Host:    "nowildcard.com",
+			AppHost: "nowildcard.com",
+		},
 	}
 	expectedMedia := []string{"media.com", "media2.com"}
 
 	expected := []string{
-		"frame-src 'self' *.test.com *.coder.com *.coder2.com",
+		"frame-src 'self' *.test.com test.com *.coder.com coder.com *.coder2.com nowildcard.com;",
 		"media-src 'self' " + strings.Join(expectedMedia, " "),
 		strings.Join([]string{
 			"connect-src", "'self'",

@@ -118,7 +118,7 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 			}
 
 			// The terminal and iframed apps can use workspace proxies (which includes
-			// the primary).  Make sure we allow connections to healthy proxies.
+			// the primary).  Make sure we allow connections to every registered proxy.
 			extraConnect := proxyHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
@@ -128,6 +128,11 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 						// '*' means all
 						cspSrcs.Append(CSPDirectiveConnectSrc, "*")
 						continue
+					}
+					// Frames also load the host itself: path-based apps on every
+					// region, and the subdomain app auth redirect on the primary.
+					if extraHost.Host != r.Host && extraHost.Host != extraHost.AppHost {
+						cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.Host)
 					}
 					// Avoid double-adding r.Host.
 					if extraHost.Host != r.Host {
