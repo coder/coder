@@ -68,7 +68,7 @@ const CategoryHeader: React.FC<EmojiPickerListCategoryHeaderProps> = ({
 );
 
 const Row: React.FC<EmojiPickerListRowProps> = ({ children, ...props }) => (
-	<div className="scroll-my-1.5 px-1.5" {...props}>
+	<div className="scroll-my-1.5 px-1.5 grid! grid-cols-9" {...props}>
 		{children}
 	</div>
 );
@@ -189,7 +189,6 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 	return (
 		<Frimousse.Root
 			className="isolate flex h-[400px] w-fit flex-col"
-			columns={9}
 			resolveEmojiData={() => emojiData}
 			onEmojiSelect={({ emoji }) => onEmojiSelect(emojiToValue(emoji))}
 		>
