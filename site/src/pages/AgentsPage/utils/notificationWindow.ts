@@ -39,11 +39,11 @@ const isRenderedSignedOut = () =>
  *
  * Unmarked windows are left alone. In a window from clients.openWindow(),
  * iOS closes the window once a back swipe reaches its first entry and leaves
- * a blank screen, so giving that swipe a target makes it worse. Marked
- * windows only lose the marker in a browser tab, with more than one history
- * entry, on a path other than /agents/:agentId (agent settings excluded), or
- * for a signed-out visitor, whose sign-in redirect must keep the chat. Call
- * before createBrowserRouter reads the location.
+ * a blank screen, so giving that swipe a target makes it worse. In a browser
+ * tab, in a window with more than one history entry, on a path other than
+ * /agents/:agentId (agent settings excluded), or for a signed-out visitor,
+ * whose sign-in redirect must keep the chat, a marked window only loses the
+ * marker. Call before createBrowserRouter reads the location.
  */
 export function openChatListFirst(): void {
 	const url = new URL(window.location.href);
