@@ -125,7 +125,7 @@ The agent can resume work by creating a new workspace with the same template and
 Users can send follow-up messages while the agent is actively working.
 Messages are queued and delivered before the agent's next model call, so there is no need to wait for a response before providing additional context or changing direction.
 To redirect a busy agent, send a message.
-Don't interrupt it first.
+Do not interrupt it first.
 A message waits for the current step to finish, so a long tool call delays it.
 If you interrupt the agent after a message was delivered, the interrupt cancels the reply to it.
 After an interrupt, the agent starts with the messages that were already queued.
