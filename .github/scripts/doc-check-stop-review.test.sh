@@ -43,6 +43,8 @@ while (($#)); do
 	esac
 done
 path="${url#"${CODER_URL%/}"}"
+qs=""
+[[ "${path}" == *\?* ]] && qs="${path#*\?}"
 path="${path%%\?*}"
 flag=" max=${max_time}"
 [[ -z "${max_time}" ]] && flag=" NO-MAX-TIME"
@@ -129,6 +131,11 @@ POST\ /api/v2/workspaces/*/builds)
 	;;
 GET\ /api/v2/workspaces/*)
 	id="${path#/api/v2/workspaces/}"
+	# A deleted workspace answers 410 Gone unless the read includes deleted
+	# workspaces, as in coderd.
+	if [[ "$(jq -r --arg id "${id}" '.workspaces[$id].transition' "${st}")" == "delete" && "${qs}" != *include_deleted=true* ]]; then
+		fail
+	fi
 	jq -c --arg id "${id}" '.workspaces[$id] | {id: $id, name, latest_build: {transition, status: .statuses[0]}}' "${st}"
 	update --arg id "${id}" 'if (.workspaces[$id].statuses | length) > 1 then .workspaces[$id].statuses |= .[1:] else . end'
 	;;
@@ -244,6 +251,30 @@ expect_no_output "::warning::"
 [[ "$(state_of '[.chats[].queued[]] | length')" == 0 ]] || fail_case "queued messages remain"
 # A request that hangs would hold the step past its cancel grace period.
 expect_calls 0 "NO-MAX-TIME"
+# With the default budget, no request waits more than 30 seconds.
+[[ "$(grep -oE 'max=[0-9-]+' <<<"${CALLS}" | sort -u)" == "max=30" ]] || fail_case "want every request limited to 30 seconds"
+
+# Every review chat the lookup returns gets stopped.
+run_case two-reviews "https://github.com/coder/coder/pull/12" '{
+	list: ["r1", "r2"],
+	chats: {
+		r1: {status: "running", workspace_id: null, children: [], queued: []},
+		r2: {status: "running", workspace_id: null, children: [], queued: []}
+	}
+}'
+expect_calls 1 "POST /api/v2/chats/r1/interrupt"
+expect_calls 1 "POST /api/v2/chats/r2/interrupt"
+expect_no_output "::warning::"
+[[ "$(state_of '[.chats[].status] | unique | join(",")')" == "waiting" ]] || fail_case "a review is still active"
+
+# The server queues at most 20 messages a chat by default, and dropping
+# all of them is not a failure.
+run_case full-queue "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	chats: {r1: {status: "waiting", workspace_id: null, children: [], queued: [range(1; 21)]}}
+}'
+expect_calls 20 "DELETE /api/v2/chats/r1/queue/"
+expect_no_output "::warning::"
 
 run_case requires-action "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
@@ -288,7 +319,7 @@ run_case stuck-chat "https://github.com/coder/coder/pull/12" '{
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
 }'
 expect_calls 3 "POST /api/v2/chats/r1/interrupt"
-expect_output "::warning::Review chat r1 did not stop."
+expect_output "::warning::Review chat r1 did not stop in time. It may still be running in Coder."
 # The workspace still stops, which ends the stuck chat's tool calls.
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 
@@ -298,10 +329,13 @@ run_case chat-budget "https://github.com/coder/coder/pull/12" '{
 	slow: 1,
 	list: ["r1"],
 	stuck: ["r1"],
-	chats: {r1: {status: "running", workspace_id: null, children: [], queued: []}}
+	chats: {r1: {status: "running", workspace_id: "w1", children: [], queued: []}},
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"], after_stop: {statuses: ["stopped"]}}}
 }' STOP_BUDGET_SECONDS=15
 expect_calls 1 "POST /api/v2/chats/r1/interrupt"
-expect_output "::warning::Review chat r1 did not stop."
+expect_output "::warning::Review chat r1 did not stop in time."
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+expect_output "Stopped workspace doc-check-pr-12."
 
 run_case chat-read-fails "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
@@ -321,22 +355,23 @@ expect_output "Stopped workspace doc-check-pr-12."
 run_case build-never-ends "https://github.com/coder/coder/pull/12" '{
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting"]}}
 }'
-expect_calls 54 "GET /api/v2/workspaces/w1"
+# The first read, then one read for each 5-second poll of the 270-second
+# budget.
+expect_calls $((1 + 270 / 5)) "GET /api/v2/workspaces/w1"
 expect_calls 0 "POST /api/v2/workspaces/w1/builds"
 expect_output "::warning::Workspace doc-check-pr-12 did not finish its build within the 270-second budget."
 
-# Each request's time limit shrinks to what is left of the budget, and once
-# the slow lookups spend the budget, the workspace is not polled.
+# Requests are limited to the time left in their phase, and the chats get
+# the first third of the budget: 1 second of 5. A request made after the
+# budget still gets 1 second, and a workspace reached after the budget still
+# gets one read, but no more polls.
 run_case budget-caps-requests "https://github.com/coder/coder/pull/12" '{
 	slow: 3,
 	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["starting"]}}
 }' STOP_BUDGET_SECONDS=5
-first_max=$(grep -F "GET /api/v2/chats label=" <<<"${CALLS}" | grep -oE 'max=[0-9]+' | cut -d= -f2 || true)
-later_max=$(grep -F "GET /api/v2/workspaces q=" <<<"${CALLS}" | grep -oE 'max=[0-9]+' | cut -d= -f2 || true)
-if [[ -z "${first_max}" || -z "${later_max}" ]] || ((first_max > 5 || later_max >= first_max)); then
-	fail_case "want request limits within the budget and shrinking, got ${first_max:-none} then ${later_max:-none}"
-fi
-expect_calls 0 "GET /api/v2/workspaces/w1"
+expect_calls 1 "GET /api/v2/chats label=coder-agents-chat-action:true label=gh-target:coder/coder#12 label=coder-agents-chat-action-workflow:AI Documentation Check max=1"
+expect_calls 1 "GET /api/v2/workspaces/w1"
+expect_calls 1 "GET /api/v2/workspaces/w1 max=1"
 expect_output "did not finish its build within the 5-second budget."
 
 run_case failed-start "https://github.com/coder/coder/pull/12" '{
@@ -365,7 +400,17 @@ run_case running-after-stop "https://github.com/coder/coder/pull/12" '{
 		after_stop: {transition: "start", statuses: ["running"]}}}
 }'
 expect_calls 1 "POST /api/v2/workspaces/w1/builds"
-expect_output "::warning::Workspace doc-check-pr-12 is running again after the stop."
+expect_output "::warning::A start build of workspace doc-check-pr-12 began after this run stopped it, and the workspace is now running."
+
+# A chat keeps the ID of a workspace that was deleted later.
+run_case deleted-workspace "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	chats: {r1: {status: "waiting", workspace_id: "w1", children: [], queued: []}},
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "delete", statuses: ["deleted"]}}
+}'
+expect_calls 1 "GET /api/v2/workspaces/w1"
+expect_calls 0 "/builds"
+expect_no_output "::warning::"
 
 # The workspace name has only the PR number, so a PR in another
 # repository must not stop this repository's workspace.
@@ -375,6 +420,12 @@ run_case other-repository "https://github.com/coder/other/pull/12" '{
 expect_calls 1 "label=gh-target:coder/other#12"
 expect_calls 0 "GET /api/v2/workspaces"
 expect_calls 0 "/builds"
+
+# GitHub repository names are case-insensitive.
+run_case mixed-case-repository "https://github.com/Coder/Coder/pull/12" '{
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
+}'
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
 
 run_case exact-workspace-name "https://github.com/coder/coder/pull/12" '{
 	workspaces: {
