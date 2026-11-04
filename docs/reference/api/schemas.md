@@ -1507,6 +1507,24 @@ None
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
 
+## codersdk.AdvisorConfig
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                       |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled is always true and cannot be changed.                                                     |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.        |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat turn. 0 means unlimited. |
+
 ## codersdk.AgentChatSendShortcut
 
 ```json
@@ -3814,8 +3832,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
   "turn_start_id": 0
@@ -4573,9 +4593,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                          |
-|-------------------------------------------------------------------|
-| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `advisor`, `compaction`, `computer_use`, `explore`, `general`, `title_generation` |
 
 ## codersdk.ChatModelOverrideResponse
 
@@ -5104,6 +5124,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "total_member_count": 0
     }
   ],
+  "owner": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "users": [
     {
       "avatar_url": "http://example.com",
@@ -5118,10 +5144,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name     | Type                                                            | Required | Restrictions | Description |
-|----------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |             |
-| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |             |
+| Name     | Type                                                            | Required | Restrictions | Description                                               |
+|----------|-----------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
+| `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
+| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
 
 ## codersdk.ChatProjectGroup
 
@@ -5399,20 +5426,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
+  "editing_since": "2019-08-24T14:15:22Z",
   "id": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
+| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                  |
+|--------------------|---------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                              |
+| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                              |
+| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                              |
+| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat. |
+| `id`               | integer                                                       | false    |              |                                                                                                                                                                                              |
+| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                              |
+| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                              |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5466,9 +5497,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                         |
-|------------------------------------------------------------------|
-| `error`, `interrupting`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                                   |
+|----------------------------------------------------------------------------|
+| `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -5727,8 +5758,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
   "retry": {
@@ -6876,8 +6909,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
+    "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "reasoning_effort": "string"
   },
   "warnings": [
     "string"
@@ -7339,6 +7374,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_client_registration": "manual",
   "oauth2_client_secret": "string",
   "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
@@ -7359,42 +7395,44 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
-|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
-| `icon_url`              | string          | false    |              |                                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
-| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                 |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
-| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
-| `slug`                  | string          | true     |              |                                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                                        |
+| Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                   |
+|------------------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `api_key_header`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `api_key_value`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `auth_type`                  | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `availability`               | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `custom_headers`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| » `[any property]`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `description`                | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `display_name`               | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `enabled`                    | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `forward_coder_headers`      | boolean                                                                                  | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                                                                                                                                                                                                                                                                                          |
+| `icon_url`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `model_intent`               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_auth_url`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_client_id`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_client_registration` | [codersdk.MCPServerOAuth2ClientRegistration](#codersdkmcpserveroauth2clientregistration) | false    |              | Oauth2 client registration selects how Coder gets the OAuth2 client. With "dynamic", Coder discovers the authorization server of URL and registers a client (RFC 7591), so the client ID, client secret, auth URL, and token URL must be empty. With "manual", the client ID, auth URL, and token URL are required. When empty, Coder uses "dynamic" if those three fields are empty, and "manual" otherwise. |
+| `oauth2_client_secret`       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_resource`            | string                                                                                   | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                                                                                                                                                                                                                                                                                        |
+| `oauth2_revocation_url`      | string                                                                                   | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                                                                                                                                                                                                                                                                                        |
+| `oauth2_scopes`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `oauth2_token_url`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `signing_secret`             | string                                                                                   | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned.                                                                                                                                                                                                                                                                        |
+| `slug`                       | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tool_allow_list`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tool_deny_list`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `transport`                  | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `url`                        | string                                                                                   | true     |              |                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                   |
-|----------------|------------------------------------------------------------|
-| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
-| `availability` | `default_off`, `default_on`, `force_on`                    |
-| `transport`    | `sse`, `streamable_http`                                   |
+| Property                     | Value(s)                                                   |
+|------------------------------|------------------------------------------------------------|
+| `auth_type`                  | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability`               | `default_off`, `default_on`, `force_on`                    |
+| `oauth2_client_registration` | `dynamic`, `manual`                                        |
+| `transport`                  | `sse`, `streamable_http`                                   |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -9946,6 +9984,43 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
 | `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
 
+## codersdk.EditChatQueuedMessageRequest
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
+      "start_line": 0,
+      "text": "string",
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "editing": true,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                                              |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              | Content replaces the queued content. An empty array is rejected.                                                                                                                                                                                                         |
+| `editing`          | boolean                                                   | false    |              | Editing begins (true) or ends (false) an edit of the message. A chat has at most one message under edit; beginning another ends the first. While the chat is paused, beginning an edit on another message returns 409. Ending the edit of a paused chat's head sends it. |
+| `model_config_id`  | string                                                    | false    |              | Model config ID and ReasoningEffort require Content; sending either without it returns 400. Omitted values keep the stored ones.                                                                                                                                         |
+| `reasoning_effort` | string                                                    | false    |              |                                                                                                                                                                                                                                                                          |
+
 ## codersdk.Entitlement
 
 ```json
@@ -10030,9 +10105,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -11258,6 +11333,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_client_registration": "manual",
   "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
@@ -11278,38 +11354,39 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `api_key_header`        | string          | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
-| `auth_connected`        | boolean         | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
-| `auth_type`             | string          | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
-| `availability`          | string          | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
-| `created_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `description`           | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `display_name`          | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `enabled`               | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers forwards the same Coder identity headers we send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this MCP server on every request. Off by default to avoid leaking chat identity to third-party servers. |
-| `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `has_signing_secret`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
-| `oauth2_resource`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `organization_id`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `slug`                  | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `tool_allow_list`       | array of string | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `transport`             | string          | false    |              | "streamable_http" or "sse"                                                                                                                                                                                                                                                                           |
-| `updated_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
-| `url`                   | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
+|------------------------------|------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `api_key_header`             | string                                                                                   | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
+| `auth_connected`             | boolean                                                                                  | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
+| `auth_type`                  | string                                                                                   | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
+| `availability`               | string                                                                                   | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
+| `created_at`                 | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `description`                | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `display_name`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `enabled`                    | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `forward_coder_headers`      | boolean                                                                                  | false    |              | Forward coder headers forwards the same Coder identity headers we send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this MCP server on every request. Off by default to avoid leaking chat identity to third-party servers. |
+| `has_api_key`                | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_custom_headers`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_oauth2_secret`          | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_signing_secret`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `icon_url`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `id`                         | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `model_intent`               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_auth_url`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_client_id`           | string                                                                                   | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_client_registration` | [codersdk.MCPServerOAuth2ClientRegistration](#codersdkmcpserveroauth2clientregistration) | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_resource`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_revocation_url`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_scopes`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_token_url`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `organization_id`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `slug`                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `tool_allow_list`            | array of string                                                                          | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
+| `tool_deny_list`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `transport`                  | string                                                                                   | false    |              | "streamable_http" or "sse"                                                                                                                                                                                                                                                                           |
+| `updated_at`                 | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `url`                        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                      |
 
 ## codersdk.MCPServerConfigACL
 
@@ -11463,6 +11540,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Property | Value(s) |
 |----------|----------|
 | `role`   | `read`   |
+
+## codersdk.MCPServerOAuth2ClientRegistration
+
+```json
+"manual"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `dynamic`, `manual` |
 
 ## codersdk.MCPServerOAuth2DisconnectResponse
 
@@ -13172,6 +13263,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|----------|
 | `role`   | `read`   |
 
+## codersdk.OrganizationSkillPreferences
+
+```json
+{
+  "all_skills_disabled": true,
+  "disabled_skill_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description                                                                                                                                        |
+|------------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `all_skills_disabled`        | boolean         | false    |              | All skills disabled turns off every organization skill, including skills added later. DisabledSkillIDs is kept and applies again when it is false. |
+| `disabled_skill_ids`         | array of string | false    |              | Disabled skill ids lists the organization skills the member turned off.                                                                            |
+| `members_can_disable_skills` | boolean         | false    |              | Members can disable skills is the organization's setting.                                                                                          |
+
 ## codersdk.OrganizationSkillRole
 
 ```json
@@ -13185,6 +13296,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.OrganizationSkillSettings
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `members_can_disable_skills` | boolean | false    |              | Members can disable skills lets each organization member turn off organization skills for their own chats. |
 
 ## codersdk.OrganizationSkillUser
 
@@ -16868,6 +16993,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------|--------|----------|--------------|-------------|
 | `id` | string | true     |              |             |
 
+## codersdk.UpdateAdvisorConfigRequest
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `max_output_tokens` | integer | false    |              |             |
+| `max_uses_per_run`  | integer | false    |              |             |
+
 ## codersdk.UpdateAppearanceConfig
 
 ```json
@@ -17412,6 +17553,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_client_registration": "manual",
   "oauth2_client_secret": "string",
   "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
@@ -17432,42 +17574,44 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                             |
-|-------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                         |
-| `api_key_header`        | string          | false    |              |                                                                                                                         |
-| `api_key_value`         | string          | false    |              |                                                                                                                         |
-| `auth_type`             | string          | false    |              |                                                                                                                         |
-| `availability`          | string          | false    |              |                                                                                                                         |
-| `custom_headers`        | object          | false    |              |                                                                                                                         |
-| » `[any property]`      | string          | false    |              |                                                                                                                         |
-| `description`           | string          | false    |              |                                                                                                                         |
-| `display_name`          | string          | false    |              |                                                                                                                         |
-| `enabled`               | boolean         | false    |              |                                                                                                                         |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when set, updates whether Coder identity headers are forwarded on every outgoing MCP request.     |
-| `icon_url`              | string          | false    |              |                                                                                                                         |
-| `model_intent`          | boolean         | false    |              |                                                                                                                         |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                         |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                         |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                         |
-| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator. Omit it to keep the stored value; send "" to clear it.              |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
-| `signing_secret`        | string          | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.   |
-| `slug`                  | string          | false    |              |                                                                                                                         |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
-| `transport`             | string          | false    |              |                                                                                                                         |
-| `url`                   | string          | false    |              |                                                                                                                         |
+| Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|------------------------------|------------------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `api_key_header`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `api_key_value`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `auth_type`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `availability`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `custom_headers`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| » `[any property]`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `description`                | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `display_name`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `enabled`                    | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `forward_coder_headers`      | boolean                                                                                  | false    |              | Forward coder headers when set, updates whether Coder identity headers are forwarded on every outgoing MCP request.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `icon_url`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `model_intent`               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_auth_url`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_client_id`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_client_registration` | [codersdk.MCPServerOAuth2ClientRegistration](#codersdkmcpserveroauth2clientregistration) | false    |              | Oauth2 client registration changes how Coder gets the OAuth2 client. When a request that sets the URL or an auth field omits it, Coder uses "dynamic" if the resulting config has no client ID, auth URL, and token URL, and keeps the stored value otherwise. Coder registers a new client when the config becomes "dynamic" or when the URL of a "dynamic" config changes. A new client deletes the stored user tokens. A "dynamic" config ignores empty and unchanged values for the client ID, client secret, auth URL, and token URL. Other values fail unless the request also sets "manual". |
+| `oauth2_client_secret`       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_resource`            | string                                                                                   | false    |              | Oauth2 resource is the RFC 8707 resource indicator. Omit it to keep the stored value; send "" to clear it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `oauth2_revocation_url`      | string                                                                                   | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `oauth2_scopes`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `oauth2_token_url`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `signing_secret`             | string                                                                                   | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `slug`                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tool_allow_list`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tool_deny_list`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `transport`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `url`                        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                   |
-|----------------|------------------------------------------------------------|
-| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
-| `availability` | `default_off`, `default_on`, `force_on`                    |
-| `transport`    | `sse`, `streamable_http`                                   |
+| Property                     | Value(s)                                                   |
+|------------------------------|------------------------------------------------------------|
+| `auth_type`                  | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability`               | `default_off`, `default_on`, `force_on`                    |
+| `oauth2_client_registration` | `dynamic`, `manual`                                        |
+| `transport`                  | `sse`, `streamable_http`                                   |
 
 ## codersdk.UpdateOrganizationChatSystemPromptRequest
 
@@ -17530,6 +17674,40 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
 | `user_roles`       | object                                                           | false    |              |             |
 | » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+
+## codersdk.UpdateOrganizationSkillPreferencesRequest
+
+```json
+{
+  "all_skills_disabled": true,
+  "skills": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description                                                                                  |
+|-----------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `all_skills_disabled` | boolean | false    |              |                                                                                              |
+| `skills`              | object  | false    |              | Skills maps an organization skill ID to whether the skill is enabled for the member's chats. |
+| » `[any property]`    | boolean | false    |              |                                                                                              |
+
+## codersdk.UpdateOrganizationSkillSettingsRequest
+
+```json
+{
+  "members_can_disable_skills": true
+}
+```
+
+### Properties
+
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `members_can_disable_skills` | boolean | false    |              |             |
 
 ## codersdk.UpdateRoles
 

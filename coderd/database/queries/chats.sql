@@ -1721,21 +1721,21 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
 
--- name: SyncAgentChatsContextMCPResources :many
--- MCP resources bypass context drift and are live-synced on each push.
+-- name: SyncAgentChatsContextLiveResources :many
+-- MCP and ACP resources bypass context drift and are live-synced on each push.
 -- Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 -- cannot interleave with the replacement.
-WITH agent_mcp AS (
+WITH agent_live AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
     WHERE workspace_agent_id = @agent_id::uuid
-        AND body_kind IN ('mcp_config', 'mcp_server')
+        AND body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
 ),
 changed AS (
     SELECT chats.id
@@ -1745,7 +1745,7 @@ changed AS (
         AND chats.context_aggregate_hash IS NOT NULL
         AND (
             EXISTS (
-                SELECT 1 FROM agent_mcp m
+                SELECT 1 FROM agent_live m
                 WHERE NOT EXISTS (
                     SELECT 1 FROM chat_context_resources ccr
                     WHERE ccr.chat_id = chats.id
@@ -1759,9 +1759,9 @@ changed AS (
             OR EXISTS (
                 SELECT 1 FROM chat_context_resources ccr
                 WHERE ccr.chat_id = chats.id
-                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
                     AND NOT EXISTS (
-                        SELECT 1 FROM agent_mcp m
+                        SELECT 1 FROM agent_live m
                         WHERE m.source = ccr.source
                             AND m.body_kind = ccr.body_kind
                             AND m.content_hash = ccr.content_hash
@@ -1781,8 +1781,8 @@ deleted AS (
     DELETE FROM chat_context_resources
     USING locked
     WHERE chat_context_resources.chat_id = locked.id
-        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
-        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_live)
 ),
 upserted AS (
     INSERT INTO chat_context_resources (
@@ -1792,7 +1792,7 @@ upserted AS (
         locked.id, m.source, m.body_kind, m.body, m.content_hash,
         m.size_bytes, m.status, m.error, m.source_path
     FROM locked
-    CROSS JOIN agent_mcp m
+    CROSS JOIN agent_live m
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -2540,9 +2540,8 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec
@@ -2664,10 +2663,26 @@ WHERE
     AND chats_expanded.pin_order = 0
     AND chats_expanded.parent_chat_id IS NULL
     AND chats_expanded.created_at < @archive_cutoff::timestamptz
+    -- Statuses SetArchived refuses. Archiving a root archives its whole
+    -- family and fails if any unarchived member refuses, so members are
+    -- checked too.
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats member
+        WHERE member.root_chat_id = chats_expanded.id
+          AND member.archived = false
+          AND member.status IN (
+              'running'::chat_status,
+              'interrupting'::chat_status,
+              'requires_action'::chat_status,
+              'paused'::chat_status
+          )
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -2700,7 +2715,20 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats member
+        WHERE member.root_chat_id = chats_expanded.id
+          AND member.archived = false
+          AND member.status IN (
+              'running'::chat_status,
+              'interrupting'::chat_status,
+              'requires_action'::chat_status,
+              'paused'::chat_status
+          )
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz;
 
@@ -2970,15 +2998,7 @@ VALUES (
 )
 RETURNING *;
 
--- name: GetChatQueuedMessagesByPosition :many
--- Returns queued messages in state-machine order (position ASC, id ASC).
-SELECT * FROM chat_queued_messages
-WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC;
-
 -- name: CountChatQueuedMessages :one
--- Cheap queue-length check used by ChatMachine.Update when deciding
--- whether the chat is in a "1" sub-state.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
@@ -3004,6 +3024,23 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 -- name: DeleteAllChatQueuedMessagesReturningCount :execrows
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
+
+-- name: UpdateChatQueuedMessageEditing :one
+-- Begins (@editing = true) or ends the row's edit. Beginning keeps an
+-- existing editing_since, so the timestamp marks the first begin.
+UPDATE chat_queued_messages
+SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: UpdateChatQueuedMessageContent :one
+-- Replaces the content and per-message overrides of a queued message.
+UPDATE chat_queued_messages
+SET content = @content::jsonb,
+    model_config_id = sqlc.narg('model_config_id')::uuid,
+    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
 
 -- name: ReorderChatQueuedMessageToHead :execrows
 -- Sets the target queued message's position to one less than the
@@ -3097,8 +3134,9 @@ WITH to_archive AS (
       AND c.parent_chat_id IS NULL -- roots only
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
-      -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      -- Matches the root status list in
+      -- GetAutoArchiveInactiveChatCandidates.
+      AND c.status NOT IN ('running', 'interrupting', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery

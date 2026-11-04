@@ -5,7 +5,8 @@ title: Xum
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-Xum (formerly Mux) makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
+Xum (formerly Mux) makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop.
+It is open source and provider-agnostic.
 
 Xum can be configured to route OpenAI- and Anthropic-compatible traffic through AI Gateway by setting a custom provider base URL and using a Coder-issued token for authentication.
 
@@ -39,7 +40,7 @@ _Replace `coder.example.com` with your Coder deployment URL._
 ## Environment variables
 
 Xum reads provider configuration from its settings UI and also from environment variables.
-Environment variables are useful in CI or when running Xum inside a Coder workspace.
+Environment variables are useful in continuous integration (CI) or when running Xum inside a Coder workspace.
 
 > [!NOTE]
 > Xum treats environment variables as a fallback when a provider is not configured in settings.

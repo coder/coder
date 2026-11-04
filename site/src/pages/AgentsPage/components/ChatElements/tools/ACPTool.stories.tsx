@@ -74,6 +74,22 @@ const mockCustomSession = {
 	harness_display_name: "Workspace Assistant",
 };
 
+const mockDisplayNameMatchSession = {
+	...mockCustomSession,
+	harness_display_name: "Claude Code (custom)",
+};
+
+const mockCodexSpawnArgs = {
+	...MockACPSpawnArgs,
+	agent: { harness_id: "codex" },
+};
+
+const mockCodexClaudeNamedSession = {
+	...MockACPSession,
+	harness_id: "codex",
+	harness_display_name: "Claude Code",
+};
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/ACPTool",
 	component: Tool,
@@ -227,6 +243,57 @@ export const CustomHarness: Story = {
 	args: {
 		args: mockCustomSpawnArgs,
 		result: mockCustomSession,
+	},
+};
+export const KnownHarnesses: Story = {
+	render: (args) => (
+		<div className="flex flex-col gap-2">
+			{[
+				["claude-code", "Claude Code"],
+				["codex-acp", "Codex"],
+				["gemini-cli", "Gemini CLI"],
+				["github-copilot", "GitHub Copilot"],
+				["opencode", "OpenCode"],
+				["goose", "Goose"],
+				["amp", "Amp"],
+				["aider", "Aider"],
+				["cursor", "Cursor"],
+				["kiro", "Kiro"],
+				["auggie", "Auggie"],
+				["crush", "Charm Crush"],
+				["junie", "Junie"],
+				["kilo", "Kilo Code"],
+				["roo-code", "Roo Code"],
+				["amazon-q", "Amazon Q"],
+				["devin", "Devin"],
+				["pi", "Pi"],
+				["windsurf", "Windsurf"],
+				["zed", "Zed"],
+			].map(([harnessId, displayName]) => (
+				<Tool
+					{...args}
+					key={harnessId}
+					args={{ ...MockACPSpawnArgs, agent: { harness_id: harnessId } }}
+					result={{
+						...MockACPSession,
+						harness_id: harnessId,
+						harness_display_name: displayName,
+					}}
+				/>
+			))}
+		</div>
+	),
+};
+export const DisplayNameIconFallback: Story = {
+	args: {
+		args: mockCustomSpawnArgs,
+		result: mockDisplayNameMatchSession,
+	},
+};
+export const HarnessIdIconPrecedence: Story = {
+	args: {
+		args: mockCodexSpawnArgs,
+		result: mockCodexClaudeNamedSession,
 	},
 };
 export const Mobile: Story = {

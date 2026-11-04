@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Loader } from "#/components/Loader/Loader";
 import { Response } from "./ChatElements/Response";
+import { LightboxHost } from "./LightboxHost";
 
 type TextPreviewDialogProps = {
 	/** Undefined while the text loads. */
@@ -63,7 +64,10 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
 						// rest of the conversation.
-						<Response className="max-w-3xl">{content}</Response>
+						<LightboxHost>
+							{/* This dialog may fill its opener's one lightbox slot. */}
+							<Response className="max-w-3xl">{content}</Response>
+						</LightboxHost>
 					) : (
 						<pre className="whitespace-pre-wrap wrap-break-word text-sm text-content-primary font-mono m-0">
 							{content}

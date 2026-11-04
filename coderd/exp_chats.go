@@ -64,7 +64,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/coderd/x/skills"
@@ -456,12 +455,12 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting\|paused>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
-// @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
+// @Param project_id query string false "Only chats in this project." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -528,12 +527,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	projectID := uuid.NullUUID{}
 	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
-		// Ignoring the filter would return every chat as if it were the
-		// project's contents, so reject it like create and update do.
-		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-			return
-		}
 		parsedProjectID, err := uuid.Parse(rawProjectID)
 		if err != nil || parsedProjectID == uuid.Nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
@@ -799,6 +792,7 @@ func validateChatModelOverride(
 	ctx context.Context,
 	db database.Store,
 	organizationID uuid.UUID,
+	overrideContext codersdk.ChatModelOverrideContext,
 	id *uuid.UUID,
 	effort *string,
 ) (int, *codersdk.Response) {
@@ -830,7 +824,45 @@ func validateChatModelOverride(
 			Detail:  err.Error(),
 		}
 	}
+	if overrideContext == codersdk.ChatModelOverrideContextComputerUse {
+		if status, resp := validateComputerUseModelProvider(ctx, db, modelConfig); resp != nil {
+			return status, resp
+		}
+	}
 	return validateChatModelOverrideEffort(modelConfig, effort)
+}
+
+// validateComputerUseModelProvider rejects models whose AI provider has no
+// computer use tool. Chatd derives the tool flavor from the provider type.
+func validateComputerUseModelProvider(
+	ctx context.Context,
+	db database.Store,
+	modelConfig database.ChatModelConfig,
+) (int, *codersdk.Response) {
+	unsupported := &codersdk.Response{
+		Message: "Computer use requires a model from an Anthropic or OpenAI AI provider.",
+	}
+	if !modelConfig.AIProviderID.Valid {
+		unsupported.Detail = fmt.Sprintf("Model %q has no AI provider.", modelConfig.Model)
+		return http.StatusBadRequest, unsupported
+	}
+	provider, err := db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
+	if err != nil {
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error validating computer use model provider.",
+			Detail:  err.Error(),
+		}
+	}
+	switch chatprovider.NormalizeProvider(string(provider.Type)) {
+	case string(codersdk.ChatComputerUseProviderAnthropic), string(codersdk.ChatComputerUseProviderOpenAI):
+		return 0, nil
+	default:
+		unsupported.Detail = fmt.Sprintf(
+			"Model %q uses AI provider %q of type %q.",
+			modelConfig.Model, provider.Name, provider.Type,
+		)
+		return http.StatusBadRequest, unsupported
+	}
 }
 
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
@@ -1402,9 +1434,6 @@ func (api *API) createChat(
 		}
 	}
 
-	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
-		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-	}
 	projectID := uuid.NullUUID{}
 	if req.ProjectID != nil {
 		var status int
@@ -2847,8 +2876,6 @@ func (api *API) updateChat(
 	if req.ProjectID != nil {
 		var refusal string
 		switch {
-		case !api.Experiments.Enabled(codersdk.ExperimentChatProjects):
-			refusal = "chat projects experiment is not enabled"
 		case chat.ParentChatID.Valid:
 			refusal = "Cannot move a child chat."
 		case archived:
@@ -2904,12 +2931,15 @@ func (api *API) updateChat(
 				return database.Chat{}, invalidStateErr
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				// Archive only succeeds from idle / error execution
-				// states (W, E0, E1) per the chatd RFC; active
-				// chats refuse archive instead of being silently
-				// transitioned to waiting first.
+				message := "Cannot archive an active chat. Interrupt or wait for the chat to finish first."
+				// The refusal can come from any member of the family, so
+				// the message follows the state that refused.
+				var transitionErr *chatstate.TransitionError
+				if errors.As(err, &transitionErr) && transitionErr.From == chatstate.StateP {
+					message = "Cannot archive: a chat in this family is paused at a queued message under edit. Finish editing, send, or remove that message first."
+				}
 				return database.Chat{}, httperror.WrapResponseError(http.StatusConflict, codersdk.Response{
-					Message: "Cannot archive an active chat. Interrupt or wait for the chat to finish first.",
+					Message: message,
 					Detail:  err.Error(),
 				}, err)
 			}
@@ -3545,6 +3575,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
@@ -3554,6 +3585,15 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may delete queued messages. See
+	// postChatMessages for the security rationale.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may delete queued messages.",
+		})
 		return
 	}
 
@@ -3574,6 +3614,8 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
+		case xerrors.Is(err, chatd.ErrNoDefaultChatModelConfig):
+			writeNoLocalChatModelResponse(ctx, rw)
 		case errors.Is(err, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
@@ -3685,6 +3727,155 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.Response{
 		Message: "Queued message promotion accepted.",
 	})
+}
+
+// @Summary Edit chat queued message
+// @ID edit-chat-queued-message
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param queuedMessage path int true "Queued message ID"
+// @Param request body codersdk.EditChatQueuedMessageRequest true "Edit chat queued message request"
+// @Success 204
+// @Router /api/v2/chats/{chat}/queue/{queuedMessage} [patch]
+func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	// Ending the edit of a paused chat's head triggers LLM inference,
+	// requiring update permission on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may edit queued messages. See
+	// postChatMessages for the security rationale.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may edit queued messages.",
+		})
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot edit queued messages in an archived chat.",
+		})
+		return
+	}
+
+	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
+	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
+	if err != nil || queuedMessageID <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid queued message ID.",
+			Detail:  "Queued message ID must be a positive integer.",
+		})
+		return
+	}
+
+	var req codersdk.EditChatQueuedMessageRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.Content == nil && req.Editing == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Nothing to edit.",
+			Detail:  "Provide content, editing, or both.",
+		})
+		return
+	}
+	if req.Content == nil && (req.ModelConfigID != nil || req.ReasoningEffort != nil) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "model_config_id and reasoning_effort require content.",
+			Detail:  "The overrides apply to the content they are sent with.",
+		})
+		return
+	}
+
+	opts := chatd.EditQueuedMessageOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedMessageID,
+		Editing:         req.Editing,
+	}
+	if req.Content != nil {
+		contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+		if inputError != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: inputError.Message,
+				Detail:  inputError.Detail,
+			})
+			return
+		}
+		opts.Content = contentBlocks
+
+		if req.ModelConfigID != nil {
+			opts.ModelConfigID = *req.ModelConfigID
+		}
+		if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, opts.ModelConfigID); resp != nil {
+			httpapi.Write(ctx, rw, status, *resp)
+			return
+		}
+		if req.ReasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*req.ReasoningEffort) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*req.ReasoningEffort))
+			return
+		}
+		opts.ReasoningEffort = req.ReasoningEffort
+	}
+
+	err = api.chatDaemon.EditQueuedMessage(ctx, opts)
+	if err != nil {
+		if writeChatSkillInvocationError(ctx, rw, err) {
+			return
+		}
+		if writeChatHookErr(ctx, rw, err, "Chat message denied by lifecycle hook.") {
+			return
+		}
+		if api.writeChatFileError(ctx, rw, err) {
+			return
+		}
+		switch {
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot edit queued messages in an archived chat.",
+			})
+		case errors.Is(err, chatstate.ErrQueuedMessageNotFound), errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			// Every unarchived, valid state that refuses EditQueuedMessage
+			// has an empty queue, so the row no longer exists.
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Queued message not found.",
+			})
+		case xerrors.Is(err, chatd.ErrInvalidModelConfigID):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
+			})
+		case xerrors.Is(err, chatd.ErrNoDefaultChatModelConfig):
+			writeNoLocalChatModelResponse(ctx, rw)
+		case errors.Is(err, chatstate.ErrChatNotFound):
+			httpapi.ResourceNotFound(rw)
+		case writeChatInvalidState(ctx, rw, err):
+			// response already written
+		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to edit queued message.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // markChatAsRead updates the last read message ID for a chat to the
@@ -3978,7 +4169,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Cannot compact the chat in its current state.",
-				Detail:  "Compaction is not available while the chat is generating.",
+				Detail:  "Compaction is available only while the chat is waiting or errored.",
 			})
 		default:
 			logger.Error(ctx, "failed to compact chat", slog.Error(err))
@@ -5581,7 +5772,7 @@ func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *htt
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor)
+// @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor,computer_use)
 // @Param request body codersdk.UpdateChatModelOverrideRequest true "Model override"
 // @Success 200 {object} codersdk.ChatModelOverrideResponse
 // @Router /api/v2/organizations/{organization}/chats/model-overrides/{context} [put]
@@ -5597,8 +5788,8 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	if overrideContext == codersdk.ChatModelOverrideContextAdvisor &&
-		!api.Experiments.Enabled(codersdk.ExperimentChatAdvisor) {
+	if overrideContext == codersdk.ChatModelOverrideContextComputerUse &&
+		!api.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -5649,6 +5840,7 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 		dbauthz.AsSystemRestricted(ctx),
 		api.Database,
 		organization.ID,
+		overrideContext,
 		&modelConfigID,
 		req.ReasoningEffort,
 	)
@@ -5743,7 +5935,6 @@ const (
 	chatOperationalSettingChatDebugRetentionDays        chatOperationalSetting = "agents_chat_debug_retention_days"
 	chatOperationalSettingChatAutoArchiveDays           chatOperationalSetting = "agents_chat_auto_archive_days"
 	chatOperationalSettingWorkspaceTTL                  chatOperationalSetting = "agents_workspace_ttl"
-	chatOperationalSettingComputerUseProvider           chatOperationalSetting = "agents_computer_use_provider"
 	chatOperationalSettingDebugLoggingAllowUsers        chatOperationalSetting = "agents_chat_debug_logging_allow_users"
 	chatOperationalSettingPersonalModelOverridesEnabled chatOperationalSetting = "agents_chat_personal_model_overrides_enabled"
 )
@@ -5758,8 +5949,6 @@ func (s chatOperationalSetting) defaultValue() string {
 		return strconv.FormatInt(int64(codersdk.DefaultChatAutoArchiveDays), 10)
 	case chatOperationalSettingWorkspaceTTL:
 		return "0s"
-	case chatOperationalSettingComputerUseProvider:
-		return string(chattool.DefaultComputerUseProvider(""))
 	case chatOperationalSettingDebugLoggingAllowUsers,
 		chatOperationalSettingPersonalModelOverridesEnabled:
 		return "false"
@@ -5779,8 +5968,6 @@ func (s chatOperationalSetting) auditValue(value string, id uuid.UUID) database.
 		settings.ChatAutoArchiveDays = value
 	case chatOperationalSettingWorkspaceTTL:
 		settings.WorkspaceTTL = value
-	case chatOperationalSettingComputerUseProvider:
-		settings.ComputerUseProvider = value
 	case chatOperationalSettingDebugLoggingAllowUsers:
 		settings.DebugLoggingAllowUsers = value
 	case chatOperationalSettingPersonalModelOverridesEnabled:
@@ -6124,43 +6311,6 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	provider, err := api.Database.GetChatComputerUseProvider(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching computer use provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
-		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(provider)),
-	})
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
-	putChatOperationalSetting(api, rw, r, chatOperationalSettingComputerUseProvider, "Internal error updating computer use provider.",
-		func(ctx context.Context, req codersdk.UpdateChatComputerUseProviderRequest) (string, func(database.Store) error, *codersdk.Response) {
-			if !req.Provider.Valid() {
-				return "", nil, &codersdk.Response{
-					Message: "Invalid computer use provider.",
-					Detail: fmt.Sprintf(
-						"Expected one of: %s. Got %q.",
-						strings.Join(chattool.SupportedComputerUseProviders(), ", "),
-						req.Provider,
-					),
-				}
-			}
-			value := string(req.Provider)
-			return value, func(tx database.Store) error { return tx.UpsertChatComputerUseProvider(ctx, value) }, nil
-		})
-}
-
 func (api *API) deploymentChatDebugLoggingEnabled() bool {
 	return api.DeploymentValues != nil && api.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value()
 }
@@ -6309,7 +6459,13 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat advisor config
+// @ID get-chat-advisor-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.AdvisorConfig
+// @Router /api/v2/chats/config/advisor [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
@@ -6331,14 +6487,21 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
-	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
-	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
+	resp.Enabled = true
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat advisor config
+// @ID update-chat-advisor-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateAdvisorConfigRequest true "Request body"
+// @Success 204
+// @Failure 400 {object} codersdk.Response
+// @Failure 403 {object} codersdk.Response
+// @Router /api/v2/chats/config/advisor [put]
 func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -6348,12 +6511,6 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateAdvisorConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if req.DeprecatedModelConfigID != nil || req.DeprecatedReasoningEffort != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.",
-		})
 		return
 	}
 	if req.MaxUsesPerRun < 0 {
@@ -6444,19 +6601,19 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	putChatOperationalSetting(api, rw, r, chatOperationalSettingWorkspaceTTL, "Internal error updating workspace TTL setting.",
 		func(ctx context.Context, req codersdk.UpdateChatWorkspaceTTLRequest) (string, func(database.Store) error, *codersdk.Response) {
-			// Reject negative input before conversion can wrap it into
-			// a valid TTL.
+			// Reject out-of-range input before conversion can wrap it
+			// into a valid TTL.
 			if req.WorkspaceTTLMillis < 0 {
 				return "", nil, &codersdk.Response{Message: "Workspace TTL must be non-negative."}
+			}
+			if req.WorkspaceTTLMillis > ttlMaximum.Milliseconds() {
+				return "", nil, &codersdk.Response{Message: "Workspace TTL must not exceed 30 days."}
 			}
 			d := time.Duration(req.WorkspaceTTLMillis) * time.Millisecond
 			// Keep zero as "disabled"; validWorkspaceTTLMillis substitutes
 			// a template default.
 			if d > 0 && d < ttlMinimum {
 				return "", nil, &codersdk.Response{Message: "Workspace TTL must not be less than 1 minute."}
-			}
-			if d > ttlMaximum {
-				return "", nil, &codersdk.Response{Message: "Workspace TTL must not exceed 30 days."}
 			}
 			value := d.String()
 			return value, func(tx database.Store) error { return tx.UpsertChatWorkspaceTTL(ctx, value) }, nil
@@ -7561,18 +7718,17 @@ func (w *workspaceUsageReader) Read(p []byte) (int, error) {
 }
 
 func writeWorkspaceAgentUploadError(ctx context.Context, rw http.ResponseWriter, err error) {
-	var sdkErr *codersdk.Error
-	if errors.As(err, &sdkErr) && sdkErr.StatusCode() != 0 {
-		// The upload handler never answers 404 itself, so a 404 means
-		// the workspace runs an agent from before this endpoint existed
-		// (coderd upgraded while the workspace kept running).
-		if sdkErr.StatusCode() == http.StatusNotFound {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "The workspace agent does not support chat file uploads. Restart the workspace to update its agent, then retry.",
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, sdkErr.StatusCode(), sdkErr.Response)
+	// The upload handler never answers 404 itself, so a 404 means the
+	// workspace runs an agent from before this endpoint existed (coderd
+	// upgraded while the workspace kept running).
+	var agentErr *codersdk.Error
+	if errors.As(err, &agentErr) && agentErr.StatusCode() == http.StatusNotFound {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The workspace agent does not support chat file uploads. Restart the workspace to update its agent, then retry.",
+		})
+		return
+	}
+	if writeAgentError(ctx, rw, err, "Failed to upload file to workspace agent.") {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{

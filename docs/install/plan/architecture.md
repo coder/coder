@@ -80,7 +80,7 @@ While `coderd` runs a bundled version of PostgreSQL, we recommend running an ext
 
 A managed PostgreSQL database, with daily backups, is recommended:
 
-- For AWS: Amazon RDS for PostgreSQL (preferably using [RDS IAM authentication](../../reference/cli/server/index.md#--postgres-auth)).
+- For AWS: Amazon Relational Database Service (RDS) for PostgreSQL (preferably using [RDS Identity and Access Management (IAM) authentication](../../reference/cli/server/index.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 
@@ -115,7 +115,7 @@ The governance layer provides centralized oversight and policy enforcement for A
 
 ### AI Gateway
 
-AI Gateway is a centralized feature that sits between coding agents and LLM providers such as OpenAI and Anthropic.
+AI Gateway is a centralized feature that sits between coding agents and large language model (LLM) providers such as OpenAI and Anthropic.
 Users authenticate through Coder instead of managing separate provider API keys.
 All prompts, token usage, and tool invocations are recorded for compliance and cost tracking.
 

@@ -54,6 +54,7 @@ const parsed = (
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 	...overrides,

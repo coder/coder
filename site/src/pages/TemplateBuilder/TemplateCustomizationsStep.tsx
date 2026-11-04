@@ -224,7 +224,11 @@ const ProvisionerWarning: React.FC = () => {
 		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
-			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+			<Link
+				href={docs("/admin/provisioners#organization-scoped-provisioners")}
+				target="_blank"
+				rel="noreferrer"
+			>
 				See our documentation
 			</Link>
 		</Alert>

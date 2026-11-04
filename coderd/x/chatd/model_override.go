@@ -43,6 +43,9 @@ type resolvedModelOverride struct {
 	ResolvedProvider string
 	ResolvedModel    string
 	Set              bool
+	// Unavailable reports a saved override that the owner cannot use, so Set
+	// is false and callers use their default.
+	Unavailable bool
 }
 
 func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpec) (resolvedModelOverride, error) {
@@ -82,7 +85,7 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 				slog.F("model_config_id", override.ModelConfigID),
 				slog.Error(err),
 			)
-			return resolvedModelOverride{}, nil
+			return resolvedModelOverride{Unavailable: true}, nil
 		case errors.Is(err, errInvalidModelOverrideMetadata):
 			return resolved, xerrors.Errorf(
 				"%s model override metadata is invalid for %s: %w",
@@ -113,7 +116,7 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 			slog.F("model_config_id", override.ModelConfigID),
 			slog.F("provider", providerName),
 		)
-		return resolvedModelOverride{}, nil
+		return resolvedModelOverride{Unavailable: true}, nil
 	}
 
 	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(modelConfig.Model, providerName)

@@ -118,7 +118,7 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
 
 If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
-[Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman container runtime.
+[Podman Desktop](https://podman-desktop.io) is a free graphical user interface (GUI) for the Podman container runtime.
 Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
 1. Download and install [Podman Desktop](https://podman-desktop.io/downloads).
@@ -321,7 +321,7 @@ Each path starts from the deployment you just built.
 
 [Coder Agents](../ai-coder/agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
 Community deployments can run up to five agents at a time at no cost, so you can try Coder Agents on this deployment right away.
-You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
+You need an API key for a [supported large language model (LLM) provider](../ai-coder/agents/models.md).
 Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
 
 If you don't have a project in mind, ask the agent to generate something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
@@ -340,10 +340,11 @@ Coder is built for shared, remote infrastructure.
 When you're ready for other people to use it:
 
 1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
-1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
+1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect a single sign-on (SSO) provider.
 1. Have each teammate launch their own workspace from your template.
 
-   Everyone in the organization can use the template by default; refer to [Workspace management](../user-guides/workspace-management.md).
+   Everyone in the organization can use the template by default.
+   Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 
@@ -467,7 +468,7 @@ Identify and stop it, then start the control plane again.
    lsof -i :3000
    ```
 
-1. Stop the process using the PID from the previous command:
+1. Stop the process using the process ID (PID) from the previous command:
 
    ```sh
    kill <PID>

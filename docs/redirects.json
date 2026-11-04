@@ -4,6 +4,14 @@
     "destination": "admin/templates/extending-templates/parameters"
   },
   {
+    "source": "about/screenshots",
+    "destination": "/"
+  },
+  {
+    "source": "install/cli",
+    "destination": "https://coder.com/downloads"
+  },
+  {
     "source": "about/architecture",
     "destination": "/"
   },

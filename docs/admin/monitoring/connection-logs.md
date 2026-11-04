@@ -25,7 +25,7 @@ These events are reported by workspace agents, and their receipt by the control 
 Agent-reported events do not identify the Coder user who connected.
 To attribute SSH and IDE activity to a user, correlate them with tunnel events for the same workspace and agent.
 
-The Coder CLI attaches a client session ID to the SSH and reconnecting PTY connections it opens.
+The Coder CLI attaches a client session ID to the SSH and reconnecting pseudo-terminal (PTY) connections it opens.
 Tools that launch the CLI, such as IDE extensions, can reuse one ID across launches to group their connections.
 The client sets the ID, so it isn't guaranteed to be unique, and connections that share one can overlap or have gaps.
 To list connections in the same workspace that share an ID, open an entry's details and select **View related connections**.
@@ -56,7 +56,7 @@ You can filter connection logs by the following parameters:
 - `method` - How the connection was established, such as `ssh`, `reconnecting_pty`, or `workspace_app`.
   For every method, refer to the [`codersdk.ConnectionLogMethod` schema](../../reference/api/schemas.md#codersdkconnectionlogmethod).
   For example, `method:ssh` matches every SSH connection, whichever app made it.
-- `app` - The name of the application that made an SSH or reconnecting PTY connection, such as `cursor`.
+- `app` - The name of the application that made an SSH or reconnecting pseudo-terminal (PTY) connection, such as `cursor`.
   Repeat the filter to match any of several apps, for example `app:vscode app:cursor`.
   Some clients report only `vscode` or `jetbrains` instead of their own name, so `app:vscode` and `app:jetbrains` can also include other VS Code-based editors and JetBrains IDEs.
   Coder lowercases the value and replaces hyphens with underscores before it matches.
@@ -150,6 +150,11 @@ Each `connection_log` entry describes the connection with these fields:
 - `ConnectionMethod`: How the connection was established, with the same values as the API `connection_method` field.
 - `AppNameOrPort`: The name of the connecting application for SSH and reconnecting PTY connections, or the workspace app slug or forwarded port for workspace app and port forwarding connections.
   The value is an empty string when there is nothing to report.
+- `ClientSessionID`: The client session ID for SSH and reconnecting PTY connections, or an empty string.
+  To follow a session across client, `coderd`, and agent logs, refer to [Trace workspace connections](./trace-connections.md).
+- `RxBytes` and `TxBytes`: The bytes the agent received and sent over an SSH or reconnecting PTY connection.
+  They're set only on `disconnected` entries, and are `null` (`<nil>` in human-readable logs) otherwise or for older agents.
+  They aren't in the API or the dashboard.
 
 If your log pipeline reads the `Type` or `SlugOrPort` fields, update it to read `ConnectionMethod` and `AppNameOrPort`, because entries no longer include the old fields.
 For SSH connections from a VS Code or JetBrains family app, `ConnectionMethod` is `ssh` and `AppNameOrPort` holds the app name, such as `vscode`.

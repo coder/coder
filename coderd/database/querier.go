@@ -113,8 +113,6 @@ type sqlcQuerier interface {
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
 	CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
-	// Cheap queue-length check used by ChatMachine.Update when deciding
-	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
@@ -251,6 +249,7 @@ type sqlcQuerier interface {
 	// provider. Returns zero rows when there is no live config.
 	DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg DeleteOrganizationAIProviderModelConfigParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
+	DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg DeleteOrganizationMemberDisabledSkillParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg DeleteProjectSkillByProjectIDAndNameParams) (Skill, error)
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
@@ -459,16 +458,15 @@ type sqlcQuerier interface {
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error)
 	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
 	// GetChatAdvisorConfig returns the deployment-wide runtime configuration
-	// for the experimental chat advisor as a JSON blob. Callers unmarshal the
-	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
-	// values apply by default.
+	// for the chat advisor as a JSON blob. Callers unmarshal the result into
+	// codersdk.AdvisorConfig. Returns '{}' when unset so zero values apply by
+	// default.
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
-	GetChatComputerUseProvider(ctx context.Context) (string, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.
@@ -580,8 +578,6 @@ type sqlcQuerier interface {
 	// changes only its position, and concurrent senders can commit with
 	// created_at and position in opposite orders.
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
-	// Returns queued messages in state-machine order (position ASC, id ASC).
-	GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns the chat retention period in days. Chats archived longer
 	// than this and orphaned chat files older than this are purged by
 	// dbpurge. Returns 30 (days) when no value has been configured.
@@ -732,7 +728,8 @@ type sqlcQuerier interface {
 	// and organization_members, so the implicit "Everyone" group
 	// (group_id == organization_id) is included. Returns no rows when the user has
 	// no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
-	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
+	// When organization_id is set, only groups in that organization count.
+	GetHighestGroupAIBudgetByUser(ctx context.Context, arg GetHighestGroupAIBudgetByUserParams) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID
@@ -812,6 +809,9 @@ type sqlcQuerier interface {
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
 	GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error)
 	GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg GetOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
+	// Returns the organization's member opt-out setting and the member's stored
+	// choices. Members without stored choices get the defaults.
+	GetOrganizationSkillMemberPreferences(ctx context.Context, arg GetOrganizationSkillMemberPreferencesParams) (GetOrganizationSkillMemberPreferencesRow, error)
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
@@ -1002,6 +1002,11 @@ type sqlcQuerier interface {
 	// expired gauge can recover to zero.
 	GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
+	// Returns the user's AI budget override with the organization of its group, for
+	// budget resolution. An override whose group is in a deleted organization is
+	// never returned. When organization_id is set, returns the override only if its
+	// group belongs to that organization.
+	GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg GetUserAIBudgetOverrideWithOrganizationParams) (GetUserAIBudgetOverrideWithOrganizationRow, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
 	// user-scoped lookups instead of this bulk accessor.
@@ -1035,8 +1040,9 @@ type sqlcQuerier interface {
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
 	// spend to when no override or budgeted group applies. Prefers the default org,
 	// then the earliest organization membership. Returns no rows when the user has
-	// no organization membership.
-	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	// no organization membership. When organization_id is set, returns that
+	// organization's Everyone group only if the user is a member of it.
+	GetUserEveryoneFallbackGroup(ctx context.Context, arg GetUserEveryoneFallbackGroupParams) (uuid.UUID, error)
 	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
@@ -1127,6 +1133,10 @@ type sqlcQuerier interface {
 	// Also checks if all agents are ready and returns the worst status.
 	GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
+	// Matches parameters whose name is in names or starts with one of
+	// name_prefixes. starts_with is used instead of LIKE so an underscore in a
+	// prefix is matched literally rather than as a wildcard.
+	GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]WorkspaceBuildParameter, error)
 	// Fetches the provisioner state of a workspace build, joined through to the
 	// template so that dbauthz can enforce policy.ActionUpdate on the template.
 	// Provisioner state contains sensitive Terraform state and should only be
@@ -1281,6 +1291,8 @@ type sqlcQuerier interface {
 	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
+	// Stores nothing unless the skill belongs to the organization.
+	InsertOrganizationMemberDisabledSkill(ctx context.Context, arg InsertOrganizationMemberDisabledSkillParams) error
 	InsertOrganizationSkill(ctx context.Context, arg InsertOrganizationSkillParams) (Skill, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
@@ -1538,10 +1550,10 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
-	// MCP resources bypass context drift and are live-synced on each push.
+	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
-	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -1631,6 +1643,11 @@ type sqlcQuerier interface {
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.
 	UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error
+	// Replaces the content and per-message overrides of a queued message.
+	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
+	// Begins (@editing = true) or ends the row's edit. Beginning keeps an
+	// existing editing_since, so the timestamp marks the first begin.
+	UpdateChatQueuedMessageEditing(ctx context.Context, arg UpdateChatQueuedMessageEditingParams) (ChatQueuedMessage, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
@@ -1678,6 +1695,7 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
+	UpdateOrganizationMembersCanDisableSkills(ctx context.Context, arg UpdateOrganizationMembersCanDisableSkillsParams) (Organization, error)
 	UpdateOrganizationSkillACLByID(ctx context.Context, arg UpdateOrganizationSkillACLByIDParams) (Skill, error)
 	UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg UpdateOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)
@@ -1797,11 +1815,10 @@ type sqlcQuerier interface {
 	// are always deltas, accumulated in DB. Returns true if insert, false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
 	// UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
-	// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
-	// to JSON before invoking this query.
+	// for the chat advisor. Callers marshal codersdk.AdvisorConfig to JSON
+	// before invoking this query.
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
-	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error
@@ -1848,6 +1865,7 @@ type sqlcQuerier interface {
 	// differs, so updated_at records when a price last changed. Soft-deleted rows
 	// are left untouched, and a new live row is inserted beside them.
 	UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg UpsertOrganizationAIProviderModelConfigParams) error
+	UpsertOrganizationMemberSkillSettings(ctx context.Context, arg UpsertOrganizationMemberSkillSettingsParams) error
 	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error

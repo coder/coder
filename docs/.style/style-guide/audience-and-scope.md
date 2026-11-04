@@ -273,7 +273,7 @@ A page that opens with a field name sends the dashboard user looking for a contr
 > When it is off, agents can't choose the skill on their own.
 
 Tutorials that show the same step in the UI and the CLI keep both paths, in the same order on every step.
-For which identifiers belong on the page at all, refer to [Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
+For which identifiers belong on the page at all, refer to [Evidence justifies a claim and does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim).
 
 *Documentation-only.
 No Vale rule.*

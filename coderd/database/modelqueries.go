@@ -1253,6 +1253,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.ErrorType,
 			&i.AIBridgeInterception.ErrorMessage,
 			&i.AIBridgeInterception.WorkspaceID,
+			&i.AIBridgeInterception.OrganizationID,
+			&i.AIBridgeInterception.OrganizationSource,
 		); err != nil {
 			return nil, err
 		}
@@ -1346,6 +1348,7 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
 			&i.OAuth2Resource,
+			&i.OAuth2ClientRegistration,
 		); err != nil {
 			return nil, err
 		}

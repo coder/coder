@@ -25,16 +25,16 @@ Tasks and Chats are separate resources with separate APIs, so plan to update you
 
 Before mapping individual endpoints, understand the structural changes:
 
-| Aspect                 | Tasks API                                                                        | Chats API                                                  |
-|------------------------|----------------------------------------------------------------------------------|------------------------------------------------------------|
-| Agent execution        | Agent runs **inside the workspace** (via AgentAPI)                               | Agent loop runs **in the control plane**                   |
-| LLM credentials        | Injected into workspace environment                                              | Stored in control plane only; never enters the workspace   |
-| Workspace provisioning | You specify a `template_version_id` at creation                                  | The agent auto-selects a template and provisions on demand |
-| Template requirements  | Requires `coder_ai_task` resource, `coder_task` data source, and an agent module | Any template with a clear description works                |
-| Chat state             | Stored in the workspace (AgentAPI state file)                                    | Persisted in the Coder database                            |
-| Conversation model     | Single prompt with optional follow-up input                                      | Multi-turn chat with message history, queuing, and editing |
-| Real-time updates      | HTTP polling (`GET .../logs`)                                                    | WebSocket streaming (`GET .../stream`)                     |
-| Sub-agents             | Not supported                                                                    | Built-in sub-agent delegation                              |
+| Aspect                                 | Tasks API                                                                        | Chats API                                                  |
+|----------------------------------------|----------------------------------------------------------------------------------|------------------------------------------------------------|
+| Agent execution                        | Agent runs **inside the workspace** (via AgentAPI)                               | Agent loop runs **in the control plane**                   |
+| Large language model (LLM) credentials | Injected into workspace environment                                              | Stored in control plane only; never enters the workspace   |
+| Workspace provisioning                 | You specify a `template_version_id` at creation                                  | The agent auto-selects a template and provisions on demand |
+| Template requirements                  | Requires `coder_ai_task` resource, `coder_task` data source, and an agent module | Any template with a clear description works                |
+| Chat state                             | Stored in the workspace (AgentAPI state file)                                    | Persisted in the Coder database                            |
+| Conversation model                     | Single prompt with optional follow-up input                                      | Multi-turn chat with message history, queuing, and editing |
+| Real-time updates                      | HTTP polling (`GET .../logs`)                                                    | WebSocket streaming (`GET .../stream`)                     |
+| Sub-agents                             | Not supported                                                                    | Built-in sub-agent delegation                              |
 
 ## Endpoint mapping
 
@@ -115,9 +115,10 @@ Key differences:
 - `template_version_id` and `template_version_preset_id` are removed.
   The agent selects a template automatically based on the prompt and available template descriptions.
   To pin to a specific workspace, pass `workspace_id` instead.
-- Optionally pass `model_config_id` to override the default model, or `mcp_server_ids` to attach MCP servers.
+- Optionally pass `model_config_id` to override the default model, or `mcp_server_ids` to attach Model Context Protocol (MCP) servers.
 - Optionally pass `title` to set the chat's title.
-  A title you set is kept; automatic title generation runs only when `title` is omitted.
+  A title you set is kept.
+  Automatic title generation runs only when `title` is omitted.
 
 ### 3. Update follow-up message calls
 
@@ -189,15 +190,16 @@ Use `after_id` as a query parameter when reconnecting to skip messages the clien
 Task and chat statuses use different values.
 The Chats API status set is defined in `codersdk.ChatStatus`:
 
-| Tasks API status | Chats API status  | Notes                                                                                                               |
-|------------------|-------------------|---------------------------------------------------------------------------------------------------------------------|
-| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                       |
-| `running`        | `running`         | Agent is actively working.                                                                                          |
-| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                         |
-| `paused`         | n/a               | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. |
-| `failed`         | `error`           | Agent encountered an error.                                                                                         |
-| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                               |
-| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                           |
+| Tasks API status | Chats API status  | Notes                                                                                                                                                                                                                                                                                                                                                                   |
+|------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                                                                                                                                                                                                                                                                           |
+| `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                                                                                                                                                              |
+| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                                                                                                                                                             |
+| `paused`         | n/a               | The Tasks API pause stops the workspace. The Chats API has no workspace-stopping status; use `interrupt` plus separate workspace lifecycle. The Chats API `paused` status (last row) is unrelated: it marks a queued message under edit.                                                                                                                                |
+| `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                                                                                                                                                             |
+| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                                                                                                                                                                   |
+| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                                                                                                                                                                                                                                                                               |
+| n/a              | `paused`          | A turn finished while the next queued message was under edit; the agent does not run again until the edit ends. Queued messages wait behind it; a message sent with `busy_behavior: interrupt` runs first, and the chat pauses again when that turn ends. Ending the edit via `PATCH /chats/{chat}/queue/{queuedMessage}` with `{"editing": false}` sends that message. |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
 A chat enters `waiting` when it is first created (before any message is queued) and again whenever a run finishes or is interrupted, so treat `waiting` as "the agent is not currently working" rather than only "the agent just finished."
@@ -258,7 +260,8 @@ curl -X POST \
 ```
 
 In the Tasks API, pausing stops the workspace and frees compute.
-In the Chats API, interrupt stops the agent loop in the control plane; the workspace may remain running.
+In the Chats API, interrupt stops the agent loop in the control plane.
+The workspace may remain running.
 The workspace lifecycle is managed independently.
 
 ### 8. Update GitHub Actions integrations
@@ -305,10 +308,11 @@ jobs:
 +         comment-on-issue: true
 ```
 
-Key differences from the Tasks GHA:
+Key differences from the Tasks GitHub Action (GHA):
 
 - No `coder-template-name` or `coder-task-name-prefix`.
-  The agent auto-provisions a workspace; pass `workspace-id` if you want to pin to an existing workspace instead.
+  The agent auto-provisions a workspace.
+  Pass `workspace-id` if you want to pin to an existing workspace instead.
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template.
   They are configured in the Coder control plane.
@@ -609,6 +613,7 @@ The Chats API includes capabilities that have no equivalent in the Tasks API:
 | **Watch all chats**                  | `GET /chats/watch` pushes events for all chats owned by the user                                      |
 | **Message editing**                  | `PATCH /chats/{chat}/messages/{message}` to edit a sent message and re-process                        |
 | **Message queuing**                  | Follow-up messages are automatically queued when the agent is busy                                    |
+| **Queued message editing**           | `PATCH /chats/{chat}/queue/{queuedMessage}` to edit a queued message before the agent processes it    |
 | **File uploads**                     | Attach images via `POST /chats/files` and reference them in messages                                  |
 | **Model selection**                  | `GET /organizations/{organization}/chats/models` to discover models; override per-chat or per-message |
 | **MCP server attachment**            | Attach MCP servers to a chat for tool augmentation                                                    |
@@ -626,7 +631,7 @@ The Chats API returns a `Chat` object with conversation-centric fields:
 
 | Tasks API field    | Chats API equivalent                          | Notes                                                            |
 |--------------------|-----------------------------------------------|------------------------------------------------------------------|
-| `id`               | `id`                                          | Both are UUIDs                                                   |
+| `id`               | `id`                                          | Both are universally unique identifiers (UUIDs)                  |
 | `initial_prompt`   | First message in `GET /chats/{chat}/messages` | Prompt is a message, not a top-level field                       |
 | `display_name`     | `title`                                       | Auto-generated or set via `PATCH`                                |
 | `status`           | `status`                                      | Different enum values (see status table above)                   |
@@ -639,7 +644,7 @@ The Chats API returns a `Chat` object with conversation-centric fields:
 
 ## CLI changes
 
-The Tasks CLI (`coder task`) was removed, and Coder does not ship an interactive Coder Agents TUI.
+The Tasks CLI (`coder task`) was removed, and Coder does not ship an interactive Coder Agents terminal user interface (TUI).
 Use the web UI for interactive chat and direct API calls for automation.
 The table below maps the removed commands to their Chats API equivalents.
 

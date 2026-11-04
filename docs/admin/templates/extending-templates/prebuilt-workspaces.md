@@ -17,7 +17,7 @@ Prebuilt workspaces are:
 - Automatically scaled based on time-based schedules to optimize resource usage.
 
 Prebuilt workspaces are a special type of workspace that don't follow the [regular workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop.
-Instead, they have their own reconciliation loop that handles prebuild-specific scheduling features such as TTL and prebuild scheduling.
+Instead, they have their own reconciliation loop that handles prebuild-specific scheduling features such as time to live (TTL) and prebuild scheduling.
 
 ## Relationship to workspace presets
 
@@ -70,7 +70,8 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. Each new prebuilt workspace is initially owned by an unprivileged system pseudo-user named `prebuilds`.
       - The `prebuilds` user belongs to the `Everyone` group (you can add it to additional groups if needed).
    1. Each prebuilt workspace receives a randomly generated name for identification.
-   1. The workspace is provisioned like a regular workspace; only its ownership distinguishes it as a prebuilt workspace.
+   1. The workspace is provisioned like a regular workspace.
+       Only its ownership distinguishes it as a prebuilt workspace.
 
 1. Prebuilt workspaces start up and become eligible to be claimed by a developer.
 
@@ -225,7 +226,7 @@ When a template's active version is updated:
 
 1. Prebuilt workspaces for old versions are automatically deleted.
 1. New prebuilt workspaces are created for the active template version.
-1. If dependencies change (for example, an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change:
+1. If dependencies change (for example, an [Amazon Machine Image (AMI)](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change:
    - You can delete the existing prebuilt workspaces manually.
    - Coder will automatically create new prebuilt workspaces with the updated dependencies.
 

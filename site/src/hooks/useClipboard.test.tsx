@@ -187,7 +187,8 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		result: RenderResult,
 		textToCopy: string,
 	): Promise<void> => {
-		await act(() => result.current.copyToClipboard(textToCopy));
+		const copied = await act(() => result.current.copyToClipboard(textToCopy));
+		expect(copied).toBe(true);
 		expect(result.current.showCopiedSuccess).toBe(true);
 
 		// Because of timing trickery, any timeouts for flipping the copy status
@@ -279,7 +280,8 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		const { result } = renderUseClipboard({ onError });
 
 		setSimulateFailure(true);
-		await act(() => result.current.copyToClipboard(textToCopy));
+		const copied = await act(() => result.current.copyToClipboard(textToCopy));
+		expect(copied).toBe(false);
 		expect(onError).toBeCalled();
 	});
 

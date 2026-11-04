@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/url"
 	"slices"
 	"strings"
@@ -50,17 +49,19 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey                = xerrors.New("invalid key")
-	ErrUnknownKey                = xerrors.New("unknown key")
-	ErrExpired                   = xerrors.New("expired")
-	ErrUnknownUser               = xerrors.New("unknown user")
-	ErrDeletedUser               = xerrors.New("deleted user")
-	ErrInactiveUser              = xerrors.New("inactive user")
-	ErrSystemUser                = xerrors.New("system user")
-	ErrAmbiguousAuth             = xerrors.New("both key and key_id set; exactly one required")
-	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
-	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
-	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
+	ErrInvalidKey                   = xerrors.New("invalid key")
+	ErrUnknownKey                   = xerrors.New("unknown key")
+	ErrExpired                      = xerrors.New("expired")
+	ErrUnknownUser                  = xerrors.New("unknown user")
+	ErrDeletedUser                  = xerrors.New("deleted user")
+	ErrInactiveUser                 = xerrors.New("inactive user")
+	ErrSystemUser                   = xerrors.New("system user")
+	ErrAmbiguousAuth                = xerrors.New("direct and delegated authentication are mutually exclusive")
+	ErrInvalidDelegatedOrganization = xerrors.New("invalid delegated_organization_id")
+	ErrWorkspaceAttribution         = xerrors.New("invalid workspace attribution")
+	ErrUnknownWorkspace             = xerrors.New("unknown workspace")
+	ErrUnknownOrganizationMember    = xerrors.New("user is not a member of the request organization")
+	ErrNoOrganization               = xerrors.New("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -82,9 +83,9 @@ type store interface {
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
 	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
 	GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error)
-	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
-	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
-	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg database.GetUserAIBudgetOverrideWithOrganizationParams) (database.GetUserAIBudgetOverrideWithOrganizationRow, error)
+	GetHighestGroupAIBudgetByUser(ctx context.Context, arg database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error)
@@ -264,6 +265,14 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
 	}
 
+	organizationID, organizationSource, err := interceptionOrganization(in)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid organization attribution in interception request, storing none",
+			slog.F("organization_id", in.GetOrganizationId()),
+			slog.F("organization_source", in.GetOrganizationSource()),
+			slog.Error(err))
+	}
+
 	if s.structuredLogging {
 		fields := []slog.Field{
 			slog.F("record_type", recorder.RecordTypeInterceptionStart),
@@ -282,6 +291,12 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		}
 		if workspaceID.Valid {
 			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
+		}
+		if organizationID.Valid {
+			fields = append(fields,
+				slog.F("organization_id", organizationID.UUID),
+				slog.F("organization_source", organizationSource.AIBridgeInterceptionOrganizationSource),
+			)
 		}
 		s.logger.Info(ctx, recorder.InterceptionLogMarker, fields...)
 	}
@@ -304,6 +319,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 		WorkspaceID:                 workspaceID,
+		OrganizationID:              organizationID,
+		OrganizationSource:          organizationSource,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -803,14 +820,24 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		// delegated requests skip the secret check: the caller never
 		// has the secret. Trust is established at the in-process
 		// transport boundary, not in this RPC.
-		delegated bool
+		delegated      bool
+		delegatedOrgID uuid.NullUUID
 	)
 	switch {
 	case in.GetKey() != "" && in.GetKeyId() != "":
 		return nil, ErrAmbiguousAuth
+	case in.GetKey() != "" && in.GetDelegatedOrganizationId() != "":
+		return nil, ErrAmbiguousAuth
 	case in.GetKeyId() != "":
 		keyID = in.GetKeyId()
 		delegated = true
+		if raw := in.GetDelegatedOrganizationId(); raw != "" {
+			id, err := uuid.Parse(raw)
+			if err != nil || id == uuid.Nil {
+				return nil, ErrInvalidDelegatedOrganization
+			}
+			delegatedOrgID = uuid.NullUUID{UUID: id, Valid: true}
+		}
 	default:
 		var err error
 		keyID, keySecret, err = httpmw.SplitAPIToken(in.GetKey())
@@ -873,56 +900,14 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		}
 	}
 
-	orgID, err := s.resolveOrganization(ctx, user.ID, workspaceID)
+	org, err := s.resolveOrganization(ctx, user.ID, orgResolverInput{WorkspaceID: workspaceID, DelegatedOrganizationID: delegatedOrgID})
 	if err != nil {
 		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
 		return nil, err
 	}
-	if orgID.Valid {
-		resp.OrganizationId = orgID.UUID.String()
-	}
+	resp.OrganizationId = org.ID.String()
+	resp.OrganizationSource = string(org.Source)
 	return resp, nil
-}
-
-// resolveOrganization determines the organization an AI Gateway request acts
-// in. All org resolution for AI Gateway requests lives here.
-//
-// It returns the organization for a request made by userID. When the
-// request was authenticated with a workspace session token, workspaceID
-// identifies that workspace and its organization is returned. The workspace
-// must still exist and userID must still be a member of its organization.
-// The result is invalid when no org source applies to the request.
-func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, workspaceID uuid.NullUUID) (uuid.NullUUID, error) {
-	if !workspaceID.Valid {
-		return uuid.NullUUID{}, nil
-	}
-
-	workspace, err := s.store.GetWorkspaceByID(ctx, workspaceID.UUID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return uuid.NullUUID{}, ErrUnknownWorkspace
-	}
-	if err != nil {
-		return uuid.NullUUID{}, xerrors.Errorf("get workspace %s: %w", workspaceID.UUID, err)
-	}
-	// Workspaces are soft-deleted, so a deleted row still resolves by ID.
-	if workspace.Deleted {
-		return uuid.NullUUID{}, ErrUnknownWorkspace
-	}
-
-	orgs, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-		UserID:  userID,
-		Deleted: sql.NullBool{Bool: false, Valid: true},
-	})
-	if err != nil {
-		return uuid.NullUUID{}, xerrors.Errorf("get organizations for user %s: %w", userID, err)
-	}
-	if !slices.ContainsFunc(orgs, func(org database.Organization) bool {
-		return org.ID == workspace.OrganizationID
-	}) {
-		return uuid.NullUUID{}, ErrUnknownOrganizationMember
-	}
-
-	return uuid.NullUUID{UUID: workspace.OrganizationID, Valid: true}, nil
 }
 
 // workspaceAttribution parses the workspace UUID from a strict server-minted
@@ -959,6 +944,30 @@ func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID u
 	return uuid.NullUUID{UUID: id, Valid: true}, nil
 }
 
+// interceptionOrganization parses the optional organization attribution. It
+// returns both values valid or neither, so an invalid pair never fails the record.
+// It checks only the format. The caller must send an existing organization: a
+// well-formed ID for an unknown organization passes here and fails the foreign
+// key on insert.
+func interceptionOrganization(in *proto.RecordInterceptionRequest) (uuid.NullUUID, database.NullAIBridgeInterceptionOrganizationSource, error) {
+	rawID, rawSource := in.GetOrganizationId(), in.GetOrganizationSource()
+	if rawID == "" && rawSource == "" {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, nil
+	}
+
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("invalid organization ID: %w", err)
+	}
+	source := database.AIBridgeInterceptionOrganizationSource(rawSource)
+	if !source.Valid() {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("unknown organization source %q", rawSource)
+	}
+	return uuid.NullUUID{UUID: id, Valid: true},
+		database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+		nil
+}
+
 // IsBudgetExceeded reports whether the user's AI spend has reached their
 // effective limit over [periodStart, now], where periodStart is the start of
 // the current deployment-configured budget period.
@@ -985,13 +994,26 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 	if err != nil {
 		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
 	}
+	// The organization is the one IsAuthorized resolved for this request, and
+	// the gateway sends it back unchanged. It is trusted to be valid and to
+	// contain the user, so it is not checked again here. From v1.6 a gateway
+	// always sends it. Only gateways older than v1.6 send it empty, which
+	// means site-wide resolution.
+	var organizationID uuid.NullUUID
+	if raw := in.GetOrganizationId(); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, xerrors.Errorf("invalid organization_id %q: %w", raw, err)
+		}
+		organizationID = uuid.NullUUID{UUID: id, Valid: true}
+	}
 
 	periodWindow, err := budget.CurrentPeriod(s.clock.Now(), s.budgetPeriod)
 	if err != nil {
 		return nil, xerrors.Errorf("compute AI budget period: %w", err)
 	}
 
-	userBudget, err := s.checkUserAIBudget(ctx, userID, periodWindow.Start)
+	userBudget, err := s.checkUserAIBudget(ctx, userID, organizationID, periodWindow.Start)
 	if err != nil {
 		return nil, err
 	}
@@ -1014,7 +1036,8 @@ type userAIBudget struct {
 }
 
 // checkUserAIBudget evaluates the user's AI budget status aggregated over
-// [periodStart, now].
+// [periodStart, now]. When organizationID is set, the budget is resolved
+// inside that organization; otherwise it is resolved site-wide.
 //
 // Note: there is a potential race condition where two concurrent requests
 // from the same user can both pass the check if processed in parallel,
@@ -1025,8 +1048,8 @@ type userAIBudget struct {
 //   - Cost accounting is advisory, not strict. The goal is to prevent
 //     overages, not build an accounting system.
 //   - Fail-open is acceptable for this case.
-func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAIBudget, error) {
-	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
+func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, organizationID uuid.NullUUID, periodStart time.Time) (userAIBudget, error) {
+	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, organizationID, s.budgetPolicy)
 	if err != nil {
 		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
 	}
@@ -1051,6 +1074,7 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 
 	logger := s.logger.With(
 		slog.F("user_id", userID),
+		slog.F("organization_id", organizationID),
 		slog.F("effective_group_id", effectiveGroup.GroupID),
 		slog.F("period_start", periodStart),
 		slog.F("current_spend_micros", spend.SpendMicros),
