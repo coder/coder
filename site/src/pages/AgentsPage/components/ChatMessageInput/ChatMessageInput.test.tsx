@@ -1179,10 +1179,7 @@ describe("ChatMessageInput", () => {
 					text: "see `/home/coder/a/src/main.go` and\n`/home/coder/b/src/` ",
 				},
 			];
-			const { text, editorState } = getEditableUserMessagePayload({
-				...MockChatMessage,
-				content,
-			});
+			const { text, editorState } = getEditableContentPayload(content);
 			const inputRef = createRef<ChatMessageInputRef>();
 			renderWithQueryClient(
 				<ChatMessageInput

@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { render } from "#/testHelpers/renderHelpers";
 import {
 	WorkspaceFilesContext,
 	type WorkspaceFilesContextValue,
@@ -46,6 +47,7 @@ const renderMessage = (
 				isEditing={false}
 				onImageClick={vi.fn()}
 				onTextFileClick={vi.fn()}
+				urlTransform={(url) => url}
 			/>
 		</WorkspaceFilesContext>,
 	);
