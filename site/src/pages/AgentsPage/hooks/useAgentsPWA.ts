@@ -7,17 +7,26 @@ import { useEffect } from "react";
 const pwaAssetVersion = "5";
 
 /**
- * Injects PWA-related <head> tags while the Agents page is mounted
- * (manifest, apple-touch-icon, mobile-web-app metas) and tweaks the
- * viewport to prevent zooming. Everything is cleaned up on unmount.
+ * Points the document's manifest at the Agents app and injects PWA-related
+ * <head> tags while the Agents page is mounted (apple-touch-icon,
+ * mobile-web-app metas), and tweaks the viewport to prevent zooming.
+ * Everything is restored on unmount.
  */
 export function useAgentsPWA() {
 	useEffect(() => {
-		// -- Injected elements --------------------------------------------------
-		const manifest = document.createElement("link");
-		manifest.rel = "manifest";
-		manifest.href = `/manifest.json?v=${pwaAssetVersion}`;
+		// -- Manifest override --------------------------------------------------
+		// Browsers only honor the first manifest link, so swap its href rather
+		// than adding a second one.
+		const manifest = document.querySelector<HTMLLinkElement>(
+			'link[rel="manifest"]',
+		);
+		const prevManifestHref = manifest?.getAttribute("href") ?? "";
 
+		if (manifest) {
+			manifest.setAttribute("href", `/manifest.json?v=${pwaAssetVersion}`);
+		}
+
+		// -- Injected elements --------------------------------------------------
 		const appleTouchIcon = document.createElement("link");
 		appleTouchIcon.rel = "apple-touch-icon";
 		appleTouchIcon.href = `/apple-touch-icon.png?v=${pwaAssetVersion}`;
@@ -35,7 +44,6 @@ export function useAgentsPWA() {
 		appleMobileWebAppTitle.content = "Agents";
 
 		const injected = [
-			manifest,
 			appleTouchIcon,
 			mobileWebAppCapable,
 			appleMobileWebAppCapable,
@@ -61,6 +69,9 @@ export function useAgentsPWA() {
 		return () => {
 			for (const el of injected) {
 				el.remove();
+			}
+			if (manifest) {
+				manifest.setAttribute("href", prevManifestHref);
 			}
 			if (viewport) {
 				viewport.content = prevViewportContent;
