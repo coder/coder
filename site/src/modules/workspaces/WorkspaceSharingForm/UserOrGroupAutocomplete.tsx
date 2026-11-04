@@ -34,7 +34,13 @@ const normalizeMember = (
 
 export const UserOrGroupAutocomplete: React.FC<
 	UserOrGroupAutocompleteProps
-> = ({ value, onChange, organizationId, exclude, className = "w-80" }) => {
+> = ({
+	value,
+	onChange,
+	organizationId,
+	exclude,
+	className = "w-full sm:w-80",
+}) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 
