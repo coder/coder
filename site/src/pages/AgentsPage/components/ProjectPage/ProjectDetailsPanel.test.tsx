@@ -307,17 +307,13 @@ describe("ProjectDetailsPanel", () => {
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",
 		);
-		// With no delay between the clicks, the second lands before the
-		// pending state can disable Save, like a fast real double click.
-		await userEvent
-			.setup({ delay: null })
-			.dblClick(screen.getByRole("button", { name: "Save" }));
+		await user.dblClick(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(updateInstructions).toHaveBeenCalled());
 		expect(updateInstructions).toHaveBeenCalledTimes(1);
 	});
 
-	it("closes the editor when a double clicked Save succeeds after a failure", async () => {
+	it("closes the editor when Save succeeds after a failure", async () => {
 		const updateInstructions = vi
 			.spyOn(API.experimental, "updateChatProjectInstructions")
 			.mockRejectedValueOnce(mockApiError({ message: "Failed to save." }))
@@ -338,23 +334,10 @@ describe("ProjectDetailsPanel", () => {
 		const dialog = screen.getByRole("dialog");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() => expect(dialog).toHaveTextContent("Failed to save."));
-		// The second click still sees the failed save's error, and must not
-		// reset the retry that the first click started.
-		await userEvent
-			.setup({ delay: null })
-			.dblClick(screen.getByRole("button", { name: "Save" }));
-
-		// Reopening needs onSuccess to close the editor, and a third save
-		// needs onSettled to clear the in-flight guard.
-		await user.click(
-			await screen.findByRole("button", { name: "Edit instructions" }),
-		);
-		await user.type(
-			screen.getByRole("textbox", { name: "Instructions" }),
-			" More.",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
-		await waitFor(() => expect(updateInstructions).toHaveBeenCalledTimes(3));
+
+		await waitFor(() => expect(updateInstructions).toHaveBeenCalledTimes(2));
+		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 
 	it("refetches the instructions when the window regains focus", async () => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorStatus } from "#/api/errors";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
@@ -83,10 +83,6 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		deleteChatProjectInstructions(queryClient, project),
 	);
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
-	// isPending reaches the dialog only after a render, so a fast double
-	// click could otherwise submit the same change twice.
-	const isMutationInFlight = useRef(false);
-	const isAccessChangeInFlight = useRef(false);
 
 	const resetErrors = () => {
 		updateMutation.reset();
@@ -98,47 +94,11 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		setIsEditorOpen(true);
 	};
 
-	const runMutation = (
-		inFlight: React.RefObject<boolean>,
-		reset: () => void,
-		mutate: (onSettled: () => void) => void,
-	) => {
-		if (inFlight.current) {
-			return;
-		}
-		inFlight.current = true;
-		// Clear the previous action's error so only the latest one shows.
-		reset();
-		mutate(() => {
-			inFlight.current = false;
-		});
-	};
-
-	const resetAccessErrors = () => {
-		// Resetting a pending mutation drops its per-call onSettled, which
-		// would leave isAccessChangeInFlight set.
-		if (!isAccessChangeInFlight.current) {
-			roleMutation.reset();
-		}
-	};
-
 	const setAccessRole = (
 		principal: ProjectAccessPrincipal,
 		role: ChatProjectRole,
-		{ onSuccess, onSettled }: AccessChangeCallbacks,
-	) =>
-		runMutation(isAccessChangeInFlight, roleMutation.reset, (onDone) =>
-			roleMutation.mutate(
-				{ project, principal, role },
-				{
-					onSuccess,
-					onSettled: () => {
-						onDone();
-						onSettled?.();
-					},
-				},
-			),
-		);
+		callbacks: AccessChangeCallbacks,
+	) => roleMutation.mutate({ project, principal, role }, callbacks);
 
 	return (
 		<>
@@ -170,7 +130,9 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 								canManage: project.permissions.share,
 								onOpenAccess: (event) => {
 									accessFocusReturn.rememberTrigger(event);
-									resetAccessErrors();
+									if (roleMutation.error) {
+										roleMutation.reset();
+									}
 									setIsAccessDialogOpen(true);
 									// Show access changes made since the page loaded.
 									void aclQuery.refetch();
@@ -187,30 +149,20 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				saveError={updateMutation.error}
 				deleteError={deleteMutation.error}
 				onResetErrors={() => {
-					// The error fields lag a render, so also check the ref: resetting
-					// a pending mutation drops its per-call onSuccess and onSettled.
-					if (
-						!isMutationInFlight.current &&
-						(updateMutation.error || deleteMutation.error)
-					) {
+					if (updateMutation.error || deleteMutation.error) {
 						resetErrors();
 					}
 				}}
 				onSave={(instructions) =>
-					runMutation(isMutationInFlight, resetErrors, (onSettled) =>
-						updateMutation.mutate(
-							{ instructions },
-							{ onSuccess: () => setIsEditorOpen(false), onSettled },
-						),
+					updateMutation.mutate(
+						{ instructions },
+						{ onSuccess: () => setIsEditorOpen(false) },
 					)
 				}
 				onDelete={() =>
-					runMutation(isMutationInFlight, resetErrors, (onSettled) =>
-						deleteMutation.mutate(undefined, {
-							onSuccess: () => setIsEditorOpen(false),
-							onSettled,
-						}),
-					)
+					deleteMutation.mutate(undefined, {
+						onSuccess: () => setIsEditorOpen(false),
+					})
 				}
 			/>
 			<ProjectSkillsDialog
@@ -222,10 +174,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 			/>
 			<ProjectAccessDialog
 				open={isAccessDialogOpen}
-				onOpenChange={(open) => {
-					resetAccessErrors();
-					setIsAccessDialogOpen(open);
-				}}
+				onOpenChange={setIsAccessDialogOpen}
 				entries={accessEntries}
 				error={aclQuery.error}
 				isRetrying={aclQuery.isFetching}
