@@ -19,6 +19,12 @@ const validValues = (
 	...overrides,
 });
 
+const oauth2Client = {
+	oauth2ClientID: "client",
+	oauth2AuthURL: "https://idp.example.com/authorize",
+	oauth2TokenURL: "https://idp.example.com/token",
+};
+
 describe("mcpServerFormLogic", () => {
 	it("uses placeholders for existing secrets", () => {
 		const values = buildInitialMCPServerFormValues({
@@ -43,10 +49,89 @@ describe("mcpServerFormLogic", () => {
 		expect(canSubmitMCPServerForm(validValues(), true)).toBe(false);
 	});
 
+	it("requires the client ID, authorization URL, and token URL for manual OAuth2 registration", () => {
+		const manual = validValues({
+			authType: "oauth2",
+			oauth2ClientRegistration: "manual",
+			...oauth2Client,
+		});
+		expect(canSubmitMCPServerForm(manual, false)).toBe(true);
+		expect(
+			canSubmitMCPServerForm({ ...manual, oauth2ClientID: " " }, false),
+		).toBe(false);
+		expect(
+			canSubmitMCPServerForm({ ...manual, oauth2AuthURL: "" }, false),
+		).toBe(false);
+		expect(
+			canSubmitMCPServerForm({ ...manual, oauth2TokenURL: "" }, false),
+		).toBe(false);
+		expect(
+			canSubmitMCPServerForm(
+				validValues({
+					authType: "oauth2",
+					oauth2ClientRegistration: "dynamic",
+				}),
+				false,
+			),
+		).toBe(true);
+	});
+
+	it.each([
+		{ name: "create", build: buildCreateMCPServerConfigRequest },
+		{ name: "update", build: buildUpdateMCPServerConfigRequest },
+	])(
+		"sends OAuth2 client fields only for manual registration on $name",
+		({ build }) => {
+			const client = {
+				authType: "oauth2",
+				...oauth2Client,
+				oauth2ClientSecret: "secret",
+				oauth2SecretTouched: true,
+			};
+			const manual = build(
+				validValues({ ...client, oauth2ClientRegistration: "manual" }),
+			);
+			const dynamic = build(
+				validValues({ ...client, oauth2ClientRegistration: "dynamic" }),
+			);
+
+			expect(manual).toMatchObject({
+				oauth2_client_registration: "manual",
+				oauth2_client_id: oauth2Client.oauth2ClientID,
+				oauth2_client_secret: "secret",
+				oauth2_auth_url: oauth2Client.oauth2AuthURL,
+				oauth2_token_url: oauth2Client.oauth2TokenURL,
+			});
+			expect(dynamic.oauth2_client_registration).toBe("dynamic");
+			for (const field of [
+				"oauth2_client_id",
+				"oauth2_client_secret",
+				"oauth2_auth_url",
+				"oauth2_token_url",
+			]) {
+				expect(dynamic).not.toHaveProperty(field);
+			}
+		},
+	);
+
+	it.each(["manual", "dynamic"] as const)(
+		"keeps the stored %s registration on update",
+		(mode) => {
+			const values = buildInitialMCPServerFormValues({
+				...MockCoderMCPServer,
+				oauth2_client_registration: mode,
+			});
+			expect(
+				buildUpdateMCPServerConfigRequest(values).oauth2_client_registration,
+			).toBe(mode);
+		},
+	);
+
 	it("does not send placeholder OAuth2 secrets unless the value changes", () => {
 		const unchanged = buildCreateMCPServerConfigRequest(
 			validValues({
 				authType: "oauth2",
+				oauth2ClientRegistration: "manual",
 				oauth2ClientSecret: SECRET_PLACEHOLDER,
 				oauth2SecretTouched: false,
 			}),
@@ -54,6 +139,7 @@ describe("mcpServerFormLogic", () => {
 		const changed = buildCreateMCPServerConfigRequest(
 			validValues({
 				authType: "oauth2",
+				oauth2ClientRegistration: "manual",
 				oauth2ClientSecret: "new-secret",
 				oauth2SecretTouched: true,
 			}),
@@ -115,19 +201,22 @@ describe("mcpServerFormLogic", () => {
 		expect(request.enabled).toBeUndefined();
 	});
 
-	it("sends empty revocation URL and resource on update so they can be cleared", () => {
+	it("sends empty revocation URL, resource, and scopes on update so they can be cleared", () => {
 		const clearedOAuth2Values = validValues({
 			authType: "oauth2",
 			oauth2RevocationURL: "",
 			oauth2Resource: " ",
+			oauth2Scopes: "",
 		});
 		const cleared = buildUpdateMCPServerConfigRequest(clearedOAuth2Values);
 		expect(cleared.oauth2_revocation_url).toBe("");
 		expect(cleared.oauth2_resource).toBe("");
+		expect(cleared.oauth2_scopes).toBe("");
 
 		const created = buildCreateMCPServerConfigRequest(clearedOAuth2Values);
 		expect(created.oauth2_revocation_url).toBeUndefined();
 		expect(created.oauth2_resource).toBeUndefined();
+		expect(created.oauth2_scopes).toBeUndefined();
 	});
 
 	it("round-trips the stored OAuth2 resource", () => {

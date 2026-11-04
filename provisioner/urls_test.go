@@ -33,6 +33,10 @@ func TestValidateExternalURL(t *testing.T) {
 		"mailto:support@coder.com",
 		"file:///home/coder",
 		"https://coder.com/\x7f",
+		"JavaScript://coder.com/%0aalert(1)",
+		"data://coder.com/text/html,hi",
+		"file://coder.com/etc/passwd",
+		"vscode://coder.coder-remote/open#a\tb",
 	}
 
 	for _, value := range validURLs {

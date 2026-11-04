@@ -30,7 +30,7 @@ It offers:
 - Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
-- Workspace Web Applications (e.g for easy access to `code-server`)
+- Workspace Web Applications (for example, for easy access to `code-server`)
 - Agent registration
 
 ### provisionerd
@@ -80,7 +80,7 @@ While `coderd` runs a bundled version of PostgreSQL, we recommend running an ext
 
 A managed PostgreSQL database, with daily backups, is recommended:
 
-- For AWS: Amazon RDS for PostgreSQL (preferably using [RDS IAM authentication](../../reference/cli/server/index.md#--postgres-auth)).
+- For AWS: Amazon Relational Database Service (RDS) for PostgreSQL (preferably using [RDS Identity and Access Management (IAM) authentication](../../reference/cli/server/index.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 
@@ -115,14 +115,16 @@ The governance layer provides centralized oversight and policy enforcement for A
 
 ### AI Gateway
 
-AI Gateway is a centralized feature that sits between coding agents and LLM providers such as OpenAI and Anthropic.
+AI Gateway is a centralized feature that sits between coding agents and large language model (LLM) providers such as OpenAI and Anthropic.
 Users authenticate through Coder instead of managing separate provider API keys.
 All prompts, token usage, and tool invocations are recorded for compliance and cost tracking.
 
 AI Gateway supports 2 deployment topologies:
 
-- **Embedded:** `coderd` runs the AI Gateway data plane in the same process.
-- **Standalone:** gateway replicas run outside `coderd`, serve AI traffic, and send requests directly to upstream providers.
+- **Embedded:**
+  `coderd` runs the AI Gateway data plane in the same process.
+- **Standalone:**
+  gateway replicas run outside `coderd`, serve AI traffic, and send requests directly to upstream providers.
 
 Standalone replicas have no authoritative database state.
 They keep ephemeral provider snapshots, caches, and metrics in memory, and can optionally write API dumps to local disk.

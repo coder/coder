@@ -3,8 +3,7 @@ title: Authentication
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
 AI Gateway uses different credentials for different kinds of connections:
 
@@ -48,7 +47,7 @@ Or create a new long-lived token with a name and lifetime:
 coder tokens create --lifetime 30d -n my-ai-token
 ```
 
-Use short lifetimes for automation and CI to limit the blast radius if a token leaks.
+Use short lifetimes for automation and continuous integration (CI) to limit the blast radius if a token leaks.
 
 ### Retrieve your session token
 
@@ -61,15 +60,14 @@ export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic
 
 ### AI Gateway Proxy authentication
 
-For tools that don't support a configurable base URL,
-[AI Gateway Proxy](./ai-gateway-proxy/index.md) intercepts traffic and forwards it to AI Gateway.
+For tools that don't support a configurable base URL, [AI Gateway Proxy](./ai-gateway-proxy/index.md) intercepts traffic and forwards it to AI Gateway.
 The Coder token is supplied in the proxy URL:
 
 ```sh
 export HTTPS_PROXY="https://coder:$(coder login token)@<proxy-host>:8888"
 ```
 
-The client machine also needs to trust the proxy's CA certificate.
+The client machine also needs to trust the proxy's certificate authority (CA) certificate.
 For full setup, refer to [AI Gateway Proxy setup](./ai-gateway-proxy/setup.md).
 
 ## Authenticate standalone gateway replicas
@@ -148,9 +146,7 @@ For provider setup and credential failover, refer to [Provider configuration](./
 ## Bring Your Own Key (BYOK)
 
 In addition to centralized key management, AI Gateway supports Bring Your Own Key (BYOK) mode.
-Users can provide their own LLM API keys or provider subscriptions,
-such as Claude Pro or Max and ChatGPT Plus or Pro,
-while AI Gateway continues to provide observability and governance.
+Users can provide their own large language model (LLM) API keys or provider subscriptions, such as Claude Pro or Max and ChatGPT Plus or Pro, while AI Gateway continues to provide observability and governance.
 
 ![BYOK authentication flow](../../images/aibridge/clients/byok_auth_flow.png)
 
@@ -162,16 +158,15 @@ In BYOK mode, users need two credentials:
 BYOK and centralized modes can be used together.
 When a user provides their own credential, AI Gateway forwards it directly.
 When no user credential is present, AI Gateway uses the administrator-configured provider key.
-This approach offers centralized keys as a default
-while allowing individual users to bring their own key.
+This approach offers centralized keys as a default while allowing individual users to bring their own key.
 
 > [!NOTE]
-> When a BYOK credential is present, [key failover](./providers.md#key-failover)
-> is skipped.
+> When a BYOK credential is present, [key failover](./providers.md#key-failover) is skipped.
 
 Coder Agents requests routed through AI Gateway are in-process control plane requests, not external client requests that send their own AI Gateway bearer token.
 Coder Agents use the same global BYOK setting.
-When BYOK is enabled, users can save personal API keys for any enabled AI provider from the Agents settings page. For AWS Bedrock providers, the personal key is an AWS Bedrock API key that AI Gateway forwards as a bearer token in place of the deployment-managed AWS credentials, for every model family Bedrock serves.
+When BYOK is enabled, users can save personal API keys for any enabled AI provider from the Agents settings page.
+For AWS Bedrock providers, the personal key is an AWS Bedrock API key that AI Gateway forwards as a bearer token in place of the deployment-managed AWS credentials, for every model family Bedrock serves.
 Refer to [Agents credential selection](../agents/models.md#credential-selection) for the Agents-specific behavior.
 
 Visit individual [client pages](./clients/index.md) for configuration details.

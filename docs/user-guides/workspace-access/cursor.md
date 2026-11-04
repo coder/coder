@@ -14,8 +14,7 @@ Cursor can connect to a Coder workspace using the Coder extension:
 
 1. [Install Cursor](https://docs.cursor.com/get-started/installation) on your local machine.
 
-1. Open Cursor and log in or [create a Cursor account](https://authenticator.cursor.sh/sign-up)
-   if you don't have one already.
+1. Open Cursor and log in or [create a Cursor account](https://authenticator.cursor.sh/sign-up) if you don't have one already.
 
 ## Install the Coder extension
 
@@ -39,9 +38,7 @@ Cursor can connect to a Coder workspace using the Coder extension:
 
       Alternatively:
 
-      1. Open the Command Palette
-   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>)
-   and search for `vsix`.
+      1. Open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and search for `vsix`.
 
       1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
 
@@ -53,9 +50,7 @@ Cursor can connect to a Coder workspace using the Coder extension:
 
 ## Open a workspace in Cursor
 
-1. From the Cursor Command Palette
-(<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>),
-enter `coder` and select **Coder: Login**.
+1. From the Cursor Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>), enter `coder` and select **Coder: Login**.
 
 1. Follow the prompts to login and copy your session token.
 

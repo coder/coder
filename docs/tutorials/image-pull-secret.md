@@ -11,16 +11,14 @@ January 12, 2024
 
 ---
 
-Coder workspaces are commonly run as Kubernetes pods. When run inside of an
-enterprise, the pod image is typically pulled from a private image registry.
-This guide walks through creating an ImagePullSecret to use for authenticating
-to your registry, and defining it in your workspace template.
+Coder workspaces are commonly run as Kubernetes pods.
+When run inside of an enterprise, the pod image is typically pulled from a private image registry.
+This guide walks through creating an ImagePullSecret to use for authenticating to your registry, and defining it in your workspace template.
 
 ## 1. Create Docker Config JSON File
 
 Create a Docker configuration JSON file containing your registry credentials.
-Replace `<your-registry>`, `<your-username>`, and `<your-password>` with your
-actual Docker registry URL, username, and password.
+Replace `<your-registry>`, `<your-username>`, and `<your-password>` with your actual Docker registry URL, username, and password.
 
 ```json
 {
@@ -35,8 +33,7 @@ actual Docker registry URL, username, and password.
 
 ## 2. Create Kubernetes Secret
 
-Run the below `kubectl` command in the K8s cluster where you intend to run your
-Coder workspaces:
+Run the below `kubectl` command in the K8s cluster where you intend to run your Coder workspaces:
 
 ```console
 kubectl create secret generic regcred \
@@ -67,10 +64,9 @@ The output should look similar to this:
 
 ## 3. Define ImagePullSecret in Terraform template
 
-With the ImagePullSecret now created, we can add the secret into the workspace
-template. In the example below, we define the secret via the
-`image_pull_secrets` argument. Note that this argument is nested at the same
-level as the `container` argument:
+With the ImagePullSecret now created, we can add the secret into the workspace template.
+In the example below, we define the secret via the `image_pull_secrets` argument.
+Note that this argument is nested at the same level as the `container` argument:
 
 ```tf
 resource "kubernetes_pod" "dev" {

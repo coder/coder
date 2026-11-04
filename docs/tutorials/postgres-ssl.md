@@ -11,14 +11,12 @@ February 24, 2024
 
 ---
 
-Your organization may require connecting to the database instance over SSL. To
-supply Coder with the appropriate certificates, and have it connect over SSL,
-follow the steps below:
+Your organization may require connecting to the database instance over Secure Sockets Layer (SSL).
+To supply Coder with the appropriate certificates, and have it connect over SSL, follow the steps below:
 
 ## Client verification (server verifies the client)
 
-1. Create the certificate as a secret in your Kubernetes cluster, if not already
-   present:
+1. Create the certificate as a secret in your Kubernetes cluster, if not already present:
 
 ```sh
 kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert="postgres.crt"
@@ -38,7 +36,7 @@ coder:
       readOnly: true
 ```
 
-1. Lastly, your PG connection URL will look like:
+1. Lastly, your PostgreSQL (PG) connection URL will look like:
 
 ```sh
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert="$HOME/.postgresql/postgres.crt&sslkey=$HOME/.postgresql/postgres.key"
@@ -46,8 +44,7 @@ postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslce
 
 ## Server verification (client verifies the server)
 
-1. Download the CA certificate chain for your database instance, and create it
-   as a secret in your Kubernetes cluster, if not already present:
+1. Download the database certificate authority (CA) certificate chain and create it as a Kubernetes secret, if not already present:
 
 ```sh
 kubectl create secret tls postgres-certs -n coder --key="postgres-root.key" --cert="postgres-root.crt"
@@ -73,5 +70,4 @@ coder:
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert="/home/coder/.postgresql/postgres-root.crt"
 ```
 
-More information on connecting to PostgreSQL databases using certificates can
-be found in the [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
+More information on connecting to PostgreSQL databases using certificates can be found in the [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).

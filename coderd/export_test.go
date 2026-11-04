@@ -9,6 +9,9 @@ package coderd
 // request builder; tracked in CODAGT-292.
 var ChatStartWorkspace = (*API).chatStartWorkspace
 
+// ChatCreateWorkspace exposes chatCreateWorkspace for external tests.
+var ChatCreateWorkspace = (*API).chatCreateWorkspace
+
 // ChatStopWorkspace exposes chatStopWorkspace for external tests.
 var ChatStopWorkspace = (*API).chatStopWorkspace
 

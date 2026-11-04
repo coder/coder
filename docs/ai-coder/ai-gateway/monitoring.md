@@ -3,10 +3,10 @@ title: Monitoring
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
-AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request.
+Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behavior.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -38,7 +38,7 @@ Some metrics use the explicit `provider_name` or `provider_type` labels for clar
 | `coder_ai_gateway_passthrough_total`                               | counter   | `method`, `provider`, `route`                                              | Requests passed through to an upstream provider without interception.                                                                              |
 | `coder_ai_gateway_prompts_total`                                   | counter   | `client`, `initiator_id`, `model`, `provider`                              | Prompts issued by users.                                                                                                                           |
 | `coder_ai_gateway_tokens_total`                                    | counter   | `client`, `initiator_id`, `model`, `provider`, `type`                      | Tokens used by intercepted requests.                                                                                                               |
-| `coder_ai_gateway_injected_tool_invocations_total`                 | counter   | `model`, `name`, `provider`, `server`                                      | Invocations of MCP tools injected by AI Gateway.                                                                                                   |
+| `coder_ai_gateway_injected_tool_invocations_total`                 | counter   | `model`, `name`, `provider`, `server`                                      | Invocations of Model Context Protocol (MCP) tools injected by AI Gateway.                                                                          |
 | `coder_ai_gateway_non_injected_tool_selections_total`              | counter   | `model`, `name`, `provider`                                                | Tools selected by a model for the client to invoke.                                                                                                |
 | `coder_ai_gateway_circuit_breaker_state`                           | gauge     | `endpoint`, `model`, `provider`                                            | Current circuit-breaker state: `0` for closed, `0.5` for half-open, and `1` for open.                                                              |
 | `coder_ai_gateway_circuit_breaker_trips_total`                     | counter   | `endpoint`, `model`, `provider`                                            | Times a circuit breaker transitioned to the open state.                                                                                            |
@@ -70,17 +70,16 @@ Standalone replicas do not export them.
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
 
-A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first. The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing. They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
+A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first.
+The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing.
+They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
 
-When alerting on `coder_ai_gateway_proxy_provider_info`, exclude
-`proxy_excluded` from the alert expression unless you want to be
-notified of intended duplicate-hostname configurations:
-`status!~"enabled|proxy_excluded"`.
+When alerting on `coder_ai_gateway_proxy_provider_info`, exclude `proxy_excluded` from the alert expression unless you want to be notified of intended duplicate-hostname configurations: `status!~"enabled|proxy_excluded"`.
 
 | Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                           |
 |--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type`                                     | CONNECT sessions established, classified as `mitm` or `tunneled`.                                                                 |
-| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled by AI Gateway Proxy.                                                                                        |
+| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | Machine-in-the-middle (MITM) requests handled by AI Gateway Proxy.                                                                |
 | `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | MITM requests currently being processed.                                                                                          |
 | `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                                               |
 | `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Routing status of each configured provider. Value is always `1`; `status` is `enabled`, `disabled`, `error`, or `proxy_excluded`. |
@@ -171,8 +170,9 @@ A standalone AI gateway exposes health endpoints on its data-plane listener:
 
 `/readyz` returns HTTP 503 until the initial provider configuration fetch completes and whenever the control connection to `coderd` is unavailable.
 The initial fetch can return an empty provider set.
-A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections. It returns `200 OK` even when the control connection is down.
-Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and BYOK middleware, and do not create trace spans.
+A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections.
+It returns `200 OK` even when the control connection is down.
+Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and Bring Your Own Key (BYOK) middleware, and do not create trace spans.
 
 The standalone Helm chart enables a `/healthz` liveness probe and a `/readyz` readiness probe by default.
 The startup probe is disabled by default.
@@ -187,7 +187,7 @@ Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-g
 
 ### Structured interception logs
 
-AI Gateway can emit a structured log for every interception record to an external SIEM or observability platform.
+AI Gateway can emit a structured log for every interception record to an external security information and event management (SIEM) or observability platform.
 `CODER_AI_GATEWAY_STRUCTURED_LOGGING` enables the records, and `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE` selects which process emits them.
 Under the default source, `coderd`, standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
 Set the source to `gateway` or `both` on every process to have the gateway emit its own records, and ship the gateway's logs as well as `coderd`'s.
@@ -208,9 +208,10 @@ curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
 
 Available query filters:
 
-- `client` - Filter by client name. Possible values are listed below.
+- `client` - Filter by client name.
+  Possible values are listed below.
 - `initiator` - Filter by user ID or username
-- `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
+- `provider` - Filter by AI provider (for example, `openai`, `anthropic`)
 - `model` - Filter by model name
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
@@ -219,8 +220,8 @@ Available query filters:
 <summary>Possible <code>client</code> values</summary>
 
 > [!NOTE]
-> Client classification is done on best effort basis using the `User-Agent` header;
-> not all clients send these headers in an easily-identifiable manner.
+> Client classification is done on best effort basis using the `User-Agent` header.
+> Not all clients send these headers in an easily-identifiable manner.
 
 - `Claude Code`
 - `Codex`
@@ -246,8 +247,7 @@ Refer to the [API documentation](../../reference/api/aigateway.md) for full deta
 AI Gateway data is retained for **60&nbsp;days by default**.
 Configure the retention period to balance storage costs with your organization's compliance and analysis needs.
 
-For configuration options and details, refer to [Data Retention](./setup.md#data-retention)
-in the AI Gateway setup guide.
+For configuration options and details, refer to [Data Retention](./setup.md#data-retention) in the AI Gateway setup guide.
 
 ## Tracing
 
@@ -257,7 +257,7 @@ Standalone spans are emitted independently by every replica with the service nam
 
 ### Enable tracing
 
-AI Gateway exports spans over OTLP/gRPC when you set `CODER_TRACE_ENABLE`, honoring `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
+AI Gateway exports spans over OpenTelemetry Protocol (OTLP)/gRPC when you set `CODER_TRACE_ENABLE`, honoring `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
 The exporter always dials without TLS, so an `https://` endpoint is still contacted over plaintext gRPC.
 `CODER_TRACE_HONEYCOMB_API_KEY` adds a Honeycomb exporter and works with or without `CODER_TRACE_ENABLE`.
 Set only the Honeycomb key to export to Honeycomb alone, or set both to export to Honeycomb and an OTLP collector.
@@ -273,7 +273,7 @@ export CODER_TRACE_ENABLE=true
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4317
 ```
 
-In both deployment modes, each request to the gateway's LLM API endpoint creates an HTTP request span, including requests that are passed through or rejected instead of intercepted.
+In both deployment modes, each request to the gateway's large language model (LLM) API endpoint creates an HTTP request span, including requests that are passed through or rejected instead of intercepted.
 
 ### Traced operations
 

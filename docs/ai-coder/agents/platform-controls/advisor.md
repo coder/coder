@@ -2,38 +2,19 @@
 title: Advisor
 ---
 
-> [!NOTE]
-> This feature is experimental. Pin a release before broad rollout and review
-> the release notes before upgrading.
-
-## Enable the experiment
-
-```sh
-coder server --experiments=chat-advisor
-```
-
-Or set the environment variable:
-
-```sh
-CODER_EXPERIMENTS=chat-advisor
-```
-
 ## What it does
 
-Lets a root agent pause its current turn and request strategic guidance from
-a separate, single-step model call. The advisor sees recent conversation
-context, runs without any tools, and returns concise advice for the root
-agent rather than the end user. While active, it is the only tool the root
-agent can call for that turn.
+Lets a root agent pause its current turn and request strategic guidance from a separate, single-step model call.
+The advisor sees recent conversation context, runs without any tools, and returns concise advice for the root agent rather than the end user.
+The root agent must call the advisor on its own, not alongside other tools in the same step.
 
-Useful for planning ambiguity, architectural tradeoffs, debugging strategy
-after repeated failures, or risk reduction before a destructive operation.
+Useful for planning ambiguity, architectural tradeoffs, debugging strategy after repeated failures, or risk reduction before a destructive operation.
 
 ## Configuration
 
-Once the experiment is enabled, configure the advisor's runtime limits
-under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
-Use the **Advisor** card. These limits apply deployment-wide.
+Configure the advisor's runtime limits under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
+Use the **Advisor** card.
+These limits apply deployment-wide.
 
 | Field             | Default              | Notes                                                                                                                   |
 |-------------------|----------------------|-------------------------------------------------------------------------------------------------------------------------|
@@ -47,7 +28,4 @@ When no override is set, the advisor reuses the root agent's model.
 The advisor is not available in plan mode or to subagents.
 Failed advisor invocations refund the per-turn budget.
 
-The same configuration is available through the API: runtime limits at
-`GET`/`PUT` `/api/experimental/chats/config/advisor`, and the advisor
-model override at
-`PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor`.
+The same configuration is available through the API: runtime limits at `GET`/`PUT` `/api/v2/chats/config/advisor`, and the advisor model override at `PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor`.

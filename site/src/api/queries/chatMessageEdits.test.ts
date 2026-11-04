@@ -45,6 +45,20 @@ describe("buildOptimisticEditedMessage", () => {
 
 		expect(message.content).toEqual([existingFilePart]);
 	});
+
+	it("keeps skill invocations as skill parts", () => {
+		const skillPart: TypesGen.ChatSkillInvocationPart = {
+			type: "skill-invocation",
+			skill_source: "project",
+			skill_name: "triage",
+		};
+		const message = buildOptimisticEditedMessage({
+			requestContent: [skillPart],
+			originalMessage: makeUserMessage(),
+		});
+
+		expect(message.content).toEqual([skillPart]);
+	});
 });
 
 describe("reconcileEditedMessageInCache", () => {

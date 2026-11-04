@@ -2,8 +2,8 @@
 title: JetBrains IDEs
 ---
 
-Coder supports JetBrains IDEs using [Toolbox](https://www.jetbrains.com/toolbox/) and [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following
-IDEs are supported for remote development:
+Coder supports JetBrains IDEs using [Toolbox](https://www.jetbrains.com/toolbox/) and [Gateway](https://www.jetbrains.com/remote-development/gateway/).
+The following IDEs are supported for remote development:
 
 - IntelliJ IDEA
 - CLion
@@ -20,6 +20,4 @@ IDEs are supported for remote development:
 
 <children></children>
 
-If you experience any issues, please
-[create a GitHub issue](https://github.com/coder/coder/issues) or ask in
-[our Discord channel](https://discord.gg/coder).
+If you experience any issues, [create a GitHub issue](https://github.com/coder/coder/issues) or ask in [our Discord channel](https://discord.gg/coder).

@@ -1,0 +1,30 @@
+# Coder.LatinAbbreviations - suggest the English form of "e.g.", "i.e.", and
+# "etc." in prose.
+# Refer to accessibility-and-inclusion.md#latin-abbreviations for the rule.
+#
+# The guide accepts either form, so this is a suggestion that never blocks.
+# The scope covers running prose (paragraphs, list items, headings, and
+# blockquotes) and leaves table cells alone, where space is limited. Vale
+# skips code spans and fenced code blocks.
+#
+# The patterns also catch the common misspellings "eg.", "ie.", and "e.g" or
+# "i.e" without the final period. The two-letter forms need the period so the
+# browser name "IE" and the word "eg" in other contexts stay quiet, and the
+# case classes are explicit so "IE." never matches.
+extends: substitution
+message: "Consider '%s' instead of '%s'. Refer to accessibility-and-inclusion.md#latin-abbreviations."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#latin-abbreviations
+level: suggestion
+ignorecase: false
+nonword: true
+scope:
+  - paragraph
+  - list
+  - heading
+  - blockquote
+swap:
+  '\b[Ee]\.g\b\.?': for example
+  '\b[Ee]g\.': for example
+  '\b[Ii]\.e\b\.?': that is
+  '\b[Ii]e\.': that is
+  '\b[Ee]tc\b\.?': and so on

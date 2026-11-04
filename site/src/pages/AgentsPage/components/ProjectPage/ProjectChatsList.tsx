@@ -21,9 +21,12 @@ export const ProjectChatsList: React.FC<ProjectChatsListProps> = ({
 	// row actions.
 	const outletContext = useOutletContext<AgentsPageOutletContext | undefined>();
 	const chatsQuery = useInfiniteQuery(projectChats(project.id));
-	// Watch events update cached rows in place, so a chat archived after the
-	// page loads stays in the cache until the next refetch.
-	const chats = chatsQuery.data?.pages.flat().filter((chat) => !chat.archived);
+	// Watch events and moves update cached rows in place, so a chat archived
+	// or moved away after the page loads stays in the cache until the next
+	// refetch.
+	const chats = chatsQuery.data?.pages
+		.flat()
+		.filter((chat) => !chat.archived && chat.project_id === project.id);
 
 	return (
 		<ProjectChatsListView

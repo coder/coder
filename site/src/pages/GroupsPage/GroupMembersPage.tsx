@@ -127,7 +127,10 @@ const GroupMembersPage: React.FC = () => {
 		<div className="flex flex-col w-full gap-1 pb-8">
 			<UsersFilter {...filterProps} />
 
-			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+			<PaginationContainer
+				query={membersQuery}
+				paginationUnitLabel={{ singular: "member", plural: "members" }}
+			>
 				<Table aria-label="Group members">
 					<TableHeader>
 						<TableRow>
@@ -151,7 +154,9 @@ const GroupMembersPage: React.FC = () => {
 												<StatusIconTooltip
 													message={
 														<>
-															{aiBudgetNote} <SpendEstimateDocsLink />
+															{aiBudgetNote}
+															<br />
+															<SpendEstimateDocsLink />
 														</>
 													}
 												/>

@@ -1,6 +1,9 @@
 package terraform
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -10,6 +13,198 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
+
+func TestConvertStateWithScriptOrderComposesRulesAcrossModules(t *testing.T) {
+	t.Parallel()
+
+	// Use Terraform-generated fixtures to verify that conversion combines ordering
+	// data sources in prior_state with scripts in planned_values and recognizes
+	// count = 0 declarations present only in configuration. The fixtures also
+	// exercise module-local rules with nested and indexed script addresses.
+	fixtureDir := filepath.Join("testdata", "script-order-modules")
+	rawPlan, err := os.ReadFile(filepath.Join(fixtureDir, "plan.json"))
+	require.NoError(t, err)
+	var plan tfjson.Plan
+	require.NoError(t, json.Unmarshal(rawPlan, &plan))
+
+	rawState, err := os.ReadFile(filepath.Join(fixtureDir, "state.json"))
+	require.NoError(t, err)
+	var state tfjson.State
+	require.NoError(t, json.Unmarshal(rawState, &state))
+
+	for _, test := range []struct {
+		step    string
+		source  proto.GraphSource
+		modules []*tfjson.StateModule
+	}{
+		{
+			step:    "plan",
+			source:  proto.GraphSource_SOURCE_PLAN,
+			modules: planModules(&plan),
+		},
+		{
+			step:    "state",
+			source:  proto.GraphSource_SOURCE_STATE,
+			modules: []*tfjson.StateModule{state.Values.RootModule},
+		},
+	} {
+		t.Run(test.step, func(t *testing.T) {
+			t.Parallel()
+
+			rawGraph, err := os.ReadFile(filepath.Join(fixtureDir, test.step+".dot"))
+			require.NoError(t, err)
+			conversion, err := convertStateWithScriptOrder(
+				t.Context(),
+				test.modules,
+				plan.Config,
+				string(rawGraph),
+				slogtest.Make(t, nil),
+				test.source,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, conversion.state)
+			require.Equal(t, []string{
+				`script order data source "data.coder_script_order.main" rule 0 ` +
+					`inferred phase "start" and omitted scripts in the other phase ` +
+					`from module selectors: "module.bootstrap"; set phase = "start" ` +
+					`explicitly to make this filtering intentional`,
+			}, conversion.warnings)
+			require.Zero(t, conversion.warningsOmitted)
+
+			if test.source == proto.GraphSource_SOURCE_PLAN {
+				// Runtime association and dependency attachment happen after apply.
+				require.Nil(t, conversion.order)
+				for _, script := range conversion.state.scriptsByAddress {
+					require.Empty(t, script.Dependencies)
+				}
+				return
+			}
+
+			require.Equal(t, &scriptorder.Order{Graphs: []scriptorder.Graph{
+				{
+					RuntimeAddress: "coder_agent.main",
+					Phase:          scriptorder.PhaseStart,
+					Dependencies: []scriptorder.Dependency{
+						{
+							DependentAddress:    `coder_script.work["api"]`,
+							PrerequisiteAddress: "module.bootstrap.coder_script.start[0]",
+							Requirement:         scriptorder.RequirementCompletion,
+						},
+						{
+							DependentAddress:    `coder_script.work["api"]`,
+							PrerequisiteAddress: "module.bootstrap.coder_script.start[1]",
+							Requirement:         scriptorder.RequirementCompletion,
+						},
+						{
+							DependentAddress:    `coder_script.work["api"]`,
+							PrerequisiteAddress: "module.bootstrap.module.nested.coder_script.configure",
+							Requirement:         scriptorder.RequirementCompletion,
+						},
+						{
+							DependentAddress:    `coder_script.work["worker"]`,
+							PrerequisiteAddress: "module.bootstrap.coder_script.start[0]",
+							Requirement:         scriptorder.RequirementCompletion,
+						},
+						{
+							DependentAddress:    `coder_script.work["worker"]`,
+							PrerequisiteAddress: "module.bootstrap.coder_script.start[1]",
+							Requirement:         scriptorder.RequirementCompletion,
+						},
+						{
+							DependentAddress:    `coder_script.work["worker"]`,
+							PrerequisiteAddress: "module.bootstrap.module.nested.coder_script.configure",
+							Requirement:         scriptorder.RequirementCompletion,
+						},
+						{
+							DependentAddress:    "module.bootstrap.module.nested.coder_script.configure",
+							PrerequisiteAddress: "module.bootstrap.coder_script.start[0]",
+							Requirement:         scriptorder.RequirementSuccess,
+						},
+						{
+							DependentAddress:    "module.bootstrap.module.nested.coder_script.configure",
+							PrerequisiteAddress: "module.bootstrap.coder_script.start[1]",
+							Requirement:         scriptorder.RequirementSuccess,
+						},
+					},
+				},
+				{
+					RuntimeAddress: "coder_agent.main",
+					Phase:          scriptorder.PhaseStop,
+					Dependencies: []scriptorder.Dependency{
+						{
+							DependentAddress:    "module.bootstrap.coder_script.stop",
+							PrerequisiteAddress: "coder_script.shutdown",
+							Requirement:         scriptorder.RequirementSuccess,
+						},
+					},
+				},
+			}}, conversion.order)
+
+			var agents []*proto.Agent
+			for _, resource := range conversion.state.Resources {
+				agents = append(agents, resource.Agents...)
+			}
+			require.Len(t, agents, 1)
+
+			scripts := scriptOrderTestScriptsByAddress(t, agents[0].Scripts,
+				`coder_script.work["api"]`, `coder_script.work["worker"]`,
+				"coder_script.shutdown", "coder_script.unordered",
+				"module.bootstrap.coder_script.start[0]",
+				"module.bootstrap.coder_script.start[1]",
+				"module.bootstrap.coder_script.stop",
+				"module.bootstrap.module.nested.coder_script.configure",
+			)
+
+			success := proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS
+			completion := proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION
+
+			for _, address := range []string{
+				`coder_script.work["api"]`, `coder_script.work["worker"]`,
+			} {
+				require.Equal(t, []*proto.ScriptDependency{
+					{
+						PrerequisiteResourceAddress: "module.bootstrap.coder_script.start[0]",
+						Requirement:                 completion,
+					},
+					{
+						PrerequisiteResourceAddress: "module.bootstrap.coder_script.start[1]",
+						Requirement:                 completion,
+					},
+					{
+						PrerequisiteResourceAddress: "module.bootstrap.module.nested.coder_script.configure",
+						Requirement:                 completion,
+					},
+				}, scripts[address].Dependencies, address)
+			}
+
+			require.Equal(t, []*proto.ScriptDependency{
+				{
+					PrerequisiteResourceAddress: "module.bootstrap.coder_script.start[0]",
+					Requirement:                 success,
+				},
+				{
+					PrerequisiteResourceAddress: "module.bootstrap.coder_script.start[1]",
+					Requirement:                 success,
+				},
+			}, scripts["module.bootstrap.module.nested.coder_script.configure"].Dependencies)
+
+			require.Equal(t, []*proto.ScriptDependency{
+				{
+					PrerequisiteResourceAddress: "coder_script.shutdown",
+					Requirement:                 success,
+				},
+			}, scripts["module.bootstrap.coder_script.stop"].Dependencies)
+
+			for _, address := range []string{
+				"coder_script.shutdown", "coder_script.unordered",
+				"module.bootstrap.coder_script.start[0]",
+				"module.bootstrap.coder_script.start[1]",
+			} {
+				require.Empty(t, scripts[address].Dependencies, address)
+			}
+		})
+	}
+}
 
 func TestConvertStateWithScriptOrderFinalizesAppliedOrder(t *testing.T) {
 	t.Parallel()
@@ -63,6 +258,79 @@ func TestConvertStateWithScriptOrderFinalizesAppliedDevcontainerOrder(t *testing
 	require.NotNil(t, conversion.order)
 	require.Len(t, conversion.order.Graphs, 1)
 	require.Equal(t, "coder_devcontainer.repo", conversion.order.Graphs[0].RuntimeAddress)
+}
+
+func TestConvertStateWithScriptOrderAttachesDependencies(t *testing.T) {
+	t.Parallel()
+
+	module := scriptOrderTestModule(
+		scriptOrderTestAgent("coder_agent.main", "main", "agent-id"),
+		scriptOrderTestDevcontainer(
+			"coder_devcontainer.repo", "repo", "agent-id", "subagent-id",
+		),
+		scriptOrderTestScript("coder_script.clone_repo", "clone_repo", "agent-id"),
+		scriptOrderTestScript("coder_script.install_tools", "install_tools", "agent-id"),
+		scriptOrderTestScript("coder_script.build", "build", "agent-id"),
+		scriptOrderTestScript("coder_script.dc_setup", "dc_setup", "subagent-id"),
+		scriptOrderTestScript("coder_script.dc_run", "dc_run", "subagent-id"),
+	)
+	module.Resources[len(module.Resources)-1].AttributeValues = map[string]any{
+		"rule": []any{
+			map[string]any{
+				"run":   []string{"coder_script.install_tools"},
+				"after": []string{"coder_script.clone_repo"},
+			},
+			map[string]any{
+				// Prerequisites are listed out of order on purpose.
+				"run":      []string{"coder_script.build"},
+				"after":    []string{"coder_script.install_tools", "coder_script.clone_repo"},
+				"requires": "completion",
+			},
+			map[string]any{
+				"run":   []string{"coder_script.dc_run"},
+				"after": []string{"coder_script.dc_setup"},
+			},
+		},
+	}
+	conversion, err := convertStateWithScriptOrder(
+		t.Context(),
+		[]*tfjson.StateModule{module},
+		scriptOrderTestConfig(module),
+		scriptOrderTestGraph("coder_agent.main"),
+		slogtest.Make(t, nil),
+		proto.GraphSource_SOURCE_STATE,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, conversion.order)
+
+	var agents []*proto.Agent
+	for _, resource := range conversion.state.Resources {
+		agents = append(agents, resource.Agents...)
+	}
+	require.Len(t, agents, 1)
+	agent := agents[0]
+	require.Len(t, agent.Devcontainers, 1)
+	agentScripts := scriptOrderTestScriptsByAddress(t, agent.Scripts,
+		"coder_script.build", "coder_script.clone_repo", "coder_script.install_tools",
+	)
+	devcontainerScripts := scriptOrderTestScriptsByAddress(t, agent.Devcontainers[0].Scripts,
+		"coder_script.dc_run", "coder_script.dc_setup",
+	)
+
+	success := proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS
+	completion := proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION
+	require.Empty(t, agentScripts["coder_script.clone_repo"].Dependencies)
+	require.Equal(t, []*proto.ScriptDependency{
+		{PrerequisiteResourceAddress: "coder_script.clone_repo", Requirement: success},
+	}, agentScripts["coder_script.install_tools"].Dependencies)
+	require.Equal(t, []*proto.ScriptDependency{
+		{PrerequisiteResourceAddress: "coder_script.clone_repo", Requirement: completion},
+		{PrerequisiteResourceAddress: "coder_script.install_tools", Requirement: completion},
+	}, agentScripts["coder_script.build"].Dependencies)
+	require.Empty(t, devcontainerScripts["coder_script.dc_setup"].Dependencies)
+	require.Equal(t, []*proto.ScriptDependency{
+		{PrerequisiteResourceAddress: "coder_script.dc_setup", Requirement: success},
+	}, devcontainerScripts["coder_script.dc_run"].Dependencies)
 }
 
 func TestConvertStateWithScriptOrderValidatesPlanWithoutAgentBindings(t *testing.T) {
@@ -317,6 +585,25 @@ func scriptOrderTestConfig(module *tfjson.StateModule) *tfjson.Config {
 		})
 	}
 	return &tfjson.Config{RootModule: &tfjson.ConfigModule{Resources: resources}}
+}
+
+// scriptOrderTestScriptsByAddress checks that scripts carry exactly the given
+// resource addresses and returns them keyed by address.
+func scriptOrderTestScriptsByAddress(
+	t *testing.T,
+	scripts []*proto.Script,
+	addresses ...string,
+) map[string]*proto.Script {
+	t.Helper()
+
+	byAddress := make(map[string]*proto.Script, len(scripts))
+	got := make([]string, 0, len(scripts))
+	for _, script := range scripts {
+		byAddress[script.ResourceAddress] = script
+		got = append(got, script.ResourceAddress)
+	}
+	require.ElementsMatch(t, addresses, got)
+	return byAddress
 }
 
 func scriptOrderTestGraph(agentAddresses ...string) string {

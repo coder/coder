@@ -368,6 +368,8 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 										href={docs(
 											"/admin/templates/extending-templates/resource-persistence",
 										)}
+										target="_blank"
+										rel="noreferrer"
 									>
 										Learn more
 									</Link>

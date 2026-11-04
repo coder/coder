@@ -381,8 +381,7 @@ To keep a tool, choose the approach that matches who needs it:
 
 - For a tool that's yours alone, install it with mise.
   It persists through restarts with no template change.
-- To keep your Homebrew tools, mount `/home/linuxbrew` on a persistent volume, as you did in Step 4.
-  This is a template change, so it affects everyone who uses the template.
+- To keep your Homebrew tools, mount `/home/linuxbrew` on a persistent volume, as you did in Step 4. This is a template change, so it affects everyone who uses the template.
 - To preinstall a tool in every new workspace, add it to the template's startup script, as you did in Step 5 with mise.
   You can also install system packages with `apt-get`, as in [Add a programming language](./add-a-language.md), or bake the tool into the workspace image.
 

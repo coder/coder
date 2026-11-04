@@ -35,8 +35,7 @@ Antigravity connects to your Coder workspaces using the Coder extension:
 
       Alternatively:
 
-      1. Open the Command Palette
-         (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and search for `vsix`.
+      1. Open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and search for `vsix`.
 
       1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
 
@@ -44,8 +43,7 @@ Antigravity connects to your Coder workspaces using the Coder extension:
 
 ## Open a workspace in Antigravity
 
-1. From the Antigravity Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>),
-   enter `coder` and select **Coder: Login**.
+1. From the Antigravity Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>), enter `coder` and select **Coder: Login**.
 
 1. Follow the prompts to login and copy your session token.
 
@@ -55,9 +53,7 @@ Antigravity connects to your Coder workspaces using the Coder extension:
 
 ## Template configuration
 
-Your Coder administrator can add Antigravity as a one-click workspace app using
-the [Antigravity module](https://registry.coder.com/modules/coder/antigravity)
-from the Coder registry:
+Your Coder administrator can add Antigravity as a one-click workspace app using the [Antigravity module](https://registry.coder.com/modules/coder/antigravity) from the Coder registry:
 
 ```tf
 module "antigravity" {

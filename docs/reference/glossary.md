@@ -9,11 +9,18 @@ Each entry gives a short definition and, where it helps, links to the page that 
 > Several Coder terms share the word "agent" but mean different things:
 >
 > - [Coder Agents](#coder-agents) is the AI product for delegating development work to coding agents.
-> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces. It is not Coder Agents.
+> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces.
+>   It is not Coder Agents.
 > - A [workspace agent](#workspace-agent) is the process that runs inside a workspace to provide SSH, port forwarding, the web terminal, and other services.
 > - [`coder_agent`](#coder_agent) is the Terraform resource in a template that declares a workspace agent.
 
 ## A
+
+### ACP subagent
+
+An external coding agent that receives delegated tasks from a Coder Agents chat.
+An Agent Client Protocol (ACP) adapter launches its harness inside the workspace and handles communication with Coder.
+Refer to [ACP subagents](../ai-coder/agents/acp-subagents.md).
 
 ### Agent API
 
@@ -30,13 +37,14 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 ### Agent Relay
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
-The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
+The provider's orchestration and AI inference stay cloud-hosted.
+A worker process inside the workspace executes the agent's tool calls.
 In [early access](./feature-stages.md#early-access-features).
 Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
 ### AI Gateway
 
-An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
+A large language model (LLM) gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes Model Context Protocol (MCP) administration.
 It was previously named AI Bridge and runs the `aibridged` component in memory inside `coderd`.
 This feature requires a Premium license.
 Refer to [AI Gateway](../ai-coder/ai-gateway/index.md).
@@ -81,11 +89,11 @@ Refer to [Groups and roles](../admin/users/groups-roles.md).
 ### CDE
 
 Cloud development environment, the category of product that hosts development environments on remote infrastructure.
-A Coder workspace is a CDE.
+A Coder workspace is a cloud development environment (CDE).
 
 ### Change management
 
-The GitOps flow that stores templates in Git and pushes them through CI/CD with `coder templates push`.
+The GitOps flow that stores templates in Git and pushes them through continuous integration and continuous delivery (CI/CD) with `coder templates push`.
 Refer to [Change management](../admin/templates/managing-templates/change-management.md).
 
 ### code-server
@@ -101,7 +109,7 @@ The self-hosted platform that provisions and manages remote development environm
 ### Coder Agents
 
 The native, self-hosted AI product for delegating development work and research to coding agents.
-The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the REST API.
+The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the Representational State Transfer (REST) API.
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
 Refer to [Coder Agents](../ai-coder/agents/index.md).
 
@@ -128,7 +136,7 @@ Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
 ### Coder Validated Architecture
 
-Coder's reference designs for sizing and deploying a control plane, abbreviated CVA.
+Coder's reference designs for sizing and deploying a control plane, known as the Coder Validated Architecture (CVA).
 Each design covers a user count, from 1,000 to 10,000, and prescribes a Kubernetes-based deployment with tested component sizes, so a deployment is easier to operate and troubleshoot.
 A CVA is guidance rather than a certification: it recommends an architecture, but it doesn't approve yours.
 Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
@@ -164,6 +172,11 @@ Refer to the [`coder_metadata` resource](https://registry.terraform.io/providers
 
 The Terraform resource that runs a shell script inside the workspace on start or stop, or on demand.
 Refer to the [`coder_script` resource](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script).
+
+### `coder_script_order`
+
+The Terraform data source that declares dependencies between startup or shutdown scripts within one workspace agent or dev container sub-agent.
+Refer to [Order startup and shutdown scripts](../admin/templates/extending-templates/script-ordering.md).
 
 ### `coderd`
 
@@ -232,7 +245,7 @@ You provide it when you request a trial or a license.
 ### DERP
 
 Designated Encrypted Relay for Packets.
-The Tailnet uses DERP relays to carry traffic when a direct peer-to-peer connection between two nodes is not possible.
+The Tailnet uses Designated Encrypted Relay for Packets (DERP) relays to carry traffic when a direct peer-to-peer connection between two nodes is not possible.
 Refer to [Networking](../admin/networking/index.md).
 
 ### Dev container
@@ -260,12 +273,17 @@ Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
-Template inputs that can change per build, with conditional visibility and validation.
-Refer to [Dynamic parameters](../admin/templates/extending-templates/dynamic-parameters.md).
+Refer to [Parameters](#parameters).
 
 ## E
 
 ### Envbuilder
+
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../admin/integrations/devcontainers/integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
 
 The Coder-built tool that constructs a workspace image from a `devcontainer.json` file without requiring Docker inside the workspace.
 Refer to [Envbuilder](../admin/integrations/devcontainers/envbuilder/index.md) and the [`envbuilder` repository](https://github.com/coder/envbuilder).
@@ -363,7 +381,7 @@ Refer to [Modules](../admin/templates/extending-templates/modules.md).
 ### OIDC
 
 OpenID Connect.
-Coder supports any specification-compliant OIDC provider for single sign-on.
+Coder supports any specification-compliant OpenID Connect (OIDC) provider for single sign-on.
 Refer to [OIDC authentication](../admin/users/oidc-auth/index.md).
 
 ### OpenTofu
@@ -391,6 +409,12 @@ Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## P
 
+### Parameters
+
+Template inputs that a user sets when they create or update a workspace, with conditional visibility, identity-aware values, and validation.
+Previously, the conditional and identity-aware capabilities were called dynamic parameters.
+Refer to [Parameters](../admin/templates/extending-templates/parameters/index.md).
+
 ### Peripheral resource
 
 A supporting resource, such as a disk or network object, that a computational resource depends on.
@@ -402,7 +426,7 @@ Refer to [Resource persistence](../admin/templates/extending-templates/resource-
 
 ### Personal access token
 
-An API token, often abbreviated PAT, that a user creates to authenticate CLI and API requests.
+An API token, often called a personal access token (PAT), that a user creates to authenticate CLI and API requests.
 Refer to [Sessions and tokens](../admin/users/sessions-tokens.md).
 
 ### Port forwarding
@@ -418,7 +442,7 @@ Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-w
 
 ### Premium
 
-The paid enterprise tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
+The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, System for Cross-domain Identity Management (SCIM), and IdP sync.
 Visit [Pricing](https://coder.com/pricing).
 
 ### Prometheus metrics

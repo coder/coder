@@ -4,26 +4,23 @@ title: Docker in workspaces
 
 There are a few ways to run Docker within container-based Coder workspaces.
 
-| Method                                                     | Description                                                                                                                                                        | Limitations                                                                                                                                                                                                                                        |
-|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Sysbox container runtime](#sysbox-container-runtime)      | Install the Sysbox runtime on your Kubernetes nodes or Docker host(s) for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS, Docker.         | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). [Limitations](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md)                                                                    |
-| [Envbox](#envbox)                                          | A container image with all the packages necessary to run an inner Sysbox container. Removes the need to setup sysbox-runc on your nodes. Works with GKE, EKS, AKS. | Requires running the outer container as privileged (the inner container that acts as the workspace is locked down). Requires compatible [nodes](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility). |
-| [Rootless Podman](#rootless-podman)                        | Run Podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift                           | Requires smarter-device-manager for FUSE mounts. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                                                             |
-| [Privileged docker sidecar](#privileged-sidecar-container) | Run Docker as a privileged sidecar container.                                                                                                                      | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                                                             |
+| Method                                                     | Description                                                                                                                                                                                                                                          | Limitations                                                                                                                                                                                                                                        |
+|------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Sysbox container runtime](#sysbox-container-runtime)      | Install the Sysbox runtime on your Kubernetes nodes or Docker host(s) for secure docker-in-docker and systemd-in-docker. Works with Google Kubernetes Engine (GKE), Amazon Elastic Kubernetes Service (EKS), Azure Kubernetes Service (AKS), Docker. | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). [Limitations](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md)                                                                    |
+| [Envbox](#envbox)                                          | A container image with all the packages necessary to run an inner Sysbox container. Removes the need to setup sysbox-runc on your nodes. Works with GKE, EKS, AKS.                                                                                   | Requires running the outer container as privileged (the inner container that acts as the workspace is locked down). Requires compatible [nodes](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility). |
+| [Rootless Podman](#rootless-podman)                        | Run Podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, Rancher Kubernetes Engine (RKE), OpenShift                                                                                 | Requires a Filesystem in Userspace (FUSE) device plugin, or native overlay storage on kernel 5.13 or later. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                  |
+| [Privileged docker sidecar](#privileged-sidecar-container) | Run Docker as a privileged sidecar container.                                                                                                                                                                                                        | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                                                             |
 
 ## Sysbox container runtime
 
-The [Sysbox](https://github.com/nestybox/sysbox) container runtime allows
-unprivileged users to run system-level applications, such as Docker, securely
-from the workspace containers. Sysbox requires a
-[compatible Linux distribution](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md)
-to implement these security features. Sysbox can also be used to run systemd
-inside Coder workspaces. See [Systemd in Docker](#systemd-in-docker).
+The [Sysbox](https://github.com/nestybox/sysbox) container runtime allows unprivileged users to run system-level applications, such as Docker, securely from the workspace containers.
+Sysbox requires a [compatible Linux distribution](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md) to implement these security features.
+Sysbox can also be used to run systemd inside Coder workspaces.
+See [Systemd in Docker](#systemd-in-docker).
 
 ### Use Sysbox in Docker-based templates
 
-After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on
-the Coder host, modify your template to use the sysbox-runc runtime:
+After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on the Coder host, modify your template to use the sysbox-runc runtime:
 
 ```tf
 resource "docker_container" "workspace" {
@@ -49,10 +46,8 @@ resource "coder_agent" "main" {
 
 ### Use Sysbox in Kubernetes-based templates
 
-After
-[installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md),
-modify your template to use the sysbox-runc RuntimeClass. This requires the
-Kubernetes Terraform provider version 2.16.0 or greater.
+After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass.
+This requires the Kubernetes Terraform provider version 2.16.0 or greater.
 
 ```tf
 terraform {
@@ -116,13 +111,10 @@ resource "kubernetes_pod" "dev" {
 
 ## Envbox
 
-[Envbox](https://github.com/coder/envbox) is an image developed and maintained
-by Coder that bundles the sysbox runtime. It works by starting an outer
-container that manages the various sysbox daemons and spawns an unprivileged
-inner container that acts as the user's workspace. The inner container is able
-to run system-level software similar to a regular virtual machine (e.g.
-`systemd`, `dockerd`, etc). Envbox offers the following benefits over running
-sysbox directly on the nodes:
+[Envbox](https://github.com/coder/envbox) is an image developed and maintained by Coder that bundles the sysbox runtime.
+It works by starting an outer container that manages the various sysbox daemons and spawns an unprivileged inner container that acts as the user's workspace.
+The inner container is able to run system-level software similar to a regular virtual machine (for example, `systemd`, `dockerd`, and so on).
+Envbox offers the following benefits over running sysbox directly on the nodes:
 
 - No custom runtime installation or management on your Kubernetes nodes.
 - No limit to the number of pods that run envbox.
@@ -130,39 +122,27 @@ sysbox directly on the nodes:
 Some drawbacks include:
 
 - The outer container must be run as privileged
-  - Note: the inner container is _not_ privileged. For more information on the
-    security of sysbox containers see sysbox's
-    [official documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/security.md).
-- Initial workspace startup is slower than running `sysbox-runc` directly on the
-  nodes. This is due to `envbox` having to pull the image to its own Docker
-  cache on its initial startup. Once the image is cached in `envbox`, startup
-  performance is similar.
+  - Note: the inner container is _not_ privileged.
+    For more information on the security of sysbox containers see sysbox's [official documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/security.md).
+- Initial workspace startup is slower than running `sysbox-runc` directly on the nodes.
+  This is due to `envbox` having to pull the image to its own Docker cache on its initial startup.
+  Once the image is cached in `envbox`, startup performance is similar.
 
-Envbox requires the same kernel requirements as running sysbox directly on the
-nodes. Refer to sysbox's
-[compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility)
-to ensure your nodes are compliant.
+Envbox requires the same kernel requirements as running sysbox directly on the nodes.
+Refer to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to make sure your nodes are compliant.
 
-To get started with `envbox` check out the
-[starter template](../../../../examples/templates/kubernetes-envbox)
-or visit the [repo](https://github.com/coder/envbox).
+To get started with `envbox`, refer to the [starter template](../../../../examples/templates/kubernetes-envbox) or visit the [repo](https://github.com/coder/envbox).
 
 <a id="authenticating-with-a-private-registry"></a>
 
 ### Authenticate with a private registry
 
-Authenticating with a private container registry can be done by referencing the
-credentials via the `CODER_IMAGE_PULL_SECRET` environment variable. It is
-encouraged to populate this
-[environment variable](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data)
-by using a Kubernetes
-[secret](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials).
+Authenticating with a private container registry can be done by referencing the credentials via the `CODER_IMAGE_PULL_SECRET` environment variable.
+It is encouraged to populate this [environment variable](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data) by using a Kubernetes [secret](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials).
 
-Refer to your container registry documentation to understand how to best create
-this secret.
+Refer to your container registry documentation to understand how to best create this secret.
 
-The following shows a minimal example using a the JSON API key from a GCP
-service account to pull a private image:
+The following shows a minimal example using a the JSON API key from a GCP service account to pull a private image:
 
 ```sh
 # Create the secret
@@ -187,19 +167,16 @@ env {
 
 ## Rootless podman
 
-[Podman](https://docs.podman.io/en/latest/) is Docker alternative that is
-compatible with OCI containers specification. which can run rootless inside
-Kubernetes pods. No custom RuntimeClass is required.
+[Podman](https://docs.podman.io/en/latest/) is Docker alternative that is compatible with Open Container Initiative (OCI) containers specification. which can run rootless inside Kubernetes pods.
+No custom RuntimeClass is required.
 
-Before using Podman, please review the following documentation:
+Before using Podman, review the following documentation:
 
 - [Basic setup and use of Podman in a rootless environment](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md)
 
 - [Shortcomings of Rootless Podman](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)
 
-1. Enable
-   [smart-device-manager](https://github.com/smarter-project/smarter-device-manager#enabling-access)
-   to securely expose a FUSE devices to pods.
+1. Enable [smart-device-manager](https://github.com/smarter-project/smarter-device-manager#enabling-access) to securely expose a FUSE devices to pods.
 
    ```sh
    cat <<EOF | kubectl create -f -
@@ -244,12 +221,12 @@ Before using Podman, please review the following documentation:
    kubectl label nodes --all smarter-device-manager=enabled
    ```
 
-   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (e.g.
-   > AKS, EKS, GKE), be sure to set node labels via your cloud provider.
-   > Otherwise, your nodes may drop the labels and break podman functionality.
+   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (for example, AKS, EKS, GKE), be sure to set node labels via your cloud provider.
+   > Otherwise, your nodes might drop the labels and break podman functionality.
 
-3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based
-   systems), you might need to disable SELinux or set it to permissive mode.
+3. For systems running SELinux, you might need to disable SELinux or set it to permissive mode.
+
+   These are typically Fedora-, CentOS-, and Red Hat-based systems.
 
 4. Create a template from the built-in `kubernetes` starter, then adapt it for rootless Podman:
 
@@ -258,7 +235,8 @@ Before using Podman, please review the following documentation:
    cd ./kubernetes-podman
    ```
 
-   The `kubernetes` starter already runs the workspace pod as a non-root user (`run_as_user = 1000`, `fs_group = 1000`, `run_as_non_root = true`), which rootless Podman requires. In the generated `main.tf`, apply the Podman changes to the `kubernetes_deployment_v1.main` pod template (marked `# Podman` in the following snippet):
+   The `kubernetes` starter already runs the workspace pod as a non-root user (`run_as_user = 1000`, `fs_group = 1000`, `run_as_non_root = true`), which rootless Podman requires.
+   In the generated `main.tf`, apply the Podman changes to the `kubernetes_deployment_v1.main` pod template (marked `# Podman` in the following snippet):
 
    ```tf
    spec {
@@ -297,15 +275,10 @@ Before using Podman, please review the following documentation:
    }
    ```
 
-   The `codercom/example-podman` image is built and maintained in
-   [`coder/images`](https://github.com/coder/images).
+   The `codercom/example-podman` image is built and maintained in [`coder/images`](https://github.com/coder/images).
 
-   > On Kubernetes 1.30+, the
-   > `container.apparmor.security.beta.kubernetes.io/<container>` annotation is
-   > deprecated in favor of the `securityContext.appArmorProfile` field. The
-   > annotation still works and remains the most broadly compatible option, so
-   > switch to the field once your cluster and Terraform Kubernetes provider
-   > both support it.
+   > On Kubernetes 1.30+, the `container.apparmor.security.beta.kubernetes.io/<container>` annotation is deprecated in favor of the `securityContext.appArmorProfile` field.
+   > The annotation still works and remains the most broadly compatible option, so switch to the field once your cluster and Terraform Kubernetes provider both support it.
 
    Push the template to your deployment:
 
@@ -313,8 +286,7 @@ Before using Podman, please review the following documentation:
    coder templates push
    ```
 
-   > For more information around the requirements of rootless podman pods, see:
-   > [How to run Podman inside of Kubernetes](https://www.redhat.com/sysadmin/podman-inside-kubernetes)
+   > For more information around the requirements of rootless podman pods, see: [How to run Podman inside of Kubernetes](https://www.redhat.com/sysadmin/podman-inside-kubernetes)
 
 ### Rootless Podman on Bottlerocket nodes
 
@@ -357,19 +329,118 @@ spec:
 
 ### Rootless Podman on EKS Auto Mode
 
-The `EC2NodeClass` above applies to self-managed Karpenter nodes. On EKS Auto Mode, the built-in `NodeClass` (`eks.amazonaws.com`) doesn't expose `userData` or kernel sysctls, so `user.max_user_namespaces` stays at `0` with no way to raise it on those nodes. Run Podman workspaces on a separate managed node group instead; the default AL2023 AMIs ship with user namespaces enabled.
+The `EC2NodeClass` above applies to self-managed Karpenter nodes.
+On EKS Auto Mode, raise `user.max_user_namespaces` with the `advancedCompute` field on a custom `NodeClass` (`eks.amazonaws.com`).
+Auto Mode `NodeClass` resources [support `advancedCompute`](https://aws.amazon.com/about-aws/whats-new/2026/10/eks-auto-mode-advanced-compute-config/), so this works on pure Auto Mode nodes with no managed node group.
 
-> On a brand-new Auto Mode cluster, install the `vpc-cni` and `kube-proxy` add-ons before your managed node group can reach `Ready`.
+```yaml
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: podman
+spec:
+  # Reuse the Auto Mode node role so the EKS access entry already exists.
+  role: <your Auto Mode node role>
+  subnetSelectorTerms:
+    - id: <subnet ID 1>
+    - id: <subnet ID 2>
+  securityGroupSelectorTerms:
+    - id: <cluster security group ID>
+  advancedCompute:
+    kernel:
+      sysctl:
+        user.max_user_namespaces: 65536
+```
+
+Reference the `NodeClass` from a `NodePool` and schedule Podman workspaces onto that pool with a node selector.
+Refer to [Create a Node Class for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-node-class.html) for the full `advancedCompute` reference.
+
+If you can't use `advancedCompute`, run Podman workspaces on a managed node group instead.
+The default Amazon Linux 2023 (AL2023) Amazon Machine Images (AMIs) ship with user namespaces enabled.
+
+Pods that set `hostUsers: false` also need `advancedCompute.kubelet.idsPerPod` raised above the 65536 default before rootless Podman can allocate subordinate ID ranges inside them.
+The value must be a multiple of 65536, and `idsPerPod` requires `user.max_user_namespaces` to be set on the same `NodeClass`:
+
+```yaml
+  advancedCompute:
+    kernel:
+      sysctl:
+        user.max_user_namespaces: 65536
+    kubelet:
+      idsPerPod: 1048576
+```
+
+### Use native overlay storage instead of fuse-overlayfs
+
+Kernel overlayfs cannot stack on the workspace container's own overlay root filesystem.
+Without extra configuration, Podman falls back to `fuse-overlayfs`, which requires the `/dev/fuse` device and the smarter-device-manager setup above.
+On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
+
+1. Put the Podman graph root on a real filesystem such as ext4 or xfs.
+   If your template mounts a persistent volume at `/home/coder`, like the `kubernetes` starter, the default graph root already qualifies and keeps images across workspace restarts.
+   For ephemeral workspaces, mount an `emptyDir` volume at `/home/coder/.local/share/containers` instead; pulled images and build cache are lost when the workspace stops.
+1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`.
+   Write the override from the agent `startup_script`, which can also start the Docker-compatible API socket:
+
+   ```tf
+   startup_script = <<-EOT
+     mkdir -p ~/.config/containers
+     printf '[storage]\ndriver = "overlay"\n\n[storage.options.overlay]\nmount_program = ""\n' > ~/.config/containers/storage.conf
+     (podman system service --time=0 unix:///tmp/podman.sock >/tmp/podman-service.log 2>&1 &)
+     for i in $(seq 50); do [ -S /tmp/podman.sock ] && break; sleep 0.1; done
+     if [ ! -S /tmp/podman.sock ]; then
+       echo "Podman API socket didn't start:" >&2
+       cat /tmp/podman-service.log >&2
+       exit 1
+     fi
+   EOT
+   ```
+
+   Set `DOCKER_HOST=unix:///tmp/podman.sock` for Docker clients that expect a daemon socket.
+   Also set `DOCKER_BUILDKIT=0` so that `docker build` and `docker compose build` use the classic builder, because BuildKit can't start inside the workspace.
+   `docker buildx` commands still require BuildKit and aren't supported.
+
+With both settings, Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
+When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec; without the device plugin, that limit keeps pods in `Pending`.
+
+For a complete reference template, run `coder templates init --id kubernetes-podman-rootless` or refer to [`examples/templates/kubernetes-podman-rootless`](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-podman-rootless).
+
+### Nested container engines
+
+Rootless Podman supports one level of nesting: the workspace runs containers, builds images, and serves the Docker-compatible API socket.
+Running another container engine inside a container that the workspace engine started is not supported.
+This includes the dev container [`docker-in-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker), which starts a nested daemon inside the dev container.
+
+Use the [`docker-outside-of-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker) instead.
+The dev container drives the workspace engine through its socket, so containers run as siblings of the dev container instead of nested inside it.
+Keep the repository path identical inside the dev container and the workspace, for example with `workspaceMount`, so bind mounts resolve against the engine correctly.
+
+The feature mounts the workspace's `/var/run/docker.sock` by default, which doesn't exist with rootless Podman.
+Start the API socket from the agent `startup_script` as shown in [Use native overlay storage](#use-native-overlay-storage-instead-of-fuse-overlayfs), then override the mount in `devcontainer.json` to point at it:
+
+```json
+"mounts": [
+  {
+    "source": "/tmp/podman.sock",
+    "target": "/var/run/docker-host.sock",
+    "type": "bind"
+  }
+]
+```
+
+Building dev container features, such as `docker-outside-of-docker`, fails against rootless Podman because the dev container CLI builds them with BuildKit, which can't start inside the workspace.
+Run `devcontainer up --buildkit never` with `DOCKER_BUILDKIT=0` set to use the classic builder instead.
+Coder's [dev container integration](../../integrations/devcontainers/index.md) doesn't pass this flag, so it doesn't support rootless Podman workspaces yet.
+To run dev containers on Kubernetes without a container engine in the workspace, use [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) instead.
 
 ## Privileged sidecar container
 
-A
-[privileged container](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities)
-can be added to your templates to add docker support. This may come in handy if
-your nodes cannot run Sysbox.
+A [privileged container](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) can be added to your templates to add docker support.
+This can come in handy if your nodes cannot run Sysbox.
 
 > [!WARNING]
-> This is insecure. Workspaces will be able to gain root access to the host machine.
+> This is insecure.
+> Workspaces will be able to gain root access to the host machine.
 
 ### Use a privileged sidecar container in Docker-based templates
 
@@ -474,13 +545,10 @@ resource "kubernetes_pod" "main" {
 
 ## Systemd in Docker
 
-Additionally, [Sysbox](https://github.com/nestybox/sysbox) can be used to give
-workspaces full `systemd` capabilities.
+Additionally, [Sysbox](https://github.com/nestybox/sysbox) can be used to give workspaces full `systemd` capabilities.
 
-After
-[installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md),
-modify your template to use the sysbox-runc RuntimeClass. This requires the
-Kubernetes Terraform provider version 2.16.0 or greater.
+After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass.
+This requires the Kubernetes Terraform provider version 2.16.0 or greater.
 
 ```tf
 terraform {

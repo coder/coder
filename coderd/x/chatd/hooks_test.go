@@ -46,18 +46,24 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			LastModelConfigID: model.ID,
 		})
 
+		_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
+			ID: uuid.New(), UserID: user.ID, Name: "notes", Content: "---\nname: notes\ndescription: Notes\n---\n\nTake notes.\n",
+		})
+		require.NoError(t, err)
+		skill := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourcePersonal, "notes")
 		submitted := []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("before"),
 			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+			skill,
 		}
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
-			require.Equal(t, "before", data.Prompt)
+			require.Equal(t, "before /personal/notes", data.Prompt)
 			var hookParts []codersdk.ChatMessagePart
 			require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
-			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts")
+			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts without skill bodies")
 			require.NotNil(t, request.Meta.TurnID)
 			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only"}`))
 			require.NoError(t, err)
@@ -73,9 +79,12 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		require.NoError(t, err)
 		parts, err := chatprompt.ParseContent(result.Message)
 		require.NoError(t, err)
+		storedSkill := skill
+		storedSkill.SkillBody = "Take notes."
 		require.Equal(t, []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("after"),
 			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+			storedSkill,
 			{Type: codersdk.ChatMessagePartTypeHookContext, Text: "model only"},
 			{Type: codersdk.ChatMessagePartTypeHookNotice, Text: "user only"},
 		}, parts)
@@ -547,6 +556,136 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	require.True(t, foundContext)
 }
 
+// seedErroredChatWithQueuedMessage returns an errored chat (E1) with one
+// queued row, a state that admits EditQueuedMessage.
+func seedErroredChatWithQueuedMessage(t *testing.T, db database.Store, text string) (database.Chat, database.ChatQueuedMessage) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusError,
+	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        chat.ID,
+		Content:       content.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	return chat, queued
+}
+
+func queuedMessageParts(t *testing.T, queued database.ChatQueuedMessage) []codersdk.ChatMessagePart {
+	t.Helper()
+	parts, err := chatprompt.ParseContent(database.ChatMessage{
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: queued.Content, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	require.NoError(t, err)
+	return parts
+}
+
+func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
+	t.Parallel()
+
+	t.Run("override", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
+		var received agenthooks.Request
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"queued edit override"}},"model_context":"edit context","user_message":"edit notice"}`))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+		server := newHookTestServer(t, db, ps, consumer)
+
+		require.NoError(t, server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+			ChatID:          chat.ID,
+			QueuedMessageID: queued.ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		}))
+		require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
+		require.Equal(t, "edited", decodeHookData[agenthooks.UserPromptSubmitData](t, received).Prompt)
+		stored, err := db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued edit override"),
+			{Type: codersdk.ChatMessagePartTypeHookContext, Text: "edit context"},
+			{Type: codersdk.ChatMessagePartTypeHookNotice, Text: "edit notice"},
+		}, queuedMessageParts(t, stored))
+	})
+
+	t.Run("deny", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, err := w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+		server := newHookTestServer(t, db, ps, consumer)
+
+		err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+			ChatID:          chat.ID,
+			QueuedMessageID: queued.ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("blocked edit")},
+		})
+		var denied *chathooks.UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+		require.Equal(t, "blocked", denied.UserMessage)
+		stored, err := db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")}, queuedMessageParts(t, stored),
+			"a denied edit leaves the queued content unchanged")
+	})
+}
+
+// TestEditQueuedMessageUserPromptSubmitDispatchFailure: the hook
+// consumer removes the edited row and idles the chat before failing, so
+// the chat is waiting when the dispatch error returns. The failed edit
+// must not move that chat to error.
+func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, db.DeleteChatQueuedMessage(r.Context(), database.DeleteChatQueuedMessageParams{
+			ID: queued.ID, ChatID: chat.ID,
+		}))
+		_, err := db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queued.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	var dispatchErr *dispatch.Error
+	require.ErrorAs(t, err, &dispatchErr)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.LastError.Valid)
+}
+
 func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
@@ -726,39 +865,59 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 		})
 	}
 
-	t.Run("InterruptSkipsFullQueue", func(t *testing.T) {
-		t.Parallel()
+	// An interrupt from these states is inserted ahead of the queue, so a
+	// full queue does not refuse it before the hook dispatch.
+	for _, tc := range []struct {
+		name   string
+		status database.ChatStatus
+		// editing marks the queued row under edit, which P requires.
+		editing bool
+	}{
+		{name: "Error", status: database.ChatStatusError},
+		{name: "Paused", status: database.ChatStatusPaused, editing: true},
+	} {
+		t.Run("InterruptSkipsFullQueue/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		db, server, received := newPreflightServer(t, chatd.Limits{MaxQueuedMessagesPerChat: 1})
-		user, org, model := seedChatDependencies(t, db)
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
-			Status:            database.ChatStatusError,
-		})
+			db, server, received := newPreflightServer(t, chatd.Limits{MaxQueuedMessagesPerChat: 1})
+			user, org, model := seedChatDependencies(t, db)
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Status:            tc.status,
+			})
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
-		require.NoError(t, err)
-		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-			ChatID:        chat.ID,
-			Content:       queuedContent.RawMessage,
-			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-			CreatedBy:     user.ID,
-		})
-		require.NoError(t, err)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+			require.NoError(t, err)
+			queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+				ChatID:        chat.ID,
+				Content:       queuedContent.RawMessage,
+				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+				CreatedBy:     user.ID,
+			})
+			require.NoError(t, err)
+			if tc.editing {
+				_, err = db.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+					ID:      queued.ID,
+					ChatID:  chat.ID,
+					Editing: true,
+				})
+				require.NoError(t, err)
+			}
 
-		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:       chat.ID,
-			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("interrupt")},
-			BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+			result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:       chat.ID,
+				Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("interrupt")},
+				BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+			})
+			require.NoError(t, err)
+			require.False(t, result.Queued)
+			request := testutil.RequireReceive(ctx, t, received)
+			require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
 		})
-		require.NoError(t, err)
-		require.False(t, result.Queued)
-		request := testutil.RequireReceive(ctx, t, received)
-		require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
-	})
+	}
 }
 
 func TestSendMessageHooksDisabled(t *testing.T) {

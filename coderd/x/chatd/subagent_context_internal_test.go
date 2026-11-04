@@ -112,7 +112,8 @@ func TestSpawnComputerUseAgentInheritsPinnedContext(t *testing.T) {
 	// (OpenAI only) that was cached before the Anthropic provider was inserted.
 	server.configCache.InvalidateProviders()
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool)
 

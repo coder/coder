@@ -39,8 +39,10 @@ OPTIONS:
           chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable chat sharing. Chat ACL checking is disabled and only owners
-          can access their chats.
+          Disable chat and chat project sharing. Existing shares stop granting
+          access and new shares are rejected. Owners keep access to their own
+          chats and projects, and administrators keep only the access their
+          roles grant.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution
@@ -591,10 +593,6 @@ NETWORKING / HTTP OPTIONS:
           The maximum lifetime duration administrators can specify when creating
           an API token.
 
-      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
-          The interval in which coderd should be checking the status of
-          workspace proxies.
-
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
           longer if they are actively making requests, but this functionality
@@ -953,8 +951,8 @@ that data type.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.
+information before sending data to our servers. Only disable telemetry when
+required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage
@@ -1036,6 +1034,10 @@ These options are only available in the Enterprise Edition.
           operation it is recommended to only set one key unless you are in the
           process of rotating keys with the `coder server dbcrypt rotate`
           command.
+
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
 
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM

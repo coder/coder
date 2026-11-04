@@ -18,15 +18,15 @@ coder server fix-oidc-links [flags]
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### --postgres-url
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
@@ -35,7 +35,7 @@ URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will 
 
 ### --postgres-connection-auth
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>password\|awsiamrds</code>       |
 | Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
@@ -45,7 +45,7 @@ Type of auth to use when connecting to postgres.
 
 ### --issuer-url
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_OIDC_ISSUER_URL</code> |
@@ -54,7 +54,7 @@ The OIDC issuer URL. The canonical issuer is resolved via OIDC discovery.
 
 ### -n, --dry-run
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>bool</code>                          |
 | Environment | <code>$CODER_FIX_OIDC_LINKS_DRY_RUN</code> |
@@ -63,7 +63,7 @@ Print analysis only, do not modify the database.
 
 ### --force-reset-all
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>bool</code>                                  |
 | Environment | <code>$CODER_FIX_OIDC_LINKS_FORCE_RESET_ALL</code> |
