@@ -63,6 +63,7 @@ jobs:
     name: Build and publish
     needs: [check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: release
     permissions:
       # Required to publish a release
       contents: write
@@ -176,9 +177,13 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go node pnpm helm cosign syft"
+          # Depot caches are shared across branches; don't trust them here.
+          use-cache: "false"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+        with:
+          use-cache: "false"
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
@@ -578,8 +583,12 @@ jobs:
             ./build/*.apk
             ./build/*.deb
             ./build/*.rpm
-            "./coder_${VERSION}_sbom.spdx.json"
           )
+
+          # The SBOM is only generated for real releases.
+          if [[ $CODER_DRY_RUN != *t* ]]; then
+            files+=("./coder_${VERSION}_sbom.spdx.json")
+          fi
 
           # Only include the latest SBOM file if it was created
           if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
@@ -706,6 +715,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
+    environment: release-publish
 
     steps:
       - name: Harden Runner
@@ -782,6 +792,7 @@ jobs:
     runs-on: windows-latest
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    environment: release-publish
 
     steps:
       - name: Harden Runner
