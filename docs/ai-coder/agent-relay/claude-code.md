@@ -3,7 +3,8 @@ title: Agent Relay for Claude Code
 ---
 
 > [!NOTE]
-> Agent Relay for Claude Code is in [beta](../../reference/feature-stages.md#beta).
+> Agent Relay for Claude Code is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
+> To try it, [request a Premium trial](https://coder.com/trial).
 
 [Agent Relay](./index.md) connects [Claude Code](https://claude.ai/code) sessions to self-hosted Coder workspaces.
 Anthropic calls this self-hosted worker model [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments).
