@@ -749,7 +749,9 @@ func sessionTokenOrigins(ctx context.Context, client *codersdk.Client) []string 
 // sessionTokenDestinationTrusted reports whether appURL opens a known Coder
 // handler, its only `url` param is one of origins, and the placeholder is its
 // only `token`. It mirrors isSessionTokenDestinationTrusted in
-// site/src/modules/apps/apps.ts, which documents each check.
+// site/src/modules/apps/apps.ts, which documents each check. Both test suites
+// run the cases in site/src/modules/apps/sessionTokenDestinationCases.json, so
+// add new cases there.
 func sessionTokenDestinationTrusted(appURL string, origins []string) bool {
 	// IDEs and browsers strip some control characters, so `ur\tl` could
 	// become a second `url` param after this check.
