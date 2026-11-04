@@ -436,6 +436,11 @@ main() {
 		VERSION=${STABLE_VERSION}
 		echoh "Resolved stable version: v${VERSION}"
 	fi
+	if ! is_version "${VERSION-}" rc; then
+		echoerr "Invalid Coder version \"${VERSION-}\"."
+		echoerr "Expected a version like 2.28.0, without a leading v."
+		exit 1
+	fi
 
 	distro_name
 
@@ -582,8 +587,11 @@ with_terraform() {
 		exit 1
 	fi
 	# Each line looks like "<sha256>  terraform_<version>_<os>_<arch>.zip".
+	# Only well-formed lines are accepted, so the file can't smuggle another
+	# file name or version into the download and install commands below.
 	TERRAFORM_SUM=$(echo "$TERRAFORM_SHA256SUMS" | awk -v suffix="_${OS}_${TERRAFORM_ARCH}.zip" '
-		length($1) == 64 && $1 !~ /[^0-9a-f]/ && $2 ~ /^terraform_[0-9]+[.][0-9]+[.][0-9]+_/ &&
+		NF == 2 && length($1) == 64 && $1 !~ /[^0-9a-f]/ &&
+			$2 ~ /^terraform_[0-9]+[.][0-9]+[.][0-9]+_[a-z0-9]+_[a-z0-9]+[.]zip$/ &&
 			substr($2, length($2) - length(suffix) + 1) == suffix { print $1, $2; exit }
 	')
 	if [ ! "$TERRAFORM_SUM" ]; then
@@ -593,8 +601,14 @@ with_terraform() {
 		exit 1
 	fi
 	TERRAFORM_SHA256=${TERRAFORM_SUM%% *}
-	TERRAFORM_ZIP=${TERRAFORM_SUM#* }
-	TERRAFORM_VERSION=$(echo "$TERRAFORM_ZIP" | cut -d_ -f2)
+	TERRAFORM_VERSION=$(echo "${TERRAFORM_SUM#* }" | cut -d_ -f2)
+	if ! is_version "$TERRAFORM_VERSION"; then
+		echoh
+		echoerr "The Coder repository has an invalid Terraform version \"$TERRAFORM_VERSION\"."
+		exit 1
+	fi
+	# Build the file name from validated parts instead of using it verbatim.
+	TERRAFORM_ZIP="terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
 	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
 	echoh
 
@@ -629,17 +643,23 @@ with_terraform() {
 # fetch_terraform_sha256sums prints provisioner/terraform/terraform_SHA256SUMS
 # from the Coder repository: HashiCorp's checksum file for the Terraform version
 # bundled with Coder. It reads the file at the tag of the Coder release being
-# installed, and falls back to main for releases from before the file existed.
+# installed, and falls back to main only if that tag doesn't have the file
+# (releases from before it existed). Fully qualified refs make sure a branch
+# named like the tag, or a tag named main, can't be read instead.
 fetch_terraform_sha256sums() {
-	for ref in "v${VERSION}" main; do
-		if curl -fsSL "https://raw.githubusercontent.com/coder/coder/${ref}/provisioner/terraform/terraform_SHA256SUMS" 2>/dev/null; then
-			if [ "$ref" = main ]; then
-				echoh "Coder v${VERSION} doesn't pin Terraform checksums; using the ones from main." >&2
-			fi
-			return 0
-		fi
-	done
-	return 1
+	sums_path=provisioner/terraform/terraform_SHA256SUMS
+	sums_response=$(curl -sSL -w "\n%{http_code}" "https://raw.githubusercontent.com/coder/coder/refs/tags/v${VERSION}/${sums_path}") || return 1
+	sums_status=$(echo "$sums_response" | tail -n1)
+	if [ "$sums_status" = 200 ]; then
+		echo "$sums_response" | sed '$d'
+		return 0
+	fi
+	if [ "$sums_status" != 404 ]; then
+		echoerr "Downloading the Terraform checksums for Coder v${VERSION} returned status code: ${sums_status}"
+		return 1
+	fi
+	echoh "Coder v${VERSION} doesn't pin Terraform checksums; using the ones from main." >&2
+	curl -fsSL "https://raw.githubusercontent.com/coder/coder/refs/heads/main/${sums_path}"
 }
 
 # sha256_file prints the SHA256 checksum of a file.
@@ -876,28 +896,59 @@ command_exists() {
 	command -v "$@" >/dev/null
 }
 
+# sh_c prints and runs a command. The arguments are run as-is, never re-parsed
+# by a shell, so a path or version can't turn into extra shell commands.
 sh_c() {
 	echoh "+ $*"
 	if [ ! "${DRY_RUN-}" ]; then
-		sh -c "$*"
+		"$@"
 	fi
 }
 
+# sudo_sh_c runs a command as root with sh_c.
 sudo_sh_c() {
 	if [ "$(id -u)" = 0 ]; then
 		sh_c "$@"
 	elif command_exists sudo; then
-		sh_c "sudo $*"
+		sh_c sudo "$@"
 	elif command_exists doas; then
-		sh_c "doas $*"
+		sh_c doas "$@"
 	elif command_exists su; then
-		sh_c "su - -c '$*'"
+		# su only takes a command string, so quote every argument for its shell.
+		sh_c su - -c "$(quote_args "$@")"
 	else
 		echoh
 		echoerr "This script needs to run the following command as root."
 		echoerr "  $*"
 		echoerr "Please install sudo, su, or doas."
 		exit 1
+	fi
+}
+
+# quote_args prints its arguments as one shell command line, with every
+# argument single-quoted so the shell runs it verbatim.
+quote_args() {
+	quoted_args=
+	for quote_arg in "$@"; do
+		# Turn each ' into '\'' (end the quote, add a literal ', reopen it). The x
+		# keeps $(...) from dropping trailing newlines.
+		quote_arg=$(printf '%sx' "$quote_arg" | sed "s/'/'\\\\''/g")
+		quoted_args="$quoted_args '${quote_arg%x}'"
+	done
+	printf '%s\n' "${quoted_args# }"
+}
+
+# is_version reports whether $1 is a MAJOR.MINOR.PATCH version. With "rc" as
+# $2, a Coder release candidate (MAJOR.MINOR.PATCH-rc.N) is accepted too.
+# Versions end up in URLs, file names and commands, so nothing else is allowed.
+is_version() {
+	case $1 in
+	"" | *[!0-9a-z.-]*) return 1 ;;
+	esac
+	if [ "${2-}" = rc ]; then
+		printf '%s\n' "$1" | grep -Eq '^[0-9]+[.][0-9]+[.][0-9]+(-rc[.][0-9]+)?$'
+	else
+		printf '%s\n' "$1" | grep -Eq '^[0-9]+[.][0-9]+[.][0-9]+$'
 	fi
 }
 
