@@ -3,7 +3,8 @@ title: Troubleshoot Agent Relay
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../../reference/feature-stages.md#beta).
+> Agent Relay is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
+> To try it, [request a Premium trial](https://coder.com/trial).
 
 This page is for Coder administrators who diagnose Agent Relay problems for Claude Code, Cursor, and Slack.
 Entries that apply to one provider say so.

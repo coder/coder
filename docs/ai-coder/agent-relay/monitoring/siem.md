@@ -3,7 +3,8 @@ title: Send Agent Relay logs to a SIEM
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../../../reference/feature-stages.md#beta).
+> Agent Relay is in [beta](../../../reference/feature-stages.md#beta) and requires a Premium license.
+> To try it, [request a Premium trial](https://coder.com/trial).
 > Log messages and fields can change between beta releases.
 
 This page is for teams that ingest Agent Relay logs into a security information and event management (SIEM) system or another log platform that reads JSON lines.

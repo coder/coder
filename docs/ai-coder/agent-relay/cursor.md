@@ -3,7 +3,8 @@ title: Agent Relay for Cursor
 ---
 
 > [!NOTE]
-> Agent Relay for Cursor is in [beta](../../reference/feature-stages.md#beta).
+> Agent Relay for Cursor is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
+> To try it, [request a Premium trial](https://coder.com/trial).
 
 [Agent Relay](./index.md) connects [Cursor Cloud Agents](https://cursor.com/cloud) to self-hosted Coder workspaces.
 Cursor calls this self-hosted worker model [self-hosted machines](https://cursor.com/docs/cloud-agent/self-hosted).
