@@ -2,13 +2,23 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.0"
+      version = ">= 2.4.0, < 3.0.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
       version = "~> 3.6"
     }
   }
+}
+
+variable "coder_url" {
+  type        = string
+  default     = ""
+  description = "Optional Coder URL for agent downloads and connections. For local development, use http://127.0.0.1:3000; Docker maps loopback to host.docker.internal. Empty uses the deployment URL."
+}
+
+provider "coder" {
+  url = var.coder_url != "" ? var.coder_url : null
 }
 
 variable "docker_socket" {
@@ -24,6 +34,16 @@ variable "claude_auth_file" {
   validation {
     condition     = var.claude_auth_file == "" || startswith(var.claude_auth_file, "/")
     error_message = "Use an absolute path on the Docker host."
+  }
+}
+
+variable "openai_base_url" {
+  type        = string
+  default     = ""
+  description = "Optional HTTPS OpenAI-compatible gateway URL, copied from the publishing workspace's OPENAI_BASE_URL. Do not include credentials. Empty uses the native default."
+  validation {
+    condition     = can(regex("^$|^https://[^/?#@[:space:]]+(/[^?#[:space:]]*)?$", var.openai_base_url))
+    error_message = "Use an HTTPS URL without embedded credentials, a query, or a fragment."
   }
 }
 
@@ -86,25 +106,22 @@ data "coder_parameter" "repository" {
   }
 }
 
-data "coder_parameter" "model" {
-  name         = "model"
-  display_name = "Claude model"
-  description  = "Model for Claude jobs only. Codex and OpenCode use their native configuration defaults."
+data "coder_parameter" "native_model" {
+  name         = "native_model"
+  display_name = "Model"
+  description  = "Initial model for the selected harness. Requires provider access; existing native configuration takes precedence."
   type         = "string"
-  default      = "haiku"
+  form_type    = "dropdown"
+  default      = local.model_defaults[data.coder_parameter.harness.value]
   mutable      = false
   order        = 3
-  option {
-    name  = "Haiku"
-    value = "haiku"
-  }
-  option {
-    name  = "Sonnet"
-    value = "sonnet"
-  }
-  option {
-    name  = "Opus"
-    value = "opus"
+
+  dynamic "option" {
+    for_each = local.model_options[data.coder_parameter.harness.value]
+    content {
+      name  = option.value
+      value = option.key
+    }
   }
 }
 
@@ -113,7 +130,7 @@ data "coder_parameter" "trust_project" {
   display_name = "Trust this project"
   description  = "Allow the selected native harness to load this project's instructions and configuration at startup. Required for unattended launch. Native tool approvals and sandbox settings are not bypassed."
   type         = "bool"
-  default      = "false"
+  default      = "true"
   mutable      = false
   order        = 4
 }
@@ -134,7 +151,7 @@ resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
   dir  = "/home/coder/project"
-  env = {
+  env = merge({
     HOME            = "/home/coder"
     PATH            = "/opt/coder/bin:/home/coder/.local/bin:/usr/local/bin:/usr/bin:/bin"
     CODEX_HOME      = "/home/coder/.codex"
@@ -146,13 +163,15 @@ resource "coder_agent" "main" {
     CODER_NATIVE_JOB_HARNESS       = data.coder_parameter.harness.value
     CODER_NATIVE_JOB_PROMPT_BASE64 = base64encode(data.coder_parameter.prompt.value)
     CODER_NATIVE_JOB_REPO_BASE64   = base64encode(data.coder_parameter.repository.value)
-    CODER_NATIVE_JOB_MODEL         = data.coder_parameter.model.value
+    CODER_NATIVE_JOB_MODEL         = data.coder_parameter.native_model.value
     CODER_NATIVE_JOB_TRUST         = data.coder_parameter.trust_project.value
     GIT_AUTHOR_NAME                = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL               = data.coder_workspace_owner.me.email
     GIT_COMMITTER_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL            = data.coder_workspace_owner.me.email
-  }
+    }, var.openai_base_url != "" ? {
+    OPENAI_BASE_URL = var.openai_base_url
+  } : {})
 }
 
 resource "coder_script" "job" {

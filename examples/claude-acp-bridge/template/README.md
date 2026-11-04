@@ -71,9 +71,8 @@ The exact generated helper `node /opt/native-agent/read-auth.mjs` is migrated to
 helpers and existing credentials are not replaced. This repair also runs before
 a legacy initial job is rejected.
 
-The Claude model parameter initializes new settings only. Existing settings take
-precedence. Existing Claude configuration must already trust the project;
-otherwise open Claude in the project and confirm trust yourself.
+The model parameter initializes new settings only; existing settings take precedence.
+Existing Claude configuration must already trust the project; otherwise open Claude in the project and confirm trust yourself.
 
 ### Codex
 
@@ -83,6 +82,13 @@ the private JSON file selected by `claude_auth_file`. Despite its name, this
 read-only mount supports Codex credentials, Claude credentials, or both together.
 Only the host file path enters Terraform; the template never reads key contents
 into variables or the agent manifest.
+
+For the local demo, `OPENAI_API_KEY` is copied from the publishing workspace into the private host mount, not into Terraform variables.
+When that key is a Coder AI Gateway token, also set `openai_base_url` from the publishing workspace's `OPENAI_BASE_URL`.
+Startup writes this nonsecret endpoint to Codex's `config.toml`; the pinned Codex version doesn't use the environment variable alone for inference routing.
+When a gateway is configured, startup also provisions missing Codex authentication for terminal use, even when Claude or OpenCode owns the initial job. Existing Codex authentication is preserved.
+An existing different endpoint is rejected rather than silently sending the token elsewhere.
+The mount is a snapshot of the publishing workspace's credentials; refresh it when those credentials expire.
 
 Setup passes a mounted OpenAI key to `codex login --with-api-key` on stdin,
 without logging native output or forwarding the key in child environments.
@@ -115,9 +121,10 @@ Provision an authorized provider and model in
 referenced from private sidecar files rather than embedded in the template.
 Native connected accounts and sessions are retained in
 `data/opencode/opencode.db`; do not edit or copy a live database.
-Setup does not modify provider settings or preflight a model. If authentication
-or a default model is unavailable, inspect the session and use the native TUI's
-`/connect` and `/models` commands. No initial task is automatically retried.
+Setup initializes the selected model only when neither a global `opencode.json` nor `opencode.jsonc` exists.
+It doesn't modify existing provider settings or preflight a model.
+If authentication or the selected model is unavailable, inspect the session and use the native TUI's `/connect` and `/models` commands.
+No initial task is automatically retried.
 
 ## Publish and use
 
@@ -134,9 +141,31 @@ For mounted Claude or Codex authentication, supply the host path through
 `claude_auth_file` in the template variable workflow. Do not replace another
 user's template or demo workspace.
 
-Create a workspace and select the immutable **Native harness**, **Initial
-prompt**, optional public HTTPS **Repository URL**, and **Claude model**.
-Explicitly select **Trust this project** to allow unattended setup. This permits
+For local development, publish with the repository CLI and a loopback Coder URL:
+
+```sh
+./scripts/coder-dev.sh templates push native-agent-job \
+  --directory examples/claude-acp-bridge/template \
+  --variable coder_url=http://127.0.0.1:3000
+```
+
+The `coder_url` override controls the agent download and connection URL without changing the deployment's public URL.
+The container maps loopback to `host.docker.internal`, so downloads go directly to the local host rather than through the public tunnel.
+Leave this variable empty on other deployments to use their configured URL.
+
+Create a workspace and select the immutable **Native harness**, **Initial prompt**, optional public HTTPS **Repository URL**, and **Model**.
+The model dropdown updates when you change the harness: Claude Code offers Claude models, Codex offers OpenAI models, and OpenCode offers both with their provider prefixes.
+The [model catalog](models.json) contains current, non-deprecated coding models, not image-only, audio-only, embedding, or approval-gated models.
+It was checked against the [Claude model catalog](https://platform.claude.com/docs/en/about-claude/models/overview), [OpenAI model catalog](https://developers.openai.com/api/docs/models), and [Codex availability](https://developers.openai.com/codex/models) on October 28, 2026.
+Update this file and republish the template to change the options; rendering the form doesn't make live provider requests.
+Options labeled **API key** aren't available through ChatGPT-authenticated Codex.
+Availability still depends on your provider account, gateway, and the pinned harness version; choosing a model doesn't provision access to it.
+The selection initializes native settings only when they don't already exist, and doesn't change models in retained conversations.
+The parameter uses the name `native_model` so upgrading workspaces with the older immutable `model` parameter remains supported.
+Upgrades preserve existing native configuration and never resubmit the initial task.
+For Codex, setup creates `CODEX_HOME/config.toml` with the chosen model if that file is absent.
+
+**Trust this project** is selected by default to allow unattended setup. Uncheck it if you don't trust the project. This permits
 loading project instructions and configuration, not bypassing native tool
 approvals or sandbox permissions. Inspect the repository before trusting it.
 Coder stores the prompt parameter, so do not include secrets.

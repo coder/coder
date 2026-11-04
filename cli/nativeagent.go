@@ -502,6 +502,10 @@ func nativeTemplateSetup(inv *serpent.Invocation, stateDir string, job *agentnat
 	if inv.Environ.Get("CODER_NATIVE_JOB_TRUST") != "true" {
 		return xerrors.New("select Trust this project before unattended setup; native tool permissions are not bypassed")
 	}
+	model := inv.Environ.Get("CODER_NATIVE_JOB_MODEL")
+	if err := nativeValidateModel(job.Harness, model); err != nil {
+		return err
+	}
 	repository, err := nativeDecodeParameter(inv.Environ.Get("CODER_NATIVE_JOB_REPO_BASE64"))
 	if err != nil {
 		return err
@@ -533,6 +537,34 @@ func nativeTemplateSetup(inv *serpent.Invocation, stateDir string, job *agentnat
 		}
 		return nil
 	}
+	// Reject unsafe model settings before changing the project or authentication.
+	var codexHome string
+	switch job.Harness {
+	case "codex":
+		codexHome = inv.Environ.Get("CODEX_HOME")
+		if codexHome == "" {
+			codexHome = filepath.Join(home, ".codex")
+			env = append(env, "CODEX_HOME="+codexHome)
+		}
+		if !filepath.IsAbs(codexHome) {
+			return xerrors.New("CODEX_HOME must be absolute")
+		}
+		if err := nativePrivateDirectory(codexHome); err != nil {
+			return err
+		}
+		if err := nativeSetupModelConfig(codexHome, job.Harness, model); err != nil {
+			return err
+		}
+	case "opencode":
+		for _, path := range []string{"", "config", "data", "state", "cache", "tmp"} {
+			if err := nativePrivateDirectory(filepath.Join(stateDir, "opencode-home", path)); err != nil {
+				return err
+			}
+		}
+		if err := nativeSetupModelConfig(filepath.Join(stateDir, "opencode-home", "config", "opencode"), job.Harness, model); err != nil {
+			return err
+		}
+	}
 	if info, err := os.Lstat(job.Cwd); errors.Is(err, os.ErrNotExist) {
 		if repository == "" {
 			err = os.MkdirAll(job.Cwd, 0o700)
@@ -551,19 +583,8 @@ func nativeTemplateSetup(inv *serpent.Invocation, stateDir string, job *agentnat
 	}
 	switch job.Harness {
 	case "claude":
-		return nativeSetupClaude(home, job.Cwd, inv.Environ.Get("CODER_NATIVE_JOB_MODEL"), mount)
+		return nativeSetupClaude(home, job.Cwd, model, mount)
 	case "codex":
-		codexHome := inv.Environ.Get("CODEX_HOME")
-		if codexHome == "" {
-			codexHome = filepath.Join(home, ".codex")
-			env = append(env, "CODEX_HOME="+codexHome)
-		}
-		if !filepath.IsAbs(codexHome) {
-			return xerrors.New("CODEX_HOME must be absolute")
-		}
-		if err := nativePrivateDirectory(codexHome); err != nil {
-			return err
-		}
 		authFile := filepath.Join(codexHome, "auth.json")
 		if _, err := nativeReadPrivate(authFile); err == nil {
 			return run("codex", []string{"login", "status"}, "")
@@ -586,17 +607,14 @@ func nativeTemplateSetup(inv *serpent.Invocation, stateDir string, job *agentnat
 		if _, err := nativeReadPrivate(authFile); err != nil {
 			return xerrors.New("native Codex login did not create private authentication")
 		}
-	case "opencode":
-		for _, path := range []string{"", "config", "data", "state", "cache", "tmp"} {
-			if err := nativePrivateDirectory(filepath.Join(stateDir, "opencode-home", path)); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }
 
 func nativeSetupClaude(home, project, model, mount string) error {
+	if err := nativeValidateModel("claude", model); err != nil {
+		return err
+	}
 	if err := nativeMigrateClaudeHelper(home); err != nil {
 		return err
 	}
@@ -663,9 +681,6 @@ func nativeSetupClaude(home, project, model, mount string) error {
 	if !hasSettings {
 		if model == "" {
 			model = "haiku"
-		}
-		if model != "haiku" && model != "sonnet" && model != "opus" {
-			return xerrors.New("choose the haiku, sonnet, or opus Claude model")
 		}
 		settings["model"] = model
 		data, _ := json.Marshal(settings)

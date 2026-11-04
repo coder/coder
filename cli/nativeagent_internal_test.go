@@ -547,6 +547,7 @@ printf private-test-key >&2
 			stdout, stderr, err := invokeNativeWithAuthFile(t, home, mount, []string{
 				"PATH=" + bin, "CODEX_HOME=" + codexHome, "CODER_AGENT_TOKEN=private-agent-key",
 				"CODER_NATIVE_JOB_HARNESS=codex", "CODER_NATIVE_JOB_TRUST=true", "CODER_NATIVE_JOB_PROMPT_BASE64=dGFzaw==",
+				"CODER_NATIVE_JOB_MODEL=gpt-5.3-codex",
 				"CODER_NATIVE_JOB_CODEX_API_KEY_BASE64=" + base64.StdEncoding.EncodeToString([]byte("ignored-legacy-key")),
 			}, "configure", "--setup")
 			require.NoError(t, err)
@@ -556,8 +557,11 @@ printf private-test-key >&2
 			data, err := nativeReadPrivate(filepath.Join(codexHome, "auth.json"))
 			require.NoError(t, err)
 			if existing {
-				require.JSONEq(t, `{"retained":"auth"}`, string(data))
+				require.Equal(t, `{"retained":"auth"}`, string(data))
 			}
+			data, err = nativeReadPrivate(filepath.Join(codexHome, "config.toml"))
+			require.NoError(t, err)
+			require.Equal(t, "model = \"gpt-5.3-codex\"\n", string(data))
 		})
 	}
 }
@@ -637,12 +641,314 @@ func TestNativeAgentClaudeSetup(t *testing.T) {
 				require.Contains(t, string(original), "coder native-agent read-auth")
 				require.NotContains(t, string(original), secret)
 			}
+			preserved := map[string][]byte{file: original}
+			paths := []string{filepath.Join(home, ".claude.json")}
+			if kind == "oauth" {
+				paths = append(paths, filepath.Join(home, ".claude", ".credentials.json"))
+			}
+			for _, path := range paths {
+				preserved[path], err = nativeReadPrivate(path)
+				require.NoError(t, err)
+			}
 			// Removing the mount or changing a model must not replace native auth.
 			require.NoError(t, os.Remove(mount))
-			require.NoError(t, nativeSetupClaude(home, project, "opus", mount))
-			after, err := nativeReadPrivate(file)
-			require.NoError(t, err)
-			require.Equal(t, original, after)
+			for _, model := range []string{"", "opus", "fable", "best", "claude-sonnet-4-6"} {
+				require.NoError(t, nativeSetupClaude(home, project, model, mount))
+				for path, before := range preserved {
+					after, err := nativeReadPrivate(path)
+					require.NoError(t, err)
+					require.Equal(t, before, after)
+				}
+			}
 		})
+	}
+}
+
+func TestNativeAgentModelCatalog(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../examples/claude-acp-bridge/template/models.json")
+	require.NoError(t, err)
+	var catalog map[string]map[string]string
+	require.NoError(t, json.Unmarshal(data, &catalog))
+	require.Len(t, catalog, 3)
+	for _, group := range []string{"claude_aliases", "anthropic", "openai"} {
+		require.NotEmpty(t, catalog[group])
+		for id := range catalog[group] {
+			t.Run(group+"/"+id, func(t *testing.T) {
+				t.Parallel()
+				switch group {
+				case "claude_aliases":
+					require.NoError(t, nativeValidateModel("claude", id))
+					require.Error(t, nativeValidateModel("codex", id))
+					require.Error(t, nativeValidateModel("opencode", "anthropic/"+id))
+				case "anthropic":
+					require.NoError(t, nativeValidateModel("claude", id))
+					require.NoError(t, nativeValidateModel("opencode", "anthropic/"+id))
+					require.Error(t, nativeValidateModel("codex", id))
+					require.Error(t, nativeValidateModel("opencode", "openai/"+id))
+				case "openai":
+					require.NoError(t, nativeValidateModel("codex", id))
+					require.NoError(t, nativeValidateModel("opencode", "openai/"+id))
+					require.Error(t, nativeValidateModel("claude", id))
+					require.Error(t, nativeValidateModel("opencode", "anthropic/"+id))
+				}
+			})
+		}
+	}
+}
+
+func TestNativeAgentModelSetup(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
+	for _, test := range []struct {
+		harness, model, want string
+	}{
+		{harness: "claude", want: "haiku"},
+		{harness: "claude", model: "haiku", want: "haiku"},
+		{harness: "claude", model: "sonnet", want: "sonnet"},
+		{harness: "claude", model: "opus", want: "opus"},
+		{harness: "claude", model: "fable", want: "fable"},
+		{harness: "claude", model: "best", want: "best"},
+		{harness: "claude", model: "claude-sonnet-4-5-20250929", want: "claude-sonnet-4-5-20250929"},
+		{harness: "claude", model: "claude-opus-4-6", want: "claude-opus-4-6"},
+		{harness: "codex"},
+		{harness: "codex", model: "gpt-5.3-codex", want: "gpt-5.3-codex"},
+		{harness: "codex", model: "o3", want: "o3"},
+		{harness: "codex", model: "codex-mini-latest", want: "codex-mini-latest"},
+		{harness: "opencode"},
+		{harness: "opencode", model: "anthropic/claude-sonnet-4-6", want: "anthropic/claude-sonnet-4-6"},
+		{harness: "opencode", model: "openai/gpt-5.3-codex", want: "openai/gpt-5.3-codex"},
+	} {
+		t.Run(test.harness+"/"+test.model, func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			stateDir := filepath.Join(home, "native-state")
+			mount := filepath.Join(home, "mount.json")
+			require.NoError(t, os.WriteFile(mount, []byte(`{"ANTHROPIC_API_KEY":"private-test-key"}`), 0o600))
+			codexHome := filepath.Join(home, "custom-codex")
+			bin := t.TempDir()
+			if test.harness == "codex" {
+				require.NoError(t, os.Mkdir(codexHome, 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(codexHome, "auth.json"), []byte(`{"retained":"auth"}`), 0o600))
+				require.NoError(t, os.WriteFile(filepath.Join(bin, "codex"), []byte("#!/bin/sh\n[ \"$1 $2\" = 'login status' ]\n"), 0o600))
+				require.NoError(t, os.Chmod(filepath.Join(bin, "codex"), 0o700))
+			}
+			configPath := filepath.Join(home, ".claude", "settings.json")
+			switch test.harness {
+			case "codex":
+				configPath = filepath.Join(codexHome, "config.toml")
+			case "opencode":
+				configPath = filepath.Join(stateDir, "opencode-home", "config", "opencode", "opencode.json")
+			}
+			env := []string{
+				"PATH=" + bin, "CODEX_HOME=" + codexHome,
+				"CODER_NATIVE_JOB_HARNESS=" + test.harness,
+				"CODER_NATIVE_JOB_MODEL=" + test.model,
+				"CODER_NATIVE_JOB_TRUST=true", "CODER_NATIVE_JOB_PROMPT_BASE64=dGFzaw==",
+			}
+			_, _, err := invokeNativeWithAuthFile(t, home, mount, env, "--state-dir", stateDir, "configure", "--setup")
+			require.NoError(t, err)
+			if test.want == "" {
+				require.NoFileExists(t, configPath, "an unselected model must keep the native default")
+				nextModel := "gpt-5.3-codex"
+				if test.harness == "opencode" {
+					nextModel = "openai/" + nextModel
+				}
+				env = append(env, "CODER_NATIVE_JOB_MODEL="+nextModel, "PATH="+t.TempDir())
+				_, _, err = invokeNativeWithAuthFile(t, home, mount, env, "--state-dir", stateDir, "configure", "--setup")
+				require.NoError(t, err)
+				require.NoFileExists(t, configPath, "a retained job must not initialize settings on a later startup")
+				return
+			}
+			data, err := nativeReadPrivate(configPath)
+			require.NoError(t, err)
+			if test.harness == "codex" {
+				require.Equal(t, "model = \""+test.want+"\"\n", string(data))
+			} else {
+				var config map[string]any
+				require.NoError(t, json.Unmarshal(data, &config))
+				require.Equal(t, test.want, config["model"])
+				if test.harness == "opencode" {
+					require.Equal(t, "https://opencode.ai/config.json", config["$schema"])
+				}
+			}
+			info, err := os.Stat(configPath)
+			require.NoError(t, err)
+			require.EqualValues(t, 0o600, info.Mode().Perm())
+			// Retained job configuration must skip all model/auth setup, even
+			// with an obsolete model parameter from an older template.
+			env = append(env, "CODER_NATIVE_JOB_MODEL=haiku", "PATH="+t.TempDir())
+			_, _, err = invokeNativeWithAuthFile(t, home, mount, env, "--state-dir", stateDir, "configure", "--setup")
+			require.NoError(t, err)
+			after, err := os.ReadFile(configPath)
+			require.NoError(t, err)
+			require.Equal(t, data, after)
+		})
+	}
+}
+
+func TestNativeAgentRejectsInvalidModelBeforeSetup(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
+	for _, test := range []struct {
+		harness string
+		models  []string
+	}{
+		{"claude", []string{"gpt-5.3-codex", "anthropic/claude-sonnet-4-6", "claude-", "claude-sonnet\nmodel", `claude-sonnet"`, "claude-sonnet\x01", "claude-sonnet\x7f"}},
+		{"codex", []string{"haiku", "claude-sonnet-4-6", "openai/gpt-5.3-codex", "gpt-", "gpt-5\nmodel", `gpt-5"`, "gpt-5\x01", "gpt-5\x7f", "gpt-5'", "gpt-5\\x", " gpt-5"}},
+		{"opencode", []string{"haiku", "gpt-5.3-codex", "anthropic/gpt-5", "openai/claude-sonnet-4-6", "google/gemini-2.5-pro", "openrouter/anthropic/claude-sonnet-4-6", "openai/gpt-5#high", "anthropic/claude-sonnet\nmodel", `openai/gpt-5"`, "openai/gpt-5\x01"}},
+	} {
+		for _, model := range test.models {
+			t.Run(test.harness+"/"+model, func(t *testing.T) {
+				t.Parallel()
+				home := t.TempDir()
+				_, _, err := invokeNative(t, home, []string{
+					"PATH=" + t.TempDir(), "CODER_NATIVE_JOB_HARNESS=" + test.harness,
+					"CODER_NATIVE_JOB_MODEL=" + model,
+					"CODER_NATIVE_JOB_TRUST=true", "CODER_NATIVE_JOB_PROMPT_BASE64=dGFzaw==",
+				}, "configure", "--setup")
+				require.ErrorContains(t, err, "model")
+				require.NoDirExists(t, filepath.Join(home, "project"))
+				require.NoFileExists(t, filepath.Join(home, ".claude", ".credentials.json"))
+				require.NoFileExists(t, filepath.Join(home, ".codex", "auth.json"))
+				require.NoFileExists(t, filepath.Join(agentnative.DefaultStateDir(home), "config.json"))
+			})
+		}
+	}
+}
+
+func TestNativeAgentPreservesModelConfig(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
+	for _, format := range []string{"toml", "json", "jsonc", "both"} {
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			stateDir := agentnative.DefaultStateDir(home)
+			harness, model := "opencode", "openai/gpt-5.3-codex"
+			root := filepath.Join(stateDir, "opencode-home", "config", "opencode")
+			files := map[string]string{}
+			if format == "toml" {
+				harness, model = "codex", "gpt-5.3-codex"
+				root = filepath.Join(home, ".codex")
+				files["config.toml"] = "# user settings\nmodel = 'user-model'\n[features]\ncustom = true\n"
+			} else {
+				if format != "jsonc" {
+					files["opencode.json"] = "{\n  \"model\": \"custom/user-model\", \"unknown\": 9007199254740993\n}\n"
+				}
+				if format != "json" {
+					files["opencode.jsonc"] = "{\n // user settings\n \"model\": \"custom/other-model\",\n}\n"
+				}
+			}
+			require.NoError(t, os.MkdirAll(root, 0o700))
+			for name, contents := range files {
+				require.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(contents), 0o600))
+			}
+			authFile := filepath.Join(home, ".codex", "auth.json")
+			if harness == "opencode" {
+				authFile = filepath.Join(stateDir, "opencode-home", "data", "opencode", "auth.json")
+			}
+			require.NoError(t, os.MkdirAll(filepath.Dir(authFile), 0o700))
+			auth := []byte("{\n  \"retained\": \"private authentication\"\n}\n")
+			require.NoError(t, os.WriteFile(authFile, auth, 0o600))
+			bin := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(bin, "codex"), []byte("#!/bin/sh\n[ \"$1 $2\" = 'login status' ]\n"), 0o600))
+			require.NoError(t, os.Chmod(filepath.Join(bin, "codex"), 0o700))
+			for _, selection := range []string{"", model} {
+				// Exercise initialization independently of retained-job skipping.
+				require.NoError(t, nativeSetupModelConfig(root, harness, selection))
+				_, _, err := invokeNative(t, home, []string{
+					"PATH=" + bin, "CODER_NATIVE_JOB_HARNESS=" + harness, "CODER_NATIVE_JOB_MODEL=" + selection,
+					"CODER_NATIVE_JOB_TRUST=true", "CODER_NATIVE_JOB_PROMPT_BASE64=dGFzaw==",
+				}, "configure", "--setup")
+				require.NoError(t, err)
+				for name, contents := range files {
+					data, err := os.ReadFile(filepath.Join(root, name))
+					require.NoError(t, err)
+					require.Equal(t, contents, string(data))
+				}
+				data, err := os.ReadFile(authFile)
+				require.NoError(t, err)
+				require.Equal(t, auth, data)
+			}
+			if format == "jsonc" {
+				require.NoFileExists(t, filepath.Join(root, "opencode.json"))
+			}
+		})
+	}
+}
+
+func TestNativeAgentRejectsUnsafeModelConfig(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
+	for _, format := range []string{"toml", "json", "jsonc"} {
+		for _, kind := range []string{"public-file", "symlink-file", "dangling-symlink", "directory-file", "public-dir", "symlink-dir"} {
+			t.Run(format+"/"+kind, func(t *testing.T) {
+				t.Parallel()
+				home := t.TempDir()
+				stateDir := agentnative.DefaultStateDir(home)
+				harness, model := "opencode", "anthropic/claude-sonnet-4-6"
+				root := filepath.Join(stateDir, "opencode-home", "config", "opencode")
+				name := "opencode." + format
+				if format == "toml" {
+					harness, model = "codex", "gpt-5.3-codex"
+					root, name = filepath.Join(home, ".codex"), "config.toml"
+				}
+				require.NoError(t, os.MkdirAll(root, 0o700))
+				file := filepath.Join(root, name)
+				original := []byte("private user configuration")
+				require.NoError(t, os.WriteFile(file, original, 0o600))
+				switch kind {
+				case "public-file":
+					require.NoError(t, os.Chmod(file, 0o644))
+				case "symlink-file", "dangling-symlink":
+					require.NoError(t, os.Rename(file, file+".target"))
+					target := file + ".target"
+					if kind == "dangling-symlink" {
+						target = file + ".missing"
+					}
+					require.NoError(t, os.Symlink(target, file))
+				case "directory-file":
+					require.NoError(t, os.Remove(file))
+					require.NoError(t, os.Mkdir(file, 0o700))
+				case "public-dir":
+					require.NoError(t, os.Chmod(root, 0o755))
+				case "symlink-dir":
+					require.NoError(t, os.Rename(root, root+".target"))
+					require.NoError(t, os.Symlink(root+".target", root))
+				}
+				if format == "jsonc" {
+					// A safe JSON file must not hide an unsafe JSONC file.
+					require.NoError(t, os.WriteFile(filepath.Join(root, "opencode.json"), []byte("{}\n"), 0o600))
+				}
+				for range 2 {
+					_, _, err := invokeNative(t, home, []string{
+						"PATH=" + t.TempDir(), "CODER_NATIVE_JOB_HARNESS=" + harness, "CODER_NATIVE_JOB_MODEL=" + model,
+						"CODER_NATIVE_JOB_TRUST=true", "CODER_NATIVE_JOB_PROMPT_BASE64=dGFzaw==",
+					}, "configure", "--setup")
+					require.Error(t, err)
+					require.NoDirExists(t, filepath.Join(home, "project"))
+					require.NoFileExists(t, filepath.Join(home, ".codex", "auth.json"))
+					require.NoFileExists(t, filepath.Join(stateDir, "config.json"))
+				}
+				if kind != "directory-file" {
+					preserved := file
+					if kind == "dangling-symlink" {
+						preserved = file + ".target"
+					}
+					data, err := os.ReadFile(preserved)
+					require.NoError(t, err)
+					require.Equal(t, original, data)
+				}
+			})
+		}
 	}
 }
