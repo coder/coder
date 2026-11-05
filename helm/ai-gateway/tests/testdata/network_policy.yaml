@@ -17,10 +17,11 @@ networkPolicy:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: ingress-nginx
-  extraIngress:
-    - ports:
-        - port: 2112
-          protocol: TCP
+  prometheus:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
   egress:
     enable: true
   extraEgress:

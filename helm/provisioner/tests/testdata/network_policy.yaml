@@ -3,10 +3,11 @@ coder:
     tag: latest
   networkPolicy:
     enable: true
-    extraIngress:
-      - ports:
-          - port: 2112
-            protocol: TCP
+    prometheus:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
     extraEgress:
       - ports:
           - port: 443

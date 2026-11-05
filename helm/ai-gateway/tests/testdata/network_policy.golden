@@ -33,9 +33,14 @@ spec:
             matchLabels:
               app.kubernetes.io/name: coder-ai-gateway
               app.kubernetes.io/instance: ai-gateway
+    # Prometheus metrics.
     - ports:
-      - port: 2112
-        protocol: TCP
+        - port: 2112
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
   egress:
     - ports:
         - port: 53

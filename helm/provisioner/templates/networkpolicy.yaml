@@ -18,10 +18,21 @@ spec:
     {{- if .Values.coder.networkPolicy.egress.enable }}
     - Egress
     {{- end }}
-  {{- /* The provisioner only dials out, so all ingress is denied unless extraIngress allows it. */}}
-  {{- with .Values.coder.networkPolicy.extraIngress }}
+  {{- if or .Values.coder.networkPolicy.prometheus.enable .Values.coder.networkPolicy.extraIngress }}
   ingress:
+    {{- if .Values.coder.networkPolicy.prometheus.enable }}
+    # Prometheus metrics. The provisioner has no other listeners.
+    - ports:
+        - port: 2112
+          protocol: TCP
+      {{- with .Values.coder.networkPolicy.prometheus.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.coder.networkPolicy.extraIngress }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- end }}
   {{- if .Values.coder.networkPolicy.egress.enable }}
   egress:
