@@ -1,14 +1,14 @@
-# Code that ProvisionerJobs.tla describes. run.sh lists every path below
-# that changed after the sync commit. Move the sync commit forward only
-# after you confirm that the model still describes the code there.
-sync ae6b1faea33d2727b053c7214bec4d5307086ef6
-coderd/database/queries/provisionerjobs.sql
-coderd/database/queries/prebuilds.sql
-coderd/provisionerdserver/provisionerdserver.go
-coderd/provisionerdserver/acquirer.go
-coderd/jobreaper/detector.go
-coderd/workspacebuilds.go
-coderd/wsbuilder/wsbuilder.go
-enterprise/coderd/prebuilds/reconcile.go
-provisionerd/runner/runner.go
-provisionerd/provisionerd.go
+# Files that ProvisionerJobs.tla describes, with the git blob hash of each file
+# when someone last confirmed that the model matches it. run.sh lists every
+# file whose content differs. After you confirm the model again, run
+# `run.sh --sync` to record the new hashes.
+coderd/database/queries/provisionerjobs.sql cf1aa43fc589d9d5096957b9c780e73c807adfa4
+coderd/database/queries/prebuilds.sql 1a71d4096c4624e17454316dafe6ff6163a6877e
+coderd/provisionerdserver/provisionerdserver.go 4f418534f19c8fe163d3611f7c2ad9329d37b97f
+coderd/provisionerdserver/acquirer.go e0779a177f3b674d64cfb557a610afd6a655bb01
+coderd/jobreaper/detector.go e21a1378f38a3ad02d532605ddcd60f9f2fa6c47
+coderd/workspacebuilds.go e701c27e3769046161cdbefcb303398171a0ee74
+coderd/wsbuilder/wsbuilder.go 2ced0a987793eb374530f7f56474c9bd2a01d6bc
+enterprise/coderd/prebuilds/reconcile.go 30f7bab2df729b53f3623b5fc6427402cffb94f3
+provisionerd/runner/runner.go 5e8aedc8bba4dedb58a53edba0e1a9210c7ab83b
+provisionerd/provisionerd.go 2cbdb6eabd1d110667c91e51cf502b2188c51d48

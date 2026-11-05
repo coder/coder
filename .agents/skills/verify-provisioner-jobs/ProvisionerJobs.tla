@@ -37,9 +37,18 @@ CONSTANTS
     \* TRUE in the code today. det.go reapJob then rechecks that updated_at
     \* is still older than the threshold.
     ReaperRechecksStale,
-    \* FALSE in the code today. TRUE models CompleteJob and FailJob writing
-    \* only while completed_at IS NULL (the fix for finding F1).
-    CompleteGuardsCompleted
+    \* How CompleteJob and FailJob treat a job that is already completed,
+    \* for example by the reaper.
+    \* "wins": the code today. CompleteJob writes the outcome and the state.
+    \* FailJob writes too when the job completes after its unlocked read.
+    \* "state": the outcome stays. The daemon still records its Terraform
+    \* state while the build is the workspace's latest build.
+    \* "rejected": both write only while completed_at IS NULL.
+    LateWrite,
+    \* TRUE in the code today. FailJob refuses a completed job, but first
+    \* saves the state that a failed apply sends while the build is the
+    \* workspace's latest build (pds.go saveStateOfCompletedJob).
+    LateFailRecordsState
 
 Jobs == {1, 2}
 
@@ -71,11 +80,12 @@ VARIABLES
     reapQueue,   \* jobs the reaper's unlocked scan returned
     pcSnap,      \* prebuild cancel statement snapshot per job, or None
     reapedLive,  \* history: reaper failed the job while updated_at was fresh
+    applied,     \* history: the daemon's Terraform apply finished
     cancelClosedRunning \* history: a cancel set completed_at while a worker held it
 
 vars == <<exists, started, worker, completed, canceled, err, stale, state,
           nextBase, phase, djob, reapQueue, pcSnap, reapedLive,
-          cancelClosedRunning>>
+          cancelClosedRunning, applied>>
 
 jobVars == <<exists, started, worker, completed, canceled, err, stale, state>>
 
@@ -104,6 +114,9 @@ TypeOK ==
     /\ reapQueue \subseteq Jobs
     /\ reapedLive \in [Jobs -> BOOLEAN]
     /\ cancelClosedRunning \in [Jobs -> BOOLEAN]
+    /\ applied \in [Jobs -> BOOLEAN]
+    /\ LateWrite \in {"wins", "state", "rejected"}
+    /\ LateFailRecordsState \in BOOLEAN
 
 Init ==
     /\ exists = [j \in Jobs |-> j = 1]
@@ -121,8 +134,12 @@ Init ==
     /\ pcSnap = [j \in Jobs |-> None]
     /\ reapedLive = [j \in Jobs |-> FALSE]
     /\ cancelClosedRunning = [j \in Jobs |-> FALSE]
+    /\ applied = [j \in Jobs |-> FALSE]
 
 Acquirable(j) == exists[j] /\ ~started[j] /\ ~completed[j]
+
+\* The build is the workspace's latest build.
+Latest(j) == j = 2 \/ ~exists[2]
 
 Claim(d, j) ==
     /\ started' = [started EXCEPT ![j] = TRUE]
@@ -139,7 +156,7 @@ DaemonAcquires(d) ==
         /\ Acquirable(j)
         /\ Claim(d, j)
     /\ UNCHANGED <<exists, completed, canceled, err, state, nextBase,
-                   reapQueue, pcSnap, reapedLive, cancelClosedRunning>>
+                   reapQueue, pcSnap, reapedLive, cancelClosedRunning, applied>>
 
 \* Broken variant: the subquery reads without a lock ...
 DaemonPicksJob(d) ==
@@ -150,14 +167,14 @@ DaemonPicksJob(d) ==
         /\ phase' = [phase EXCEPT ![d] = "acquiring"]
         /\ djob' = [djob EXCEPT ![d] = j]
     /\ UNCHANGED <<jobVars, nextBase, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 \* ... and the outer UPDATE matches only on id, so it claims the row anyway.
 DaemonClaimsPickedJob(d) ==
     /\ phase[d] = "acquiring"
     /\ Claim(d, djob[d])
     /\ UNCHANGED <<exists, completed, canceled, err, state, nextBase,
-                   reapQueue, pcSnap, reapedLive, cancelClosedRunning>>
+                   reapQueue, pcSnap, reapedLive, cancelClosedRunning, applied>>
 
 \* pds.go UpdateJob: ownership check, then UpdateProvisionerJobByID sets
 \* updated_at. It never looks at completed_at.
@@ -167,27 +184,30 @@ DaemonHeartbeats(d) ==
     /\ stale' = [stale EXCEPT ![djob[d]] = FALSE]
     /\ UNCHANGED <<exists, started, worker, completed, canceled, err, state,
                    nextBase, phase, djob, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 DaemonFreezes(d) ==
     /\ phase[d] = "running"
     /\ phase' = [phase EXCEPT ![d] = "frozen"]
     /\ UNCHANGED <<jobVars, nextBase, djob, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 DaemonThaws(d) ==
     /\ phase[d] = "frozen"
     /\ phase' = [phase EXCEPT ![d] = "running"]
     /\ UNCHANGED <<jobVars, nextBase, djob, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
-\* The daemon process dies. Its job stays started with no live holder.
+\* The daemon process dies. Its job stays started with no live holder. A
+\* crash after an apply loses the state with the process, so the model
+\* lets a daemon crash only before its apply ran.
 DaemonCrashes(d) ==
     /\ phase[d] /= "idle"
+    /\ ~applied[djob[d]]
     /\ phase' = [phase EXCEPT ![d] = "idle"]
     /\ djob' = [djob EXCEPT ![d] = None]
     /\ UNCHANGED <<jobVars, nextBase, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 \* Terraform finished. pds.go CompleteJob checks only worker_id, then
 \* completeWorkspaceBuildJob runs, in one transaction,
@@ -201,37 +221,63 @@ DaemonCompletesJob(d) ==
     LET j == djob[d] IN
     /\ phase[d] = "running"
     /\ worker[j] = d
-    /\ IF CompleteGuardsCompleted /\ completed[j]
-       THEN /\ phase' = [phase EXCEPT ![d] = "failing"]
-            /\ UNCHANGED <<jobVars, djob>>
-       ELSE /\ completed' = [completed EXCEPT ![j] = TRUE]
-            /\ err' = [err EXCEPT ![j] = "none"]
-            /\ state' = [state EXCEPT ![j] = "real"]
-            /\ stale' = [stale EXCEPT ![j] = FALSE]
-            /\ phase' = [phase EXCEPT ![d] = "idle"]
-            /\ djob' = [djob EXCEPT ![d] = None]
-            /\ UNCHANGED <<exists, started, worker, canceled>>
+    /\ applied' = [applied EXCEPT ![j] = TRUE]
+    /\ CASE ~completed[j] \/ LateWrite = "wins" ->
+              /\ completed' = [completed EXCEPT ![j] = TRUE]
+              /\ err' = [err EXCEPT ![j] = "none"]
+              /\ state' = [state EXCEPT ![j] = "real"]
+              /\ stale' = [stale EXCEPT ![j] = FALSE]
+              /\ phase' = [phase EXCEPT ![d] = "idle"]
+              /\ djob' = [djob EXCEPT ![d] = None]
+              /\ UNCHANGED <<exists, started, worker, canceled>>
+         [] LateWrite = "state" ->
+              /\ state' = [state EXCEPT ![j] = IF Latest(j) THEN "real" ELSE @]
+              /\ phase' = [phase EXCEPT ![d] = "idle"]
+              /\ djob' = [djob EXCEPT ![d] = None]
+              /\ UNCHANGED <<exists, started, worker, completed, canceled, err, stale>>
+         [] LateWrite = "rejected" ->
+              \* CompleteJob fails. The runner's fallback FailJob carries no
+              \* state (runner.go Run, failedJobf), and FailJob refuses the
+              \* completed job, so nothing is written.
+              /\ phase' = [phase EXCEPT ![d] = "idle"]
+              /\ djob' = [djob EXCEPT ![d] = None]
+              /\ UNCHANGED jobVars
     /\ UNCHANGED <<nextBase, reapQueue, pcSnap, reapedLive, cancelClosedRunning>>
 
 \* Terraform failed, a heartbeat failed, or a cancel timed out: the runner
-\* sends FailJob.
+\* sends FailJob. When the apply failed after it made resources, applied
+\* becomes TRUE and FailJob carries the state Terraform wrote
+\* (provisionerd/runner/runner.go runWorkspaceBuild). The FailJob after a
+\* failed heartbeat or a cancel timeout carries no state (failedJobf). The
+\* model does not give those an apply.
 DaemonStartsFailJob(d) ==
+    LET j == djob[d] IN
     /\ phase[d] = "running"
     /\ phase' = [phase EXCEPT ![d] = "failing"]
+    /\ \E a \in BOOLEAN : applied' = [applied EXCEPT ![j] = @ \/ a]
     /\ UNCHANGED <<jobVars, nextBase, djob, reapQueue, pcSnap, reapedLive,
                    cancelClosedRunning>>
 
+\* The state a FailJob request carries. After an apply ran, it carries the
+\* state Terraform wrote. Otherwise it carries none, or a state equal to
+\* the one the build has.
+FailState(j) == IF applied[j] THEN {"real"} ELSE {state[j]}
+
 \* pds.go FailJob reads the job without a lock and refuses a completed job.
+\* With LateFailRecordsState it saves the state of the latest build first.
 FailJobReadsJob(d) ==
     LET j == djob[d] IN
     /\ phase[d] = "failing"
     /\ IF completed[j]
        THEN /\ phase' = [phase EXCEPT ![d] = "idle"]
             /\ djob' = [djob EXCEPT ![d] = None]
+            /\ IF LateFailRecordsState /\ Latest(j)
+               THEN \E s \in FailState(j) : state' = [state EXCEPT ![j] = s]
+               ELSE UNCHANGED state
+            /\ UNCHANGED <<exists, started, worker, completed, canceled, err, stale>>
        ELSE /\ phase' = [phase EXCEPT ![d] = "failwrite"]
-            /\ UNCHANGED djob
-    /\ UNCHANGED <<jobVars, nextBase, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+            /\ UNCHANGED <<jobVars, djob>>
+    /\ UNCHANGED <<nextBase, reapQueue, pcSnap, reapedLive, cancelClosedRunning, applied>>
 
 \* pds.go FailJob then writes UpdateProvisionerJobWithCompleteByID by id
 \* only, and UpdateWorkspaceBuildProvisionerStateByID when the daemon sent
@@ -241,14 +287,19 @@ FailJobWrites(d) ==
     /\ phase[d] = "failwrite"
     /\ phase' = [phase EXCEPT ![d] = "idle"]
     /\ djob' = [djob EXCEPT ![d] = None]
-    /\ IF CompleteGuardsCompleted /\ completed[j]
-       THEN UNCHANGED jobVars
-       ELSE /\ completed' = [completed EXCEPT ![j] = TRUE]
-            /\ err' = [err EXCEPT ![j] = "daemon"]
-            /\ \E s \in {state[j], "real"} : state' = [state EXCEPT ![j] = s]
-            /\ stale' = [stale EXCEPT ![j] = FALSE]
-            /\ UNCHANGED <<exists, started, worker, canceled>>
-    /\ UNCHANGED <<nextBase, reapQueue, pcSnap, reapedLive, cancelClosedRunning>>
+    /\ CASE ~completed[j] \/ LateWrite = "wins" ->
+              /\ completed' = [completed EXCEPT ![j] = TRUE]
+              /\ err' = [err EXCEPT ![j] = "daemon"]
+              /\ \E s \in FailState(j) : state' = [state EXCEPT ![j] = s]
+              /\ stale' = [stale EXCEPT ![j] = FALSE]
+              /\ UNCHANGED <<exists, started, worker, canceled>>
+         [] LateWrite = "state" ->
+              /\ IF Latest(j)
+                 THEN \E s \in FailState(j) : state' = [state EXCEPT ![j] = s]
+                 ELSE UNCHANGED state
+              /\ UNCHANGED <<exists, started, worker, completed, canceled, err, stale>>
+         [] LateWrite = "rejected" -> UNCHANGED jobVars
+    /\ UNCHANGED <<nextBase, reapQueue, pcSnap, reapedLive, cancelClosedRunning, applied>>
 
 \* Time passes past the reaper threshold for a job no live process holds:
 \* pending for 30 minutes, or running with a crashed or frozen holder.
@@ -260,7 +311,7 @@ TimePasses(j) ==
     /\ stale' = [stale EXCEPT ![j] = TRUE]
     /\ UNCHANGED <<exists, started, worker, completed, canceled, err, state,
                    nextBase, phase, djob, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 \* det.go run: GetProvisionerJobsToBeReaped, a plain SELECT.
 ReaperScans(j) ==
@@ -270,7 +321,7 @@ ReaperScans(j) ==
     /\ j \notin reapQueue
     /\ reapQueue' = reapQueue \cup {j}
     /\ UNCHANGED <<jobVars, nextBase, phase, djob, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 \* det.go reapJob: one transaction that holds the row lock
 \* (GetProvisionerJobByIDForUpdate), rechecks the job, marks it failed with
@@ -288,7 +339,7 @@ ReaperReapsJob(j) ==
             /\ reapedLive' = [reapedLive EXCEPT ![j] = @ \/ ~stale[j]]
             /\ UNCHANGED <<exists, worker, canceled>>
        ELSE UNCHANGED <<jobVars, reapedLive>>
-    /\ UNCHANGED <<nextBase, phase, djob, pcSnap, cancelClosedRunning>>
+    /\ UNCHANGED <<nextBase, phase, djob, pcSnap, cancelClosedRunning, applied>>
 
 \* wsb.go patchCancelWorkspaceBuild: one transaction with
 \* GetProvisionerJobByIDWithLock (FOR UPDATE), refusing completed or
@@ -301,9 +352,9 @@ UserCancels(j) ==
     /\ IF ~CancelChecksWorker \/ worker[j] = None
        THEN /\ completed' = [completed EXCEPT ![j] = TRUE]
             /\ cancelClosedRunning' = [cancelClosedRunning EXCEPT ![j] = @ \/ worker[j] /= None]
-       ELSE UNCHANGED <<completed, cancelClosedRunning>>
+       ELSE UNCHANGED <<completed, cancelClosedRunning, applied>>
     /\ UNCHANGED <<exists, started, worker, err, stale, state, nextBase,
-                   phase, djob, reapQueue, pcSnap, reapedLive>>
+                   phase, djob, reapQueue, pcSnap, reapedLive, applied>>
 
 \* prebuilds.sql UpdatePrebuildProvisionerJobWithCancel: the CTE picks
 \* pending jobs with worker_id IS NULL from the statement snapshot ...
@@ -316,7 +367,7 @@ PrebuildCancelSelects(j) ==
     /\ pcSnap[j] = None
     /\ pcSnap' = [pcSnap EXCEPT ![j] = Row(j)]
     /\ UNCHANGED <<jobVars, nextBase, phase, djob, reapQueue, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 \* ... and the UPDATE joins on id only. Under Repeatable Read a row that
 \* changed after the snapshot fails the statement. Under Read Committed the
@@ -325,12 +376,12 @@ PrebuildCancelWrites(j) ==
     /\ pcSnap[j] /= None
     /\ pcSnap' = [pcSnap EXCEPT ![j] = None]
     /\ IF PrebuildCancelRepeatableRead /\ Row(j) /= pcSnap[j]
-       THEN UNCHANGED <<jobVars, cancelClosedRunning>>
+       THEN UNCHANGED <<jobVars, cancelClosedRunning, applied>>
        ELSE /\ canceled' = [canceled EXCEPT ![j] = TRUE]
             /\ completed' = [completed EXCEPT ![j] = TRUE]
             /\ cancelClosedRunning' = [cancelClosedRunning EXCEPT ![j] = @ \/ worker[j] /= None]
             /\ UNCHANGED <<exists, started, worker, err, stale, state>>
-    /\ UNCHANGED <<nextBase, phase, djob, reapQueue, reapedLive>>
+    /\ UNCHANGED <<nextBase, phase, djob, reapQueue, reapedLive, applied>>
 
 \* coderd/wsbuilder checkRunningBuild refuses a new build while the latest
 \* job is pending, running or canceling, which all have completed_at NULL.
@@ -342,7 +393,7 @@ UserStartsNextBuild ==
     /\ nextBase' = state[1]
     /\ UNCHANGED <<started, worker, completed, canceled, err, stale, state,
                    phase, djob, reapQueue, pcSnap, reapedLive,
-                   cancelClosedRunning>>
+                   cancelClosedRunning, applied>>
 
 \* Both builds are finished and every daemon is idle.
 AllDone ==
@@ -378,7 +429,8 @@ Next ==
 Spec == Init /\ [][Next]_vars
 
 -----------------------------------------------------------------------------
-(* Properties. Each is one promise the code makes.                         *)
+(* Properties. The first four are promises the code makes. The last two  *)
+(* are not, and run.sh expects TLC to report them broken.                  *)
 
 \* At most one daemon runs a job. Guarded by AcquireLocksRow.
 OneRunnerPerJob ==
@@ -395,18 +447,29 @@ CancelNeverClosesRunningJob == \A j \in Jobs : ~cancelClosedRunning[j]
 \* ReaperRechecksStale.
 ReaperSparesLiveJob == \A j \in Jobs : ~reapedLive[j]
 
-\* Once completed_at is set, the job's outcome and its build's state never
-\* change. Finding F1 breaks this on the code today. ReaperRechecksCompleted
-\* keeps the reaper from breaking it.
+\* Once completed_at is set, the job's outcome never changes. The code does
+\* not promise this: with LateWrite = "wins", a late CompleteJob marks a
+\* reaped job succeeded. ReaperRechecksCompleted keeps the reaper itself
+\* from changing an outcome.
 OutcomeIsFinal ==
     [][\A j \in Jobs :
         completed[j] =>
             /\ completed'[j]
             /\ err'[j] = err[j]
-            /\ canceled'[j] = canceled[j]
-            /\ state'[j] = state[j]]_vars
+            /\ canceled'[j] = canceled[j]]_vars
 
-\* Build N+1 starts from build N's final state. Finding F1 breaks this.
-NextBuildStartsFromFinalState == exists[2] => nextBase = state[1]
+\* When a daemon's apply finished and nothing still holds the job, the
+\* latest build records the state that Terraform wrote, so the next build
+\* plans against the resources that exist.
+LatestStateTracksApply ==
+    \A j \in Jobs :
+        (applied[j] /\ Latest(j) /\ \A d \in Daemons : djob[d] /= j)
+            => state[j] = "real"
+
+\* Build N+1 starts from a state that includes build N's finished apply.
+\* The code does not promise this, and no LateWrite mode keeps it: the
+\* reaper unblocks build N+1 while a frozen daemon still holds build N, so
+\* the apply can finish after build N+1 copied its state.
+NextBuildSeesApply == (exists[2] /\ applied[1]) => nextBase = "real"
 
 =============================================================================

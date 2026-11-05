@@ -3,11 +3,30 @@
 # expected result. Prints one line per config and a count line. Exits 0 only
 # when every config matches.
 #
+# --sync records the current hash of every covered file in coverage.txt. Run
+# it only after you confirm that the model describes those files.
+#
 # Env: OUT (keep TLC output there, default a temp dir), JAVA (java binary).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(git -C "$here" rev-parse --show-toplevel)"
+coverage="$here/coverage.txt"
+
+if [[ "${1:-}" == "--sync" ]]; then
+	tmp="$(mktemp)"
+	while IFS= read -r line; do
+		if [[ -z "$line" || "$line" == \#* ]]; then
+			echo "$line"
+		else
+			path="${line%% *}"
+			echo "$path $(git -C "$repo" hash-object "$path")"
+		fi
+	done <"$coverage" >"$tmp"
+	mv "$tmp" "$coverage"
+	echo "recorded $(grep -cvE '^(#|$)' "$coverage") covered files in coverage.txt"
+	exit 0
+fi
 
 tla_version="1.7.4"
 tla_sha256="936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
@@ -17,14 +36,15 @@ jar="$cache/tla2tools-$tla_version.jar"
 # config|expected: PASS, or the name of the property TLC must report broken.
 checks=(
 	"Safety|PASS"
-	"Fixed|PASS"
-	"F1Outcome|OutcomeIsFinal"
-	"F1NextBuild|NextBuildStartsFromFinalState"
 	"NegAcquireNoLock|OneRunnerPerJob"
 	"NegCancelIgnoresWorker|CancelNeverClosesRunningJob"
 	"NegPrebuildCancelReadCommitted|CancelNeverClosesRunningJob"
 	"NegReaperNoStaleRecheck|ReaperSparesLiveJob"
 	"NegReaperNoCompletedRecheck|OutcomeIsFinal"
+	"NegLateFailDropsState|LatestStateTracksApply"
+	"NegLateWriteRejected|LatestStateTracksApply"
+	"NotPromisedOutcomeIsFinal|OutcomeIsFinal"
+	"NotPromisedNextBuildSeesApply|NextBuildSeesApply"
 )
 
 if [[ ! -f "$jar" ]] || ! echo "$tla_sha256  $jar" | sha256sum --check --status; then
@@ -82,22 +102,22 @@ for check in "${checks[@]}"; do
 	fi
 done
 
-sync="$(sed -n 's/^sync //p' "$here/coverage.txt")"
-mapfile -t covered < <(grep -vE '^(#|sync |$)' "$here/coverage.txt")
-if git -C "$repo" cat-file -e "$sync^{commit}" 2>/dev/null; then
-	changed="$(git -C "$repo" diff --name-only "$sync" -- "${covered[@]}")"
-	if [[ -n "$changed" ]]; then
-		echo "covered code changed after sync commit ${sync:0:10}:"
-		while IFS= read -r path; do
-			echo "  $path"
-		done <<<"$changed"
-		echo "WARNING: the results above describe the spec, not these changes."
-		echo "  Update ProvisionerJobs.tla to match them first (SKILL.md, \"When your change is intended\")."
-	else
-		echo "covered code unchanged after sync commit ${sync:0:10}"
+changed=()
+while IFS=' ' read -r path recorded; do
+	[[ -z "$path" || "$path" == \#* ]] && continue
+	if [[ "$(git -C "$repo" hash-object "$path" 2>/dev/null || echo missing)" != "$recorded" ]]; then
+		changed+=("$path")
 	fi
+done <"$coverage"
+if [[ "${#changed[@]}" -gt 0 ]]; then
+	echo "covered files changed after the last sync:"
+	for path in "${changed[@]}"; do
+		echo "  $path"
+	done
+	echo "WARNING: the results above describe the spec, not these changes."
+	echo "  Update ProvisionerJobs.tla to match them first (SKILL.md, \"When your change is intended\")."
 else
-	echo "sync commit ${sync:0:10} not in this clone: fetch more history to compare"
+	echo "covered files unchanged since the last sync"
 fi
 
 echo "TLC output: $out"
