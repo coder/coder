@@ -38,7 +38,12 @@ const renderUserChip = (
 	block: Exclude<UserInlineRenderBlock, { type: "response" }>,
 	index: number,
 ): InlineNode => {
+	// A 20px chip nearly fills a 21px body line. Middle alignment centers it
+	// on the x-height, which sits it 1.5px low and grows the line; top
+	// alignment keeps the line height and the chip's drop shadow fills the
+	// 1px left below it. Taller heading lines keep middle alignment.
 	const spacing = cn(
+		"align-top [:is(h1,h2,h3,h4,h5,h6)_&]:align-middle",
 		hasInlineContentBefore(inlineParts, index) && "ml-1",
 		hasInlineContentAfter(inlineParts, index) && "mr-1",
 	);
@@ -72,6 +77,11 @@ const renderUserChip = (
 		text: title,
 	};
 };
+
+// Text lines carry about 4px of leading above and below their glyphs, so
+// attachment rows at the bubble's top or bottom edge add the same amount to
+// match the inset of text and of the horizontal padding.
+const attachmentRowClassName = "flex flex-wrap gap-2 first:pt-1 last:pb-1";
 
 const getUserMessageParts = (blocks: readonly UserInlineRenderBlock[]) => {
 	const inlineParts = getInlineParts(blocks);
@@ -109,29 +119,20 @@ export const UserMessageContent: React.FC<{
 						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 			>
-				<div className="flex flex-col gap-1.5">
-					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
-						<div className="flex items-start gap-2">
-							{displayState.hasUserMessageBody && (
-								<Response
-									className="min-w-0 flex-1 whitespace-normal"
-									preserveLineBreaks
-									urlTransform={urlTransform}
-								>
-									{displayState.userInlineContent.length > 0
-										? getUserMessageParts(displayState.userInlineContent)
-										: markdown}
-								</Response>
-							)}
-						</div>
+				<div className="flex flex-col gap-2">
+					{displayState.hasUserMessageBody && (
+						<Response
+							className="min-w-0 whitespace-normal"
+							preserveLineBreaks
+							urlTransform={urlTransform}
+						>
+							{displayState.userInlineContent.length > 0
+								? getUserMessageParts(displayState.userInlineContent)
+								: markdown}
+						</Response>
 					)}
 					{displayState.hasFileBlocks && (
-						<div
-							className={cn(
-								displayState.hasUserMessageBody && "mt-2",
-								"flex flex-wrap gap-2",
-							)}
-						>
+						<div className={attachmentRowClassName}>
 							{displayState.userFileBlocks.map((block, index) => (
 								<AttachmentBlock
 									key={`user-file-${block.file_id ?? index}`}
@@ -143,12 +144,7 @@ export const UserMessageContent: React.FC<{
 						</div>
 					)}
 					{displayState.hasWorkspaceFileReferences && (
-						<div
-							className={cn(
-								displayState.hasUserMessageBody && "mt-2",
-								"flex flex-wrap gap-2",
-							)}
-						>
+						<div className={attachmentRowClassName}>
 							{displayState.workspaceFileBlocks.map((block, index) => (
 								<WorkspaceFileChip
 									key={`workspace-file-${block.workspace_file_path}-${index}`}
