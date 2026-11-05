@@ -8,7 +8,7 @@ import {
 import type { BarColors } from "./Bar";
 
 /** Width in pixels of the label column. */
-export const yAxisWidth = 200;
+export const Y_AXIS_WIDTH = 200;
 
 export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
@@ -18,7 +18,7 @@ export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 			style={{
 				"--header-height": "40px",
 				"--section-padding": "16px",
-				"--y-axis-width": `${yAxisWidth}px`,
+				"--y-axis-width": `${Y_AXIS_WIDTH}px`,
 				...props.style,
 			}}
 		/>

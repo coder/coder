@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { useLayoutEffect, useRef } from "react";
-import { yAxisWidth } from "./Chart";
+import { Y_AXIS_WIDTH } from "./Chart";
 import { XAxisTicks, XGrid } from "./XAxis";
 
 const XAxisMinWidth = 130;
@@ -34,7 +34,7 @@ export const ChartTable: React.FC<ChartTableProps> = ({
 		}
 		// We always add one extra column to the grid to ensure that the last column
 		// is fully visible. The 1px is the border between the two columns.
-		const timelineWidth = rootEl.clientWidth - yAxisWidth - 1;
+		const timelineWidth = rootEl.clientWidth - Y_AXIS_WIDTH - 1;
 		const avgWidth = timelineWidth / (ticks.length + 1);
 		const width = Math.max(avgWidth, XAxisMinWidth);
 		rootEl.style.setProperty("--x-axis-width", `${width}px`);
