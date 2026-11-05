@@ -1236,27 +1236,10 @@ describe("AgentChatInput", () => {
 			{ queuedMessageUnderEditID: MockChatQueuedMessage.id },
 			false,
 		],
-		["sends a queue head while the turn runs", { isChatActive: true }, true],
 		[
-			"does not send a steer head while the turn runs",
+			"does not send a steer head",
 			{
-				isChatActive: true,
 				queuedMessages: [{ ...MockChatQueuedMessage, busy_behavior: "steer" }],
-			},
-			false,
-		],
-		[
-			"does not send a steer head while a steer message behind it is under edit",
-			{
-				queuedMessages: [
-					{ ...MockChatQueuedMessage, busy_behavior: "steer" },
-					{
-						...MockChatQueuedMessage,
-						id: MockChatQueuedMessage.id + 1,
-						busy_behavior: "steer",
-					},
-				],
-				queuedMessageUnderEditID: MockChatQueuedMessage.id + 1,
 			},
 			false,
 		],

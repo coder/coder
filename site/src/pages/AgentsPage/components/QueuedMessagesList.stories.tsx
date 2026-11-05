@@ -184,8 +184,10 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+// Steer rows offer no Send now, and a steer head gets no Enter-to-send hint.
 export const GroupedByLane: Story = {
 	args: {
+		showEnterToSendHint: false,
 		messages: [
 			{
 				...buildMessage(1, textContent("Also check the error logs")),
@@ -197,15 +199,6 @@ export const GroupedByLane: Story = {
 			},
 			buildMessage(3, textContent("Then open a pull request")),
 		],
-	},
-};
-
-// Steer rows while the turn runs.
-export const GroupedByLaneWhileActive: Story = {
-	args: {
-		...GroupedByLane.args,
-		isChatActive: true,
-		showEnterToSendHint: false,
 	},
 };
 

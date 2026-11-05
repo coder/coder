@@ -231,7 +231,6 @@ describe("QueuedMessagesList", () => {
 				| "onEdit"
 				| "onEndEdit"
 				| "isChatPaused"
-				| "isChatActive"
 				| "queuedMessageUnderEditID"
 				| "composerQueuedMessageID"
 			>
@@ -273,12 +272,12 @@ describe("QueuedMessagesList", () => {
 		expect(handlers[handler]).toHaveBeenCalledWith(9);
 	});
 
-	it("keeps Send now on a queue row in an active chat", async () => {
+	it("offers Send now on queue rows only", async () => {
 		const user = userEvent.setup();
-		const { onPromote } = renderList(
-			[{ ...MockChatQueuedMessage, id: 9, busy_behavior: "queue" }],
-			{ isChatActive: true },
-		);
+		const { onPromote } = renderList([
+			{ ...MockChatQueuedMessage, id: 8, busy_behavior: "steer" },
+			{ ...MockChatQueuedMessage, id: 9, busy_behavior: "queue" },
+		]);
 		await user.click(screen.getByRole("button", { name: "Send now" }));
 		expect(onPromote).toHaveBeenCalledWith(9);
 	});
