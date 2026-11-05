@@ -718,8 +718,8 @@ var sessionTokenHandlers = func() []sessionTokenHandler {
 	}
 	handlers := make([]sessionTokenHandler, 0, len(prefixes))
 	for _, prefix := range prefixes {
-		authority := strings.Index(prefix, "://") + len("://")
-		pathStart := authority + strings.IndexAny(prefix[authority:], "/?#")
+		authorityStart := strings.Index(prefix, "://") + len("://")
+		pathStart := authorityStart + strings.IndexAny(prefix[authorityStart:], "/?#")
 		handlers = append(handlers, sessionTokenHandler{base: prefix[:pathStart], path: prefix[pathStart:]})
 	}
 	return handlers

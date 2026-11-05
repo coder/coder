@@ -22,9 +22,8 @@ type SessionTokenHandler = {
 	path: string;
 };
 
-// The only deep-link handlers that may receive the session token. They come
-// from codersdk, which cli/open.go also uses, and split the same way there: the
-// scheme and authority end at the first `/`, `?` or `#` after `://`.
+// The only deep-link handlers that may receive the session token, from codersdk
+// (shared with cli/open.go).
 const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
 	...VSCodeSessionTokenSchemes.flatMap((scheme) =>
 		VSCodeSessionTokenPaths.map(
@@ -33,8 +32,9 @@ const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
 	),
 	...JetBrainsSessionTokenHandlers,
 ].map((prefix) => {
-	const authority = prefix.indexOf("://") + "://".length;
-	const pathStart = authority + prefix.slice(authority).search(/[/?#]/);
+	const authorityStart = prefix.indexOf("://") + "://".length;
+	const pathStart =
+		authorityStart + prefix.slice(authorityStart).search(/[/?#]/);
 	return { base: prefix.slice(0, pathStart), path: prefix.slice(pathStart) };
 });
 
