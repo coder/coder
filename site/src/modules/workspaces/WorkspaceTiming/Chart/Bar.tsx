@@ -33,13 +33,15 @@ export const Bar: React.FC<BarProps> = ({
 	scale,
 	value,
 	offset,
+	className,
+	style,
 	...htmlProps
 }) => {
 	return (
 		<div
 			{...htmlProps}
-			className={cn(barClassName, htmlProps.className)}
-			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
+			className={cn(barClassName, className)}
+			style={barStyle({ colors, scale, value, offset, style })}
 		/>
 	);
 };
