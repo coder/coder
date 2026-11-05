@@ -86,3 +86,5 @@ Follow these steps to identify problematic jobs or daemons:
    ```sh
    coder provisioner jobs cancel <job-id>
    ```
+
+To track queue wait times and job durations over time, use the [provisioner metrics](./index.md#metrics).
