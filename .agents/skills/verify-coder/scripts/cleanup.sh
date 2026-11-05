@@ -126,7 +126,7 @@ archive_logs() {
 		fi
 	done
 	rm -rf "$VC_RUN"
-	echo "moved ${kept[*]:-no logs} to $VC_EVIDENCE, journey and hand-driven folders kept"
+	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every journey and hand-driven folder"
 }
 
 # --keep-data hands the folder over: without the marker, a later cleanup keeps
