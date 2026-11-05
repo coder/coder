@@ -322,6 +322,27 @@ export const StreamingWithDraftShowsAfterTurnShortcut: Story = {
 	},
 };
 
+export const StreamingSendMenuOpen: Story = {
+	args: StreamingWithDraftShowsAfterTurnShortcut.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.pointer({
+			keys: "[MouseRight]",
+			target: await canvas.findByRole("button", { name: "Send" }),
+		});
+		await screen.findByRole("menu");
+	},
+};
+
+export const StreamingSendMenuOpenMobile: Story = {
+	...StreamingSendMenuOpen,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () => setupMatchMedia({ "(pointer: coarse)": true }).restore,
+};
+
 export const AfterTurnShortcutWhenModifierRequired: Story = {
 	...StreamingWithDraftShowsAfterTurnShortcut,
 	parameters: {

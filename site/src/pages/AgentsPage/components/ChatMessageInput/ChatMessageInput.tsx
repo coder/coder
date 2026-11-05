@@ -371,11 +371,9 @@ const LockedFilePastePlugin: React.FC<{
 	return null;
 };
 
-// Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
-// capability, not viewport width, keeps narrow desktop windows usable.
-// Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
-// With onSendAfterTurn, a second key calls it: Cmd/Ctrl+Enter when plain
-// Enter sends, otherwise Alt+Enter.
+// Pointer type, not viewport width, gates plain Enter (CODAGT-210).
+// With onSendAfterTurn, Cmd/Ctrl+Enter sends after the turn when plain Enter
+// sends, else Alt+Enter does.
 const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
 	onSendAfterTurn?: () => void;

@@ -40,7 +40,6 @@ export type SubmitChatTurnParams = {
 	editingTarget?: EditingTarget;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
-	// Omitted, the server uses steer.
 	busyBehavior?: TypesGen.ChatBusyBehavior;
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;

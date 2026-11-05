@@ -15,6 +15,38 @@ export function enterSendsAgentChatMessage(
 	return shortcut !== MODIFIER_AGENT_CHAT_SEND_SHORTCUT && !isCoarsePointer;
 }
 
+/**
+ * Returns the shortcut hints that the send button shows. Mobile viewports
+ * show no hints.
+ */
+export function getAgentChatSendShortcutHints(
+	enterSends: boolean,
+	isMobile: boolean,
+): {
+	sendShortcutLabel: string | undefined;
+	sendButtonKeyShortcuts: string | undefined;
+	sendAfterTurnShortcutLabel: string | undefined;
+} {
+	if (isMobile) {
+		return {
+			sendShortcutLabel: undefined,
+			sendButtonKeyShortcuts: undefined,
+			sendAfterTurnShortcutLabel: undefined,
+		};
+	}
+	return enterSends
+		? {
+				sendShortcutLabel: "Enter",
+				sendButtonKeyShortcuts: "Enter",
+				sendAfterTurnShortcutLabel: "Cmd/Ctrl+Enter",
+			}
+		: {
+				sendShortcutLabel: "Cmd/Ctrl+Enter",
+				sendButtonKeyShortcuts: "Control+Enter Meta+Enter",
+				sendAfterTurnShortcutLabel: "Option/Alt+Enter",
+			};
+}
+
 export function getAgentChatSendShortcut(
 	storedShortcut: AgentChatSendShortcut | undefined,
 	isLoading: boolean,

@@ -72,6 +72,7 @@ import {
 import {
 	enterSendsAgentChatMessage,
 	getAgentChatSendShortcut,
+	getAgentChatSendShortcutHints,
 } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
@@ -79,6 +80,7 @@ import {
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import { AgentChatSendMenu } from "./AgentChatSendMenu";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -1246,9 +1248,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => submit();
 	// An edit has no lane to choose.
 	const canSendAfterTurn = isStreaming && !isEditingMessage;
-	const handleSubmitAfterTurn = canSendAfterTurn
-		? () => submit("queue")
-		: undefined;
+	const handleSubmitAfterTurn = () => submit("queue");
 	const handleStartRecording = () => {
 		resetPromptCycle();
 		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
@@ -1397,23 +1397,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isReadOnlyView &&
 		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
 	const enterSends = enterSendsAgentChatMessage(sendShortcut, isCoarsePointer);
-	// Mobile viewports advertise no send shortcut.
-	const sendShortcutLabel = isMobile
-		? undefined
-		: enterSends
-			? "Enter"
-			: "Cmd/Ctrl+Enter";
-	const sendButtonKeyShortcuts = isMobile
-		? undefined
-		: enterSends
-			? "Enter"
-			: "Control+Enter Meta+Enter";
+	const {
+		sendShortcutLabel,
+		sendButtonKeyShortcuts,
+		sendAfterTurnShortcutLabel,
+	} = getAgentChatSendShortcutHints(enterSends, isMobile);
 	const sendButtonTooltip = sendShortcutLabel
 		? `${sendButtonLabel}: ${sendShortcutLabel}`
 		: sendButtonLabel;
-	const sendAfterTurnShortcutLabel = enterSends
-		? "Cmd/Ctrl+Enter"
-		: "Option/Alt+Enter";
+	const canOpenSendMenu = canSendAfterTurn && canSend && !speech.isRecording;
 
 	const content = (
 		<div
@@ -1568,7 +1560,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onChange={handleContentChange}
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
-						onSendAfterTurn={handleSubmitAfterTurn}
+						onSendAfterTurn={
+							canSendAfterTurn ? handleSubmitAfterTurn : undefined
+						}
 						sendShortcut={sendShortcut}
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
@@ -2013,45 +2007,55 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{showSendButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
-										}
-										disabled={speech.isRecording ? false : !canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading && !isInterruptPending ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : speech.isRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{speech.isRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{speech.isRecording ? (
-										"Accept voice input"
-									) : (
-										<>
-											{sendButtonTooltip}
-											{canSendAfterTurn && !isMobile && (
-												<div>After turn: {sendAfterTurnShortcutLabel}</div>
+							<AgentChatSendMenu
+								canOpen={canOpenSendMenu}
+								onSend={handleSubmit}
+								onSendAfterTurn={handleSubmitAfterTurn}
+								sendShortcutLabel={sendShortcutLabel}
+								sendAfterTurnShortcutLabel={sendAfterTurnShortcutLabel}
+							>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											size="icon"
+											variant="default"
+											className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
+											onClick={
+												speech.isRecording
+													? handleAcceptRecording
+													: handleSubmit
+											}
+											disabled={speech.isRecording ? false : !canSend}
+											aria-keyshortcuts={sendButtonKeyShortcuts}
+										>
+											{isLoading && !isInterruptPending ? (
+												<Spinner size="sm" loading aria-hidden="true" />
+											) : speech.isRecording ? (
+												<CheckIcon />
+											) : (
+												<ArrowUpIcon />
 											)}
-										</>
-									)}
-								</TooltipContent>
-							</Tooltip>
+											<span className="sr-only">
+												{speech.isRecording
+													? "Accept voice input"
+													: sendButtonLabel}
+											</span>
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										{speech.isRecording ? (
+											"Accept voice input"
+										) : (
+											<>
+												{sendButtonTooltip}
+												{canSendAfterTurn && sendAfterTurnShortcutLabel && (
+													<div>After turn: {sendAfterTurnShortcutLabel}</div>
+												)}
+											</>
+										)}
+									</TooltipContent>
+								</Tooltip>
+							</AgentChatSendMenu>
 						)}
 						{showStopButton && (
 							<Tooltip>

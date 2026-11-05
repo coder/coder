@@ -134,6 +134,7 @@ The agent receives messages under **Next step** before its next model call, and 
 **Send now** moves a message under **After turn** to **Next step**, or sends it at once when the agent isn't working.
 To send a message under **After turn**, press Ctrl+Enter (Cmd+Enter on macOS) while the agent works.
 If you turn on **Require Cmd/Ctrl+Enter to send agent messages** in **Agents** > **Settings** > **General**, or you use a touch device with a keyboard, press Alt+Enter (Option+Enter on macOS) instead.
+You can also right-click the send button, or touch and hold it on a touch screen, and select **Send after turn**.
 API and MCP clients set `busy_behavior` to `queue` for the same result.
 Users can edit a queued message before it is delivered.
 While a message under **After turn** is being edited, it and the messages behind it wait.
