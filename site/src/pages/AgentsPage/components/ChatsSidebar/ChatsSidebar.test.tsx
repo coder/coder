@@ -751,9 +751,11 @@ it("opens the Automations page", async () => {
 		</Wrapper>,
 	);
 	await user.click(screen.getByRole("link", { name: "Automations" }));
-	expect(screen.getByTestId("location-pathname").textContent).toBe(
-		"/agents/automations",
-	);
+	await waitFor(() => {
+		expect(screen.getByTestId("location-pathname").textContent).toBe(
+			"/agents/automations",
+		);
+	});
 });
 
 describe("ChatsSidebar section switcher", () => {
