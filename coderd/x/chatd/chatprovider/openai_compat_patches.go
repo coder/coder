@@ -171,24 +171,22 @@ func mergeOpenAICompatLeadingSystemMessages(payload map[string]any) bool {
 
 	var texts []string
 	var parts []any
-	useParts := false
 	for _, msg := range system {
 		switch content := msg["content"].(type) {
 		case string:
 			texts = append(texts, content)
 			parts = append(parts, map[string]any{"type": "text", "text": content})
 		case []any:
-			useParts = true
 			parts = append(parts, content...)
 		default:
 			return false
 		}
 	}
 
-	if useParts {
-		system[0]["content"] = parts
-	} else {
+	if len(texts) == len(system) {
 		system[0]["content"] = strings.Join(texts, "\n\n")
+	} else {
+		system[0]["content"] = parts
 	}
 	payload["messages"] = append([]any{system[0]}, messages[len(system):]...)
 	return true

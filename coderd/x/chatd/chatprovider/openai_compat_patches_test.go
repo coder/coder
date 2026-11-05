@@ -395,36 +395,64 @@ func TestProviderOptionsForCall_GoogleThinkingConfigSkipsNonCompatClients(t *tes
 func TestModelFromConfig_OpenAICompatMergesLeadingSystemMessages(t *testing.T) {
 	t.Parallel()
 
-	transport := &captureChatCompletionTransport{}
-	model, err := chatprovider.ModelFromConfig(
-		fantasyopenaicompat.Name,
-		"test-model",
-		chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{
-				fantasyopenaicompat.Name: "test-key",
-			},
-			BaseURLByProvider: map[string]string{
-				fantasyopenaicompat.Name: "http://example.com/v1",
-			},
-		},
-		chatprovider.UserAgent(),
-		nil,
-		&http.Client{Transport: transport},
-		nil,
-	)
-	require.NoError(t, err)
+	generate := func(t *testing.T, instructions fantasy.TextPart) []any {
+		t.Helper()
 
-	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
-		Prompt: []fantasy.Message{
-			{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system prompt"}}},
-			{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "instructions"}}},
-			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}}},
-		},
+		transport := &captureChatCompletionTransport{}
+		model, err := chatprovider.ModelFromConfig(
+			fantasyopenaicompat.Name,
+			"test-model",
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasyopenaicompat.Name: "test-key",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenaicompat.Name: "http://example.com/v1",
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			&http.Client{Transport: transport},
+			nil,
+		)
+		require.NoError(t, err)
+
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
+			Prompt: []fantasy.Message{
+				{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system prompt"}}},
+				{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{instructions}},
+				{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}}},
+			},
+		})
+		require.NoError(t, err)
+
+		messages := transport.body["messages"].([]any)
+		require.Len(t, messages, 2)
+		require.Equal(t, "user", messages[1].(map[string]any)["role"])
+		return messages
+	}
+
+	t.Run("string contents are joined", func(t *testing.T) {
+		t.Parallel()
+
+		messages := generate(t, fantasy.TextPart{Text: "instructions"})
+		require.Equal(t, map[string]any{"role": "system", "content": "system prompt\n\ninstructions"}, messages[0])
 	})
-	require.NoError(t, err)
 
-	messages := transport.body["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, map[string]any{"role": "system", "content": "system prompt\n\ninstructions"}, messages[0])
-	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	t.Run("cache marker stays on the last part", func(t *testing.T) {
+		t.Parallel()
+
+		messages := generate(t, fantasy.TextPart{
+			Text: "instructions",
+			ProviderOptions: fantasy.ProviderOptions{
+				fantasyopenaicompat.Name: &fantasyopenaicompat.ContentExtraFields{
+					Fields: map[string]any{"cache_control": map[string]string{"type": "ephemeral"}},
+				},
+			},
+		})
+		require.Equal(t, []any{
+			map[string]any{"type": "text", "text": "system prompt"},
+			map[string]any{"type": "text", "text": "instructions", "cache_control": map[string]any{"type": "ephemeral"}},
+		}, messages[0].(map[string]any)["content"])
+	})
 }
