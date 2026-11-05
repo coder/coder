@@ -230,7 +230,9 @@ func (r *reporter) versionRead(version int) {
 	r.mu.Unlock()
 
 	if len(pending) == 0 {
-		r.logger.Info(ctx, "database schema is up to date", versionField("version", version)...)
+		// Debug level: most starts have nothing to migrate, and they should
+		// not add a line to every server start.
+		r.logger.Debug(ctx, "database schema is up to date", versionField("version", version)...)
 		return
 	}
 	fields := versionField("from_version", version)
