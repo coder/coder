@@ -135,12 +135,10 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           # Context is the repo root so Dockerfile.base can COPY the
-          # distro-specific files/ tree. It is the checked-out tree, not
-          # the git context ({{defaultContext}}): Depot fetches git
-          # contexts into a cached clone that never prunes deleted
-          # branches, so the fetch fails once a branch `x` is deleted and
-          # `x/y` is pushed, and the build falls back to buildx without
-          # Depot's layer cache.
+          # distro-specific files/ tree. It is the checkout rather than
+          # {{defaultContext}} because Depot's cached git clone cannot fetch
+          # a commit by SHA while it keeps a deleted branch `x` and `x/y`
+          # exists.
           context: .
           file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile.base
           pull: true
