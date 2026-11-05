@@ -395,8 +395,7 @@ func (tc testCase) run(t *testing.T) {
 		logger := slogtest.Make(
 			t, &slogtest.Options{IgnoreErrors: true},
 		).Leveled(slog.LevelDebug)
-		db, rps := dbtestutil.NewDB(t)
-		var pubSub pubsub.Pubsub = rps
+		db, pubSub := dbtestutil.NewDB(t)
 
 		ownerID := uuid.New()
 		dbgen.User(t, db, database.User{

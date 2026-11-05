@@ -584,8 +584,11 @@ func TestHealthReport(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		// newPubsub does not start an embedded server.
 		ps := newPubsub(ctx, testutil.Logger(t), defaultTestOptions())
+		// An embedded server that was never started reports not running.
+		ns, err := natsserver.NewServer(&natsserver.Options{})
+		require.NoError(t, err)
+		ps.Server = ns
 		ps.publishPool = []conn{&fakeConn{status: natsgo.CONNECTED}}
 		ps.subscribePool = []conn{&fakeConn{status: natsgo.RECONNECTING}}
 
