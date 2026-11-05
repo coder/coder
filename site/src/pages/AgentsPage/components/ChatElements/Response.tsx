@@ -35,8 +35,6 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	streaming?: boolean;
 	/** Keep single line breaks, the way the user typed them. */
 	preserveLineBreaks?: boolean;
-	/** Tighten the gaps between blocks and list items, for message bubbles. */
-	compact?: boolean;
 };
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -241,6 +239,25 @@ const createComponents = (
 		img: ({ src, alt }: MarkdownComponentProps) => (
 			<MarkdownImage src={src} alt={alt} />
 		),
+		// Streamdown places list markers inside the text box, so wrapped
+		// lines start under the marker. Outside markers keep them aligned
+		// with the item text.
+		ul: ({ children, className }: MarkdownComponentProps) => (
+			<ul
+				className={cn(
+					"list-outside list-disc pl-6",
+					className?.includes("contains-task-list") && "list-none pl-0",
+				)}
+			>
+				{children}
+			</ul>
+		),
+		ol: ({ children }: MarkdownComponentProps) => (
+			<ol className="list-outside list-decimal pl-6">{children}</ol>
+		),
+		li: ({ children }: MarkdownComponentProps) => (
+			<li className="py-0.5 [&>p]:inline">{children}</li>
+		),
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
 		hr: () => (
@@ -346,7 +363,6 @@ export const Response = ({
 	urlTransform,
 	streaming,
 	preserveLineBreaks,
-	compact,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -370,9 +386,9 @@ export const Response = ({
 			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
 				<Streamdown
 					// Streamdown merges this over its own space-y-4 root class.
-					// Paragraphs also carry the browser's default 1em bottom
-					// margin, which would otherwise outweigh space-y-2.
-					className={compact ? "space-y-2 [&_li]:py-0 [&_p]:mb-0" : undefined}
+					// Top-level paragraphs also carry the browser's default 1em
+					// margin, which would otherwise outweigh the gap.
+					className="space-y-3 [&>p]:my-0"
 					controls={false}
 					components={components}
 					urlTransform={urlTransform}

@@ -116,7 +116,6 @@ export const UserMessageContent: React.FC<{
 								<Response
 									className="min-w-0 flex-1 whitespace-normal"
 									preserveLineBreaks
-									compact
 									urlTransform={urlTransform}
 								>
 									{displayState.userInlineContent.length > 0
