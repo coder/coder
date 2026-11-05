@@ -571,7 +571,14 @@ export function FilterCombobox({
 						<FilterComboboxFlyoutRoot onDismiss={actions.dismiss}>
 							<div
 								className="relative flex items-start gap-1 overflow-visible"
-								onMouseLeave={() => {
+								onMouseLeave={(event) => {
+									const focusedElement = document.activeElement;
+									if (
+										focusedElement instanceof HTMLInputElement &&
+										event.currentTarget.contains(focusedElement)
+									) {
+										actions.focusInput();
+									}
 									updateFlyoutCategory(null);
 									setHighlightedCategoryKey(undefined);
 									actions.setHighlightedValue("");

@@ -219,6 +219,17 @@ export const SearchableHoverFlyout: Story = {
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "user-12"),
 };
 
+export const SearchableHoverFlyoutAfterPointerLeaves: Story = {
+	...SearchableHoverFlyout,
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await searchOwnerFlyout(canvasElement, "user-12");
+		const search = await body.findByRole("textbox", { name: "Search Owner" });
+		await userEvent.click(search);
+		await userEvent.unhover(search);
+	},
+};
+
 const longOptionCategory = (key: string, label: string): FilterCategory => ({
 	key,
 	label,
