@@ -692,7 +692,7 @@ describe("AgentChatInput", () => {
 
 		await user.pointer({
 			keys: "[MouseRight]",
-			target: await screen.findByRole("button", { name: "Send" }),
+			target: await screen.findByRole("button", { name: "Send during turn" }),
 		});
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Send after turn" }),
@@ -712,7 +712,9 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		const sendButton = await screen.findByRole("button", { name: "Send" });
+		const sendButton = await screen.findByRole("button", {
+			name: "Send during turn",
+		});
 		await user.pointer({ keys: "[MouseRight]", target: sendButton });
 		await screen.findByRole("menu");
 		await user.keyboard("{Escape}");
@@ -736,7 +738,9 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		const sendButton = await screen.findByRole("button", { name: "Send" });
+		const sendButton = await screen.findByRole("button", {
+			name: "Send during turn",
+		});
 		await user.pointer({ keys: "[TouchA>]", target: sendButton });
 		const sendItem = await screen.findByRole("menuitem", {
 			name: "Send during turn",
@@ -767,7 +771,7 @@ describe("AgentChatInput", () => {
 
 		await user.pointer({
 			keys: "[MouseRight]",
-			target: await screen.findByRole("button", { name: "Send" }),
+			target: await screen.findByRole("button", { name: "Send during turn" }),
 		});
 		await screen.findByRole("menu");
 
@@ -816,7 +820,9 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 		expect(onSend).not.toHaveBeenCalled();
@@ -828,7 +834,7 @@ describe("AgentChatInput", () => {
 		});
 
 		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
-		await user.click(screen.getByRole("button", { name: "Send" }));
+		await user.click(screen.getByRole("button", { name: "Send during turn" }));
 		expect(onSend).toHaveBeenCalledWith("Also update the docs", undefined);
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 
@@ -837,7 +843,9 @@ describe("AgentChatInput", () => {
 			expect(inputRef.current?.getValue()).toBe("");
 		});
 
-		expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
@@ -903,7 +911,7 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		const sendButton = screen.getByRole("button", { name: "Send" });
+		const sendButton = screen.getByRole("button", { name: "Send during turn" });
 		expect(sendButton).toBeDisabled();
 		expect(within(sendButton).queryByTitle("Loading spinner")).toBeNull();
 		await user.click(sendButton);
@@ -934,16 +942,16 @@ describe("AgentChatInput", () => {
 		const desktop = renderInput(<AgentChatInput {...props} />);
 		expect(
 			screen
-				.getByRole("button", { name: "Send" })
+				.getByRole("button", { name: "Send during turn" })
 				.getAttribute("aria-keyshortcuts"),
 		).toMatch(/Enter/);
 		desktop.unmount();
 
 		stubViewport(true);
 		renderInput(<AgentChatInput {...props} />);
-		expect(screen.getByRole("button", { name: "Send" })).not.toHaveAttribute(
-			"aria-keyshortcuts",
-		);
+		expect(
+			screen.getByRole("button", { name: "Send during turn" }),
+		).not.toHaveAttribute("aria-keyshortcuts");
 	});
 
 	it("keeps Accept and Cancel available while a recording outlives the start of a turn", async () => {

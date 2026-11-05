@@ -319,7 +319,9 @@ export const StreamingWithDraftShowsAfterTurnShortcut: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(await canvas.findByRole("button", { name: "Send" }));
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: "Send during turn" }),
+		);
 		await screen.findByRole("tooltip");
 	},
 };
@@ -330,7 +332,7 @@ export const StreamingSendMenuOpen: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.pointer({
 			keys: "[MouseRight]",
-			target: await canvas.findByRole("button", { name: "Send" }),
+			target: await canvas.findByRole("button", { name: "Send during turn" }),
 		});
 		await screen.findByRole("menu");
 	},

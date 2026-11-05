@@ -97,7 +97,7 @@ export const AgentChatSendButton: React.FC<AgentChatSendButtonProps> = ({
 							<ArrowUpIcon />
 						)}
 						<span className="sr-only">
-							{isRecording ? "Accept voice input" : label}
+							{isRecording ? "Accept voice input" : sendActionLabel}
 						</span>
 					</Button>
 				</TooltipTrigger>
