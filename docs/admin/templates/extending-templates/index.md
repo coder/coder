@@ -139,6 +139,22 @@ resource "coder_app" "zed" {
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.
 
+### Session tokens in external app links
+
+An external app's `url` can include the `$SESSION_TOKEN` placeholder so a desktop IDE can sign in to Coder.
+The dashboard and `coder open app` replace the placeholder with the user's session token only when all of these are true:
+
+- The link opens a Coder IDE extension, such as `vscode://coder.coder-remote/open` or `jetbrains://gateway/com.coder.toolbox`.
+- The link's `url` parameter is this deployment's URL, with no path.
+- The placeholder is the whole value of the link's `token` parameter.
+
+When a link with the placeholder doesn't meet these conditions, Coder doesn't add a token.
+`coder open app` prints the link with a warning instead of opening it.
+The dashboard shows the app as disabled, except for `http` and `https` links, which open with the placeholder left in place.
+Links without the placeholder open as written.
+Dev container apps never receive a session token.
+Refer to [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md) for details.
+
 ## Environment variables
 
 Use the
