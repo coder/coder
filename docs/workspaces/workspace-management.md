@@ -137,6 +137,8 @@ For update, delete, and stop, the admin applying the operation is prompted for c
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 
+To use bulk update to roll out a patched image to every workspace of a template, refer to [Roll out a security update to every workspace](../templates/managing-templates/roll-out-security-updates.md).
+
 <a id="starting-and-stopping-workspaces"></a>
 
 ## Start and stop workspaces
