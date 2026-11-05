@@ -31,6 +31,12 @@ if (($#)); then
 	done
 fi
 
+# One launch at a time per checkout: two could otherwise pass the check below
+# together, pick the same ports and overwrite each other's run state.
+mkdir -p "$VC_STATE"
+exec 9>"$VC_STATE/launch.lock"
+flock -n 9 || vc_fail "another launch.sh runs in this checkout"
+
 if [[ -f "$VC_RUN/env" ]]; then
 	vc_load_run
 	if vc_owns_pid "$VC_PID"; then
@@ -180,6 +186,9 @@ if vc_default_password_accepted; then
 	kill -INT "$pid" 2>/dev/null || true
 	vc_fail "the instance accepts the published default password, so launch.sh stopped it: run cleanup.sh, then launch.sh --fresh"
 fi
+# develop.sh reuses a saved session without signing in, so a wrong password
+# for reused data shows only here.
+vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the journeys would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
 
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
 exec "$(dirname "${BASH_SOURCE[0]}")/doctor.sh"

@@ -19,7 +19,8 @@ VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {
 	vc_capture_failure "$out" "$1"
 }
-stamp="$(date +%s)"
+# The random suffix keeps two runs that start in the same second apart.
+stamp="$(date +%s)-$RANDOM"
 cli_ws="vcc-$stamp"
 ui_ws="vcu-$stamp"
 # cleanup.sh deletes only recorded workspaces, so a failed run leaves none.

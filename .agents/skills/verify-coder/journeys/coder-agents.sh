@@ -18,7 +18,8 @@ VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {
 	vc_capture_failure "$out" "$1"
 }
-stamp="$(date +%s)"
+# The random suffix keeps two runs that start in the same second apart.
+stamp="$(date +%s)-$RANDOM"
 provider_name="vc-mock-$stamp"
 provider_display="Verify mock $stamp"
 model_display="Verify mock model $stamp"
@@ -36,9 +37,15 @@ done
 mock_pid_file="$VC_RUN/llm-mock-$stamp.pid"
 "$(vc_coder_bin)" exp scaletest llm-mock --address "127.0.0.1:$mock_port" >"$out/llm-mock.log" 2>&1 </dev/null &
 echo "$!" >"$mock_pid_file"
+# stop_mock signals the pid only while it still runs this checkout's coder
+# binary, so a recycled pid is left alone.
 stop_mock() {
+	local pid
 	if [[ -f "$mock_pid_file" ]]; then
-		kill "$(cat "$mock_pid_file")" 2>/dev/null || true
+		pid="$(cat "$mock_pid_file")"
+		if [[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$(vc_coder_bin)"* ]]; then
+			kill "$pid" 2>/dev/null || true
+		fi
 		rm -f "$mock_pid_file"
 	fi
 }
@@ -171,7 +178,10 @@ restore() {
 	local model_id chat_id
 	if [[ -f "$out/06-chat-url.txt" ]]; then
 		chat_id="$(sed 's#.*/agents/##; s#[?].*##' "$out/06-chat-url.txt")"
-		vc_send PATCH "/api/v2/chats/$chat_id" '{"archived": true}'
+		# The API refuses to archive an archived chat, so a retry skips it.
+		if [[ "$(vc_api "/api/v2/chats/$chat_id" | jq -r '.archived')" != true ]]; then
+			vc_send PATCH "/api/v2/chats/$chat_id" '{"archived": true}'
+		fi
 		vc_api "/api/v2/chats/$chat_id" | jq -e '.archived == true' >/dev/null
 	fi
 	if [[ -n "$old_default" ]]; then

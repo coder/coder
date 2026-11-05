@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks harness behavior that needs no running instance: the launch.sh
-# argument and password refusals, the random password for a new database, how
-# vc_start_develop passes the environment, and that vc_browser_login keeps the
-# password out of the process arguments.
+# argument and password refusals, the random password for a new database, the
+# launch lock, how vc_start_develop passes the environment, and that
+# vc_browser_login keeps the password out of the process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -80,7 +80,7 @@ start_develop_isolates() {
 	# vc_check runs this in a subshell, so the exports stay here.
 	# A caller's own CODER_DEV_ADMIN_PASSWORD must lose to the one passed in.
 	export CODER_PG_CONNECTION_URL=postgres://selftest-elsewhere CODER_DEV_DB_RESET=1 \
-		CODER_DEV_ADMIN_PASSWORD=selftest-caller-value PATH="$tmp/bin:$PATH"
+		CODER_DEV_ADMIN_PASSWORD=selftest-caller-value BASH_ENV="$tmp/bash-env" PATH="$tmp/bin:$PATH"
 	vc_start_develop "$tmp/develop.log" "$marker" 1 --port 1
 	wait "$VC_DEVELOP_PID"
 	if grep -qF "$marker" "$tmp/env-argv"; then
@@ -95,13 +95,28 @@ start_develop_isolates() {
 		echo "develop.sh would not get DEVELOP_IN_CODER=1"
 		return 1
 	}
-	if grep -qE '^(CODER_PG_CONNECTION_URL|CODER_DEV_DB_RESET)=' "$tmp/develop-env"; then
-		echo "a caller CODER_* variable reaches develop.sh"
+	if grep -qE '^(CODER_PG_CONNECTION_URL|CODER_DEV_DB_RESET|BASH_ENV)=' "$tmp/develop-env"; then
+		echo "a caller CODER_* variable or BASH_ENV reaches develop.sh"
 		return 1
 	fi
 	echo "develop.sh gets the password through its environment and no caller CODER_* variable"
 }
 vc_check start-develop start_develop_isolates
+
+# A second launch in the same checkout must stop while the first holds the lock.
+launch_lock_held() {
+	local out rc=0
+	mkdir -p "$VERIFY_CODER_STATE"
+	exec 8>"$VERIFY_CODER_STATE/launch.lock"
+	flock 8
+	out="$(env CODER_BUILD_AGPL= PATH="$tmp/bin:$PATH" "$here/launch.sh" --fresh 2>&1)" || rc=$?
+	[[ "$rc" == 1 && "$out" == *"another launch.sh runs in this checkout"* ]] || {
+		echo "launch.sh exited $rc with the lock held: ${out##*$'\n'}"
+		return 1
+	}
+	echo "launch.sh refused while another launch held the lock"
+}
+vc_check launch-lock launch_lock_held
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"

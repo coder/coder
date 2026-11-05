@@ -12,7 +12,8 @@ vc_load_run
 
 out="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-create-user"
 mkdir -p "$out"
-username="vc-$(date +%s)"
+# The random suffix keeps two runs that start in the same second apart.
+username="vc-$(date +%s)-$RANDOM"
 email="$username@coder.com"
 cli_username="$username-cli"
 password="Verify-$(openssl rand -hex 8)"

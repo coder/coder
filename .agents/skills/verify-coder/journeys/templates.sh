@@ -20,7 +20,8 @@ VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {
 	vc_capture_failure "$out" "$1"
 }
-name="vct-$(date +%s)"
+# The random suffix keeps two runs that start in the same second apart.
+name="vct-$(date +%s)-$RANDOM"
 pulled="$out/pulled-template"
 
 template_json() {

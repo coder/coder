@@ -23,16 +23,30 @@ fi
 vc_load_run
 VC_CHECK_LOG="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-cleanup.log"
 
-containers_since_launch() {
+# docker_since_launch prints the coder-* containers and volumes created since
+# the launch. A stopped workspace has no container but keeps its home volume.
+# It fails when Docker cannot list them, so an unreadable inventory never
+# counts as empty.
+docker_since_launch() {
 	command -v docker >/dev/null || return 0
-	local since id name created
+	local since containers volumes name created
 	since="$(date -d "$VC_STARTED_AT" +%s)"
-	for id in $(docker ps -aq --filter 'name=^coder-'); do
-		read -r name created < <(docker inspect -f '{{.Name}} {{.Created}}' "$id")
+	containers="$(docker ps -a --filter 'name=^coder-' --format '{{.Names}}')"
+	volumes="$(docker volume ls --filter 'name=^coder-' --format '{{.Name}}')"
+	while read -r name; do
+		[[ -n "$name" ]] || continue
+		created="$(docker inspect -f '{{.Created}}' "$name")"
 		if (($(date -d "$created" +%s) >= since)); then
-			printf '%s ' "${name#/}"
+			printf 'container %s ' "$name"
 		fi
-	done
+	done <<<"$containers"
+	while read -r name; do
+		[[ -n "$name" ]] || continue
+		created="$(docker volume inspect -f '{{.CreatedAt}}' "$name")"
+		if (($(date -d "$created" +%s) >= since)); then
+			printf 'volume %s ' "$name"
+		fi
+	done <<<"$volumes"
 }
 
 # Only workspaces that a journey or vc_record_workspace recorded belong to the
@@ -43,12 +57,15 @@ containers_since_launch() {
 delete_workspaces() {
 	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
 		local left
-		left="$(containers_since_launch)"
+		left="$(docker_since_launch)" || {
+			echo "server is down and docker cannot list containers or volumes, run cleanup.sh again when it can"
+			return 1
+		}
 		if [[ -n "$left" ]]; then
-			echo "server is down, coder-* containers created since the launch remain: $left (check they are yours, then docker rm -f them and their coder-<id>-home volumes)"
+			echo "server is down, coder-* items created since the launch remain: $left(check they are yours, then docker rm -f the containers and docker volume rm the volumes)"
 			return 1
 		fi
-		echo "server is down, and no coder-* container was created since the launch"
+		echo "server is down, and no coder-* container or volume was created since the launch"
 		return 0
 	fi
 	local ws status kept deleted=()
@@ -203,7 +220,11 @@ remove_data() {
 	# the harness's data on the next try.
 	find "$VC_CONFIG_DIR" -mindepth 1 -maxdepth 1 ! -name .verify-coder-created -exec rm -rf {} +
 	rm -f "$VC_CONFIG_DIR/.verify-coder-created"
-	rmdir "$VC_CONFIG_DIR"
+	rmdir "$VC_CONFIG_DIR" || {
+		touch "$VC_CONFIG_DIR/.verify-coder-created"
+		echo "could not remove $VC_CONFIG_DIR, its marker is back, run cleanup.sh again"
+		return 1
+	}
 	echo "removed $VC_CONFIG_DIR (launch.sh created it)"
 }
 

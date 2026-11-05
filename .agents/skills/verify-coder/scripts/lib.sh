@@ -20,7 +20,7 @@ vc_fail() {
 VC_PASS=0
 VC_TOTAL=0
 # vc_check runs one step and prints "PASS|FAIL <name>: <last output line>".
-# The step runs with errexit on, so any failing command fails it. It must not
+# The step runs with errexit and pipefail on, so any failing command fails it. It must not
 # run inside an if test: bash ignores errexit there, and every step would pass.
 # It works the same in a hand-driven shell and leaves its errexit state alone.
 # VC_CHECK_LOG keeps full output, VC_RESULT_FILE the lines. A caller's
@@ -34,7 +34,7 @@ vc_check() {
 	fi
 	set +e
 	_vc_out="$(
-		set -e
+		set -eo pipefail
 		"$@" 2>&1
 	)"
 	_vc_rc=$?
@@ -66,18 +66,21 @@ vc_check() {
 # them. Provider keys are dropped too, so the instance never spends real
 # tokens by itself (task naming calls Anthropic when a key is present). The
 # password goes through the environment, never an argument, so it stays out
-# of the process list.
+# of the process list. It closes fd 9, the launch.sh lock, so the instance
+# does not hold it.
 vc_start_develop() {
 	local log="$1" password="$2" in_coder="$3" var
 	shift 3
-	local scrub=(-u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL)
+	# BASH_ENV and ENV would let a startup file in the develop.sh shell set
+	# CODER_* variables again.
+	local scrub=(-u BASH_ENV -u ENV -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL)
 	while read -r var; do
 		if [[ "$var" != CODER_DEV_ADMIN_PASSWORD ]]; then
 			scrub+=(-u "$var")
 		fi
 	done < <(compgen -e | grep '^CODER_' || true)
 	CODER_DEV_ADMIN_PASSWORD="$password" DEVELOP_IN_CODER="$in_coder" env "${scrub[@]}" \
-		setsid "$VC_ROOT/scripts/develop.sh" "$@" >"$log" 2>&1 </dev/null &
+		setsid "$VC_ROOT/scripts/develop.sh" "$@" >"$log" 2>&1 </dev/null 9>&- &
 	# shellcheck disable=SC2034 # launch.sh reads it.
 	VC_DEVELOP_PID=$!
 }
@@ -90,6 +93,16 @@ vc_default_password_accepted() {
 	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
 		--data '{"email": "admin@coder.com", "password": "SomeSecurePassword!"}' "$VC_API_URL/api/v2/users/login" 2>/dev/null)" || true
 	[[ "$code" != 401 ]]
+}
+
+# vc_password_accepted succeeds when the instance signs the admin in with the
+# given password. The password reaches curl on stdin.
+vc_password_accepted() {
+	local code
+	code="$(VC_LOGIN_PASSWORD="$1" jq -n --arg e "$VC_ADMIN_EMAIL" '{email: $e, password: env.VC_LOGIN_PASSWORD}' |
+		curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+			--data @- "$VC_API_URL/api/v2/users/login" 2>/dev/null)" || true
+	[[ "$code" == 201 ]]
 }
 
 # vc_record_workspace marks <owner>/<name> as created by the harness, so
