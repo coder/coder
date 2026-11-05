@@ -116,12 +116,13 @@ links */}}
         /* A fixed height would let align-items: center push a long scope list
            past both edges, leaving the top half unreachable by scrolling. */
         min-height: 100%;
+        width: 100%;
       }
 
       .container {
         width: 100%;
-        max-width: 65ch;
-        padding: 16px;
+        max-width: calc(320px + 48px);
+        padding: 24px;
         text-align: center;
       }
 
