@@ -17,6 +17,9 @@ export function useAgentsPWA() {
 		const manifest = document.createElement("link");
 		manifest.rel = "manifest";
 		manifest.href = `/manifest.json?v=${pwaAssetVersion}`;
+		// TEMPORARY, do not merge: lets an iOS Home Screen install of the
+		// ephemeral deployment read the manifest through its sign-in proxy.
+		manifest.crossOrigin = "use-credentials";
 
 		const appleTouchIcon = document.createElement("link");
 		appleTouchIcon.rel = "apple-touch-icon";

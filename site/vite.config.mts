@@ -61,14 +61,17 @@ export default defineConfig({
 		rolldownOptions: {
 			input: {
 				index: path.resolve(import.meta.dirname, "./index.html"),
-				serviceWorker: path.resolve(
+				// TEMPORARY, do not merge: the ephemeral frontend deployment's
+				// proxy sends /serviceWorker.js to dogfood, so emit the branch's
+				// worker under a path it serves from this build.
+				swipeDiagServiceWorker: path.resolve(
 					import.meta.dirname,
 					"./src/serviceWorker.ts",
 				),
 			},
 			output: {
 				entryFileNames: (chunkInfo) => {
-					return chunkInfo.name === "serviceWorker"
+					return chunkInfo.name === "swipeDiagServiceWorker"
 						? "[name].js"
 						: "assets/[name]-[hash].js";
 				},

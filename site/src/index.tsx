@@ -1,3 +1,5 @@
+// TEMPORARY, do not merge: must run before ./App installs the router.
+import "./swipeDiagnostics";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
@@ -21,7 +23,8 @@ if (element === null) {
 
 // The service worker handles push notifications.
 if ("serviceWorker" in navigator) {
-	navigator.serviceWorker.register("/serviceWorker.js");
+	// TEMPORARY, do not merge: see swipeDiagServiceWorker in vite.config.mts.
+	navigator.serviceWorker.register("/swipeDiagServiceWorker.js");
 }
 
 const root = createRoot(element);
