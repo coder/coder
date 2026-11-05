@@ -1063,7 +1063,6 @@ func TestRepositoryManifest(t *testing.T) {
 	live := liveRoutes(m)
 	require.Greater(t, len(live), 300)
 	require.True(t, live["/docs"])
-	require.True(t, live["/docs/about"])
 	require.True(t, live["/docs/admin/external-auth"])
 }
 

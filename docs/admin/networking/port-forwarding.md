@@ -21,11 +21,11 @@ Coder Desktop and `coder port-forward` are generally more performant than:
 
 ## Coder Desktop
 
-[Coder Desktop](../../user-guides/desktop/index.md) provides automatic port forwarding to every service running in your workspace.
+[Coder Desktop](../../workspaces/desktop/index.md) provides automatic port forwarding to every service running in your workspace.
 Once Coder Connect is enabled, any port your application listens on is instantly accessible at `<workspace-name>.coder:PORT` from your local machine, with no additional commands or configuration.
 
 This is the simplest option for most users.
-See the [Coder Desktop documentation](../../user-guides/desktop/index.md) for installation and setup.
+See the [Coder Desktop documentation](../../workspaces/desktop/index.md) for installation and setup.
 
 ## The `coder port-forward` command
 
@@ -273,7 +273,7 @@ Rows are the destination: the user, workspace, and app that receives it.
 
 ## SSH
 
-First, [configure SSH](../../user-guides/workspace-access/index.md#configure-ssh) on your local machine.
+First, [configure SSH](../../workspaces/workspace-access/index.md#configure-ssh) on your local machine.
 Then, use `ssh` to forward like so:
 
 ```console
