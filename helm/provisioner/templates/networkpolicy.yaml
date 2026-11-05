@@ -30,6 +30,22 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    - to:
+        {{- toYaml .Values.coder.networkPolicy.egress.coderServer.to | nindent 8 }}
+      ports:
+        {{- range .Values.coder.networkPolicy.egress.coderServer.ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+    - ports:
+        {{- range .Values.coder.networkPolicy.egress.kubernetesAPI.ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.coder.networkPolicy.egress.kubernetesAPI.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     {{- with .Values.coder.networkPolicy.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

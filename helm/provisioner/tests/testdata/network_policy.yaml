@@ -7,9 +7,7 @@ coder:
       - ports:
           - port: 2112
             protocol: TCP
-    egress:
-      enable: true
     extraEgress:
       - ports:
-          - port: 8080
+          - port: 443
             protocol: TCP
