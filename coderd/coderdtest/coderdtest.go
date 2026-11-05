@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -74,6 +73,7 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	natspubsub "github.com/coder/coder/v2/coderd/nats"
@@ -2028,7 +2028,7 @@ type testReportingPubsub struct {
 	pubsub.Pubsub
 }
 
-func (t testReportingPubsub) HealthReport(_ context.Context) healthsdk.PubsubReport {
+func (testReportingPubsub) HealthReport(context.Context) healthsdk.PubsubReport {
 	return healthsdk.PubsubReport{
 		Backend:    "coderd-shim",
 		BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
