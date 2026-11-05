@@ -23,7 +23,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Prometheus metrics. The provisioner has no other listeners.
+    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
         - port: 2112
           protocol: TCP
@@ -175,11 +175,16 @@ spec:
               name: coder-provisioner-psk
         - name: CODER_URL
           value: http://coder.coder.svc.cluster.local
+        - name: CODER_PROMETHEUS_ENABLE
+          value: "true"
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: coder
-        ports: null
+        ports:
+        - containerPort: 2112
+          name: prometheus-http
+          protocol: TCP
         resources:
           limits:
             cpu: 2000m

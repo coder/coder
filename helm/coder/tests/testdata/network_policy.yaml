@@ -1,6 +1,11 @@
 coder:
   image:
     tag: latest
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+    - name: CODER_PROMETHEUS_ADDRESS
+      value: "0.0.0.0:2113"
   tls:
     secretNames:
       - coder-tls

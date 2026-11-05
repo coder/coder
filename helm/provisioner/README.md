@@ -69,10 +69,9 @@ Set `coder.networkPolicy.enable` to create a `NetworkPolicy` for the provisioner
 pods. Your CNI must enforce NetworkPolicy for it to have any effect.
 
 The provisioner only makes outbound connections, so ingress is limited to
-Prometheus metrics on port 2112. Restrict who can scrape with
-`coder.networkPolicy.prometheus.from`, disable it with
-`coder.networkPolicy.prometheus.enable`, or allow more with
-`coder.networkPolicy.extraIngress`.
+Prometheus metrics when `CODER_PROMETHEUS_ENABLE` is set in `coder.env`, with no
+extra toggle. Restrict who can scrape with `coder.networkPolicy.prometheus.from`,
+or allow more with `coder.networkPolicy.extraIngress`.
 
 Egress is restricted by default. Only DNS, the Coder server, and the Kubernetes
 API are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set

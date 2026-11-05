@@ -18,12 +18,13 @@ spec:
     {{- if .Values.coder.networkPolicy.egress.enable }}
     - Egress
     {{- end }}
-  {{- if or .Values.coder.networkPolicy.prometheus.enable .Values.coder.networkPolicy.extraIngress }}
+  {{- $metricsPort := include "libcoder.prometheusPort" (list . false) }}
+  {{- if or $metricsPort .Values.coder.networkPolicy.extraIngress }}
   ingress:
-    {{- if .Values.coder.networkPolicy.prometheus.enable }}
-    # Prometheus metrics. The provisioner has no other listeners.
+    {{- if $metricsPort }}
+    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
-        - port: 2112
+        - port: {{ $metricsPort }}
           protocol: TCP
       {{- with .Values.coder.networkPolicy.prometheus.from }}
       from:

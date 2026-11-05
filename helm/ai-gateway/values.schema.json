@@ -125,7 +125,7 @@
         "enable": {"type": "boolean"},
         "annotations": {"type": "object"},
         "ingress": {"type": "object", "additionalProperties": false, "required": ["from"], "properties": {"from": {"type": "array", "items": {"type": "object"}}}},
-        "prometheus": {"type": "object", "additionalProperties": false, "required": ["enable", "from"], "properties": {"enable": {"type": "boolean"}, "from": {"type": "array", "items": {"type": "object"}}}},
+        "prometheus": {"type": "object", "additionalProperties": false, "required": ["from"], "properties": {"from": {"type": "array", "items": {"type": "object"}}}},
         "extraIngress": {"type": "array", "items": {"type": "object"}},
         "egress": {"type": "object", "additionalProperties": false, "required": ["enable"], "properties": {"enable": {"type": "boolean"}}},
         "extraEgress": {"type": "array", "items": {"type": "object"}}

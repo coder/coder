@@ -132,9 +132,9 @@ external entry point through a `LoadBalancer` Service.
 Set `networkPolicy.enable` to create a `NetworkPolicy` for the gateway pods.
 Your CNI must enforce NetworkPolicy for it to have any effect. Ingress is limited
 to the data-plane port (4001), from the peers in `networkPolicy.ingress.from`
-(any source if empty). Prometheus metrics on port 2112 are also allowed; restrict
-who can scrape with `networkPolicy.prometheus.from` or disable it with
-`networkPolicy.prometheus.enable`. Open other ports with
+(any source if empty). Prometheus metrics are also allowed, unless you set
+`CODER_PROMETHEUS_ENABLE` to `false` in `coder.env`. Restrict who can scrape with
+`networkPolicy.prometheus.from`. Open other ports with
 `networkPolicy.extraIngress`.
 
 Egress is unrestricted unless you set `networkPolicy.egress.enable`. In that
