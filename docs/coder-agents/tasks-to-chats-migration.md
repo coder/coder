@@ -220,7 +220,7 @@ Then send the `before_id` request again with the lowest message ID that you hold
 Send actions, such as new messages, edits, and tool results, as REST requests.
 Do not apply their response bodies to your client's state, because the stream sends the result of each action.
 
-For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../../reference/api/chats.md#stream-chat-events-via-websockets).
+For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../reference/api/chats.md#stream-chat-events-via-websockets).
 
 ### 5. Update status handling
 
