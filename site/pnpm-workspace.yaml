@@ -20,3 +20,5 @@ allowBuilds:
   protobufjs: false
   ssh2: true
   storybook-addon-remix-react-router: false
+minimumReleaseAgeExclude:
+  - lucide-react@1.68.0
