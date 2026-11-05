@@ -105,6 +105,33 @@ vc_password_accepted() {
 	[[ "$code" == 201 ]]
 }
 
+# vc_docker_since prints the coder-* containers and volumes created at or
+# after the given UTC time. A stopped workspace has no container but keeps its
+# home volume. It fails when Docker cannot list or inspect them, so an
+# unreadable inventory never counts as empty. Command substitutions do not
+# inherit errexit, hence the explicit returns.
+vc_docker_since() {
+	command -v docker >/dev/null || return 0
+	local since containers volumes name created
+	since="$(date -d "$1" +%s)" || return 1
+	containers="$(docker ps -a --filter 'name=^coder-' --format '{{.Names}}')" || return 1
+	volumes="$(docker volume ls --filter 'name=^coder-' --format '{{.Name}}')" || return 1
+	while read -r name; do
+		[[ -n "$name" ]] || continue
+		created="$(docker inspect -f '{{.Created}}' "$name")" || return 1
+		if (($(date -d "$created" +%s) >= since)); then
+			printf 'container %s ' "$name"
+		fi
+	done <<<"$containers"
+	while read -r name; do
+		[[ -n "$name" ]] || continue
+		created="$(docker volume inspect -f '{{.CreatedAt}}' "$name")" || return 1
+		if (($(date -d "$created" +%s) >= since)); then
+			printf 'volume %s ' "$name"
+		fi
+	done <<<"$volumes"
+}
+
 # vc_record_workspace marks <owner>/<name> as created by the harness, so
 # cleanup.sh deletes it. Record a workspace before you create it.
 vc_record_workspace() {

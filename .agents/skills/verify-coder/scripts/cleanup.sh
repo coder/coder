@@ -23,32 +23,6 @@ fi
 vc_load_run
 VC_CHECK_LOG="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-cleanup.log"
 
-# docker_since_launch prints the coder-* containers and volumes created since
-# the launch. A stopped workspace has no container but keeps its home volume.
-# It fails when Docker cannot list them, so an unreadable inventory never
-# counts as empty.
-docker_since_launch() {
-	command -v docker >/dev/null || return 0
-	local since containers volumes name created
-	since="$(date -d "$VC_STARTED_AT" +%s)"
-	containers="$(docker ps -a --filter 'name=^coder-' --format '{{.Names}}')"
-	volumes="$(docker volume ls --filter 'name=^coder-' --format '{{.Name}}')"
-	while read -r name; do
-		[[ -n "$name" ]] || continue
-		created="$(docker inspect -f '{{.Created}}' "$name")"
-		if (($(date -d "$created" +%s) >= since)); then
-			printf 'container %s ' "$name"
-		fi
-	done <<<"$containers"
-	while read -r name; do
-		[[ -n "$name" ]] || continue
-		created="$(docker volume inspect -f '{{.CreatedAt}}' "$name")"
-		if (($(date -d "$created" +%s) >= since)); then
-			printf 'volume %s ' "$name"
-		fi
-	done <<<"$volumes"
-}
-
 # Only workspaces that a journey or vc_record_workspace recorded belong to the
 # harness. Any other workspace can be a developer's own work in the same
 # .coderv2 or come from another client, so it is listed and kept. When this
@@ -57,7 +31,7 @@ docker_since_launch() {
 delete_workspaces() {
 	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
 		local left
-		left="$(docker_since_launch)" || {
+		left="$(vc_docker_since "$VC_STARTED_AT")" || {
 			echo "server is down and docker cannot list containers or volumes, run cleanup.sh again when it can"
 			return 1
 		}

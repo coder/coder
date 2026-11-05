@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks harness behavior that needs no running instance: the launch.sh
 # argument and password refusals, the random password for a new database, the
-# launch lock, how vc_start_develop passes the environment, and that
+# launch lock, how vc_start_develop passes the environment, that a Docker
+# error fails the leftover inventory, and that
 # vc_browser_login keeps the password out of the process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
@@ -117,6 +118,19 @@ launch_lock_held() {
 	echo "launch.sh refused while another launch held the lock"
 }
 vc_check launch-lock launch_lock_held
+
+# With the server down, cleanup relies on this inventory, so a Docker error
+# must fail it instead of reading as no leftovers.
+docker_error_fails() {
+	printf '#!/bin/bash\nexit 1\n' >"$tmp/bin/docker"
+	chmod +x "$tmp/bin/docker"
+	if PATH="$tmp/bin:$PATH" vc_docker_since 2026-01-01T00:00:00Z >/dev/null; then
+		echo "vc_docker_since succeeded although docker failed"
+		return 1
+	fi
+	echo "vc_docker_since fails when docker cannot list"
+}
+vc_check docker-error docker_error_fails
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"

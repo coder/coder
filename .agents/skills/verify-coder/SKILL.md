@@ -45,7 +45,7 @@ It changes nothing apart from one refused sign-in with the published default pas
 scripts/selftest.sh
 ```
 
-Needs no instance and takes about a second. It checks that `launch.sh` refuses `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password before it builds, that a new database without `CODER_DEV_ADMIN_PASSWORD` and the allowed server flags get past those checks, that a second launch stops while another holds the checkout's lock, that `vc_start_develop` gives develop the password through its environment and none of the caller's `CODER_*` variables or `BASH_ENV`, and that `vc_browser_login` passes the password to agent-browser on stdin, not as an argument. Run it after you edit `launch.sh` or `lib.sh`.
+Needs no instance and takes about a second. It checks that `launch.sh` refuses `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password before it builds, that a new database without `CODER_DEV_ADMIN_PASSWORD` and the allowed server flags get past those checks, that a second launch stops while another holds the checkout's lock, that a Docker error fails cleanup's leftover inventory, that `vc_start_develop` gives develop the password through its environment and none of the caller's `CODER_*` variables or `BASH_ENV`, and that `vc_browser_login` passes the password to agent-browser on stdin, not as an argument. Run it after you edit `launch.sh` or `lib.sh`.
 
 ## Drive
 
