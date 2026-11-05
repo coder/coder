@@ -1,0 +1,14 @@
+# Code that ProvisionerJobs.tla describes. run.sh lists every path below
+# that changed after the sync commit. Move the sync commit forward only
+# after you confirm that the model still describes the code there.
+sync ae6b1faea33d2727b053c7214bec4d5307086ef6
+coderd/database/queries/provisionerjobs.sql
+coderd/database/queries/prebuilds.sql
+coderd/provisionerdserver/provisionerdserver.go
+coderd/provisionerdserver/acquirer.go
+coderd/jobreaper/detector.go
+coderd/workspacebuilds.go
+coderd/wsbuilder/wsbuilder.go
+enterprise/coderd/prebuilds/reconcile.go
+provisionerd/runner/runner.go
+provisionerd/provisionerd.go
