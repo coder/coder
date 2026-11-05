@@ -439,9 +439,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": [
-        0
-      ],
+      "input_schema": {},
       "name": "string"
     }
   ],
@@ -3015,9 +3013,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3029,9 +3025,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3048,13 +3042,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3098,9 +3087,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3112,9 +3099,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3131,13 +3116,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3259,9 +3239,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3273,9 +3251,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3292,13 +3268,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -3341,9 +3312,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3355,9 +3324,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3374,13 +3341,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3424,9 +3386,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3438,9 +3398,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3457,13 +3415,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -3570,9 +3523,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3584,9 +3535,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3603,13 +3552,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -3652,9 +3596,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3666,9 +3608,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3685,13 +3625,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -4304,9 +4239,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -4318,9 +4251,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -4337,13 +4268,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -4385,9 +4311,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "generation_attempt": 0,
       "history_version": 0,
       "part": {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -4399,9 +4323,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -4418,13 +4340,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -4453,9 +4370,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "content": [
           {
-            "args": [
-              0
-            ],
+            "args": {},
             "args_delta": "string",
             "completed_at": "2019-08-24T14:15:22Z",
             "content": "string",
@@ -4467,9 +4382,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "context_file_skill_meta_file": "string",
             "context_file_truncated": true,
             "created_at": "2019-08-24T14:15:22Z",
-            "data": [
-              0
-            ],
+            "data": "string",
             "end_line": 0,
             "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
             "file_name": "string",
@@ -4486,13 +4399,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
               ]
             ],
             "provider_executed": true,
-            "provider_metadata": [
-              0
-            ],
             "reasoning_delta": "string",
-            "result": [
-              0
-            ],
+            "result": {},
             "result_delta": "string",
             "result_reset": true,
             "skill_description": "string",
@@ -4567,7 +4475,7 @@ Status Code **200**
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» args`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args`                         | object                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» args_delta`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» completed_at`                 | string(date-time)                                                                | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `»»» content`                      | string                                                                           | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -4579,7 +4487,7 @@ Status Code **200**
 | `»»» context_file_skill_meta_file` | string                                                                           | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `»»» context_file_truncated`       | boolean                                                                          | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `»»» data`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» data`                         | string(byte)                                                                     | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
 | `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4592,9 +4500,8 @@ Status Code **200**
 | `»»» narration`                    | boolean                                                                          | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result`                       | object                                                                           | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
@@ -4771,9 +4678,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
   "results": [
     {
       "is_error": true,
-      "output": [
-        0
-      ],
+      "output": {},
       "tool_call_id": "string"
     }
   ]
