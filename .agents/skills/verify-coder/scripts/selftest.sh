@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks harness behavior that needs no running instance: the launch.sh
-# refusals and that vc_browser_login keeps the password out of the process
-# arguments. Usage: selftest.sh   (prints one line per check and a count line)
+# refusals, the random password for a new database, and that vc_browser_login
+# keeps the password out of the process arguments. Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 tmp="$(mktemp -d)"
@@ -42,6 +42,21 @@ launch_args=(--fresh --password secret)
 vc_check password-flag refuses "--password is not supported" CODER_BUILD_AGPL=
 launch_args=(--password=secret)
 vc_check password-eq-flag refuses "--password is not supported" CODER_BUILD_AGPL=
+launch_args=(--fresh)
+vc_check default-password refuses "must not use the published default password" CODER_BUILD_AGPL= CODER_DEV_ADMIN_PASSWORD='SomeSecurePassword!'
+
+# Without CODER_DEV_ADMIN_PASSWORD, a new database passes the password step
+# and reaches the stub make.
+random_password() {
+	local out rc=0
+	out="$(env -u CODER_DEV_ADMIN_PASSWORD CODER_BUILD_AGPL= PATH="$tmp/bin:$PATH" "$here/launch.sh" --fresh 2>&1)" || rc=$?
+	[[ "$out" == *"selftest: launch reached the build"* ]] || {
+		echo "launch.sh exited $rc before the build: ${out##*$'\n'}"
+		return 1
+	}
+	echo "a new database without CODER_DEV_ADMIN_PASSWORD gets past the password step"
+}
+vc_check random-password random_password
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"

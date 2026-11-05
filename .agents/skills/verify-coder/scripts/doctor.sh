@@ -112,17 +112,9 @@ state_private() {
 # first user" only when the launch created or reset the database, which does
 # not depend on the password logic in launch.sh.
 default_password_refused() {
-	local code password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
+	local code
 	if ! grep -q 'creating first user' "$VC_LOG"; then
 		echo "this launch reused an existing database, its password is unchanged"
-		return 0
-	fi
-	[[ -f "$password_file" ]] || {
-		echo "this launch created the database but saved no $password_file"
-		return 1
-	}
-	if [[ "$(<"$password_file")" == "SomeSecurePassword!" ]]; then
-		echo "CODER_DEV_ADMIN_PASSWORD set the published default for this database"
 		return 0
 	fi
 	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \

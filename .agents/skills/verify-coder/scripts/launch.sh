@@ -47,6 +47,27 @@ for arg in "$@"; do
 	--password | --password=*) vc_fail "--password is not supported: set CODER_DEV_ADMIN_PASSWORD so the journeys sign in with it too" ;;
 	esac
 done
+
+# develop.sh binds every interface, so a database that this launch creates
+# (--fresh, or no built-in Postgres data yet) never gets the published
+# default password. The password file sits next to the data it belongs to and
+# lives as long as that data.
+password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
+new_database=0
+if ((fresh)) || [[ ! -d "$VC_CONFIG_DIR/postgres/data" ]]; then
+	new_database=1
+	password="${CODER_DEV_ADMIN_PASSWORD:-Vc-$(openssl rand -hex 16)}"
+	if [[ "$password" == "SomeSecurePassword!" ]]; then
+		vc_fail "a new database must not use the published default password: develop.sh listens on every interface"
+	fi
+elif [[ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]]; then
+	password="$CODER_DEV_ADMIN_PASSWORD"
+elif [[ -f "$password_file" ]]; then
+	password="$(<"$password_file")"
+else
+	password="SomeSecurePassword!"
+fi
+
 bin="$(vc_coder_bin)"
 echo "building build/.bin/develop and ${bin#"$VC_ROOT"/} (log: $VC_RUN/build.log)"
 if ! (cd "$VC_ROOT" && DEVELOP_IN_CODER="$develop_in_coder" MAKE_TIMED=1 make -j build/.bin/develop "${bin#"$VC_ROOT"/}") >"$VC_RUN/build.log" 2>&1; then
@@ -83,23 +104,11 @@ if [[ ! -d "$VC_CONFIG_DIR" ]]; then
 	touch "$VC_CONFIG_DIR/.verify-coder-created"
 fi
 
-# develop.sh binds every interface, so a database that this launch creates
-# (--fresh, or no built-in Postgres data yet) gets a random admin password
-# instead of the published default. The password file sits next to the data
-# it belongs to and lives as long as that data.
-password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
-if ((fresh)) || [[ ! -d "$VC_CONFIG_DIR/postgres/data" ]]; then
-	password="${CODER_DEV_ADMIN_PASSWORD:-Vc-$(openssl rand -hex 16)}"
+if ((new_database)); then
 	(
 		umask 077
 		printf '%s\n' "$password" >"$password_file"
 	)
-elif [[ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]]; then
-	password="$CODER_DEV_ADMIN_PASSWORD"
-elif [[ -f "$password_file" ]]; then
-	password="$(<"$password_file")"
-else
-	password="SomeSecurePassword!"
 fi
 args=(--port "$api_port" --web-port "$web_port" --prometheus-port 0)
 if ((fresh)); then
