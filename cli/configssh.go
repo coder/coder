@@ -466,9 +466,10 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				return err
 			}
 
+			var workspaceResources map[uuid.UUID][]codersdk.WorkspaceResource
+			var workspaces []codersdk.Workspace
 			if configOptions.noWildcard {
 				// Fetch all workspaces to generate individual host entries.
-				var workspaces []codersdk.Workspace
 				offset := 0
 				const pageSize = 100
 				for {
@@ -486,7 +487,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					}
 					offset += pageSize
 				}
-				workspaceResources := workspaceAgentResources(ctx, inv.Stderr, client, workspaces)
+				workspaceResources = workspaceAgentResources(ctx, inv.Stderr, client, workspaces)
 				configOptions.hostNames = noWildcardHostNames(workspaces, workspaceResources)
 			}
 
@@ -553,20 +554,43 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				_, _ = fmt.Fprintf(out, "Updated %q\n", sshConfigFile)
 			}
 
-			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-				Owner: codersdk.Me,
-				Limit: 1,
-			})
-			if err != nil {
-				return xerrors.Errorf("fetch workspaces failed: %w", err)
+			if !configOptions.noWildcard {
+				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+					Owner: codersdk.Me,
+					Limit: 1,
+				})
+				if err != nil {
+					return xerrors.Errorf("fetch workspaces failed: %w", err)
+				}
+				workspaces = res.Workspaces
 			}
 
-			if len(res.Workspaces) > 0 {
+			if len(workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				if configOptions.hostnameSuffix != "" {
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s.%s\n", res.Workspaces[0].Name, configOptions.hostnameSuffix)
-				} else if configOptions.userHostPrefix != "" {
-					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", configOptions.userHostPrefix, res.Workspaces[0].Name)
+				if configOptions.hostnameSuffix != "" || configOptions.userHostPrefix != "" {
+					ws := workspaces[0]
+					host := ws.Name
+					agents := startAgentNames(ws.LatestBuild.Resources)
+					if len(agents) == 0 {
+						// Reuse the resources fetched for --no-wildcard, including
+						// failed fetches, so the hint does not retry them.
+						if configOptions.noWildcard {
+							agents = startAgentNames(workspaceResources[ws.ID])
+						} else if resources, err := previousStartResources(ctx, client, ws); err == nil {
+							agents = startAgentNames(resources)
+						}
+					}
+					if len(agents) > 1 {
+						// A bare workspace hostname is ambiguous with multiple
+						// agents, so name the agent explicitly.
+						host = agents[0] + "." + ws.Name + "." + ws.OwnerName
+					}
+					if configOptions.hostnameSuffix != "" {
+						host += "." + configOptions.hostnameSuffix
+					} else {
+						host = configOptions.userHostPrefix + host
+					}
+					_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s\n", host)
 				}
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")

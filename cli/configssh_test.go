@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -172,6 +174,102 @@ func TestConfigSSH(t *testing.T) {
 
 	_ = listener.Close()
 	<-copyDone
+}
+
+func TestConfigSSH_Example(t *testing.T) {
+	t.Parallel()
+
+	var resourceRequests sync.Map
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				isHistory := strings.HasPrefix(r.URL.Path, "/api/v2/workspaces/") && strings.HasSuffix(r.URL.Path, "/builds")
+				isImport := strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources")
+				if r.Method == http.MethodGet && (isHistory || isImport) {
+					counter, _ := resourceRequests.LoadOrStore(r.URL.Path, new(atomic.Int32))
+					counter.(*atomic.Int32).Add(1)
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
+	admin := coderdtest.CreateFirstUser(t, client)
+
+	for _, noWildcard := range []bool{false, true} {
+		for _, tc := range []struct {
+			stopped bool
+			agents  int
+		}{{false, 2}, {true, 2}, {true, 1}} {
+			t.Run(fmt.Sprintf("NoWildcard=%t/Stopped=%t/Agents=%d", noWildcard, tc.stopped, tc.agents), func(t *testing.T) {
+				t.Parallel()
+
+				member, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+					OrganizationID: admin.OrganizationID,
+					CreatedBy:      user.ID,
+				}).Resources(&sdkproto.Resource{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{
+						{Id: uuid.NewString(), Name: "aardvark", Auth: &sdkproto.Agent_Token{Token: uuid.NewString()}},
+						{Id: uuid.NewString(), Name: "zebra", Auth: &sdkproto.Agent_Token{Token: uuid.NewString()}},
+					},
+				}).Do()
+				build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: admin.OrganizationID,
+					OwnerID:        user.ID,
+					TemplateID:     version.Template.ID,
+					Name:           "ssh-" + uuid.NewString()[:8],
+				}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+					agents[0].Name = "alpha"
+					if tc.agents == 1 {
+						return agents
+					}
+					return append(agents, &sdkproto.Agent{
+						Id:   uuid.NewString(),
+						Name: "beta",
+						Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+						Env:  map[string]string{},
+					})
+				})
+				workspace := build.Do().Workspace
+				if tc.stopped {
+					dbfake.WorkspaceBuild(t, db, workspace).Seed(database.WorkspaceBuild{
+						Transition:  database.WorkspaceTransitionStop,
+						BuildNumber: 2,
+					}).Do()
+				}
+				sshConfigPath := sshConfigFileName(t)
+				args := []string{"config-ssh", "--ssh-config-file", sshConfigPath, "--hostname-suffix", "coder", "--yes"}
+				if noWildcard {
+					args = append(args, "--no-wildcard")
+				}
+				inv, root := clitest.New(t, args...)
+				clitest.SetupConfig(t, member, root)
+				var stdout bytes.Buffer
+				inv.Stdout = &stdout
+				ctx := testutil.Context(t, testutil.WaitLong)
+				require.NoError(t, inv.WithContext(ctx).Run())
+				want := "$ ssh " + workspace.Name + ".coder"
+				if tc.agents > 1 {
+					want = "$ ssh alpha." + workspace.Name + "." + user.Username + ".coder"
+				}
+				require.Contains(t, stdout.String(), want)
+				if noWildcard {
+					require.Contains(t, sshConfigFileRead(t, sshConfigPath), "Host "+strings.TrimPrefix(want, "$ ssh ")+"\n")
+				}
+
+				if tc.stopped {
+					path := "/api/v2/workspaces/" + workspace.ID.String() + "/builds"
+					counter, ok := resourceRequests.Load(path)
+					require.True(t, ok, "stopped workspace hint fetches its start-build resources")
+					require.EqualValues(t, 1, counter.(*atomic.Int32).Load(), "reuse the resources fetched for host entries")
+				}
+				_, imported := resourceRequests.Load("/api/v2/templateversions/" + version.TemplateVersion.ID.String() + "/resources")
+				require.False(t, imported, "import defaults do not describe this workspace's agents")
+			})
+		}
+	}
 }
 
 func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {

@@ -212,13 +212,27 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 
 			workspaceName := inv.Args[0]
-			_, workspaceAgent, _, err := GetWorkspaceAndAgent(
+			workspace, workspaceAgent, otherAgents, err := GetWorkspaceAndAgent(
 				ctx, inv, client,
 				false, // Do not autostart for a ping.
 				workspaceName,
 			)
 			if err != nil {
-				return err
+				if len(otherAgents) == 0 {
+					return err
+				}
+				if suggestWithOwner(workspaceName, workspace) {
+					workspaceName = workspace.FullName()
+				} else {
+					workspaceName = workspace.Name
+				}
+				var message strings.Builder
+				_, _ = fmt.Fprintf(&message, "%s\nTry running:\n", err)
+				for _, agent := range otherAgents {
+					command := fmt.Sprintf("$ coder ping %s.%s", workspaceName, agent.Name)
+					_, _ = fmt.Fprintf(&message, "\t%s\n", cliui.Code(command))
+				}
+				return xerrors.New(message.String())
 			}
 
 			// Start spinner after any build logs have finished streaming
