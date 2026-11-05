@@ -9,7 +9,11 @@ This page describes possible deployments, challenges, and risks associated with 
 
 ## Community and Premium editions
 
+<div data-likec4-view="deployment">
+
 ![Single Region Architecture Diagram](../../images/single-region-architecture.png)
+
+</div>
 
 ## Multi-Region Premium edition
 

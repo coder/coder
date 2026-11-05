@@ -1,0 +1,352 @@
+// Coder deployment architecture as code (LikeC4). docs-engine renders its views as
+// interactive diagrams wherever a page has a data-likec4-view marker. Facts and links
+// come from install/plan/architecture.md, admin/networking, provisioners, proxies, and AI docs.
+
+specification {
+  element actor {
+    style {
+      shape person
+      color amber
+    }
+  }
+  element system
+  element container
+  element component
+  element database {
+    style {
+      shape cylinder
+    }
+  }
+  element external {
+    style {
+      color muted
+    }
+  }
+
+  relationship tunnel {
+    color green
+    line dashed
+  }
+
+  tag premium
+  tag optional
+  tag ai
+}
+
+model {
+
+  developer = actor 'Developer' {
+    description 'Builds software in Coder workspaces from a desktop IDE, terminal, or browser.'
+    link https://coder.com/docs/@main/workspaces 'User guide'
+  }
+
+  admin = actor 'Platform admin' {
+    description 'Deploys Coder and writes the Terraform templates that define workspaces.'
+    link https://coder.com/docs/@main/templates 'Templates'
+  }
+
+  tools = system 'Developer tools' {
+    description 'How people reach Coder and their workspaces.'
+    link https://coder.com/docs/@main/workspaces/workspace-access 'Access workspaces'
+
+    browser = container 'Web browser' {
+      description 'Dashboard, web terminal, and web IDEs. Browser traffic is always relayed.'
+      link https://coder.com/docs/@main/workspaces/workspace-access/web-ides 'Web IDEs'
+      style {
+        shape browser
+      }
+    }
+    cli = container 'Coder CLI' {
+      technology 'coder ssh, port-forward, config-ssh'
+      description 'Makes direct, end-to-end encrypted connections to workspaces when the network allows.'
+      link https://coder.com/docs/@main/reference/cli 'CLI reference'
+    }
+    ide = container 'Desktop IDEs' {
+      description 'The VS Code extension and JetBrains plugin use the CLI to connect.'
+      link https://coder.com/docs/@main/workspaces/workspace-access/vscode 'VS Code'
+      link https://coder.com/docs/@main/workspaces/workspace-access/jetbrains 'JetBrains'
+    }
+  }
+
+  coder = system 'Coder deployment' {
+    description 'The self-hosted control plane and the workspaces it provisions.'
+    link https://coder.com/docs/@main/install/plan/architecture 'Architecture'
+
+    coderd = container 'coderd' {
+      technology 'coder server'
+      description 'The control plane. A thin API that connects users, provisioners, and workspaces.'
+      link https://coder.com/docs/@main/install/plan/architecture#coderd 'coderd'
+
+      dashboard = component 'Dashboard' {
+        description 'Web UI for developers and admins.'
+        link https://coder.com/docs/@main/install/plan/architecture#coderd 'coderd'
+      }
+      api = component 'HTTP API' {
+        description 'Serves the dashboard, CLI, provisioners, proxies, and agent registration.'
+        link https://coder.com/docs/@main/reference/api 'API reference'
+      }
+      appProxy = component 'Workspace app proxy' {
+        description 'Dev URLs and workspace web apps such as code-server. Relays dashboard-initiated connections.'
+        link https://coder.com/docs/@main/workspaces/workspace-access/web-ides 'Web IDEs'
+      }
+      derp = component 'Built-in DERP relay' {
+        description 'Relays encrypted traffic when NAT traversal fails. Tailscale or custom DERPs also work.'
+        link https://coder.com/docs/@main/admin/networking#relayed-connections 'Relayed connections'
+      }
+      builtinProvisioners = component 'Built-in provisioners' {
+        technology 'Terraform'
+        description 'Provisioner daemons inside coderd that run terraform for builds by default.'
+        link https://coder.com/docs/@main/install/plan/architecture#provisionerd 'provisionerd'
+      }
+      agentLoop = component 'Coder Agents loop' {
+        #ai
+        description 'Runs the AI agent loop in-process. Streams prompts to the LLM and sends tool calls to workspaces.'
+        link https://coder.com/docs/@main/coder-agents/architecture 'Coder Agents architecture'
+      }
+      aiGateway = component 'AI Gateway (embedded)' {
+        #ai
+        description 'Sits between coding agents and LLM providers. Records prompts, token usage, and tool calls.'
+        link https://coder.com/docs/@main/ai-governance/ai-gateway 'AI Gateway'
+      }
+    }
+
+    postgres = database 'PostgreSQL' {
+      technology 'PostgreSQL 13+'
+      description 'All deployment state. coderd is the only component that connects to it.'
+      link https://coder.com/docs/@main/install/plan/architecture#postgresql-recommended 'Data layer'
+    }
+
+    provisioners = container 'External provisioners' {
+      #optional
+      technology 'coder provisioner start'
+      description 'Run builds in isolated environments, keep cloud secrets off the control plane, and reduce load.'
+      link https://coder.com/docs/@main/install/operate/provisioners 'External provisioners'
+    }
+
+    wsproxy = container 'Workspace proxies' {
+      #premium
+      description 'Regional relays for SSH, apps, and port forwarding. No database connection.'
+      link https://coder.com/docs/@main/admin/networking/workspace-proxies 'Workspace proxies'
+    }
+
+    gatewayReplicas = container 'AI Gateway replicas' {
+      #ai #optional
+      technology 'standalone'
+      description 'Serve AI traffic outside coderd. Stateless, with a control connection back to coderd.'
+      link https://coder.com/docs/@main/ai-governance/ai-gateway/standalone 'Standalone deployment'
+    }
+
+    workspace = container 'Workspace' {
+      description 'Infrastructure defined by a template: VMs, pods, containers, storage.'
+      link https://coder.com/docs/@main/install/plan/architecture#workspaces 'Workspaces'
+
+      agent = component 'Workspace agent' {
+        description 'Dials out to coderd. Provides SSH, port forwarding, apps, liveness checks, and startup scripts.'
+        link https://coder.com/docs/@main/install/plan/architecture#agents 'Agents'
+      }
+      apps = component 'Workspace apps' {
+        description 'code-server, JetBrains IDEs, and other web apps defined in the template.'
+        link https://coder.com/docs/@main/workspaces/workspace-access/web-ides 'Web IDEs'
+      }
+      devcontainers = component 'Dev containers' {
+        #optional
+        description 'Projects defined by devcontainer.json, running inside the workspace.'
+        link https://coder.com/docs/@main/workspaces/devcontainers 'Dev containers'
+      }
+      codingAgent = component 'AI coding agents' {
+        #ai
+        description 'Claude Code, Codex, and other agents running inside the workspace.'
+        link https://coder.com/docs/@main/ai-governance/ai-gateway/clients 'AI Gateway clients'
+      }
+      firewall = component 'Agent Firewall' {
+        #ai #optional
+        description 'Process-level firewall that restricts and audits network access for AI agents.'
+        link https://coder.com/docs/@main/ai-governance/agent-firewall 'Agent Firewall'
+      }
+    }
+  }
+
+  infra = external 'Infrastructure' {
+    description 'Kubernetes, cloud VMs, Docker, or anything else Terraform can provision.'
+    link https://coder.com/docs/@main/templates 'Templates'
+  }
+  idp = external 'Identity provider' {
+    description 'OIDC or GitHub sign-in.'
+    link https://coder.com/docs/@main/admin/users/oidc-auth 'OIDC'
+  }
+  git = external 'Git providers' {
+    description 'GitHub, GitLab, Bitbucket, and others through external auth.'
+    link https://coder.com/docs/@main/admin/external-auth 'External auth'
+  }
+  llm = external 'LLM providers' {
+    #ai
+    description 'Anthropic, OpenAI, Bedrock, and OpenAI-compatible endpoints.'
+    link https://coder.com/docs/@main/ai-governance/ai-gateway/providers 'Providers'
+  }
+  artifacts = external 'Registries and artifact managers' {
+    #optional
+    description 'Container registries and tools such as JFrog Artifactory.'
+    link https://coder.com/docs/@main/admin/integrations/jfrog-artifactory 'JFrog Artifactory'
+  }
+  stun = external 'STUN servers' {
+    description 'Help clients and agents find each other for direct connections.'
+    link https://coder.com/docs/@main/admin/networking/stun 'STUN and NAT'
+  }
+
+  // People
+  developer -> tools 'uses'
+  tools -> coder 'dashboard, CLI, IDE, and app connections'
+  admin -> coder.coderd.dashboard 'configures deployment and templates'
+
+  // Clients
+  tools.ide -> tools.cli 'connects through'
+  tools.browser -> coder.coderd.dashboard 'HTTPS'
+  tools.browser -> coder.coderd.appProxy 'opens web IDEs and apps'
+  tools.browser -> coder.wsproxy 'apps through nearest proxy'
+  tools.cli -> coder.coderd.api 'authenticates and coordinates'
+  tools.cli -[tunnel]-> coder.workspace.agent 'direct WireGuard tunnel when possible'
+  tools.cli -[tunnel]-> coder.coderd.derp 'relayed when NAT traversal fails'
+  tools.cli -[tunnel]-> coder.wsproxy 'relayed through nearest proxy'
+  tools.cli -> stun 'NAT discovery'
+
+  // Control plane
+  coder.coderd.dashboard -> coder.coderd.api 'calls'
+  coder.coderd.api -> coder.postgres 'reads and writes state'
+  coder.coderd.api -> idp 'authenticates users'
+  coder.coderd.api -> git 'issues external auth tokens'
+  coder.coderd.builtinProvisioners -> coder.coderd.api 'claims build jobs'
+  coder.coderd.builtinProvisioners -> infra 'terraform apply'
+  coder.coderd.derp -[tunnel]-> coder.workspace.agent 'relays encrypted traffic'
+  coder.coderd.appProxy -[tunnel]-> coder.workspace.apps 'proxies app traffic'
+  coder.coderd.agentLoop -> llm 'streams prompts'
+  coder.coderd.agentLoop -[tunnel]-> coder.workspace.agent 'runs tool calls over the tailnet'
+  coder.coderd.aiGateway -> llm 'forwards requests'
+
+  // Optional and premium services
+  coder.provisioners -> coder.coderd.api 'claims build jobs'
+  coder.provisioners -> infra 'terraform apply'
+  coder.wsproxy -> coder.coderd.api 'registers and authenticates'
+  coder.wsproxy -[tunnel]-> coder.workspace.agent 'relays traffic'
+  coder.gatewayReplicas -> coder.coderd.api 'validates keys, records sessions'
+  coder.gatewayReplicas -> llm 'forwards requests'
+
+  // Workspaces
+  infra -> coder.workspace 'runs'
+  coder.workspace.agent -> coder.coderd.api 'dials out and registers'
+  coder.workspace.agent -> stun 'NAT discovery'
+  coder.workspace.agent -> coder.workspace.apps 'starts and health-checks'
+  coder.workspace.agent -> coder.workspace.devcontainers 'detects and manages'
+  coder.workspace.codingAgent -> coder.workspace.firewall 'egress filtered by'
+  coder.workspace.codingAgent -> coder.coderd.aiGateway 'LLM requests'
+  coder.workspace.codingAgent -> coder.gatewayReplicas 'LLM requests (standalone)'
+  coder.workspace.firewall -> coder.coderd.api 'streams audit logs'
+  coder.workspace -> git 'clones repositories'
+  coder.workspace -> artifacts 'pulls images and packages'
+}
+
+views {
+
+  view index {
+    title 'Coder: system landscape'
+    description 'Start here. Click Coder deployment to drill in, or open any element for links to the docs.'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout TopBottom
+  }
+
+  view deployment of coder {
+    title 'Coder deployment'
+    description 'Control plane, data layer, optional services, and workspaces. Click coderd or Workspace to go deeper.'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout TopBottom
+  }
+
+  view controlPlane of coder.coderd {
+    title 'Control plane (coderd)'
+    description 'Everything inside the coder server process.'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout LeftRight
+  }
+
+  view workspaceInternals of coder.workspace {
+    title 'Inside a workspace'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout TopBottom
+  }
+
+  view developerTools of tools {
+    title 'Developer tools'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout TopBottom
+  }
+
+  dynamic view connect {
+    title 'How a developer connects to a workspace'
+    description 'Same tunnel for SSH, IDEs, port forwarding, and Coder Agents tool calls.'
+    coder.workspace.agent -> coder.coderd.api 'agent dials out and registers on boot'
+    developer -> tools.cli 'runs coder ssh or opens an IDE'
+    tools.cli -> coder.coderd.api 'authenticates and exchanges peer info'
+    tools.cli -> stun 'discovers a reachable ip:port'
+    tools.cli -> coder.workspace.agent 'direct WireGuard tunnel if NAT traversal works'
+    tools.cli -> coder.coderd.derp 'otherwise relays through DERP'
+    coder.coderd.derp -> coder.workspace.agent 'still end-to-end encrypted'
+    autoLayout LeftRight
+  }
+
+  dynamic view build {
+    title 'How a workspace gets built'
+    admin -> coder.coderd.dashboard 'publishes a Terraform template'
+    developer -> tools.browser 'creates a workspace'
+    tools.browser -> coder.coderd.api 'starts a build'
+    coder.coderd.api -> coder.postgres 'queues the build job'
+    coder.provisioners -> coder.coderd.api 'claims the job'
+    coder.provisioners -> infra 'terraform apply'
+    infra -> coder.workspace.agent 'starts resources and the agent'
+    coder.workspace.agent -> coder.coderd.api 'connects and reports ready'
+    autoLayout LeftRight
+  }
+}
