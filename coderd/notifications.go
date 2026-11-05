@@ -22,6 +22,8 @@ import (
 )
 
 // @Summary Get notifications settings
+// @Description Returns the deployment-wide notification settings, which hold the `notifier_paused` flag.
+// @Description Any authenticated user can read them.
 // @ID get-notifications-settings
 // @Security CoderSessionToken
 // @Produce json
@@ -53,12 +55,15 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update notifications settings
+// @Description Updates the deployment-wide notification settings, for example to pause or resume the notifier with `notifier_paused`.
+// @Description Returns `304` when the settings are unchanged.
+// @Description Requires permission to update deployment configuration.
 // @ID update-notifications-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Notifications
-// @Param request body codersdk.NotificationsSettings true "Notifications settings request"
+// @Param request body codersdk.NotificationsSettings true "Notification settings to apply. Set `notifier_paused` to `true` to pause delivery."
 // @Success 200 {object} codersdk.NotificationsSettings
 // @Success 304
 // @Router /api/v2/notifications/settings [put]
@@ -143,6 +148,8 @@ func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Get system notification templates
+// @Description Returns the notification templates that Coder sends for system events, such as workspace and account changes.
+// @Description Any authenticated user can read them.
 // @ID get-system-notification-templates
 // @Security CoderSessionToken
 // @Produce json
@@ -155,6 +162,8 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Get custom notification templates
+// @Description Returns the templates for custom notifications, which you send with `POST /api/v2/notifications/custom`.
+// @Description Any authenticated user can read them.
 // @ID get-custom-notification-templates
 // @Security CoderSessionToken
 // @Produce json
@@ -167,6 +176,8 @@ func (api *API) customNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Get notification dispatch methods
+// @Description Returns the available notification delivery methods and the default method this deployment uses.
+// @Description The inbox method isn't listed, because it's an implicit delivery target.
 // @ID get-notification-dispatch-methods
 // @Security CoderSessionToken
 // @Produce json
@@ -191,6 +202,8 @@ func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Send a test notification
+// @Description Sends a test notification to you, to check that the deployment delivers notifications.
+// @Description Requires permission to update deployment configuration.
 // @ID send-a-test-notification
 // @Security CoderSessionToken
 // @Tags Notifications
@@ -238,11 +251,13 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user notification preferences
+// @Description Returns the per-template notification preferences a user has set, including whether each template is turned off.
+// @Description You can read your own preferences, and reading another user's requires permission to read that user's notification preferences.
 // @ID get-user-notification-preferences
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.NotificationPreference
 // @Router /api/v2/users/{user}/notifications/preferences [get]
 func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
@@ -268,13 +283,15 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Update user notification preferences
+// @Description Turns notification templates on or off for a user, using a map of template IDs to `true` (turned off) or `false` (turned on), and returns all of their preferences.
+// @Description You can update your own preferences, and updating another user's requires permission to update that user's notification preferences.
 // @ID update-user-notification-preferences
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Notifications
-// @Param request body codersdk.UpdateUserNotificationPreferences true "Preferences"
-// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserNotificationPreferences true "Notification template IDs mapped to `true` to turn a template off or `false` to turn it on, in `template_disabled_map`."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.NotificationPreference
 // @Router /api/v2/users/{user}/notifications/preferences [put]
 func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
@@ -343,12 +360,14 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Send a custom notification
+// @Description Sends a custom notification with your own title and message to yourself.
+// @Description System users can't send custom notifications.
 // @ID send-a-custom-notification
 // @Security CoderSessionToken
 // @Tags Notifications
 // @Accept json
 // @Produce json
-// @Param request body codersdk.CustomNotificationRequest true "Provide a non-empty title or message"
+// @Param request body codersdk.CustomNotificationRequest true "Custom notification content. `content.title` and `content.message` are required, up to 120 and 2000 bytes."
 // @Success 204 "No Content"
 // @Failure 400 {object} codersdk.Response "Invalid request body"
 // @Failure 403 {object} codersdk.Response "System users cannot send custom notifications"

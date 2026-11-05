@@ -20,11 +20,14 @@ import (
 )
 
 // @Summary Get external auth by ID
+// @Description Returns whether you are linked to an external authentication provider, such as GitHub or GitLab, and whether the link's token is still valid.
+// @Description The response also lists the provider's app installations, when it supports them, and whether the provider supports the device flow.
+// @Description Returns an unauthenticated result instead of an error when you have no link.
 // @ID get-external-auth-by-id
 // @Security CoderSessionToken
 // @Tags Git
 // @Produce json
-// @Param externalauth path string true "Git Provider ID" format(string)
+// @Param externalauth path string true "ID of the external authentication provider, as configured for the deployment." format(string)
 // @Success 200 {object} codersdk.ExternalAuth
 // @Router /api/v2/external-auth/{externalauth} [get]
 func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
@@ -82,11 +85,14 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 // deleteExternalAuthByID only deletes the link on the Coder side, does not revoke the token on the provider side.
 //
 // @Summary Delete external auth user link by ID
+// @Description Deletes your link to an external authentication provider.
+// @Description Coder then tries to revoke the token at the provider, and `token_revoked` says whether that worked.
+// @Description Returns `404` if you have no link to the provider.
 // @ID delete-external-auth-user-link-by-id
 // @Security CoderSessionToken
 // @Tags Git
 // @Produce json
-// @Param externalauth path string true "Git Provider ID" format(string)
+// @Param externalauth path string true "ID of the external authentication provider, as configured for the deployment." format(string)
 // @Success 200 {object} codersdk.DeleteExternalAuthByIDResponse
 // @Router /api/v2/external-auth/{externalauth} [delete]
 func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
@@ -136,10 +142,13 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Post external auth device by ID
+// @Description Finishes the device flow by exchanging the `device_code` for a token and linking it to your account, which creates the link or replaces the existing one.
+// @Description Call it after the person has entered the `user_code` at the provider, and poll no faster than the `interval`, in seconds, that `GET /api/v2/external-auth/{externalauth}/device` returned.
+// @Description Returns `400` if the provider rejects the code, for example because authorization is still pending, or doesn't support the device flow.
 // @ID post-external-auth-device-by-id
 // @Security CoderSessionToken
 // @Tags Git
-// @Param externalauth path string true "External Provider ID" format(string)
+// @Param externalauth path string true "ID of the external authentication provider, as configured for the deployment." format(string)
 // @Success 204
 // @Router /api/v2/external-auth/{externalauth}/device [post]
 func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
@@ -227,11 +236,14 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Get external auth device by ID.
+// @Description Starts the device flow for an external authentication provider by requesting a device code from the provider.
+// @Description Show the `user_code` and `verification_uri` to the person linking their account, then call `POST /api/v2/external-auth/{externalauth}/device` with the `device_code` to finish.
+// @Description Returns `400` if the provider doesn't support the device flow.
 // @ID get-external-auth-device-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Git
-// @Param externalauth path string true "Git Provider ID" format(string)
+// @Param externalauth path string true "ID of the external authentication provider, as configured for the deployment." format(string)
 // @Success 200 {object} codersdk.ExternalAuthDevice
 // @Router /api/v2/external-auth/{externalauth}/device [get]
 func (*API) externalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
@@ -343,6 +355,8 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 // their auth links if they exist.
 //
 // @Summary Get user external auths
+// @Description Returns the external authentication providers configured for the deployment and your links to them.
+// @Description The call also tries to refresh each link's token, and the response reports whether each link is still `authenticated`.
 // @ID get-user-external-auths
 // @Security CoderSessionToken
 // @Produce json

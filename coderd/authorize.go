@@ -182,12 +182,15 @@ func (c authorizeCheck) RBACObject() rbac.Object { return c.object }
 // permissions, factoring in the current user's roles and the API key scopes.
 //
 // @Summary Check authorization
+// @Description Returns whether the authenticated user can perform each requested action on each requested object, taking the user's roles and the scopes of the API key you call with into account.
+// @Description Use it to check several permissions in one request, and match each result to its check by the key you gave it.
+// @Description At most 10 checks can set `resource_id`.
 // @ID check-authorization
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Authorization
-// @Param request body codersdk.AuthorizationRequest true "Authorization request"
+// @Param request body codersdk.AuthorizationRequest true "Permission checks to run, keyed by a name you choose. Each check sets an `action` and an `object` that selects the resources, and its result in the response uses the same key."
 // @Success 200 {object} codersdk.AuthorizationResponse
 // @Router /api/v2/authcheck [post]
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {

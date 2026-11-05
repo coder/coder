@@ -22,13 +22,17 @@ import (
 )
 
 // @Summary Update organization
+// @Description Updates an organization's name, display name, description, icon, or default member roles.
+// @Description Fields you leave out keep their current values, and `default` is a reserved name.
+// @Description Requires permission to update the organization.
+// @Description Requires a Premium license.
 // @ID update-organization
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Organizations
-// @Param organization path string true "Organization ID or name"
-// @Param request body codersdk.UpdateOrganizationRequest true "Patch organization request"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param request body codersdk.UpdateOrganizationRequest true "Organization fields to update. Omitted fields keep their current values."
 // @Success 200 {object} codersdk.Organization
 // @Router /api/v2/organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -162,11 +166,15 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete organization
+// @Description Deletes an organization.
+// @Description Returns `400` for the default organization, and `500` while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
+// @Description Requires permission to delete the organization.
+// @Description Requires a Premium license.
 // @ID delete-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
-// @Param organization path string true "Organization ID or name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization} [delete]
 func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -248,12 +256,16 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Create organization
+// @Description Creates an organization and adds you to it as a member without extra roles.
+// @Description `display_name` defaults to `name`, and `default` is a reserved name.
+// @Description Requires permission to create organizations.
+// @Description Requires a Premium license.
 // @ID create-organization
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Organizations
-// @Param request body codersdk.CreateOrganizationRequest true "Create organization request"
+// @Param request body codersdk.CreateOrganizationRequest true "Organization to create. `name` is required."
 // @Success 201 {object} codersdk.Organization
 // @Router /api/v2/organizations [post]
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {

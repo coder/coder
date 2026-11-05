@@ -23,6 +23,7 @@ const (
 )
 
 // MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
+// The secrets import @Param text in coderd/usersecrets.go states this limit.
 const MaxSecretsFileBytes = 1 << 20 // 1 MiB
 
 type secretEntry struct {

@@ -13,6 +13,8 @@ import (
 // replicas returns the number of replicas that are active in Coder.
 //
 // @Summary Get active replicas
+// @Description Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.
+// @Description Requires permission to read replicas.
 // @ID get-active-replicas
 // @Security CoderSessionToken
 // @Produce json

@@ -61,6 +61,9 @@ const (
 // off-by-one at each cap across POST and PATCH, so any drift
 // between these constants and the trigger's literals fails an
 // assertion.
+//
+// The @Description and @Param text in coderd/usersecrets.go state the
+// count, total, and per-value caps.
 const MaxUserSecretsPerUserCount = 50
 
 // MaxUserSecretsTotalValueBytes caps the sum of stored value bytes
@@ -94,6 +97,8 @@ const MaxUserSecretsTotalValueBytes = 200 * 1024 // 200 KiB
 //
 // See MaxUserSecretsPerUserCount for the rationale behind the other
 // two caps (count, total bytes).
+//
+// The @Description and @Param text in coderd/usersecrets.go state this limit.
 const MaxUserSecretValueBytes = 24 * 1024 // 24 KiB
 
 // MaxUserSecretEnvNameLength caps the length of an env_name when one

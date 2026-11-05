@@ -18,11 +18,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members`
 
+Returns the members of an organization with their user data, without paging.
+Returns only the members you can read.
+Deprecated. Use `GET /api/v2/organizations/{organization}/paginated-members` instead.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In    | Type   | Required | Description                                                                                                                             |
+|----------------|-------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string | true     | Organization ID, name, or `default` for the default organization.                                                                       |
+| `q`            | query | string | false    | Search query in the format `key:value`. Available keys are: `user_id`, `github_user_id`, and `include_system`. Other keys return `400`. |
 
 ### Example responses
 
@@ -120,11 +125,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members/roles`
 
+Returns the roles that apply in an organization, built-in and custom, with the permissions each one grants.
+The response leaves out the `organization-member` and `organization-service-account` system roles, which organization members and service accounts hold.
+Each role has an `assignable` field that tells you whether you can assign it.
+Requires permission to read the organization's assignable roles, which every organization member has.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -219,6 +229,11 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `PUT /api/v2/organizations/{organization}/members/roles`
 
+Replaces the display name and permissions of an existing custom role, identified by `name` in the request body.
+Permissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.
+Requires permission to update custom organization roles.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -258,10 +273,10 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-| Name           | In   | Type                                                               | Required | Description         |
-|----------------|------|--------------------------------------------------------------------|----------|---------------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID     |
-| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Update role request |
+| Name           | In   | Type                                                               | Required | Description                                                                                                     |
+|----------------|------|--------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------|
+| `organization` | path | string                                                             | true     | Organization ID, name, or `default` for the default organization.                                               |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Custom role definition. The `name` selects the role to update, and the other fields replace its current values. |
 
 ### Example responses
 
@@ -352,6 +367,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 `POST /api/v2/organizations/{organization}/members/roles`
 
+Creates a custom role in an organization with the given organization permissions.
+The name can't match a built-in role, and the request can't include site, user, or organization member permissions.
+Requires permission to create custom organization roles.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -391,10 +411,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Parameters
 
-| Name           | In   | Type                                                               | Required | Description         |
-|----------------|------|--------------------------------------------------------------------|----------|---------------------|
-| `organization` | path | string(uuid)                                                       | true     | Organization ID     |
-| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Insert role request |
+| Name           | In   | Type                                                               | Required | Description                                                       |
+|----------------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string                                                             | true     | Organization ID, name, or `default` for the default organization. |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Custom role to create. Include only organization permissions.     |
 
 ### Example responses
 
@@ -484,12 +504,16 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 `DELETE /api/v2/organizations/{organization}/members/roles/{roleName}`
 
+Deletes a custom role from an organization.
+Requires permission to delete custom organization roles.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `roleName`     | path | string       | true     | Role name       |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `roleName`     | path | string | true     | Name of the custom organization role to delete.                   |
 
 ### Example responses
 
@@ -579,12 +603,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members/{user}`
 
+Returns one organization member with their user data, such as username, email, status, and roles.
+Returns only a member you can read.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description          |
-|----------------|------|--------|----------|----------------------|
-| `organization` | path | string | true     | Organization ID      |
-| `user`         | path | string | true     | User ID, name, or me |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `user`         | path | string | true     | User ID, username, or `me` for the authenticated user.            |
 
 ### Example responses
 
@@ -645,12 +672,16 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 `POST /api/v2/organizations/{organization}/members/{user}`
 
+Adds an existing user to an organization with no roles beyond the organization's defaults.
+Returns `400` for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.
+Requires permission to read the user and to create organization members.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description          |
-|----------------|------|--------|----------|----------------------|
-| `organization` | path | string | true     | Organization ID      |
-| `user`         | path | string | true     | User ID, name, or me |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `user`         | path | string | true     | User ID, username, or `me` for the authenticated user.            |
 
 ### Example responses
 
@@ -692,12 +723,16 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 `DELETE /api/v2/organizations/{organization}/members/{user}`
 
+Removes a user from an organization.
+You can't remove yourself.
+Requires permission to delete organization members.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description          |
-|----------------|------|--------|----------|----------------------|
-| `organization` | path | string | true     | Organization ID      |
-| `user`         | path | string | true     | User ID, name, or me |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `user`         | path | string | true     | User ID, username, or `me` for the authenticated user.            |
 
 ### Responses
 
@@ -721,6 +756,10 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `PUT /api/v2/organizations/{organization}/members/{user}/roles`
 
+Replaces an organization member's roles with the roles in the request body.
+You can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.
+Requires permission to assign organization roles.
+
 > Body parameter
 
 ```json
@@ -733,11 +772,11 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-| Name           | In   | Type                                                   | Required | Description          |
-|----------------|------|--------------------------------------------------------|----------|----------------------|
-| `organization` | path | string                                                 | true     | Organization ID      |
-| `user`         | path | string                                                 | true     | User ID, name, or me |
-| `body`         | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request |
+| Name           | In   | Type                                                   | Required | Description                                                                           |
+|----------------|------|--------------------------------------------------------|----------|---------------------------------------------------------------------------------------|
+| `organization` | path | string                                                 | true     | Organization ID, name, or `default` for the default organization.                     |
+| `user`         | path | string                                                 | true     | User ID, username, or `me` for the authenticated user.                                |
+| `body`         | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Names of the roles to assign to the member. These replace the member's current roles. |
 
 ### Example responses
 
@@ -780,15 +819,19 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 `GET /api/v2/organizations/{organization}/paginated-members`
 
+Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.
+Use `q` to filter the members and `limit` with `offset` or `after_id` to page through them.
+Requires permission to read all of the organization's members.
+
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                          |
-|----------------|-------|--------------|----------|--------------------------------------|
-| `organization` | path  | string       | true     | Organization ID                      |
-| `q`            | query | string       | false    | Member search query                  |
-| `after_id`     | query | string(uuid) | false    | After ID                             |
-| `limit`        | query | integer      | false    | Page limit, if 0 returns all members |
-| `offset`       | query | integer      | false    | Page offset                          |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                                                                                            |
+|----------------|-------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                                                                                      |
+| `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`. |
+| `after_id`     | query | string(uuid) | false    | ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`.                                                                                                                                                                                                                                                            |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                                                            |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
 
@@ -892,6 +935,11 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
 ```
 
 `GET /api/v2/users/roles`
+
+Returns the site-wide roles, built-in and custom, with the permissions each one grants.
+The response leaves out the `member` role, which every user holds.
+Each role has an `assignable` field that tells you whether you can assign it.
+Requires permission to read role assignments, which every user has.
 
 ### Example responses
 

@@ -26,6 +26,7 @@ const docTemplate = `{
     "paths": {
         "/.well-known/oauth-authorization-server": {
             "get": {
+                "description": "Returns the metadata that OAuth2 clients use to discover Coder's OAuth2 endpoints, supported grants, and scopes (RFC 8414).\nDoesn't require a session token, and includes ` + "`" + `registration_endpoint` + "`" + ` only when dynamic client registration is enabled.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -46,6 +47,7 @@ const docTemplate = `{
         },
         "/.well-known/oauth-protected-resource": {
             "get": {
+                "description": "Returns the metadata that tells an OAuth2 client which authorization server protects this deployment and which scopes it supports (RFC 9728).\nDoesn't require a session token, and answers only for the deployment root and the Coder MCP endpoint's path.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -2185,6 +2187,7 @@ const docTemplate = `{
         },
         "/api/v2/": {
             "get": {
+                "description": "Returns a short greeting from the API root, which you can use to check that the API is reachable.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -2205,6 +2208,7 @@ const docTemplate = `{
         },
         "/api/v2/agent-firewall/sessions/{id}": {
             "get": {
+                "description": "Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.\nRequires permission to read Agent Firewall logs.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2217,7 +2221,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Agent firewall session ID",
+                        "description": "Agent Firewall session ID.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2240,6 +2244,7 @@ const docTemplate = `{
         },
         "/api/v2/agent-firewall/sessions/{id}/logs": {
             "get": {
+                "description": "Returns the logs for an Agent Firewall session in ascending sequence order.\nUse ` + "`" + `seq_after` + "`" + ` and ` + "`" + `seq_before` + "`" + ` to fetch a range of sequence numbers, and ` + "`" + `limit` + "`" + ` to change the number of logs returned, which defaults to ` + "`" + `100` + "`" + `.\nRequires permission to read Agent Firewall logs.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2252,7 +2257,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Agent firewall session ID",
+                        "description": "Agent Firewall session ID.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2293,7 +2298,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/clients": {
             "get": {
-                "description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
+                "description": "Returns the clients recorded in the completed AI Gateway interceptions you can read, in alphabetical order, with ` + "`" + `Unknown` + "`" + ` for interceptions that have no client.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at ` + "`" + `GET /api/v2/aibridge/clients` + "`" + ` for backward compatibility.",
                 "produces": [
                     "application/json"
                 ],
@@ -2322,6 +2327,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/keys": {
             "get": {
+                "description": "Lists the AI Gateway keys, oldest first.\nEach key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.\nRequires permission to read AI Gateway keys.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2348,6 +2354,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to ` + "`" + `GET /api/v2/ai-gateway/serve` + "`" + `.\nThe response contains the secret in ` + "`" + `key` + "`" + `, which you can't retrieve again, so store it when you create it.\nRequires permission to create AI Gateway keys.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2361,7 +2368,7 @@ const docTemplate = `{
                 "operationId": "create-ai-gateway-key",
                 "parameters": [
                     {
-                        "description": "Create AI Gateway key request",
+                        "description": "AI Gateway key to create. ` + "`" + `name` + "`" + ` must be unique, 64 characters or fewer, and made of lowercase letters, numbers, and non-consecutive hyphens, and it can't start or end with a hyphen.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2387,6 +2394,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/keys/{key}": {
             "delete": {
+                "description": "Deletes an AI Gateway key.\nA standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.\nRequires permission to delete AI Gateway keys.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -2396,7 +2404,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Key ID",
+                        "description": "AI Gateway key ID.",
                         "name": "key",
                         "in": "path",
                         "required": true
@@ -2416,7 +2424,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/models": {
             "get": {
-                "description": "Alias: also available at /api/v2/aibridge/models for backward compatibility.",
+                "description": "Returns the models recorded in the completed AI Gateway interceptions you can read, in alphabetical order.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at ` + "`" + `GET /api/v2/aibridge/models` + "`" + ` for backward compatibility.",
                 "produces": [
                     "application/json"
                 ],
@@ -2459,6 +2467,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/providers": {
             "get": {
+                "description": "Returns the name, type, display name, and icon of each AI provider, which you can use to label the ` + "`" + `provider_name` + "`" + ` values on AI Gateway sessions and to filter sessions by provider.\nReturns no provider configuration or secrets.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2487,6 +2496,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/serve": {
             "get": {
+                "description": "Upgrades the connection to a WebSocket that carries the AI Gateway DRPC services from ` + "`" + `coderd` + "`" + ` to a standalone AI Gateway replica.\nThe replica calls this, not you, and authenticates with an AI Gateway key in the ` + "`" + `X-Coder-AI-Governance-Gateway-Key` + "`" + ` header instead of a session token.\nCoder closes the connection when the key is deleted or the license no longer includes AI Governance.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -2506,7 +2516,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/sessions": {
             "get": {
-                "description": "Alias: also available at /api/v2/aibridge/sessions for backward compatibility.",
+                "description": "Returns AI Gateway sessions, most recently active first, where each session groups the interceptions that share the session ID their client sets.\nReturns only the sessions you can read.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at ` + "`" + `GET /api/v2/aibridge/sessions` + "`" + ` for backward compatibility.",
                 "produces": [
                     "application/json"
                 ],
@@ -2524,7 +2534,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of sessions to return. The default is ` + "`" + `100` + "`" + ` and the maximum is ` + "`" + `1000` + "`" + `.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -2558,7 +2568,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/sessions/{session_id}": {
             "get": {
-                "description": "Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.",
+                "description": "Returns one AI Gateway session with a page of its threads, including the agentic actions and model thinking in each thread.\nReturns ` + "`" + `404` + "`" + ` if the session doesn't exist or you can't read it.\nRequires permission to read AI Gateway interceptions.\nRequires a Premium license.\nAlso available at ` + "`" + `GET /api/v2/aibridge/sessions/{session_id}` + "`" + ` for backward compatibility.",
                 "produces": [
                     "application/json"
                 ],
@@ -2611,6 +2621,7 @@ const docTemplate = `{
         },
         "/api/v2/ai/providers": {
             "get": {
+                "description": "Returns every AI provider configured for the deployment, including disabled ones, with each API key masked.\nCoder Agents and AI Gateway use these providers to reach model APIs.\nRequires permission to read AI providers.",
                 "produces": [
                     "application/json"
                 ],
@@ -2637,6 +2648,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an AI provider that Coder Agents and AI Gateway can use to reach a model API.\nSet ` + "`" + `type` + "`" + `, ` + "`" + `name` + "`" + ` (lowercase letters, digits, and single hyphens between words), ` + "`" + `enabled` + "`" + `, and ` + "`" + `base_url` + "`" + ` (an absolute ` + "`" + `http` + "`" + ` or ` + "`" + `https` + "`" + ` URL), and optionally ` + "`" + `api_keys` + "`" + `.\nProviders of type ` + "`" + `bedrock` + "`" + ` use ` + "`" + `settings` + "`" + ` for credentials, so they don't accept ` + "`" + `api_keys` + "`" + `.\nReturns ` + "`" + `409` + "`" + ` when a provider with that name exists.\nRequires permission to create AI providers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2650,7 +2662,7 @@ const docTemplate = `{
                 "operationId": "create-an-ai-provider",
                 "parameters": [
                     {
-                        "description": "Create AI provider request",
+                        "description": "AI provider to create.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2676,6 +2688,7 @@ const docTemplate = `{
         },
         "/api/v2/ai/providers/{idOrName}": {
             "get": {
+                "description": "Returns an AI provider's configuration and routing warnings, with each API key masked.\nRequires permission to read AI providers.",
                 "produces": [
                     "application/json"
                 ],
@@ -2687,7 +2700,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provider ID or name",
+                        "description": "AI provider ID, or its name, which is lowercase letters, digits, and hyphens.",
                         "name": "idOrName",
                         "in": "path",
                         "required": true
@@ -2708,6 +2721,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an AI provider.\nTo stop using a provider without deleting it, update it with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.\nRequires permission to delete AI providers.",
                 "tags": [
                     "AI Providers"
                 ],
@@ -2716,7 +2730,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provider ID or name",
+                        "description": "AI provider ID, or its name, which is lowercase letters, digits, and hyphens.",
                         "name": "idOrName",
                         "in": "path",
                         "required": true
@@ -2734,6 +2748,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates the fields you send on an AI provider, and leaves the rest as they are.\nSend at least one field.\nIn ` + "`" + `api_keys` + "`" + `, send the full set of keys to keep, each existing key by ` + "`" + `id` + "`" + ` and each new key as ` + "`" + `api_key` + "`" + `, because Coder removes any existing key you leave out.\nRequires permission to update AI providers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2748,13 +2763,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provider ID or name",
+                        "description": "AI provider ID, or its name, which is lowercase letters, digits, and hyphens.",
                         "name": "idOrName",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update AI provider request",
+                        "description": "AI provider fields to change. Fields you leave out stay as they are.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2780,6 +2795,7 @@ const docTemplate = `{
         },
         "/api/v2/appearance": {
             "get": {
+                "description": "Returns the deployment's appearance settings, which are the application name, logo URL, announcement banners, support links, and docs URL.\nAccepts either a session token or a workspace agent token.\nThe application name, logo URL, and announcement banners are empty unless the license includes the appearance feature.",
                 "produces": [
                     "application/json"
                 ],
@@ -2803,6 +2819,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.\nRequires permission to update deployment configuration.\nThe application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2816,7 +2833,7 @@ const docTemplate = `{
                 "operationId": "update-appearance",
                 "parameters": [
                     {
-                        "description": "Update appearance request",
+                        "description": "Appearance settings to save. Each ` + "`" + `background_color` + "`" + ` in ` + "`" + `announcement_banners` + "`" + ` must be a hex color such as ` + "`" + `#004852` + "`" + `. ` + "`" + `service_banner` + "`" + ` is deprecated, so use ` + "`" + `announcement_banners` + "`" + ` instead.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2842,6 +2859,7 @@ const docTemplate = `{
         },
         "/api/v2/applications/auth-redirect": {
             "get": {
+                "description": "Redirects to ` + "`" + `redirect_uri` + "`" + ` with an encrypted API key added to the query, which lets a subdomain workspace app sign you in.\nThe key can only connect to workspace apps, and it expires when your session does or after the default session duration, whichever comes first.\nRedirects you to the login page when you aren't signed in.",
                 "tags": [
                     "Applications"
                 ],
@@ -2850,7 +2868,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Redirect destination",
+                        "description": "URL to redirect to. The route returns ` + "`" + `400` + "`" + ` without it, and the URL must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname.",
                         "name": "redirect_uri",
                         "in": "query"
                     }
@@ -2869,6 +2887,7 @@ const docTemplate = `{
         },
         "/api/v2/applications/host": {
             "get": {
+                "description": "Returns the wildcard hostname that Coder uses for subdomain workspace apps, or an empty ` + "`" + `host` + "`" + ` when the deployment doesn't set one.\nDeprecated. Use ` + "`" + `GET /api/v2/regions` + "`" + ` and read the ` + "`" + `wildcard_hostname` + "`" + ` of the primary workspace proxy instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -2937,6 +2956,7 @@ const docTemplate = `{
         },
         "/api/v2/audit": {
             "get": {
+                "description": "Returns the audit logs you can read, newest first, filtered by the ` + "`" + `q` + "`" + ` search query.\nRequires permission to read audit logs.\nCoder records audit logs only while the deployment has a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2948,20 +2968,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `, matched case-insensitively. Available keys are: ` + "`" + `resource_type` + "`" + `, ` + "`" + `resource_id` + "`" + `, ` + "`" + `resource_target` + "`" + ` (the resource's name), ` + "`" + `action` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `email` + "`" + `, ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `date_from` + "`" + ` and ` + "`" + `date_to` + "`" + ` (inclusive, as ` + "`" + `YYYY-MM-DD` + "`" + `), ` + "`" + `build_reason` + "`" + `, and ` + "`" + `request_id` + "`" + `. Text without a key filters by ` + "`" + `resource_type` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. A value of ` + "`" + `0` + "`" + ` returns up to ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -3019,6 +3038,7 @@ const docTemplate = `{
         },
         "/api/v2/auth/scopes": {
             "get": {
+                "description": "Returns the names of the API key scopes you can request when you create a token, including ` + "`" + `all` + "`" + `, ` + "`" + `application_connect` + "`" + `, the ` + "`" + `coder:*` + "`" + ` composite scopes, and the ` + "`" + `resource:action` + "`" + ` scopes.\nUse it to find valid values for ` + "`" + `scopes` + "`" + ` before you call ` + "`" + `POST /api/v2/users/{user}/keys/tokens` + "`" + `.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -3039,6 +3059,7 @@ const docTemplate = `{
         },
         "/api/v2/authcheck": {
             "post": {
+                "description": "Returns whether the authenticated user can perform each requested action on each requested object, taking the user's roles and the scopes of the API key you call with into account.\nUse it to check several permissions in one request, and match each result to its check by the key you gave it.\nAt most 10 checks can set ` + "`" + `resource_id` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3052,7 +3073,7 @@ const docTemplate = `{
                 "operationId": "check-authorization",
                 "parameters": [
                     {
-                        "description": "Authorization request",
+                        "description": "Permission checks to run, keyed by a name you choose. Each check sets an ` + "`" + `action` + "`" + ` and an ` + "`" + `object` + "`" + ` that selects the resources, and its result in the response uses the same key.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3078,6 +3099,7 @@ const docTemplate = `{
         },
         "/api/v2/buildinfo": {
             "get": {
+                "description": "Returns build information for the deployment, such as the Coder ` + "`" + `version` + "`" + `, the ` + "`" + `external_url` + "`" + `, and the ` + "`" + `dashboard_url` + "`" + `.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -3098,6 +3120,7 @@ const docTemplate = `{
         },
         "/api/v2/chats": {
             "get": {
+                "description": "Lists chats, ordering pinned chats first and the rest by most recent update.\nBy default it returns only the non-archived chats you own, so use ` + "`" + `q` + "`" + ` to include archived chats or chats shared with you, for example ` + "`" + `source:shared_with_me` + "`" + `.\nIt returns up to 50 chats unless you set ` + "`" + `limit` + "`" + `, and each result is a root chat with its sub-agent chats in ` + "`" + `children` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -3126,19 +3149,19 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
@@ -3168,6 +3191,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a chat in an organization, and starts generating a reply when you include initial ` + "`" + `content` + "`" + `.\nRequires permission to create chats in the organization.\nSet ` + "`" + `organization_id` + "`" + `, which is required, and optionally ` + "`" + `workspace_id` + "`" + `, ` + "`" + `model_config_id` + "`" + `, or ` + "`" + `project_id` + "`" + `. Setting ` + "`" + `owner_id` + "`" + ` to create a chat for another user requires permission to create API keys for that user, and ` + "`" + `inline_mcp_servers` + "`" + ` requires the ` + "`" + `chat-inline-mcp-servers` + "`" + ` experiment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3181,7 +3205,7 @@ const docTemplate = `{
                 "operationId": "create-chat",
                 "parameters": [
                     {
-                        "description": "Create chat request",
+                        "description": "Chat to create. ` + "`" + `organization_id` + "`" + ` is required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3219,6 +3243,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/by-workspace": {
             "get": {
+                "description": "Returns the most recently updated non-archived chat ID for each workspace in ` + "`" + `workspace_ids` + "`" + `, as an object keyed by workspace ID.\nUse it to find the chat that belongs to each workspace in a list. Workspaces with no chat you can read are left out.",
                 "produces": [
                     "application/json"
                 ],
@@ -3230,7 +3255,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comma-separated workspace IDs",
+                        "description": "Comma-separated workspace IDs, up to 25. An empty value returns an empty object.",
                         "name": "workspace_ids",
                         "in": "query"
                     }
@@ -3252,6 +3277,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/advisor": {
             "get": {
+                "description": "Returns the deployment-wide limits on the advisor, a separate model call without tools that a Coder Agents root agent can make for guidance during a chat turn.\nFor ` + "`" + `max_uses_per_run` + "`" + `, ` + "`" + `0` + "`" + ` means no cap other than the per-turn step limit.\nFor ` + "`" + `max_output_tokens` + "`" + `, ` + "`" + `0` + "`" + ` means the default of 16,384 tokens.\nAny authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3275,6 +3301,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the deployment-wide limits on the advisor that a Coder Agents root agent can call for guidance during a chat turn.\nBoth values must be ` + "`" + `0` + "`" + ` or greater.\nFor ` + "`" + `max_uses_per_run` + "`" + `, ` + "`" + `0` + "`" + ` means no cap other than the per-turn step limit.\nFor ` + "`" + `max_output_tokens` + "`" + `, ` + "`" + `0` + "`" + ` means the default of 16,384 tokens.\nRequires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3285,7 +3312,7 @@ const docTemplate = `{
                 "operationId": "update-chat-advisor-config",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Advisor limits to store. An omitted field is stored as ` + "`" + `0` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3320,6 +3347,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/auto-archive-days": {
             "get": {
+                "description": "Returns the number of days of inactivity after which Coder Agents archives a chat automatically.\nThe default, ` + "`" + `0` + "`" + `, turns off auto-archive. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3343,6 +3371,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the number of days of inactivity after which Coder Agents archives a chat automatically, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `.\nThe value ` + "`" + `0` + "`" + ` turns off auto-archive. Requires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3353,7 +3382,7 @@ const docTemplate = `{
                 "operationId": "update-chat-auto-archive-days",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Auto-archive window. ` + "`" + `auto_archive_days` + "`" + ` is the number of inactive days, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `, and ` + "`" + `0` + "`" + ` turns off auto-archive.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3376,6 +3405,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/debug-logging": {
             "get": {
+                "description": "Returns whether users can turn on chat debug logging for their own chats, and whether the deployment forces it on.\nRequires permission to read deployment configuration.",
                 "produces": [
                     "application/json"
                 ],
@@ -3399,6 +3429,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets whether users can turn on chat debug logging for their own chats with ` + "`" + `PUT /api/v2/chats/config/user-debug-logging` + "`" + `.\nRequires permission to update deployment configuration. While ` + "`" + `--chat-debug-logging-enabled` + "`" + ` forces debug logging on, users can't change their own setting.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3409,7 +3440,7 @@ const docTemplate = `{
                 "operationId": "update-chat-debug-logging-setting",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Debug logging gate. ` + "`" + `allow_users` + "`" + ` is ` + "`" + `true` + "`" + ` to let users opt in to debug logging for their own chats.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3432,6 +3463,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/debug-retention-days": {
             "get": {
+                "description": "Returns the number of days Coder Agents keeps chat debug runs before deleting them.\nThe default is ` + "`" + `30` + "`" + `, and ` + "`" + `0` + "`" + ` turns off the cleanup. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3455,6 +3487,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the number of days Coder Agents keeps chat debug runs before deleting them, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `.\nThe value ` + "`" + `0` + "`" + ` turns off the cleanup. Requires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3465,7 +3498,7 @@ const docTemplate = `{
                 "operationId": "update-chat-debug-retention-days",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Debug retention window. ` + "`" + `debug_retention_days` + "`" + ` is the number of days to keep debug runs, from ` + "`" + `0` + "`" + ` to ` + "`" + `3650` + "`" + `, and ` + "`" + `0` + "`" + ` turns off the cleanup.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3488,6 +3521,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/personal-model-overrides": {
             "get": {
+                "description": "Returns whether users can choose their own models for their chats instead of the organization defaults.\nRequires permission to read deployment configuration.",
                 "produces": [
                     "application/json"
                 ],
@@ -3511,6 +3545,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets whether users can choose their own models for their chats instead of the organization defaults.\nPersonal model overrides are off by default. Requires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3521,7 +3556,7 @@ const docTemplate = `{
                 "operationId": "update-chat-personal-model-override-settings",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Personal model override gate. ` + "`" + `allow_users` + "`" + ` is ` + "`" + `true` + "`" + ` to let users set personal model overrides.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3544,6 +3579,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/plan-mode-instructions": {
             "get": {
+                "description": "Returns the deployment-wide instructions that Coder Agents adds to chats in plan mode.\nRequires permission to update deployment configuration, and returns ` + "`" + `404` + "`" + ` without it.",
                 "produces": [
                     "application/json"
                 ],
@@ -3567,6 +3603,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the deployment-wide instructions that Coder Agents adds to chats in plan mode, replacing the stored value.\nRequires permission to update deployment configuration. The ` + "`" + `--chat-max-prompt-bytes` + "`" + ` option limits their size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3577,7 +3614,7 @@ const docTemplate = `{
                 "operationId": "update-chat-plan-mode-instructions",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Plan mode instructions to store, in ` + "`" + `plan_mode_instructions` + "`" + `. They replace the current instructions.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3662,6 +3699,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/system-prompt": {
             "get": {
+                "description": "Returns the deployment-wide system prompt for chats, whether the built-in default prompt is included, and the built-in default text.\nRequires permission to update deployment configuration, and returns ` + "`" + `404` + "`" + ` without it.",
                 "produces": [
                     "application/json"
                 ],
@@ -3685,6 +3723,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the deployment-wide system prompt that Coder Agents adds to every new chat, and optionally whether the built-in default prompt is included.\nRequires permission to update deployment configuration. The ` + "`" + `--chat-max-prompt-bytes` + "`" + ` option limits the prompt size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3695,7 +3734,7 @@ const docTemplate = `{
                 "operationId": "update-chat-system-prompt",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "System prompt in ` + "`" + `system_prompt` + "`" + `. Set ` + "`" + `include_default_system_prompt` + "`" + ` to choose whether the built-in default prompt is also used, or omit it to keep the current choice.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3826,6 +3865,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/user-debug-logging": {
             "get": {
+                "description": "Returns whether chat debug logging is on for you, whether you can change it, and whether the deployment forces it on.\nUse it to decide whether to show a debug logging toggle.",
                 "produces": [
                     "application/json"
                 ],
@@ -3849,6 +3889,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Turns chat debug logging on or off for your own chats.\nIt returns ` + "`" + `403` + "`" + ` unless an administrator allowed user opt-in with ` + "`" + `PUT /api/v2/chats/config/debug-logging` + "`" + `, and ` + "`" + `409` + "`" + ` while the deployment forces debug logging on.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3859,7 +3900,7 @@ const docTemplate = `{
                 "operationId": "update-user-chat-debug-logging-setting",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Your debug logging choice. ` + "`" + `debug_logging_enabled` + "`" + ` is ` + "`" + `true` + "`" + ` to record debug logs for your chats.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3882,6 +3923,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/user-prompt": {
             "get": {
+                "description": "Returns your custom chat prompt, which Coder Agents adds to your chats as your own instructions.\nThe prompt is empty when you haven't set one.",
                 "produces": [
                     "application/json"
                 ],
@@ -3905,6 +3947,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets your custom chat prompt, replacing the stored one, and returns the stored value.\nThe prompt applies only to your chats. The ` + "`" + `--chat-max-prompt-bytes` + "`" + ` option limits its size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3918,7 +3961,7 @@ const docTemplate = `{
                 "operationId": "update-user-chat-custom-prompt",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Custom prompt in ` + "`" + `custom_prompt` + "`" + `. It replaces your current custom prompt.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3944,6 +3987,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/config/workspace-ttl": {
             "get": {
+                "description": "Returns the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.\nThe value ` + "`" + `0` + "`" + `, which is the default, means the setting is off and the template's own autostop setting applies. Any authenticated user can read this setting.",
                 "produces": [
                     "application/json"
                 ],
@@ -3967,6 +4011,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the time to live, in milliseconds, that Coder Agents sets on workspaces it creates for chats.\nThe value must be ` + "`" + `0` + "`" + `, which turns the setting off, or between 1 minute and 30 days. Requires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3977,7 +4022,7 @@ const docTemplate = `{
                 "operationId": "update-chat-workspace-time-to-live",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Workspace time to live. ` + "`" + `workspace_ttl_ms` + "`" + ` is in milliseconds, and ` + "`" + `0` + "`" + ` turns the setting off.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4000,6 +4045,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/files": {
             "post": {
+                "description": "Uploads a file of up to 10 MiB and returns its ID, which you can attach to a chat message as a file part.\nSend the file bytes as the request body, set ` + "`" + `Content-Disposition` + "`" + ` to carry the file name, and set ` + "`" + `organization` + "`" + ` to the organization that stores the file.",
                 "consumes": [
                     "image/png",
                     "image/jpeg",
@@ -4024,7 +4070,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "ID of the organization that stores the file. You need permission to create chats in it.",
                         "name": "organization",
                         "in": "query",
                         "required": true
@@ -4032,7 +4078,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "description": "Attachment disposition that carries the file name, which is required.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -4073,6 +4119,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}": {
             "get": {
+                "description": "Returns the contents of an uploaded chat file and its stored media type.\nYou can read a file you uploaded, or a file attached to a chat you can read.",
                 "produces": [
                     "image/png",
                     "image/jpeg",
@@ -4223,6 +4270,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}": {
             "get": {
+                "description": "Returns a chat and, for a root chat, its sub-agent chats in ` + "`" + `children` + "`" + `.\nUse it to check a chat's status or inspect its pinned workspace context, which ` + "`" + `GET /api/v2/chats` + "`" + ` leaves out.",
                 "produces": [
                     "application/json"
                 ],
@@ -4256,6 +4304,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a chat's title, labels, archived state, pin order, workspace, project, plan mode, or read state.\nSend only the fields you want to change.\nOnly the chat owner can change ` + "`" + `workspace_id` + "`" + ` or ` + "`" + `read` + "`" + `.\nOnly a root chat can be archived or unarchived, and a sub-agent chat returns ` + "`" + `400` + "`" + `.\nArchiving or unarchiving also applies to the root chat's sub-agent chats, so archiving returns ` + "`" + `409` + "`" + ` unless every chat in the family is idle or in an error state.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4274,7 +4323,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update chat request",
+                        "description": "Chat fields to change. Omitted fields stay as they are.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4403,7 +4452,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return attachments from messages with id \u003c before_id",
+                        "description": "Message ID to page back from. Returns only attachments from messages with a lower ID.",
                         "name": "before_id",
                         "in": "query"
                     }
@@ -4503,6 +4552,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/context": {
             "put": {
+                "description": "Re-pins a chat to the latest workspace context its workspace agent reported, and clears the chat's ` + "`" + `context.dirty` + "`" + ` flag.\nUse it when ` + "`" + `context.dirty` + "`" + ` is ` + "`" + `true` + "`" + ` and you want the chat to pick up changed instructions, skills, or MCP configuration.",
                 "produces": [
                     "application/json"
                 ],
@@ -4538,7 +4588,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/cost": {
             "get": {
-                "description": "Cost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
+                "description": "Returns the AI Gateway spend of a chat in millionths of a dollar, with the number of requests and how many of them had no price.\nCost covers the whole chat tree: the root chat plus every\nsubagent chat beneath it. Requesting cost for a subagent chat\nreturns that same total.\n\nCost is derived from AI Gateway data, which is subject to its\nown retention period, 60 days by default, configured\nindependently of chat retention. Spend for requests older than\nthat period is no longer reported, so a chat whose requests\nhave all been purged reports zero cost.",
                 "produces": [
                     "application/json"
                 ],
@@ -4574,6 +4624,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/diff": {
             "get": {
+                "description": "Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.\nThe ` + "`" + `diff` + "`" + ` field is empty when the chat tracks no repository, no git provider matches the remote, or the chat owner has no access token for it.\nSet ` + "`" + `origin` + "`" + ` and ` + "`" + `branch` + "`" + ` together to pick one tracked ref, or omit both to use the chat's primary ref.",
                 "produces": [
                     "application/json"
                 ],
@@ -4593,13 +4644,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Remote origin selecting the ref to diff",
+                        "description": "Git remote origin of the tracked ref to diff. Set it together with ` + "`" + `branch` + "`" + `, or omit both to use the primary ref.",
                         "name": "origin",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Git branch selecting the ref to diff",
+                        "description": "Git branch of the tracked ref to diff. Set it together with ` + "`" + `origin` + "`" + `, or omit both to use the primary ref.",
                         "name": "branch",
                         "in": "query"
                     }
@@ -4621,6 +4672,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Stops a chat's active run, or cancels the client-executed tool calls it is waiting on.\nA running chat moves to ` + "`" + `interrupting` + "`" + ` until the chat worker stops it, and an idle chat returns ` + "`" + `409` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -4656,6 +4708,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/messages": {
             "get": {
+                "description": "Returns a page of a chat's messages, newest first.\nPass ` + "`" + `before_id` + "`" + ` to page back through older messages, and check ` + "`" + `has_more` + "`" + ` to see whether another page exists.\nPass only ` + "`" + `after_id` + "`" + ` to poll for newer messages, oldest first, and expect ` + "`" + `queued_messages` + "`" + ` only when you pass neither cursor.",
                 "produces": [
                     "application/json"
                 ],
@@ -4675,13 +4728,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return messages with id \u003c before_id",
+                        "description": "Message ID to page back from. Returns only messages with a lower ID.",
                         "name": "before_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Return messages with id \u003e after_id",
+                        "description": "Message ID to page forward from. Returns only messages with a higher ID. It must be lower than ` + "`" + `before_id` + "`" + ` when you set both.",
                         "name": "after_id",
                         "in": "query"
                     },
@@ -4707,6 +4760,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Sends a message to a chat, which starts the chat worker generating a reply.\nWhen the chat is busy, the message is queued by default, and setting ` + "`" + `busy_behavior` + "`" + ` to ` + "`" + `interrupt` + "`" + ` stops the active run and sends it first.\nOnly the chat owner can send messages, and setting ` + "`" + `inline_mcp_servers` + "`" + ` requires the ` + "`" + `chat-inline-mcp-servers` + "`" + ` experiment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4728,7 +4782,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Create chat message request",
+                        "description": "Message to send. ` + "`" + `content` + "`" + ` holds the message parts.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4754,6 +4808,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/messages/{message}": {
             "patch": {
+                "description": "Replaces an earlier user message in a chat, discards the messages after it, and runs the chat again from the edited message.\nOnly the chat owner can edit messages, and only user messages can be edited. The response lists the IDs of the removed messages in ` + "`" + `deleted_message_ids` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4776,13 +4831,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Message ID",
+                        "description": "ID of the user message to edit.",
                         "name": "message",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Edit chat message request",
+                        "description": "Replacement content for the message, and optional model, reasoning effort, and MCP server overrides.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4850,6 +4905,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}": {
             "delete": {
+                "description": "Removes a message from a chat's queue before the chat worker runs it.",
                 "tags": [
                     "Chats"
                 ],
@@ -4866,7 +4922,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Queued message ID",
+                        "description": "ID of the queued message to remove.",
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
@@ -4884,6 +4940,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces the content of a message in a chat's queue, or begins or ends an edit of it.\nWhile a message is under edit, it and the messages behind it wait, so the chat pauses when it reaches that message.\nEnding the edit of the message that a paused chat stopped at sends it, and beginning an edit of another message while the chat is paused returns ` + "`" + `409` + "`" + `.\nReturns ` + "`" + `404` + "`" + ` when the message is no longer in the queue.\nOnly the chat owner can edit queued messages.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4903,13 +4960,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Queued message ID",
+                        "description": "ID of the queued message to edit.",
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Edit chat queued message request",
+                        "description": "Changes to the queued message. Send ` + "`" + `content` + "`" + `, ` + "`" + `editing` + "`" + `, or both, and send ` + "`" + `model_config_id` + "`" + ` or ` + "`" + `reasoning_effort` + "`" + ` only with ` + "`" + `content` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4932,6 +4989,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
             "post": {
+                "description": "Promotes a queued message into the chat's history so it runs now instead of waiting its turn in the queue.\nIf the chat is running, the call interrupts the active run first, and the response is ` + "`" + `202` + "`" + ` once the promotion is accepted. Only the chat owner can promote queued messages.",
                 "produces": [
                     "application/json"
                 ],
@@ -4951,7 +5009,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Queued message ID",
+                        "description": "ID of the queued message to promote.",
                         "name": "queuedMessage",
                         "in": "path",
                         "required": true
@@ -4974,6 +5032,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/reconcile-invalid": {
             "post": {
+                "description": "Recovers a chat stuck in an invalid execution state by moving it to an error state.\nQueued messages are kept and pending client-executed tool calls are canceled. The call returns ` + "`" + `409` + "`" + ` when the chat isn't in an invalid state.",
                 "produces": [
                     "application/json"
                 ],
@@ -5129,6 +5188,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/title/propose": {
             "post": {
+                "description": "Generates a suggested title for a chat from its visible messages, without saving it.\nUse ` + "`" + `PATCH /api/v2/chats/{chat}` + "`" + ` with ` + "`" + `title` + "`" + ` to save the one you choose. Only the chat owner can call this.",
                 "produces": [
                     "application/json"
                 ],
@@ -5164,6 +5224,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/tool-results": {
             "post": {
+                "description": "Submits the results of client-executed tool calls that a chat is waiting on, so the chat resumes.\nUse it when the chat is in the ` + "`" + `requires_action` + "`" + ` status after calling a tool you declared in ` + "`" + `unsafe_dynamic_tools` + "`" + `.\nOnly the chat owner can submit results.\nReturns ` + "`" + `404` + "`" + ` if you can't update the chat, and ` + "`" + `403` + "`" + ` if you can but don't own it or the deployment turns off caller-supplied tools.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5182,7 +5243,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "Results to submit, one for each pending tool call, matched by ` + "`" + `tool_call_id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5299,6 +5360,7 @@ const docTemplate = `{
         },
         "/api/v2/connectionlog": {
             "get": {
+                "description": "Returns connection log entries, newest first, filtered by the ` + "`" + `q` + "`" + ` search query.\nReturns only the entries you can read.\nRequires permission to read connection logs.\nThe ` + "`" + `count` + "`" + ` in the response is capped at the value of ` + "`" + `count_cap` + "`" + `.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -5310,20 +5372,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `workspace_owner` + "`" + ` (username or ` + "`" + `me` + "`" + `), ` + "`" + `workspace_owner_email` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `user_email` + "`" + `, ` + "`" + `connected_after` + "`" + ` and ` + "`" + `connected_before` + "`" + ` (RFC 3339 timestamps), ` + "`" + `workspace_id` + "`" + `, ` + "`" + `connection_id` + "`" + `, ` + "`" + `client_session_id` + "`" + ` (32 hexadecimal characters), ` + "`" + `status` + "`" + ` (` + "`" + `ongoing` + "`" + ` or ` + "`" + `completed` + "`" + `), ` + "`" + `method` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `), ` + "`" + `type` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `vscode` + "`" + `, ` + "`" + `jetbrains` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `, which can't be combined with ` + "`" + `method` + "`" + ` or ` + "`" + `app` + "`" + `), and ` + "`" + `app` + "`" + ` (repeat to match any of several apps). Other keys, and text without a key, return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. A value of ` + "`" + `0` + "`" + ` returns up to ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -5345,6 +5406,7 @@ const docTemplate = `{
         },
         "/api/v2/csp/reports": {
             "post": {
+                "description": "Logs a Content Security Policy violation report that a browser sends, at debug level in the server log.\nDoesn't require a session token, and the request body can't exceed 64 KiB.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5355,7 +5417,7 @@ const docTemplate = `{
                 "operationId": "report-csp-violations",
                 "parameters": [
                     {
-                        "description": "Violation report",
+                        "description": "Content Security Policy violation report. A JSON object with the browser's report under ` + "`" + `csp-report` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5374,16 +5436,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/debug/coordinator": {
             "get": {
+                "description": "Returns an HTML debug page for the tailnet coordinator, which connects workspace agents and clients, including the peers and tunnels it tracks.\nRequires permission to read debug information.",
                 "produces": [
                     "text/html"
                 ],
@@ -5466,6 +5524,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/health": {
             "get": {
+                "description": "Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.\nReturns a cached report while it's newer than the healthcheck refresh interval.\nRequires permission to read debug information.",
                 "produces": [
                     "application/json"
                 ],
@@ -5477,7 +5536,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "boolean",
-                        "description": "Force a healthcheck to run",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to run a new healthcheck instead of returning the cached report.",
                         "name": "force",
                         "in": "query"
                     }
@@ -5499,6 +5558,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/health/settings": {
             "get": {
+                "description": "Returns the deployment's health settings, which list the health sections that administrators dismissed in ` + "`" + `dismissed_healthchecks` + "`" + `.\nRequires permission to read debug information.",
                 "produces": [
                     "application/json"
                 ],
@@ -5522,6 +5582,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the deployment's health settings with the sections listed in ` + "`" + `dismissed_healthchecks` + "`" + `, and returns ` + "`" + `204` + "`" + ` when the settings don't change.\nRequires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5535,7 +5596,7 @@ const docTemplate = `{
                 "operationId": "update-health-settings",
                 "parameters": [
                     {
-                        "description": "Update health settings",
+                        "description": "Health settings to save. ` + "`" + `dismissed_healthchecks` + "`" + ` lists the health sections to dismiss, from ` + "`" + `DERP` + "`" + `, ` + "`" + `AccessURL` + "`" + `, ` + "`" + `Websocket` + "`" + `, ` + "`" + `Database` + "`" + `, ` + "`" + `WorkspaceProxy` + "`" + `, and ` + "`" + `ProvisionerDaemons` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5715,6 +5776,7 @@ const docTemplate = `{
         },
         "/api/v2/debug/tailnet": {
             "get": {
+                "description": "Returns an HTML debug page for the tailnet connection that the Coder server uses to reach workspace agents.\nRequires permission to read debug information.",
                 "produces": [
                     "text/html"
                 ],
@@ -5796,6 +5858,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/config": {
             "get": {
+                "description": "Returns the deployment's configuration ` + "`" + `values` + "`" + ` with secrets removed, and its ` + "`" + `options` + "`" + `.\nEach entry in ` + "`" + `options` + "`" + ` describes one setting, including its description, flag, and environment variable.\nRequires permission to read deployment configuration.",
                 "produces": [
                     "application/json"
                 ],
@@ -5821,6 +5884,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/premium-funnel-events": {
             "post": {
+                "description": "Records through telemetry that a user selected the call to action on a Premium paywall.\nThe dashboard calls this when a user selects a paywall button, so you don't need to call it.\nRequires permission to read licenses, and returns ` + "`" + `404` + "`" + ` without it.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5831,7 +5895,7 @@ const docTemplate = `{
                 "operationId": "report-a-premium-paywall-click",
                 "parameters": [
                     {
-                        "description": "Premium funnel event",
+                        "description": "Paywall event to record. ` + "`" + `id` + "`" + ` identifies the event, and a later trial request can pass it as ` + "`" + `attribution_id` + "`" + `. ` + "`" + `source` + "`" + ` is the feature that the paywall is for, and ` + "`" + `variant` + "`" + ` is the paywall presentation, which is ` + "`" + `premium` + "`" + `, ` + "`" + `small` + "`" + `, or ` + "`" + `ai_governance` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5854,6 +5918,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/ssh": {
             "get": {
+                "description": "Returns the SSH settings that clients use to write a local SSH configuration, such as the workspace ` + "`" + `hostname_suffix` + "`" + ` and ` + "`" + `ssh_config_options` + "`" + `.\nAny authenticated user can call it.",
                 "produces": [
                     "application/json"
                 ],
@@ -5879,6 +5944,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/stats": {
             "get": {
+                "description": "Returns usage statistics for the deployment, such as workspace counts and session counts.\nReturns ` + "`" + `400` + "`" + ` while the deployment is still collecting its first stats, and requires permission to read deployment stats.",
                 "produces": [
                     "application/json"
                 ],
@@ -5904,6 +5970,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/user-secrets/capabilities": {
             "get": {
+                "description": "Returns whether the deployment writes the stored file paths of user secrets into workspaces, as ` + "`" + `file_path_delivery_enabled` + "`" + `.\nAny authenticated user can call it.",
                 "produces": [
                     "application/json"
                 ],
@@ -5929,6 +5996,7 @@ const docTemplate = `{
         },
         "/api/v2/derp-map": {
             "get": {
+                "description": "Streams the DERP map over a WebSocket, sending the current map when you connect and again each time it changes.\nDoesn't require a session token.",
                 "tags": [
                     "Agents"
                 ],
@@ -5938,16 +6006,12 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/entitlements": {
             "get": {
+                "description": "Returns the features the deployment's licenses enable, with each feature's entitlement, whether it's enabled, its limit, and its current usage.\nIt also returns license warnings and errors, whether the deployment has a license or a trial license, whether telemetry is required, and when the entitlements were last refreshed.\nThe dashboard reads it to decide which features to turn on.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -5963,16 +6027,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Entitlements"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/experiments": {
             "get": {
+                "description": "Returns the experiments that are enabled for you.\nRules can turn user-scoped experiments on or off for individual users, so the list can differ between users.",
                 "produces": [
                     "application/json"
                 ],
@@ -6001,6 +6061,7 @@ const docTemplate = `{
         },
         "/api/v2/experiments/available": {
             "get": {
+                "description": "Returns the experiments that are safe to turn on, in the ` + "`" + `safe` + "`" + ` field.",
                 "produces": [
                     "application/json"
                 ],
@@ -6029,6 +6090,7 @@ const docTemplate = `{
         },
         "/api/v2/external-auth": {
             "get": {
+                "description": "Returns the external authentication providers configured for the deployment and your links to them.\nThe call also tries to refresh each link's token, and the response reports whether each link is still ` + "`" + `authenticated` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -6054,6 +6116,7 @@ const docTemplate = `{
         },
         "/api/v2/external-auth/{externalauth}": {
             "get": {
+                "description": "Returns whether you are linked to an external authentication provider, such as GitHub or GitLab, and whether the link's token is still valid.\nThe response also lists the provider's app installations, when it supports them, and whether the provider supports the device flow.\nReturns an unauthenticated result instead of an error when you have no link.",
                 "produces": [
                     "application/json"
                 ],
@@ -6066,7 +6129,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Git Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -6087,6 +6150,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes your link to an external authentication provider.\nCoder then tries to revoke the token at the provider, and ` + "`" + `token_revoked` + "`" + ` says whether that worked.\nReturns ` + "`" + `404` + "`" + ` if you have no link to the provider.",
                 "produces": [
                     "application/json"
                 ],
@@ -6099,7 +6163,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Git Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -6122,6 +6186,7 @@ const docTemplate = `{
         },
         "/api/v2/external-auth/{externalauth}/device": {
             "get": {
+                "description": "Starts the device flow for an external authentication provider by requesting a device code from the provider.\nShow the ` + "`" + `user_code` + "`" + ` and ` + "`" + `verification_uri` + "`" + ` to the person linking their account, then call ` + "`" + `POST /api/v2/external-auth/{externalauth}/device` + "`" + ` with the ` + "`" + `device_code` + "`" + ` to finish.\nReturns ` + "`" + `400` + "`" + ` if the provider doesn't support the device flow.",
                 "produces": [
                     "application/json"
                 ],
@@ -6134,7 +6199,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Git Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -6155,6 +6220,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Finishes the device flow by exchanging the ` + "`" + `device_code` + "`" + ` for a token and linking it to your account, which creates the link or replaces the existing one.\nCall it after the person has entered the ` + "`" + `user_code` + "`" + ` at the provider, and poll no faster than the ` + "`" + `interval` + "`" + `, in seconds, that ` + "`" + `GET /api/v2/external-auth/{externalauth}/device` + "`" + ` returned.\nReturns ` + "`" + `400` + "`" + ` if the provider rejects the code, for example because authorization is still pending, or doesn't support the device flow.",
                 "tags": [
                     "Git"
                 ],
@@ -6164,7 +6230,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "External Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -6184,7 +6250,7 @@ const docTemplate = `{
         },
         "/api/v2/files": {
             "post": {
-                "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
+                "description": "Uploads a tar or zip archive of up to 100 MiB, such as a template source archive, and returns its ID.\nCoder stores a zip archive as tar, and returns ` + "`" + `200` + "`" + ` with the existing ID when you already uploaded the same contents.\nSwagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
                 "consumes": [
                     "application/x-tar"
                 ],
@@ -6242,6 +6308,7 @@ const docTemplate = `{
         },
         "/api/v2/files/{fileID}": {
             "get": {
+                "description": "Returns the contents of an uploaded file, such as a template source archive, with its stored ` + "`" + `Content-Type` + "`" + `, which is ` + "`" + `application/x-tar` + "`" + ` because Coder converts zip uploads to tar.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `zip` + "`" + ` to download a tar file as a zip archive, and any other ` + "`" + `format` + "`" + ` value, or a file that isn't a tar, returns ` + "`" + `400` + "`" + `.\nRequires permission to read the file, which you have for files you uploaded, or permission to update a template that uses the file.\nReturns ` + "`" + `404` + "`" + ` for a file you can't read.",
                 "tags": [
                     "Files"
                 ],
@@ -6251,10 +6318,19 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "File ID",
+                        "description": "File ID, as returned by ` + "`" + `POST /api/v2/files` + "`" + `.",
                         "name": "fileID",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "zip"
+                        ],
+                        "type": "string",
+                        "description": "Set to ` + "`" + `zip` + "`" + ` to download a tar file as a zip archive.",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6271,6 +6347,7 @@ const docTemplate = `{
         },
         "/api/v2/groups": {
             "get": {
+                "description": "Returns the groups you can read, filtered by ` + "`" + `organization` + "`" + `, ` + "`" + `has_member` + "`" + `, and ` + "`" + `group_ids` + "`" + `, each with the members you can read.\nUse ` + "`" + `has_member` + "`" + ` to find the groups a user belongs to.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6282,24 +6359,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Only return groups in this organization. Accepts an organization ID or name.",
                         "name": "organization",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "User ID or name",
+                        "description": "Only return groups that this user belongs to. Accepts a user ID or username.",
                         "name": "has_member",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Comma separated list of group IDs",
+                        "description": "Only return these groups, as a comma-separated list of group IDs.",
                         "name": "group_ids",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6322,6 +6396,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}": {
             "get": {
+                "description": "Returns a group by its ID, with the members you can read.\nRequires permission to read the group.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6333,14 +6408,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group id",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "boolean",
-                        "description": "Exclude members from the response",
+                        "description": "If ` + "`" + `true` + "`" + `, returns the group without its ` + "`" + `members` + "`" + `. ` + "`" + `total_member_count` + "`" + ` is still returned.",
                         "name": "exclude_members",
                         "in": "query"
                     }
@@ -6360,6 +6435,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a group by its ID.\nYou can't delete the ` + "`" + `Everyone` + "`" + ` group.\nRequires permission to delete the group.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6371,7 +6447,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
@@ -6392,6 +6468,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a group's name, display name, avatar URL, or quota allowance, and adds or removes members by user ID with ` + "`" + `add_users` + "`" + ` and ` + "`" + `remove_users` + "`" + `.\nYou can't rename the ` + "`" + `Everyone` + "`" + ` group, change its display name, or add or remove its members, and the users in ` + "`" + `add_users` + "`" + ` and ` + "`" + `remove_users` + "`" + ` must be members of the group's organization.\nRequires permission to update the group.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6406,13 +6483,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Patch group request",
+                        "description": "Changes to apply to the group. Omitted fields stay as they are. ` + "`" + `add_users` + "`" + ` and ` + "`" + `remove_users` + "`" + ` are lists of user IDs, and ` + "`" + `name` + "`" + ` can't be ` + "`" + `Everyone` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6438,6 +6515,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}/ai/budget": {
             "get": {
+                "description": "Returns the AI budget of a group, which is the spend limit that applies to each of its members.\nReturns ` + "`" + `404` + "`" + ` if the group has no budget.\nRequires permission to read the group.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6471,6 +6549,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.\nRequires permission to update the group.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6492,7 +6571,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Upsert group AI budget request",
+                        "description": "AI budget for the group. ` + "`" + `spend_limit_micros` + "`" + ` is the limit per member for each budget period, in millionths of a dollar, from ` + "`" + `0` + "`" + ` to ` + "`" + `1000000000000` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6516,6 +6595,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.\nReturns ` + "`" + `404` + "`" + ` if the group has no budget.\nRequires permission to update the group.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -6581,6 +6661,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}/members": {
             "get": {
+                "description": "Returns a page of the members of a group, filtered by the ` + "`" + `q` + "`" + ` search query.\nReturns only the members you can read.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6592,33 +6673,33 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group id",
+                        "description": "Group ID.",
                         "name": "group",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Member search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -6683,6 +6764,7 @@ const docTemplate = `{
         },
         "/api/v2/init-script/{os}/{arch}": {
             "get": {
+                "description": "Returns the script that downloads the workspace agent binary from the deployment and starts it, for the given operating system and architecture.\nThe script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the ` + "`" + `init_script` + "`" + ` of a ` + "`" + `coder_agent` + "`" + ` from the same script.\nDoesn't require a session token, and returns ` + "`" + `400` + "`" + ` for an operating system and architecture pair that Coder doesn't support.",
                 "produces": [
                     "text/plain"
                 ],
@@ -6694,14 +6776,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Operating system",
+                        "description": "Operating system of the machine that runs the agent, one of ` + "`" + `linux` + "`" + `, ` + "`" + `darwin` + "`" + `, or ` + "`" + `windows` + "`" + `. The match ignores case.",
                         "name": "os",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Architecture",
+                        "description": "CPU architecture of the machine that runs the agent, one of ` + "`" + `amd64` + "`" + ` or ` + "`" + `arm64` + "`" + `, or ` + "`" + `armv7` + "`" + ` on ` + "`" + `linux` + "`" + `. The match ignores case.",
                         "name": "arch",
                         "in": "path",
                         "required": true
@@ -6716,6 +6798,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/daus": {
             "get": {
+                "description": "Returns the number of daily active users across the deployment for the last 60 days, one entry per day.\nRequires permission to read deployment configuration.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6727,10 +6810,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Time-zone offset (e.g. -2)",
+                        "description": "Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `, that sets where each day starts. The default, ` + "`" + `0` + "`" + `, is UTC.",
                         "name": "tz_offset",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6750,6 +6832,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/templates": {
             "get": {
+                "description": "Returns usage insights for templates between ` + "`" + `start_time` + "`" + ` and ` + "`" + `end_time` + "`" + `: active users, total usage time, app usage, and template parameter usage, plus active users for each ` + "`" + `interval` + "`" + ` when you set one.\nRequires permission to view insights for all templates, or, when you set ` + "`" + `template_ids` + "`" + `, for each template you list.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6762,7 +6845,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Start time",
+                        "description": "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as ` + "`" + `2026-10-01T00:00:00Z` + "`" + `. It can't be later than the end of the current hour.",
                         "name": "start_time",
                         "in": "query",
                         "required": true
@@ -6770,7 +6853,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "End time",
+                        "description": "End of the report, as an RFC 3339 timestamp that isn't before ` + "`" + `start_time` + "`" + `. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour.",
                         "name": "end_time",
                         "in": "query",
                         "required": true
@@ -6781,10 +6864,9 @@ const docTemplate = `{
                             "day"
                         ],
                         "type": "string",
-                        "description": "Interval",
+                        "description": "Length of each period in ` + "`" + `interval_reports` + "`" + `: ` + "`" + `day` + "`" + ` or ` + "`" + `week` + "`" + `. With ` + "`" + `week` + "`" + `, the last period must span at least 6 days. If you omit it, the response has no ` + "`" + `interval_reports` + "`" + `.",
                         "name": "interval",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "array",
@@ -6792,7 +6874,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Template IDs",
+                        "description": "Comma-separated list of template IDs to include. By default, the report covers all templates.",
                         "name": "template_ids",
                         "in": "query"
                     }
@@ -6814,6 +6896,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/user-activity": {
             "get": {
+                "description": "Returns how many seconds each user was active in workspaces between ` + "`" + `start_time` + "`" + ` and ` + "`" + `end_time` + "`" + `, along with the templates that contributed.\nRequires permission to view insights for all templates, or, when you set ` + "`" + `template_ids` + "`" + `, for each template you list.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6826,7 +6909,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Start time",
+                        "description": "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as ` + "`" + `2026-10-01T00:00:00Z` + "`" + `. It can't be later than the end of the current hour.",
                         "name": "start_time",
                         "in": "query",
                         "required": true
@@ -6834,7 +6917,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "End time",
+                        "description": "End of the report, as an RFC 3339 timestamp that isn't before ` + "`" + `start_time` + "`" + `. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour.",
                         "name": "end_time",
                         "in": "query",
                         "required": true
@@ -6845,7 +6928,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Template IDs",
+                        "description": "Comma-separated list of template IDs to include. By default, the report covers all templates.",
                         "name": "template_ids",
                         "in": "query"
                     }
@@ -6867,6 +6950,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/user-latency": {
             "get": {
+                "description": "Returns each user's workspace connection latency between ` + "`" + `start_time` + "`" + ` and ` + "`" + `end_time` + "`" + `, as 50th and 95th percentile values in milliseconds.\nRequires permission to view insights for all templates, or, when you set ` + "`" + `template_ids` + "`" + `, for each template you list.\nReturns ` + "`" + `404` + "`" + ` when usage stats collection is turned off.",
                 "produces": [
                     "application/json"
                 ],
@@ -6879,7 +6963,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Start time",
+                        "description": "Start of the report, as an RFC 3339 timestamp at 00:00:00 in its own time zone offset, such as ` + "`" + `2026-10-01T00:00:00Z` + "`" + `. It can't be later than the end of the current hour.",
                         "name": "start_time",
                         "in": "query",
                         "required": true
@@ -6887,7 +6971,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "End time",
+                        "description": "End of the report, as an RFC 3339 timestamp that isn't before ` + "`" + `start_time` + "`" + `. It must be at 00:00:00, or on the hour if it falls on the current day, and it can't be later than the end of the current hour.",
                         "name": "end_time",
                         "in": "query",
                         "required": true
@@ -6898,7 +6982,7 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Template IDs",
+                        "description": "Comma-separated list of template IDs to include. By default, the report covers all templates.",
                         "name": "template_ids",
                         "in": "query"
                     }
@@ -6920,6 +7004,7 @@ const docTemplate = `{
         },
         "/api/v2/insights/user-status-counts": {
             "get": {
+                "description": "Returns the number of users in each status on each of the last 60 days.\nRequires permission to read users.",
                 "produces": [
                     "application/json"
                 ],
@@ -6931,13 +7016,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "IANA timezone name (e.g. America/St_Johns)",
+                        "description": "IANA time zone name, such as ` + "`" + `America/St_Johns` + "`" + `, that sets where each day starts. The default is ` + "`" + `UTC` + "`" + `. Do not combine it with ` + "`" + `tz_offset` + "`" + `.",
                         "name": "timezone",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
+                        "description": "Deprecated: Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `. Use ` + "`" + `timezone` + "`" + ` instead. Do not combine it with ` + "`" + `timezone` + "`" + `.",
                         "name": "tz_offset",
                         "in": "query"
                     }
@@ -6959,6 +7044,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses": {
             "get": {
+                "description": "Returns the licenses installed on the deployment, with the claims each one asserts.\nReturns only the licenses you can read, which requires permission to read licenses.",
                 "produces": [
                     "application/json"
                 ],
@@ -6985,6 +7071,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Adds a license to the deployment and recomputes its entitlements.\nA deployment can hold several licenses at once, and it doesn't need a license to add the first one.\nRequires permission to create licenses.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6998,7 +7085,7 @@ const docTemplate = `{
                 "operationId": "add-new-license",
                 "parameters": [
                     {
-                        "description": "Add license request",
+                        "description": "License to add. ` + "`" + `license` + "`" + ` is the license key string. Returns ` + "`" + `400` + "`" + ` if the key is invalid or is locked to a different deployment.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7024,6 +7111,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/refresh-entitlements": {
             "post": {
+                "description": "Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.\nUse it to apply changes that don't trigger a refresh on their own, such as a license expiring or the number of active users changing, instead of waiting up to 10 minutes for the next automatic refresh.\nReturns ` + "`" + `400` + "`" + ` with a ` + "`" + `Retry-After` + "`" + ` header if the entitlements were refreshed in the last minute for any reason, such as adding or deleting a license.\nRequires permission to create licenses.",
                 "produces": [
                     "application/json"
                 ],
@@ -7049,6 +7137,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/trial": {
             "post": {
+                "description": "Requests a trial license from the Coder license server and installs it.\nReturns ` + "`" + `409` + "`" + ` if the deployment already has a license, so delete the existing license first.\nRequires permission to create licenses.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7062,7 +7151,7 @@ const docTemplate = `{
                 "operationId": "request-a-trial-license",
                 "parameters": [
                     {
-                        "description": "Trial license request",
+                        "description": "Contact details for the trial. ` + "`" + `email` + "`" + `, ` + "`" + `first_name` + "`" + `, ` + "`" + `last_name` + "`" + `, ` + "`" + `phone_number` + "`" + `, ` + "`" + `job_title` + "`" + `, ` + "`" + `company_name` + "`" + `, ` + "`" + `country` + "`" + `, and ` + "`" + `developers` + "`" + ` are required and go to the license server. ` + "`" + `source` + "`" + ` and ` + "`" + `attribution_id` + "`" + ` are optional, are used for telemetry, and aren't sent to the license server.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7088,6 +7177,7 @@ const docTemplate = `{
         },
         "/api/v2/licenses/{id}": {
             "delete": {
+                "description": "Deletes a license by its numeric ID and recomputes the deployment's entitlements.\nRequires permission to delete licenses.",
                 "produces": [
                     "application/json"
                 ],
@@ -7100,7 +7190,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "number",
-                        "description": "License ID",
+                        "description": "License ID, which is the integer ` + "`" + `id` + "`" + ` that ` + "`" + `GET /api/v2/licenses` + "`" + ` returns.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -7158,6 +7248,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/custom": {
             "post": {
+                "description": "Sends a custom notification with your own title and message to yourself.\nSystem users can't send custom notifications.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7171,7 +7262,7 @@ const docTemplate = `{
                 "operationId": "send-a-custom-notification",
                 "parameters": [
                     {
-                        "description": "Provide a non-empty title or message",
+                        "description": "Custom notification content. ` + "`" + `content.title` + "`" + ` and ` + "`" + `content.message` + "`" + ` are required, up to 120 and 2000 bytes.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7212,6 +7303,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/dispatch-methods": {
             "get": {
+                "description": "Returns the available notification delivery methods and the default method this deployment uses.\nThe inbox method isn't listed, because it's an implicit delivery target.",
                 "produces": [
                     "application/json"
                 ],
@@ -7240,6 +7332,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox": {
             "get": {
+                "description": "Returns up to 25 of your inbox notifications, newest first, with your ` + "`" + `unread_count` + "`" + `.\nUse ` + "`" + `starting_before` + "`" + ` to page through older notifications.",
                 "produces": [
                     "application/json"
                 ],
@@ -7251,26 +7344,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "description": "Comma-separated list of target IDs. Returns only notifications that have all of these targets.",
                         "name": "targets",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "description": "Comma-separated list of notification template IDs. Returns only notifications from these templates.",
                         "name": "templates",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "description": "Filter by read status: ` + "`" + `all` + "`" + `, ` + "`" + `read` + "`" + `, or ` + "`" + `unread` + "`" + `. The default is ` + "`" + `all` + "`" + `.",
                         "name": "read_status",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
+                        "description": "ID of the last notification on the previous page. Returns the notifications created before it. If no notification has this ID, returns the first page.",
                         "name": "starting_before",
                         "in": "query"
                     }
@@ -7292,6 +7385,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox/mark-all-as-read": {
             "put": {
+                "description": "Marks all of your unread inbox notifications as read.",
                 "tags": [
                     "Notifications"
                 ],
@@ -7311,6 +7405,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox/watch": {
             "get": {
+                "description": "Streams your new inbox notifications over a WebSocket as they arrive.\nEach message is a JSON object with the ` + "`" + `notification` + "`" + ` and your current ` + "`" + `unread_count` + "`" + `.\nUse the query parameters to filter which notifications you receive.",
                 "produces": [
                     "application/json"
                 ],
@@ -7322,19 +7417,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "description": "Comma-separated list of target IDs. Sends only notifications that have all of these targets.",
                         "name": "targets",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "description": "Comma-separated list of notification template IDs. Sends only notifications from these templates.",
                         "name": "templates",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "description": "Filter by read status: ` + "`" + `all` + "`" + `, ` + "`" + `read` + "`" + `, or ` + "`" + `unread` + "`" + `. The default is ` + "`" + `all` + "`" + `.",
                         "name": "read_status",
                         "in": "query"
                     },
@@ -7344,7 +7439,7 @@ const docTemplate = `{
                             "markdown"
                         ],
                         "type": "string",
-                        "description": "Define the output format for notifications title and body.",
+                        "description": "Format of the notification ` + "`" + `title` + "`" + ` and ` + "`" + `content` + "`" + `: ` + "`" + `markdown` + "`" + ` or ` + "`" + `plaintext` + "`" + `. The default is ` + "`" + `markdown` + "`" + `.",
                         "name": "format",
                         "in": "query"
                     }
@@ -7366,6 +7461,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox/{id}/read-status": {
             "put": {
+                "description": "Marks one of your inbox notifications as read or unread by setting ` + "`" + `is_read` + "`" + ` in the request body.\nReturns the updated notification and your ` + "`" + `unread_count` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7377,7 +7473,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "id of the notification",
+                        "description": "Notification ID.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -7400,6 +7496,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/settings": {
             "get": {
+                "description": "Returns the deployment-wide notification settings, which hold the ` + "`" + `notifier_paused` + "`" + ` flag.\nAny authenticated user can read them.",
                 "produces": [
                     "application/json"
                 ],
@@ -7423,6 +7520,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the deployment-wide notification settings, for example to pause or resume the notifier with ` + "`" + `notifier_paused` + "`" + `.\nReturns ` + "`" + `304` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7436,7 +7534,7 @@ const docTemplate = `{
                 "operationId": "update-notifications-settings",
                 "parameters": [
                     {
-                        "description": "Notifications settings request",
+                        "description": "Notification settings to apply. Set ` + "`" + `notifier_paused` + "`" + ` to ` + "`" + `true` + "`" + ` to pause delivery.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7465,6 +7563,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/templates/custom": {
             "get": {
+                "description": "Returns the templates for custom notifications, which you send with ` + "`" + `POST /api/v2/notifications/custom` + "`" + `.\nAny authenticated user can read them.",
                 "produces": [
                     "application/json"
                 ],
@@ -7499,6 +7598,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/templates/system": {
             "get": {
+                "description": "Returns the notification templates that Coder sends for system events, such as workspace and account changes.\nAny authenticated user can read them.",
                 "produces": [
                     "application/json"
                 ],
@@ -7533,6 +7633,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/templates/{notification_template}/method": {
             "put": {
+                "description": "Sets the delivery method of a notification template to ` + "`" + `smtp` + "`" + `, ` + "`" + `webhook` + "`" + `, or ` + "`" + `inbox` + "`" + `.\nReturns ` + "`" + `304` + "`" + ` if the template already uses that method.\nRequires permission to update notification templates.",
                 "produces": [
                     "application/json"
                 ],
@@ -7544,7 +7645,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Notification template UUID",
+                        "description": "Notification template ID.",
                         "name": "notification_template",
                         "in": "path",
                         "required": true
@@ -7567,6 +7668,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/test": {
             "post": {
+                "description": "Sends a test notification to you, to check that the deployment delivers notifications.\nRequires permission to update deployment configuration.",
                 "tags": [
                     "Notifications"
                 ],
@@ -7586,6 +7688,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps": {
             "get": {
+                "description": "Returns the OAuth2 applications registered on this deployment, or only the ones a user has authorized when you set ` + "`" + `user_id` + "`" + `.\nAny member can list applications, but listing another user's authorizations requires permission to read that user's OAuth2 tokens.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7597,7 +7700,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by applications authorized for a user",
+                        "description": "ID of a user. Returns only the applications that user has authorized, instead of all applications. Must be a UUID, so the ` + "`" + `me` + "`" + ` shortcut does not work.",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -7620,6 +7723,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Registers an OAuth2 application that can use Coder as its authorization server.\nRequires permission to create OAuth2 applications.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7659,6 +7763,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps/{app}": {
             "get": {
+                "description": "Returns one OAuth2 application, including its redirect URIs and scope allowlist.\nAny member can read an application.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7670,7 +7775,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7691,6 +7796,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates an OAuth2 application's name, icon, and redirect URIs, and its scope allowlist when you send ` + "`" + `scope` + "`" + `.\nRequires permission to update OAuth2 applications.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7705,13 +7811,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update an OAuth2 application.",
+                        "description": "New settings for the OAuth2 application. Omit both ` + "`" + `redirect_uris` + "`" + ` and ` + "`" + `callback_url` + "`" + ` to keep the stored redirect URIs, and omit ` + "`" + `scope` + "`" + ` to keep the scope allowlist. Omitting ` + "`" + `icon` + "`" + ` clears it.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7735,6 +7841,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an OAuth2 application along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it, so the application can no longer authenticate.\nRequires permission to delete OAuth2 applications.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -7743,7 +7850,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7763,6 +7870,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps/{app}/secrets": {
             "get": {
+                "description": "Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.\nRequires permission to read OAuth2 application secrets.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7774,7 +7882,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7798,6 +7906,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a client secret for a confidential OAuth2 application and returns the full secret once, so store it when you receive it.\nRequires permission to create OAuth2 application secrets, and returns ` + "`" + `400` + "`" + ` for a public client, which has no secret.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7809,7 +7918,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
@@ -7841,6 +7950,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/apps/{app}/secrets/{secretID}": {
             "delete": {
+                "description": "Deletes one secret of an OAuth2 application, so the application can no longer authenticate with it.\nIt also revokes the access and refresh tokens issued through the secret, so users must authorize the application again.\nRequires permission to delete OAuth2 application secrets.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -7849,14 +7959,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "App ID",
+                        "description": "OAuth2 application ID.",
                         "name": "app",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret ID",
+                        "description": "ID of the OAuth2 application secret.",
                         "name": "secretID",
                         "in": "path",
                         "required": true
@@ -7876,6 +7986,7 @@ const docTemplate = `{
         },
         "/api/v2/oauth2-provider/settings": {
             "get": {
+                "description": "Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.\nRequires permission to read deployment configuration.\nWorks while the OAuth2 provider is disabled.",
                 "produces": [
                     "application/json"
                 ],
@@ -7899,6 +8010,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the OAuth2 provider settings for the deployment, such as whether ` + "`" + `POST /oauth2/register` + "`" + ` accepts new clients, and returns the resulting values.\nRequires permission to update deployment configuration.\nWorks while the OAuth2 provider is disabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7912,7 +8024,7 @@ const docTemplate = `{
                 "operationId": "update-oauth2-provider-settings",
                 "parameters": [
                     {
-                        "description": "OAuth2 provider settings request",
+                        "description": "OAuth2 provider settings to change. Omitted fields keep their current value.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7938,6 +8050,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations": {
             "get": {
+                "description": "Returns the organizations you can read.\nUse it to find an organization's ID or name for other calls.",
                 "produces": [
                     "application/json"
                 ],
@@ -7964,6 +8077,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an organization and adds you to it as a member without extra roles.\n` + "`" + `display_name` + "`" + ` defaults to ` + "`" + `name` + "`" + `, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to create organizations.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7977,7 +8091,7 @@ const docTemplate = `{
                 "operationId": "create-organization",
                 "parameters": [
                     {
-                        "description": "Create organization request",
+                        "description": "Organization to create. ` + "`" + `name` + "`" + ` is required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8003,6 +8117,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}": {
             "get": {
+                "description": "Returns one organization.\nThe ` + "`" + `organization` + "`" + ` path parameter also accepts the organization name, or ` + "`" + `default` + "`" + ` for the default organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -8014,8 +8129,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8036,6 +8150,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an organization.\nReturns ` + "`" + `400` + "`" + ` for the default organization, and ` + "`" + `500` + "`" + ` while the organization still has workspaces, templates, provisioner keys, groups other than ` + "`" + `Everyone` + "`" + `, or more than one member.\nRequires permission to delete the organization.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8047,7 +8162,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8068,6 +8183,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates an organization's name, display name, description, icon, or default member roles.\nFields you leave out keep their current values, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to update the organization.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8082,13 +8198,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Patch organization request",
+                        "description": "Organization fields to update. Omitted fields keep their current values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8126,8 +8242,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8149,26 +8264,26 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "Only include spend by this user. Accepts a user ID.",
                         "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Effective group ID",
+                        "description": "Only include spend attributed to this group.",
                         "name": "group_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Configured provider name",
+                        "description": "Only include spend through the AI provider with this configured name.",
                         "name": "provider_name",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Model name",
+                        "description": "Only include spend on this model.",
                         "name": "model",
                         "in": "query"
                     }
@@ -8187,6 +8302,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/chats/config/system-prompt": {
             "get": {
+                "description": "Returns an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats.\nRequires permission to read the organization's chat model configuration, and returns ` + "`" + `404` + "`" + ` without it.",
                 "produces": [
                     "application/json"
                 ],
@@ -8198,8 +8314,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8220,6 +8335,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets an organization's chat instructions, which Coder Agents adds after the deployment system prompt in the organization's chats, replacing the stored value.\nRequires permission to update the organization's chat model configuration. The ` + "`" + `--chat-max-prompt-bytes` + "`" + ` option limits their size.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8231,14 +8347,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "Organization instructions in ` + "`" + `system_prompt` + "`" + `. They replace the current instructions.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8362,6 +8477,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/chats/models": {
             "get": {
+                "description": "Lists the chat models in an organization that you can read, and descriptors of the AI providers that show whether each is available to you.\nRequests that use a scoped API token need the ` + "`" + `chat_model_config:read` + "`" + ` scope. Provider descriptors never include API keys.",
                 "produces": [
                     "application/json"
                 ],
@@ -8373,7 +8489,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization name or ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8394,6 +8510,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a chat model in an organization from an AI provider's model, and makes it the organization's default when it's the first one.\nRequires permission to create chat model configurations in the organization. The provider must exist and be enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8408,13 +8525,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization name or ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Model",
+                        "description": "Model to create. ` + "`" + `ai_provider_id` + "`" + `, ` + "`" + `model` + "`" + `, and a positive ` + "`" + `context_limit` + "`" + ` are required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8741,6 +8858,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups": {
             "get": {
+                "description": "Returns the groups in an organization that you can read, each with the members you can read.\nTo page through groups and search them by name, use ` + "`" + `GET /api/v2/organizations/{organization}/paginated-groups` + "`" + `, which returns each group's member count instead of its members and requires permission to read every group in the organization.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8752,8 +8870,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8777,6 +8894,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a group in an organization.\nReturns ` + "`" + `409` + "`" + ` if the organization already has a group with that name.\nRequires permission to create groups in the organization.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8790,7 +8908,7 @@ const docTemplate = `{
                 "operationId": "create-group-for-organization",
                 "parameters": [
                     {
-                        "description": "Create group request",
+                        "description": "Group to create. ` + "`" + `name` + "`" + ` is required, must be 255 characters or fewer, and can't be ` + "`" + `Everyone` + "`" + `, ` + "`" + `new` + "`" + `, or ` + "`" + `create` + "`" + `. ` + "`" + `quota_allowance` + "`" + ` is the workspace quota credits the group adds to the budget of each member.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -8800,7 +8918,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8835,8 +8953,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8866,6 +8983,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups/{groupName}": {
             "get": {
+                "description": "Returns a group in an organization by its name, with the members you can read.\nRequires permission to read the group.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8877,15 +8995,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group name in the organization. Matching is case-insensitive.",
                         "name": "groupName",
                         "in": "path",
                         "required": true
@@ -8908,6 +9025,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups/{groupName}/members": {
             "get": {
+                "description": "Returns a page of the members of a group in an organization, filtered by the ` + "`" + `q` + "`" + ` search query.\nReturns only the members you can read.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -8919,41 +9037,40 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group name in the organization. Matching is case-insensitive.",
                         "name": "groupName",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Member search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -8987,15 +9104,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group name in the organization. Matching is case-insensitive.",
                         "name": "groupName",
                         "in": "path",
                         "required": true
@@ -9452,6 +9568,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members": {
             "get": {
+                "description": "Returns the members of an organization with their user data, without paging.\nReturns only the members you can read.\nDeprecated. Use ` + "`" + `GET /api/v2/organizations/{organization}/paginated-members` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -9464,10 +9581,16 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `user_id` + "`" + `, ` + "`" + `github_user_id` + "`" + `, and ` + "`" + `include_system` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
+                        "name": "q",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -9490,6 +9613,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles": {
             "get": {
+                "description": "Returns the roles that apply in an organization, built-in and custom, with the permissions each one grants.\nThe response leaves out the ` + "`" + `organization-member` + "`" + ` and ` + "`" + `organization-service-account` + "`" + ` system roles, which organization members and service accounts hold.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read the organization's assignable roles, which every organization member has.",
                 "produces": [
                     "application/json"
                 ],
@@ -9501,8 +9625,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -9526,6 +9649,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the display name and permissions of an existing custom role, identified by ` + "`" + `name` + "`" + ` in the request body.\nPermissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.\nRequires permission to update custom organization roles.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9540,14 +9664,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update role request",
+                        "description": "Custom role definition. The ` + "`" + `name` + "`" + ` selects the role to update, and the other fields replace its current values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9574,6 +9697,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a custom role in an organization with the given organization permissions.\nThe name can't match a built-in role, and the request can't include site, user, or organization member permissions.\nRequires permission to create custom organization roles.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9588,14 +9712,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Insert role request",
+                        "description": "Custom role to create. Include only organization permissions.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9624,6 +9747,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles/{roleName}": {
             "delete": {
+                "description": "Deletes a custom role from an organization.\nRequires permission to delete custom organization roles.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -9635,15 +9759,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Role name",
+                        "description": "Name of the custom organization role to delete.",
                         "name": "roleName",
                         "in": "path",
                         "required": true
@@ -9669,6 +9792,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}": {
             "get": {
+                "description": "Returns one organization member with their user data, such as username, email, status, and roles.\nReturns only a member you can read.",
                 "produces": [
                     "application/json"
                 ],
@@ -9680,14 +9804,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -9708,6 +9832,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Adds an existing user to an organization with no roles beyond the organization's defaults.\nReturns ` + "`" + `400` + "`" + ` for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.\nRequires permission to read the user and to create organization members.",
                 "produces": [
                     "application/json"
                 ],
@@ -9719,14 +9844,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -9747,6 +9872,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Removes a user from an organization.\nYou can't remove yourself.\nRequires permission to delete organization members.",
                 "tags": [
                     "Members"
                 ],
@@ -9755,14 +9881,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -9888,6 +10014,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}/roles": {
             "put": {
+                "description": "Replaces an organization member's roles with the roles in the request body.\nYou can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.\nRequires permission to assign organization roles.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9902,20 +10029,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update roles request",
+                        "description": "Names of the roles to assign to the member. These replace the member's current roles.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9941,6 +10068,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}/workspace-quota": {
             "get": {
+                "description": "Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.\nThe budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is ` + "`" + `-1` + "`" + ` when the license doesn't include groups.\nRequires permission to read the user, which you have for yourself.",
                 "produces": [
                     "application/json"
                 ],
@@ -9952,15 +10080,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -9999,21 +10126,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Username, UUID, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create workspace request",
+                        "description": "Workspace to create. Set ` + "`" + `name` + "`" + ` and either ` + "`" + `template_id` + "`" + ` or ` + "`" + `template_version_id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10039,6 +10165,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}/workspaces/available-users": {
             "get": {
+                "description": "Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.\nThe list covers users across the deployment, not only the members of the organization.\nRequires permission to create workspaces for other users in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10050,34 +10177,33 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Limit results",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Offset for pagination",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -10102,7 +10228,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-groups": {
             "get": {
-                "description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.\n\nThe ` + "`" + `q` + "`" + ` parameter uses the shared filter syntax. Bare terms (including multi-word)\nperform a free-text search over group name and display name. ` + "`" + `search:` + "`" + ` is the only\naccepted key and unknown keys return 400. Because group display names may contain\ncolons, a value with a colon must be quoted, e.g. ` + "`" + `search:\"team: frontend\"` + "`" + `; an\nunquoted colon fails with ` + "`" + `Query element \"team:\" cannot start or end with ':'` + "`" + `.\n\nThis endpoint returns group summaries without the member roster: each group\ncarries only ` + "`" + `total_member_count` + "`" + ` and no ` + "`" + `members` + "`" + ` field. Callers that need the\nroster use the group members endpoint (GET /groups/{group}/members).",
+                "description": "Returns the groups in an organization, ordered by name and paged with ` + "`" + `limit` + "`" + `, with each group's ` + "`" + `total_member_count` + "`" + ` instead of its members.\nTo list a group's members, use ` + "`" + `GET /api/v2/groups/{group}/members` + "`" + `.\nQuote a ` + "`" + `q` + "`" + ` value that contains a colon, as in ` + "`" + `search:\"team: frontend\"` + "`" + `.\nRequires permission to read every group in the organization, and returns ` + "`" + `500` + "`" + ` instead of a partial list without it.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10114,33 +10240,33 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Search query (see description for syntax and colon-quoting)",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. The only available key is ` + "`" + `search` + "`" + `, which matches group names and display names, and text without a key does the same. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     }
@@ -10162,6 +10288,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-members": {
             "get": {
+                "description": "Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.\nUse ` + "`" + `q` + "`" + ` to filter the members and ` + "`" + `limit` + "`" + ` with ` + "`" + `offset` + "`" + ` or ` + "`" + `after_id` + "`" + ` to page through them.\nRequires permission to read all of the organization's members.",
                 "produces": [
                     "application/json"
                 ],
@@ -10173,33 +10300,33 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Member search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit, if 0 returns all members",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -10224,6 +10351,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerdaemons": {
             "get": {
+                "description": "Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.\nUse the ` + "`" + `ids` + "`" + `, ` + "`" + `status` + "`" + `, and ` + "`" + `tags` + "`" + ` query parameters to narrow the list.\nRequires permission to read provisioner jobs in the organization, and returns ` + "`" + `404` + "`" + ` without it.",
                 "produces": [
                     "application/json"
                 ],
@@ -10235,15 +10363,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `, and ` + "`" + `0` + "`" + ` returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -10306,6 +10433,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerdaemons/serve": {
             "get": {
+                "description": "Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and ` + "`" + `coder provisioner start` + "`" + ` connects here.\nAuthenticates with a provisioner key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header, with the deployment's pre-shared key in the ` + "`" + `Coder-Provisioner-Daemon-PSK` + "`" + ` header, or with a session token.\nSend ` + "`" + `provisioner` + "`" + ` (` + "`" + `echo` + "`" + ` or ` + "`" + `terraform` + "`" + `, repeatable) to say which provisioners the daemon runs, and optionally ` + "`" + `name` + "`" + `, ` + "`" + `version` + "`" + `, and ` + "`" + `tag` + "`" + ` (` + "`" + `key=value` + "`" + `, repeatable) to set the daemon's name, protocol version, and tags.\nA provisioner key sets the daemon's tags, so you can't send ` + "`" + `tag` + "`" + ` with one, and the key's organization applies instead of the organization in the path.\nA pre-shared key works only for the default organization.\nWith a session token, any user can start a daemon with the tag ` + "`" + `scope=user` + "`" + `, which runs only that user's jobs.\nStarting any other daemon with a session token requires permission to create provisioner daemons in the organization.\nThe WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -10314,8 +10442,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10335,6 +10462,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerjobs": {
             "get": {
+                "description": "Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.\nRequires permission to read provisioner jobs in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10346,15 +10474,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `, and ` + "`" + `0` + "`" + ` returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -10424,6 +10551,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerjobs/{job}": {
             "get": {
+                "description": "Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.\nRequires permission to read provisioner jobs in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10435,8 +10563,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10444,7 +10571,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "Provisioner job ID.",
                         "name": "job",
                         "in": "path",
                         "required": true
@@ -10467,6 +10594,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerkeys": {
             "get": {
+                "description": "Returns the provisioner keys in an organization, oldest first, without their secrets.\nThe list leaves out the reserved ` + "`" + `built-in` + "`" + `, ` + "`" + `user-auth` + "`" + `, and ` + "`" + `psk` + "`" + ` keys, and returns only the keys you can read.\nRequires permission to read provisioner daemons in the organization.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10478,7 +10606,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10502,6 +10630,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.\nSet ` + "`" + `name` + "`" + ` (at most 64 characters, unique in the organization, and not ` + "`" + `built-in` + "`" + `, ` + "`" + `user-auth` + "`" + `, or ` + "`" + `psk` + "`" + `) and optionally ` + "`" + `tags` + "`" + `.\nThe response holds the key secret, which Coder stores only as a hash, so save it when you create the key.\nRequires permission to create provisioner daemons in the organization.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10513,7 +10642,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10536,6 +10665,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerkeys/daemons": {
             "get": {
+                "description": "Returns each provisioner key in an organization, including the reserved ` + "`" + `user-auth` + "`" + ` key, with the provisioner daemons that connected with it and were seen recently.\nUse it to check which external provisioner daemons are connected.\nReturns only the keys you can read.\nRequires permission to read provisioner daemons in the organization.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -10547,7 +10677,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10573,6 +10703,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}": {
             "delete": {
+                "description": "Deletes a provisioner key, and daemons that authenticated with it lose their connection.\nYou can't delete the reserved ` + "`" + `built-in` + "`" + `, ` + "`" + `user-auth` + "`" + `, and ` + "`" + `psk` + "`" + ` keys.\nRequires permission to delete provisioner daemons in the organization.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -10581,14 +10712,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Provisioner key name",
+                        "description": "Name of the provisioner key to delete.",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -10608,6 +10739,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/available-fields": {
             "get": {
+                "description": "Returns the claim field names found in the stored OIDC claims of this organization's members.\nUse it to choose a ` + "`" + `field` + "`" + ` for group or role sync.\nRequires permission to read IdP sync settings in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10619,8 +10751,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10646,6 +10777,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/field-values": {
             "get": {
+                "description": "Returns the distinct string values of one claim field in the stored OIDC claims of this organization's members.\nUse it to find the values to put in a group or role ` + "`" + `mapping` + "`" + `.\nRequires permission to read IdP sync settings in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10657,8 +10789,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10666,7 +10797,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Claim Field",
+                        "description": "Name of the claim field to list values for, such as a field that ` + "`" + `available-fields` + "`" + ` returns. Returns ` + "`" + `400` + "`" + ` when empty.",
                         "name": "claimField",
                         "in": "query",
                         "required": true
@@ -10692,6 +10823,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/groups": {
             "get": {
+                "description": "Returns how an organization syncs its groups from the identity provider, including the claim ` + "`" + `field` + "`" + `, the ` + "`" + `mapping` + "`" + ` to Coder groups, and any ` + "`" + `regex_filter` + "`" + `.\nRequires permission to read IdP sync settings in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10703,8 +10835,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10725,6 +10856,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces all of an organization's group sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization.\nReturns ` + "`" + `400` + "`" + ` for a request that sets the deprecated ` + "`" + `legacy_group_name_mapping` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10739,14 +10871,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New settings",
+                        "description": "New group sync settings, which replace the current ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10772,6 +10903,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/groups/config": {
             "patch": {
+                "description": "Updates an organization's group sync ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `, and keeps the existing ` + "`" + `mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10786,14 +10918,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New config values",
+                        "description": "New values for ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `. The mapping stays as it is.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10819,6 +10950,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/groups/mapping": {
             "patch": {
+                "description": "Adds and removes entries in an organization's group ` + "`" + `mapping` + "`" + `, and keeps the claim ` + "`" + `field` + "`" + `, ` + "`" + `regex_filter` + "`" + `, and ` + "`" + `auto_create_missing_groups` + "`" + `.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10833,8 +10965,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10866,6 +10997,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles": {
             "get": {
+                "description": "Returns how an organization syncs organization roles from the identity provider, including the claim ` + "`" + `field` + "`" + ` and the ` + "`" + `mapping` + "`" + ` to role names.\nRequires permission to read IdP sync settings in the organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -10877,8 +11009,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10899,6 +11030,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces all of an organization's role sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + `, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10913,14 +11045,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New settings",
+                        "description": "New role sync settings, which replace the current ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10946,6 +11077,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles/config": {
             "patch": {
+                "description": "Updates the claim ` + "`" + `field` + "`" + ` that an organization uses for role sync, and keeps the existing ` + "`" + `mapping` + "`" + `.\nRequires permission to update IdP sync settings in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10960,14 +11092,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New config values",
+                        "description": "New value for ` + "`" + `field` + "`" + `. The mapping stays as it is.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10993,6 +11124,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles/mapping": {
             "patch": {
+                "description": "Adds and removes entries in an organization's role ` + "`" + `mapping` + "`" + `, and keeps the claim ` + "`" + `field` + "`" + `.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11007,8 +11139,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11040,6 +11171,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/workspace-sharing": {
             "get": {
+                "description": "Returns whether workspaces in an organization can be shared, and whose workspaces can be shared: ` + "`" + `none` + "`" + `, ` + "`" + `everyone` + "`" + `, or ` + "`" + `service_accounts` + "`" + `.\nWhen the deployment disables workspace sharing with ` + "`" + `--disable-workspace-sharing` + "`" + `, ` + "`" + `sharing_globally_disabled` + "`" + ` is ` + "`" + `true` + "`" + ` and ` + "`" + `shareable_workspace_owners` + "`" + ` is ` + "`" + `none` + "`" + ` whatever the organization setting is.",
                 "produces": [
                     "application/json"
                 ],
@@ -11051,8 +11183,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11073,6 +11204,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Sets whose workspaces can be shared in an organization: ` + "`" + `none` + "`" + `, ` + "`" + `everyone` + "`" + `, or ` + "`" + `service_accounts` + "`" + `.\nChoosing ` + "`" + `none` + "`" + ` removes every workspace share in the organization.\nChoosing ` + "`" + `service_accounts` + "`" + ` removes the shares on workspaces that service accounts don't own.\nRequires permission to update the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11087,14 +11219,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Workspace sharing settings",
+                        "description": "Workspace sharing settings to apply. Set ` + "`" + `shareable_workspace_owners` + "`" + `. The deprecated ` + "`" + `sharing_disabled` + "`" + ` applies only when ` + "`" + `shareable_workspace_owners` + "`" + ` is empty.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11132,8 +11263,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11157,6 +11287,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a template in an organization from an existing template version.\nThe template version must not be archived or already belong to a template, and its import job can still be running.\nRequires permission to create templates in the organization.\nThe organization's Everyone group gets the ` + "`" + `use` + "`" + ` role on the new template unless you set ` + "`" + `disable_everyone_group_access` + "`" + ` to ` + "`" + `true` + "`" + `.\nSettings that need a Premium license, such as ` + "`" + `autostop_requirement` + "`" + `, ` + "`" + `failure_ttl_ms` + "`" + `, and ` + "`" + `require_active_version` + "`" + `, are ignored without one, and ` + "`" + `max_port_share_level` + "`" + ` returns a validation error.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11170,7 +11301,7 @@ const docTemplate = `{
                 "operationId": "create-template-by-organization",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Template to create, including the ` + "`" + `template_version_id` + "`" + ` of the version to use as its first version.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11180,7 +11311,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11203,6 +11334,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/examples": {
             "get": {
+                "description": "Returns the starter templates that ship with Coder.\nDeprecated. Use ` + "`" + `GET /api/v2/templates/examples` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -11215,8 +11347,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -11242,6 +11373,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}": {
             "get": {
+                "description": "Returns the template with the given name in an organization.\nThe name match is case-insensitive.",
                 "produces": [
                     "application/json"
                 ],
@@ -11253,15 +11385,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Template name",
+                        "description": "Template name. The match is case-insensitive.",
                         "name": "templatename",
                         "in": "path",
                         "required": true
@@ -11284,6 +11415,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
             "get": {
+                "description": "Returns the version with the given name of a template that you look up by organization and template name.\nWhile the version's import job is pending, the response includes ` + "`" + `matched_provisioners` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -11295,22 +11427,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Template name",
+                        "description": "Template name. The match is case-insensitive.",
                         "name": "templatename",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Template version name",
+                        "description": "Template version name. Names are unique within a template.",
                         "name": "templateversionname",
                         "in": "path",
                         "required": true
@@ -11385,6 +11516,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templateversions": {
             "post": {
+                "description": "Creates a template version from an uploaded file or a built-in example and queues an import job that processes it.\nSet either ` + "`" + `file_id` + "`" + `, which you get from ` + "`" + `POST /api/v2/files` + "`" + `, or ` + "`" + `example_id` + "`" + `, but not both.\nSet ` + "`" + `template_id` + "`" + ` to add the version to an existing template, or omit it to create a version for a new template.\nRequires permission to create templates in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11399,14 +11531,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create template version request",
+                        "description": "Template version to create. Set ` + "`" + `file_id` + "`" + ` or ` + "`" + `example_id` + "`" + ` to choose its source.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11432,6 +11563,7 @@ const docTemplate = `{
         },
         "/api/v2/prebuilds/settings": {
             "get": {
+                "description": "Returns the deployment-wide prebuilds settings, which hold the ` + "`" + `reconciliation_paused` + "`" + ` flag.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -11455,6 +11587,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with ` + "`" + `reconciliation_paused` + "`" + `.\nReturns ` + "`" + `304` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11468,7 +11601,7 @@ const docTemplate = `{
                 "operationId": "update-prebuilds-settings",
                 "parameters": [
                     {
-                        "description": "Prebuilds settings request",
+                        "description": "Prebuilds settings to apply. Set ` + "`" + `reconciliation_paused` + "`" + ` to ` + "`" + `true` + "`" + ` to pause prebuild reconciliation for all templates.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11497,6 +11630,7 @@ const docTemplate = `{
         },
         "/api/v2/provisionerkeys/{provisionerkey}": {
             "get": {
+                "description": "Returns the details of the provisioner key that you authenticate with, without its secret.\nAuthenticates with the key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header instead of a session token, and the response describes that key.",
                 "produces": [
                     "application/json"
                 ],
@@ -11508,7 +11642,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Provisioner Key",
+                        "description": "Provisioner key name. Coder ignores this value and returns the key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header.",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -11531,6 +11665,7 @@ const docTemplate = `{
         },
         "/api/v2/regions": {
             "get": {
+                "description": "Returns the regions that workspace connections and apps can use, each with its ` + "`" + `healthy` + "`" + ` status and the URLs for path and subdomain apps.\nThe list always includes the primary region, and on deployments with workspace proxies it adds each proxy that isn't deleted or DERP-only.\nThe dashboard's region picker uses this list, and so does ` + "`" + `coder open app` + "`" + ` to build an app URL for a region.\nAny authenticated user can call it.",
                 "produces": [
                     "application/json"
                 ],
@@ -11556,6 +11691,7 @@ const docTemplate = `{
         },
         "/api/v2/replicas": {
             "get": {
+                "description": "Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.\nRequires permission to read replicas.",
                 "produces": [
                     "application/json"
                 ],
@@ -11584,6 +11720,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/available-fields": {
             "get": {
+                "description": "Returns the claim field names found in the stored OIDC claims of all users on the deployment.\nUse it to choose a ` + "`" + `field` + "`" + ` for organization sync.\nRequires permission to read IdP sync settings across the deployment.",
                 "produces": [
                     "application/json"
                 ],
@@ -11622,6 +11759,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/field-values": {
             "get": {
+                "description": "Returns the distinct string values of one claim field in the stored OIDC claims of all users on the deployment.\nUse it to find the values to put in an organization ` + "`" + `mapping` + "`" + `.\nRequires permission to read IdP sync settings across the deployment.",
                 "produces": [
                     "application/json"
                 ],
@@ -11642,7 +11780,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Claim Field",
+                        "description": "Name of the claim field to list values for, such as a field that ` + "`" + `available-fields` + "`" + ` returns. Returns ` + "`" + `400` + "`" + ` when empty.",
                         "name": "claimField",
                         "in": "query",
                         "required": true
@@ -11668,6 +11806,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization": {
             "get": {
+                "description": "Returns how the deployment syncs organization membership from the identity provider, including the claim ` + "`" + `field` + "`" + `, the ` + "`" + `mapping` + "`" + ` to organizations, and ` + "`" + `organization_assign_default` + "`" + `.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to read IdP sync settings across the deployment.",
                 "produces": [
                     "application/json"
                 ],
@@ -11691,6 +11830,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Replaces all of the deployment's organization sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + ` and the default-organization setting, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/mapping` + "`" + `.\nRequires permission to update IdP sync settings across the deployment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11704,7 +11844,7 @@ const docTemplate = `{
                 "operationId": "update-organization-idp-sync-settings",
                 "parameters": [
                     {
-                        "description": "New settings",
+                        "description": "New organization sync settings, which replace the current ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11730,6 +11870,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization/config": {
             "patch": {
+                "description": "Updates the claim ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + ` for the deployment's organization sync, and keeps the existing ` + "`" + `mapping` + "`" + `.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to update IdP sync settings across the deployment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11743,7 +11884,7 @@ const docTemplate = `{
                 "operationId": "update-organization-idp-sync-config",
                 "parameters": [
                     {
-                        "description": "New config values",
+                        "description": "New values for ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + `. The mapping stays as it is.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11769,6 +11910,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization/mapping": {
             "patch": {
+                "description": "Adds and removes entries in the deployment's organization ` + "`" + `mapping` + "`" + `, and keeps the other settings.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings across the deployment.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11808,6 +11950,7 @@ const docTemplate = `{
         },
         "/api/v2/tailnet": {
             "get": {
+                "description": "Upgrades to a WebSocket that carries a user-scoped tailnet RPC connection, which lets one connection reach every workspace agent you can SSH to.\nClients such as Coder Desktop use it, and it returns ` + "`" + `409` + "`" + ` when the deployment turns on browser-only connections.",
                 "tags": [
                     "Agents"
                 ],
@@ -11827,6 +11970,7 @@ const docTemplate = `{
         },
         "/api/v2/templatebuilder/bases": {
             "get": {
+                "description": "Returns the base templates the template builder offers, with each base's operating system, variables, prerequisites, and workspace agents.\nRequires permission to read templates in at least one organization.\nReturns ` + "`" + `404` + "`" + ` if you lack that permission or the deployment turns off the template builder with ` + "`" + `--disable-template-builder` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -11852,6 +11996,7 @@ const docTemplate = `{
         },
         "/api/v2/templatebuilder/compose": {
             "post": {
+                "description": "Renders a template from a base template and modules, and returns its files as a tar archive without creating a template.\nRequires permission to create templates in at least one organization.\nReturns ` + "`" + `404` + "`" + ` if you lack that permission or the deployment turns off the template builder with ` + "`" + `--disable-template-builder` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11865,7 +12010,7 @@ const docTemplate = `{
                 "operationId": "compose-template-from-base-and-modules",
                 "parameters": [
                     {
-                        "description": "Compose request",
+                        "description": "Base template and modules to compose. ` + "`" + `base_template_id` + "`" + ` is required, and ` + "`" + `modules` + "`" + ` lists the modules to add with their variable values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11888,6 +12033,7 @@ const docTemplate = `{
         },
         "/api/v2/templatebuilder/compose/template": {
             "post": {
+                "description": "Renders a template from a base template and modules, validates it with a provisioner import job, and creates it in an organization.\nThe call waits up to 2 minutes for the import and returns ` + "`" + `504` + "`" + ` if it takes longer.\nRequires permission to create templates in the organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11901,7 +12047,7 @@ const docTemplate = `{
                 "operationId": "compose-and-create-a-template",
                 "parameters": [
                     {
-                        "description": "Create template request",
+                        "description": "Base template, modules, and the template to create. ` + "`" + `base_template_id` + "`" + `, ` + "`" + `organization_id` + "`" + `, and ` + "`" + `name` + "`" + ` are required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -11951,6 +12097,7 @@ const docTemplate = `{
         },
         "/api/v2/templatebuilder/modules": {
             "get": {
+                "description": "Returns the modules you can add to a base template in the template builder.\nSet ` + "`" + `base` + "`" + ` to a base template ID to list only the modules that are compatible with its operating system and that it doesn't already include.\nRequires permission to read templates in at least one organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -11962,7 +12109,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Base template example ID for OS-compatibility filtering",
+                        "description": "ID of a base template from ` + "`" + `GET /api/v2/templatebuilder/bases` + "`" + `. Returns only modules compatible with its operating system and not already included in it. By default, returns all modules.",
                         "name": "base",
                         "in": "query"
                     }
@@ -11984,6 +12131,7 @@ const docTemplate = `{
         },
         "/api/v2/templatebuilder/sessions": {
             "post": {
+                "description": "Reports a template builder session event, such as entering the wizard or completing a compose, for telemetry.\nRequires permission to create templates in at least one organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11994,7 +12142,7 @@ const docTemplate = `{
                 "operationId": "report-a-template-builder-session-event",
                 "parameters": [
                     {
-                        "description": "Session event",
+                        "description": "Session event to report. ` + "`" + `session_id` + "`" + ` and ` + "`" + `event_type` + "`" + ` are required, and ` + "`" + `event_type` + "`" + ` is ` + "`" + `wizard_entry` + "`" + ` or ` + "`" + `compose_completion` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12046,6 +12194,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/examples": {
             "get": {
+                "description": "Returns the starter templates that ship with Coder.\nPass an example's ` + "`" + `id` + "`" + ` as ` + "`" + `example_id` + "`" + ` to ` + "`" + `POST /api/v2/organizations/{organization}/templateversions` + "`" + ` to create a template version from it.",
                 "produces": [
                     "application/json"
                 ],
@@ -12074,6 +12223,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}": {
             "get": {
+                "description": "Returns a template's settings, such as its active version, workspace lifecycle policies, and deprecation status.\nReturns ` + "`" + `404` + "`" + ` if the template is deleted or you can't read it.",
                 "produces": [
                     "application/json"
                 ],
@@ -12107,6 +12257,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a template.\nReturns ` + "`" + `400` + "`" + ` if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.\nRequires permission to delete the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -12140,6 +12291,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.\nSend only the fields you want to change, because omitted fields keep their current values.\nRequires permission to update the template.\nWithout a Premium license, the server ignores ` + "`" + `autostop_requirement` + "`" + `, ` + "`" + `autostart_requirement` + "`" + `, ` + "`" + `allow_user_autostart` + "`" + `, ` + "`" + `allow_user_autostop` + "`" + `, ` + "`" + `failure_ttl_ms` + "`" + `, ` + "`" + `time_til_dormant_ms` + "`" + `, ` + "`" + `time_til_dormant_autodelete_ms` + "`" + `, ` + "`" + `update_workspace_last_used_at` + "`" + `, ` + "`" + `update_workspace_dormant_at` + "`" + `, ` + "`" + `require_active_version` + "`" + `, and a non-empty ` + "`" + `deprecation_message` + "`" + `.\nWithout a Premium license, setting ` + "`" + `max_port_share_level` + "`" + ` to anything other than ` + "`" + `public` + "`" + ` returns a validation error.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12161,7 +12313,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Patch template settings request",
+                        "description": "Template settings to change. Omitted fields keep their current values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12187,6 +12339,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/acl": {
             "get": {
+                "description": "Returns the users and groups that have access to a template, each with its role, either ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `.\nRequires permission to update the template.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -12220,6 +12373,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in ` + "`" + `user_perms` + "`" + ` and group IDs in ` + "`" + `group_perms` + "`" + ` to a role, either ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `.\nSet a role to an empty string to remove that user or group, and entries you leave out stay as they are.\nRequires permission to create the template, not only to update it.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12241,7 +12395,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update template ACL request",
+                        "description": "Users and groups to add, change, or remove, each mapped to a template role. An empty role removes the entry.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12267,6 +12421,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/acl/available": {
             "get": {
+                "description": "Returns the users and groups you can add to a template's access control list.\nRequires permission to update the template.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -12283,6 +12438,31 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `, with the same keys as ` + "`" + `q` + "`" + ` on ` + "`" + `GET /api/v2/users` + "`" + `. It filters the users, and text without a key, or with the ` + "`" + `search` + "`" + ` key, also matches group names and display names.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of users, and separately of groups, to return. The default, ` + "`" + `0` + "`" + `, returns all of them.",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of users to skip, for paging through users with ` + "`" + `limit` + "`" + `. It doesn't apply to groups.",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID of the last user on the previous page. Returns the users after it, and doesn't apply to groups.",
+                        "name": "after_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -12305,6 +12485,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/daus": {
             "get": {
+                "description": "Returns the number of active users per day for a template over the last 60 days.\nRequires permission to view the template's insights.",
                 "produces": [
                     "application/json"
                 ],
@@ -12321,6 +12502,12 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset from UTC in whole hours, such as ` + "`" + `-2` + "`" + `, that sets where each day starts. The default, ` + "`" + `0` + "`" + `, is UTC.",
+                        "name": "tz_offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -12340,6 +12527,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/prebuilds/invalidate": {
             "post": {
+                "description": "Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.\nReturns the invalidated presets.\nRequires permission to update the template.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -12375,6 +12563,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/versions": {
             "get": {
+                "description": "Returns the versions of a template, oldest first.\nArchived versions are excluded unless you set ` + "`" + `include_archived` + "`" + ` to ` + "`" + `true` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -12395,25 +12584,25 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Include archived versions in the list",
+                        "description": "Includes archived versions in the list. The default, ` + "`" + `false` + "`" + `, excludes them.",
                         "name": "include_archived",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -12436,6 +12625,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Sets the active version of a template, which is the version new workspaces use by default.\nThe version must belong to the template, must have built successfully, and can't be archived.\nRequires permission to update the template.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12449,7 +12639,7 @@ const docTemplate = `{
                 "operationId": "update-active-template-version-by-template-id",
                 "parameters": [
                     {
-                        "description": "Modified template version",
+                        "description": "Template version to make active, identified by ` + "`" + `id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12483,6 +12673,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/versions/archive": {
             "post": {
+                "description": "Archives the unused versions of a template and returns the IDs it archived.\nBy default, only versions whose import job failed are archived, and setting ` + "`" + `all` + "`" + ` to ` + "`" + `true` + "`" + ` archives every unused version.\nA version is unused when no workspace's latest build uses it and it isn't the template's active version.\nRequires permission to update the template.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12504,7 +12695,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Archive request",
+                        "description": "Archive options. Set ` + "`" + `all` + "`" + ` to ` + "`" + `true` + "`" + ` to archive every unused version instead of only failed ones.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12530,6 +12721,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/versions/{templateversionname}": {
             "get": {
+                "description": "Returns the version of a template with the given name.\nWhile the version's import job is pending, the response includes ` + "`" + `matched_provisioners` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -12549,7 +12741,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Template version name",
+                        "description": "Template version name. Names are unique within a template.",
                         "name": "templateversionname",
                         "in": "path",
                         "required": true
@@ -12575,6 +12767,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}": {
             "get": {
+                "description": "Returns a template version, including the status of its import job.\nWhile the import job is pending, the response includes ` + "`" + `matched_provisioners` + "`" + `, which shows how many provisioners can run the job.",
                 "produces": [
                     "application/json"
                 ],
@@ -12608,6 +12801,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates the ` + "`" + `name` + "`" + ` or ` + "`" + `message` + "`" + ` of a template version.\nRenaming a version to a name that another version of the same template uses returns ` + "`" + `400` + "`" + `.\nRequires permission to update the template.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12629,7 +12823,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Patch template version request",
+                        "description": "Template version fields to change. Omit ` + "`" + `name` + "`" + ` or ` + "`" + `message` + "`" + ` to keep its current value.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12655,6 +12849,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/archive": {
             "post": {
+                "description": "Archives a template version so that it no longer appears in version lists by default and new workspaces can't use it.\nReturns ` + "`" + `500` + "`" + ` if a workspace's latest build uses the version or if it is the template's active version.\nRequires permission to update the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -12690,6 +12885,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/cancel": {
             "patch": {
+                "description": "Cancels the import job of a template version that hasn't finished.\nReturns ` + "`" + `400` + "`" + ` if the job has already completed or been canceled.\nRequires permission to update the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -12725,6 +12921,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run": {
             "post": {
+                "description": "Starts a dry run of a template version, which plans the template with the given workspace name and parameter values without creating a workspace.\nThe response is the dry-run job, so poll it with ` + "`" + `GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}` + "`" + ` or stream its logs, then read the planned resources after it completes.\nThe template version's import job must have finished, or the call returns ` + "`" + `425` + "`" + `.\nRequires permission to create workspaces in the template version's organization.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12746,7 +12943,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Dry-run request",
+                        "description": "Workspace name and parameter values to plan the template version with.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12772,6 +12969,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}": {
             "get": {
+                "description": "Returns a dry-run job, including its status and any error.\nUse it to poll until the job succeeds, fails, or is canceled.\nReturns ` + "`" + `403` + "`" + ` if the job isn't a dry run of this template version.",
                 "produces": [
                     "application/json"
                 ],
@@ -12792,7 +12990,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -12815,6 +13013,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
             "patch": {
+                "description": "Cancels a dry-run job that hasn't completed.\nThe call returns ` + "`" + `400` + "`" + ` if the job has already completed or been canceled.\nRequires permission to update both the template and workspaces owned by the user who started the dry run.",
                 "produces": [
                     "application/json"
                 ],
@@ -12827,7 +13026,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -12858,6 +13057,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs": {
             "get": {
+                "description": "Returns the provisioner logs of a dry-run job.\nInclude the ` + "`" + `follow` + "`" + ` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.\nWithout ` + "`" + `follow` + "`" + `, the call returns the logs recorded so far, and you can pass the ` + "`" + `id` + "`" + ` of the last log you received as ` + "`" + `after` + "`" + ` to skip logs you already have.",
                 "produces": [
                     "application/json"
                 ],
@@ -12878,26 +13078,26 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Before Unix timestamp",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After Unix timestamp",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -12932,6 +13132,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
             "get": {
+                "description": "Returns how many provisioners match a dry-run job's tags and how many of them are available to run it.\nUse it to find out why a dry run is still pending.",
                 "produces": [
                     "application/json"
                 ],
@@ -12952,7 +13153,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -12975,6 +13176,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
+                "description": "Returns the resources that a dry run planned, including their workspace agents.\nThe call returns ` + "`" + `400` + "`" + ` until the job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -12995,7 +13197,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "ID of the dry-run job, returned when you created the dry run.",
                         "name": "jobID",
                         "in": "path",
                         "required": true
@@ -13021,6 +13223,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dynamic-parameters": {
             "get": {
+                "description": "Opens a WebSocket that re-evaluates a template version's parameters as the user fills in the workspace creation form.\nAfter the upgrade, the server sends a JSON message with ` + "`" + `id` + "`" + ` set to ` + "`" + `-1` + "`" + `, ` + "`" + `parameters` + "`" + `, and ` + "`" + `diagnostics` + "`" + `, computed from no inputs.\nSend a JSON message with an ` + "`" + `id` + "`" + `, the current ` + "`" + `inputs` + "`" + `, and optionally an ` + "`" + `owner_id` + "`" + `, and the server replies with a message that has the same ` + "`" + `id` + "`" + ` and the re-evaluated ` + "`" + `parameters` + "`" + ` and ` + "`" + `diagnostics` + "`" + `.\nAn omitted ` + "`" + `owner_id` + "`" + ` keeps the previous owner, which starts as you or as the user in the ` + "`" + `user_id` + "`" + ` query parameter.\nThe server closes the connection after 30 minutes.",
                 "tags": [
                     "Templates"
                 ],
@@ -13034,6 +13237,12 @@ const docTemplate = `{
                         "name": "templateversion",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID of the user who owns the workspace for the first evaluation, or ` + "`" + `me` + "`" + ` for the authenticated user. The default is ` + "`" + `me` + "`" + `.",
+                        "name": "user_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -13050,6 +13259,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate": {
             "post": {
+                "description": "Evaluates the parameters of a template version once for the given ` + "`" + `inputs` + "`" + ` and returns the resulting parameters and any diagnostics.\nUse it to render the workspace creation form, or open ` + "`" + `GET /api/v2/templateversions/{templateversion}/dynamic-parameters` + "`" + ` for a live session.\nThe call returns ` + "`" + `425` + "`" + ` until the template version's import job has finished.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13071,7 +13281,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Initial parameter values",
+                        "description": "Parameter values to evaluate the template version with, as ` + "`" + `inputs` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13097,6 +13307,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/external-auth": {
             "get": {
+                "description": "Returns the external authentication providers a template version uses and whether the user is authenticated with each.\nSetting ` + "`" + `user_id` + "`" + ` to another user requires permission to create workspaces for that user.",
                 "produces": [
                     "application/json"
                 ],
@@ -13142,6 +13353,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/logs": {
             "get": {
+                "description": "Returns the provisioner logs from a template version's import job, such as ` + "`" + `terraform plan` + "`" + ` output.\nInclude the ` + "`" + `follow` + "`" + ` query parameter to upgrade to a WebSocket that sends each new log entry as a JSON message and closes when the job ends.\nWithout ` + "`" + `follow` + "`" + `, the call returns the logs recorded so far, and you can pass the ` + "`" + `id` + "`" + ` of the last log you received as ` + "`" + `after` + "`" + ` to skip logs you already have.",
                 "produces": [
                     "application/json"
                 ],
@@ -13161,19 +13373,19 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before log id",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After log id",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -13208,6 +13420,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/parameters": {
             "get": {
+                "description": "Always returns an empty array, because this route no longer returns parameter schemas.\nIt exists so that older clients keep working.\nUse ` + "`" + `GET /api/v2/templateversions/{templateversion}/rich-parameters` + "`" + ` instead.",
                 "tags": [
                     "Templates"
                 ],
@@ -13237,6 +13450,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/presets": {
             "get": {
+                "description": "Returns the presets that a template version defines, with the parameter values of each preset.\nPresets that configure prebuilds also include the desired number of prebuilt instances.",
                 "produces": [
                     "application/json"
                 ],
@@ -13275,6 +13489,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/resources": {
             "get": {
+                "description": "Returns the resources that a template version defines, including their workspace agents.\nThe resources belong to the template version and not to any workspace, and the call returns ` + "`" + `400` + "`" + ` until the import job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -13313,6 +13528,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/rich-parameters": {
             "get": {
+                "description": "Returns the parameters that a template version defines, such as their types, defaults, and options.\nThe call returns ` + "`" + `425` + "`" + ` until the template version's import job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -13351,6 +13567,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/schema": {
             "get": {
+                "description": "Always returns an empty array, because this route no longer returns parameter schemas.\nIt exists so that older clients keep working.\nUse ` + "`" + `GET /api/v2/templateversions/{templateversion}/rich-parameters` + "`" + ` instead.",
                 "tags": [
                     "Templates"
                 ],
@@ -13380,6 +13597,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/unarchive": {
             "post": {
+                "description": "Restores an archived template version so that it appears in version lists and can be used again.\nRequires permission to update the template.",
                 "produces": [
                     "application/json"
                 ],
@@ -13415,6 +13633,7 @@ const docTemplate = `{
         },
         "/api/v2/templateversions/{templateversion}/variables": {
             "get": {
+                "description": "Returns the Terraform variables that a template version declares.\nFor sensitive variables, ` + "`" + `value` + "`" + ` and ` + "`" + `default_value` + "`" + ` are ` + "`" + `*redacted*` + "`" + `.\nReturns ` + "`" + `403` + "`" + ` until the template version's import job has completed.",
                 "produces": [
                     "application/json"
                 ],
@@ -13453,6 +13672,7 @@ const docTemplate = `{
         },
         "/api/v2/updatecheck": {
             "get": {
+                "description": "Returns the latest Coder release and whether the deployment runs it, in ` + "`" + `current` + "`" + `, ` + "`" + `version` + "`" + `, and ` + "`" + `url` + "`" + `.\nDoesn't require a session token, and the route reports the running version as current when update checking is turned off or hasn't succeeded yet.",
                 "produces": [
                     "application/json"
                 ],
@@ -13473,6 +13693,7 @@ const docTemplate = `{
         },
         "/api/v2/users": {
             "get": {
+                "description": "Returns the users you can read, filtered by the ` + "`" + `q` + "`" + ` search query and paged with ` + "`" + `limit` + "`" + `, ` + "`" + `offset` + "`" + `, or ` + "`" + `after_id` + "`" + `.\nUse it to find users by status, role, or login type, for example ` + "`" + `status:active role:owner` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -13484,26 +13705,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `login_type` + "`" + `, and ` + "`" + `search` + "`" + `. Text without a key, or with the ` + "`" + `search` + "`" + ` key, matches the username, name, or email. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -13523,6 +13744,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a user account, or a service account for automation when ` + "`" + `service_account` + "`" + ` is ` + "`" + `true` + "`" + `.\nRequires permission to create users.\nCreating a service account also requires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13536,7 +13758,7 @@ const docTemplate = `{
                 "operationId": "create-new-user",
                 "parameters": [
                     {
-                        "description": "Create user request",
+                        "description": "User account to create. Set ` + "`" + `organization_ids` + "`" + ` to at least one organization, or ` + "`" + `service_account` + "`" + ` to ` + "`" + `true` + "`" + ` for a service account, which can't have an email or password.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13562,6 +13784,7 @@ const docTemplate = `{
         },
         "/api/v2/users/authmethods": {
             "get": {
+                "description": "Returns whether password, GitHub, and OpenID Connect (OIDC) sign-in are enabled, plus the text and icon for the OIDC sign-in button.\nUse it to decide which sign-in options to offer.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -13577,16 +13800,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuthMethods"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/first": {
             "get": {
+                "description": "Returns ` + "`" + `200` + "`" + ` when the deployment already has its initial user and ` + "`" + `404` + "`" + ` when it doesn't.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -13602,14 +13821,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             },
             "post": {
+                "description": "Creates the initial user in the default organization and gives the user the Owner role.\nWorks only while the deployment has no users, and returns ` + "`" + `409` + "`" + ` after that.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13623,7 +13838,7 @@ const docTemplate = `{
                 "operationId": "create-initial-user",
                 "parameters": [
                     {
-                        "description": "First user request",
+                        "description": "Initial user account to create. ` + "`" + `email` + "`" + `, ` + "`" + `username` + "`" + `, and ` + "`" + `password` + "`" + ` are required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13639,16 +13854,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.CreateFirstUserResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/login": {
             "post": {
+                "description": "Signs in a user with an email address and password, returns a session token in ` + "`" + `session_token` + "`" + `, and sets the session cookie.\nWorks only for users with the ` + "`" + `password` + "`" + ` login type, and returns ` + "`" + `403` + "`" + ` when password authentication is turned off.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13662,7 +13873,7 @@ const docTemplate = `{
                 "operationId": "log-in-user",
                 "parameters": [
                     {
-                        "description": "Login request",
+                        "description": "Email address and password of the user to sign in.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13683,6 +13894,7 @@ const docTemplate = `{
         },
         "/api/v2/users/logout": {
             "post": {
+                "description": "Signs you out by deleting the API key that authenticated the request and clearing the session cookie.\nAlso deletes the API keys that workspace apps on subdomains use, so those apps ask you to sign in again.",
                 "produces": [
                     "application/json"
                 ],
@@ -13708,6 +13920,7 @@ const docTemplate = `{
         },
         "/api/v2/users/oauth2/github/callback": {
             "get": {
+                "description": "Finishes a GitHub sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in, or returning that path as ` + "`" + `redirect_url` + "`" + ` when GitHub device flow is enabled.\nGitHub redirects the browser here after you authorize, so you don't call this route directly.\nDoesn't require a session token.",
                 "tags": [
                     "Users"
                 ],
@@ -13717,16 +13930,12 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/oauth2/github/device": {
             "get": {
+                "description": "Starts the device authorization flow for GitHub and returns the ` + "`" + `device_code` + "`" + `, ` + "`" + `user_code` + "`" + `, and ` + "`" + `verification_uri` + "`" + ` to show to the user.\nReturns ` + "`" + `400` + "`" + ` unless GitHub OAuth2 and its device flow are enabled.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -13742,16 +13951,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAuthDevice"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/oidc-claims": {
             "get": {
+                "description": "Returns the merged OpenID Connect (OIDC) claims from your last OIDC login, where userinfo claims take precedence over ID token claims.\nReturns ` + "`" + `400` + "`" + ` unless your account uses the ` + "`" + `oidc` + "`" + ` login type.",
                 "produces": [
                     "application/json"
                 ],
@@ -13777,6 +13982,7 @@ const docTemplate = `{
         },
         "/api/v2/users/oidc/callback": {
             "get": {
+                "description": "Finishes an OpenID Connect (OIDC) sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in.\nYour identity provider redirects the browser here after you sign in, so you don't call this route directly.\nDoesn't require a session token.",
                 "tags": [
                     "Users"
                 ],
@@ -13786,16 +13992,12 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/otp/change-password": {
             "post": {
+                "description": "Sets a new password for the user with the given email address when you supply the one-time passcode from ` + "`" + `POST /api/v2/users/otp/request` + "`" + `, and revokes all of that user's API keys.\nReturns ` + "`" + `400` + "`" + ` when the passcode is wrong or expired, or when the new password matches the old one.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13806,7 +14008,7 @@ const docTemplate = `{
                 "operationId": "change-password-with-a-one-time-passcode",
                 "parameters": [
                     {
-                        "description": "Change password request",
+                        "description": "Email address of the account, the one-time passcode, and the new password. The new password must meet the password requirements.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13824,6 +14026,7 @@ const docTemplate = `{
         },
         "/api/v2/users/otp/request": {
             "post": {
+                "description": "Requests a one-time passcode for resetting a password, which Coder delivers to the user as a notification and which expires after 20 minutes.\nReturns ` + "`" + `204` + "`" + ` whether or not an account with that email address exists, so the response doesn't reveal which addresses are registered.\nReturns ` + "`" + `403` + "`" + ` when password authentication is turned off, and doesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13834,7 +14037,7 @@ const docTemplate = `{
                 "operationId": "request-one-time-passcode",
                 "parameters": [
                     {
-                        "description": "One-time passcode request",
+                        "description": "Email address of the account to reset the password for.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13852,6 +14055,7 @@ const docTemplate = `{
         },
         "/api/v2/users/roles": {
             "get": {
+                "description": "Returns the site-wide roles, built-in and custom, with the permissions each one grants.\nThe response leaves out the ` + "`" + `member` + "`" + ` role, which every user holds.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read role assignments, which every user has.",
                 "produces": [
                     "application/json"
                 ],
@@ -13880,6 +14084,7 @@ const docTemplate = `{
         },
         "/api/v2/users/validate-password": {
             "post": {
+                "description": "Checks whether a password meets Coder's password requirements, returning ` + "`" + `valid` + "`" + ` and, when it doesn't, the reason in ` + "`" + `details` + "`" + `.\nUse it to give feedback on a new password before you set it.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13893,7 +14098,7 @@ const docTemplate = `{
                 "operationId": "validate-user-password",
                 "parameters": [
                     {
-                        "description": "Validate user password request",
+                        "description": "Password to check against the password requirements.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13909,16 +14114,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/users/{user}": {
             "get": {
+                "description": "Returns a user's account details, including status, login type, and organization IDs.\nYou can read your own account, and reading other users requires permission to read users.",
                 "produces": [
                     "application/json"
                 ],
@@ -13930,7 +14131,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -13951,6 +14152,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a user account and notifies the deployment's user admins.\nRequires permission to delete users.\nYou can't delete yourself or a user who still has workspaces, so delete their workspaces first.",
                 "tags": [
                     "Users"
                 ],
@@ -13959,7 +14161,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -13979,6 +14181,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai-provider-keys": {
             "get": {
+                "description": "Lists the AI providers visible to a user, and shows whether the user and the deployment each have a key set.\nIt never returns key values. Reading another user's configuration requires permission to read personal user data.",
                 "produces": [
                     "application/json"
                 ],
@@ -13990,7 +14193,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14016,6 +14219,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai-provider-keys/{aiProvider}": {
             "put": {
+                "description": "Sets a user's own API key for an AI provider, replacing any key already stored.\nThe call returns ` + "`" + `403` + "`" + ` when the deployment sets ` + "`" + `--ai-gateway-allow-byok=false` + "`" + `, and ` + "`" + `412` + "`" + ` when the provider isn't enabled. Changing another user's key requires permission to update personal user data.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14030,7 +14234,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14044,7 +14248,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "API key to store for the provider. It can't be empty or have leading or trailing whitespace.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14068,6 +14272,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a user's stored API key for an AI provider.\nDeleting another user's key requires permission to update personal user data.",
                 "tags": [
                     "Chats"
                 ],
@@ -14076,7 +14281,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14104,6 +14309,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/budget/override": {
             "get": {
+                "description": "Returns the AI budget override of a user, which replaces the budgets of their groups.\nReturns ` + "`" + `404` + "`" + ` if the user has no override.\nRequires permission to read the user, which you have for yourself.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -14115,7 +14321,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14136,6 +14342,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in ` + "`" + `group_id` + "`" + `.\nThe user must be a member of that group, and you can't set an override for a system user.\nRequires permission to update both the user and the group.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14150,13 +14357,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Upsert user AI budget override request",
+                        "description": "AI budget override for the user. ` + "`" + `group_id` + "`" + ` is the group that the user's spend is attributed to. ` + "`" + `spend_limit_micros` + "`" + ` is the user's limit for each budget period, in millionths of a dollar, from ` + "`" + `0` + "`" + ` to ` + "`" + `1000000000000` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14180,6 +14387,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes the AI budget override of a user, which returns them to the budget of their effective group.\nReturns ` + "`" + `404` + "`" + ` if the user has no override.\nRequires permission to update both the user and the group the override attributes spend to.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -14188,7 +14396,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14208,6 +14416,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/spend": {
             "get": {
+                "description": "Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.\nRequires permission to read the user, which you have for yourself.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -14219,7 +14428,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14242,6 +14451,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/appearance": {
             "get": {
+                "description": "Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data.",
                 "produces": [
                     "application/json"
                 ],
@@ -14253,7 +14463,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14274,6 +14484,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14288,13 +14499,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New appearance settings",
+                        "description": "New appearance settings. ` + "`" + `theme_preference` + "`" + ` and ` + "`" + `terminal_font` + "`" + ` are required. Set ` + "`" + `theme_mode` + "`" + ` to ` + "`" + `single` + "`" + ` or ` + "`" + `sync` + "`" + `, and set ` + "`" + `theme_light` + "`" + ` and ` + "`" + `theme_dark` + "`" + ` when ` + "`" + `theme_mode` + "`" + ` is ` + "`" + `sync` + "`" + `. Omit ` + "`" + `theme_mode` + "`" + ` to keep the saved mode and themes.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14320,6 +14531,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/convert-login": {
             "post": {
+                "description": "Starts converting a password-based account to GitHub or OpenID Connect (OIDC) sign-in, and returns an OAuth state string that expires after 5 minutes.\nThe call also sets a cookie, so finish the conversion by signing in with the identity provider in the same browser before it expires.\nRequires the user's current password in ` + "`" + `password` + "`" + `, and works only for users with the ` + "`" + `password` + "`" + ` login type.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14333,7 +14545,7 @@ const docTemplate = `{
                 "operationId": "convert-user-from-password-to-oauth-authentication",
                 "parameters": [
                     {
-                        "description": "Convert request",
+                        "description": "Login type to convert to, which is ` + "`" + `github` + "`" + ` or ` + "`" + `oidc` + "`" + `, and the user's current password.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14343,7 +14555,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14366,6 +14578,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/gitsshkey": {
             "get": {
+                "description": "Returns the user's public Git SSH key and never the private key.\nYou can read your own key, and reading another user's key requires permission to read personal user data.",
                 "produces": [
                     "application/json"
                 ],
@@ -14377,7 +14590,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14398,6 +14611,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.\nUpdate your Git provider with the new public key, because Coder no longer has the old private key.\nYou can regenerate your own key, and regenerating another user's key requires permission to update personal user data.",
                 "produces": [
                     "application/json"
                 ],
@@ -14409,7 +14623,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14432,6 +14646,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys": {
             "post": {
+                "description": "Creates a session API key for the user, like the one the CLI uses to log in, and returns it in ` + "`" + `key` + "`" + `.\nThe new key can't grant more than the key you call with, and creating a key for another user requires permission to create API keys for that user.",
                 "produces": [
                     "application/json"
                 ],
@@ -14443,7 +14658,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14466,6 +14681,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens": {
             "get": {
+                "description": "Lists the user's API tokens, leaving out expired tokens unless ` + "`" + `include_expired` + "`" + ` is ` + "`" + `true` + "`" + `.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires permission to read that user's API keys.",
                 "produces": [
                     "application/json"
                 ],
@@ -14477,15 +14693,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "boolean",
-                        "description": "Include expired tokens in the list",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to include expired tokens. The default is ` + "`" + `false` + "`" + `.",
                         "name": "include_expired",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to list the tokens of every user you can read instead of only this user's. The default is ` + "`" + `false` + "`" + `.",
+                        "name": "include_all",
                         "in": "query"
                     }
                 ],
@@ -14507,6 +14729,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an API token for the user and returns it in ` + "`" + `key` + "`" + `, with the scopes, allow list, and lifetime you request.\nWithout ` + "`" + `lifetime` + "`" + `, the token lasts for the deployment's default token lifetime, and ` + "`" + `lifetime` + "`" + ` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.\nThe token can't grant more than the key you call with, and creating a token for another user requires permission to create API keys for that user.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14521,13 +14744,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create token request",
+                        "description": "Token to create. ` + "`" + `lifetime` + "`" + ` is a duration in nanoseconds. ` + "`" + `scopes` + "`" + ` lists the scopes to grant, from ` + "`" + `GET /api/v2/auth/scopes` + "`" + `, and defaults to the scopes of the key you call with. ` + "`" + `token_name` + "`" + ` names the token, and a name is generated when you omit it. ` + "`" + `allow_list` + "`" + ` limits the resources the token can reach.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14553,6 +14776,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens/tokenconfig": {
             "get": {
+                "description": "Returns the longest lifetime that a user's API tokens can have, in ` + "`" + `max_token_lifetime` + "`" + `.\nUsers with the Owner role get the maximum admin token lifetime, and every other user gets the maximum token lifetime.",
                 "produces": [
                     "application/json"
                 ],
@@ -14564,7 +14788,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14587,6 +14811,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens/{keyname}": {
             "get": {
+                "description": "Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.\nThe response never includes the token secret.\nYou can read your own tokens, and reading another user's tokens requires permission to read that user's API keys.",
                 "produces": [
                     "application/json"
                 ],
@@ -14598,7 +14823,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14606,7 +14831,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key Name",
+                        "description": "Name of the token, as set by ` + "`" + `token_name` + "`" + ` when you created it.",
                         "name": "keyname",
                         "in": "path",
                         "required": true
@@ -14629,6 +14854,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/{keyid}": {
             "get": {
+                "description": "Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.\nThe response never includes the key secret.\nYou can read your own API keys, and reading another user's keys requires permission to read that user's API keys.",
                 "produces": [
                     "application/json"
                 ],
@@ -14640,7 +14866,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14648,7 +14874,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key ID",
+                        "description": "ID of the API key, which is the part of the key before the hyphen.",
                         "name": "keyid",
                         "in": "path",
                         "required": true
@@ -14669,6 +14895,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an API key by its ID, so the key can no longer authenticate requests.\nYou can delete your own API keys, and deleting another user's key requires permission to delete that user's API keys.",
                 "tags": [
                     "Users"
                 ],
@@ -14677,7 +14904,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14685,7 +14912,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key ID",
+                        "description": "ID of the API key, which is the part of the key before the hyphen.",
                         "name": "keyid",
                         "in": "path",
                         "required": true
@@ -14705,6 +14932,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/{keyid}/expire": {
             "put": {
+                "description": "Expires an API key immediately by setting its expiry to now, which keeps the key's record.\nDoes nothing when the key has already expired.\nYou can expire your own API keys, and expiring another user's key requires permission to update that user's API keys.",
                 "tags": [
                     "Users"
                 ],
@@ -14713,7 +14941,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14721,7 +14949,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key ID",
+                        "description": "ID of the API key, which is the part of the key before the hyphen.",
                         "name": "keyid",
                         "in": "path",
                         "required": true
@@ -14753,6 +14981,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/login-type": {
             "get": {
+                "description": "Returns the user's login type, such as ` + "`" + `password` + "`" + `, ` + "`" + `github` + "`" + `, or ` + "`" + `oidc` + "`" + `.\nYou can only query your own login type, so use ` + "`" + `me` + "`" + ` or your own user ID.\nFor any other user, the call returns ` + "`" + `403` + "`" + ` if you can read that user and ` + "`" + `404` + "`" + ` otherwise.",
                 "produces": [
                     "application/json"
                 ],
@@ -14764,7 +14993,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14787,6 +15016,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/notifications/preferences": {
             "get": {
+                "description": "Returns the per-template notification preferences a user has set, including whether each template is turned off.\nYou can read your own preferences, and reading another user's requires permission to read that user's notification preferences.",
                 "produces": [
                     "application/json"
                 ],
@@ -14798,7 +15028,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14822,6 +15052,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Turns notification templates on or off for a user, using a map of template IDs to ` + "`" + `true` + "`" + ` (turned off) or ` + "`" + `false` + "`" + ` (turned on), and returns all of their preferences.\nYou can update your own preferences, and updating another user's requires permission to update that user's notification preferences.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14835,7 +15066,7 @@ const docTemplate = `{
                 "operationId": "update-user-notification-preferences",
                 "parameters": [
                     {
-                        "description": "Preferences",
+                        "description": "Notification template IDs mapped to ` + "`" + `true` + "`" + ` to turn a template off or ` + "`" + `false` + "`" + ` to turn it on, in ` + "`" + `template_disabled_map` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14845,7 +15076,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14871,6 +15102,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/organizations": {
             "get": {
+                "description": "Returns the organizations the user belongs to.\nReturns only the organizations you can read.",
                 "produces": [
                     "application/json"
                 ],
@@ -14882,7 +15114,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14908,6 +15140,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/organizations/{organizationname}": {
             "get": {
+                "description": "Returns the organization with the given name if you can read it.\nThe lookup uses only the organization name, so it doesn't check that the user is a member.",
                 "produces": [
                     "application/json"
                 ],
@@ -14919,14 +15152,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Organization name",
+                        "description": "Name of the organization, not its ID.",
                         "name": "organizationname",
                         "in": "path",
                         "required": true
@@ -14949,6 +15182,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/password": {
             "put": {
+                "description": "Changes a user's password and revokes all of the user's API keys.\nWorks only for users with the ` + "`" + `password` + "`" + ` login type, and changing your own password requires ` + "`" + `old_password` + "`" + `.\nChanging another user's password requires permission to update personal user data, and only an Owner can change an Owner's password.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14960,13 +15194,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update password request",
+                        "description": "Current password in ` + "`" + `old_password` + "`" + `, which is required when you change your own password, and the new password in ` + "`" + `password` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14989,6 +15223,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/preferences": {
             "get": {
+                "description": "Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data.",
                 "produces": [
                     "application/json"
                 ],
@@ -15000,7 +15235,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15021,6 +15256,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the user's Coder Agents chat preferences and returns all of them.\nFields you omit keep their current values.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15035,13 +15271,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New preference settings",
+                        "description": "New preference settings. ` + "`" + `thinking_display_mode` + "`" + ` accepts ` + "`" + `auto` + "`" + `, ` + "`" + `preview` + "`" + `, ` + "`" + `always_expanded` + "`" + `, or ` + "`" + `always_collapsed` + "`" + `. ` + "`" + `shell_tool_display_mode` + "`" + ` and ` + "`" + `code_diff_display_mode` + "`" + ` accept ` + "`" + `auto` + "`" + `, ` + "`" + `always_expanded` + "`" + `, or ` + "`" + `always_collapsed` + "`" + `. ` + "`" + `agent_chat_send_shortcut` + "`" + ` accepts ` + "`" + `enter` + "`" + ` or ` + "`" + `modifier_enter` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15067,6 +15303,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/profile": {
             "put": {
+                "description": "Updates a user's username, display name, and avatar URL.\nChanging a username, including your own, requires permission to update users, and updating another user's profile requires permission to update personal user data.\nThe avatar URL applies only to users with the ` + "`" + `password` + "`" + ` or ` + "`" + `none` + "`" + ` login type.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15081,13 +15318,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Updated profile",
+                        "description": "Updated profile. ` + "`" + `username` + "`" + ` is required. ` + "`" + `avatar_url` + "`" + ` is ignored for users whose login type isn't ` + "`" + `password` + "`" + ` or ` + "`" + `none` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15113,6 +15350,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/quiet-hours": {
             "get": {
+                "description": "Returns the daily quiet hours schedule that applies to a user, which is the deployment default until the user sets their own.\nCheck ` + "`" + `user_set` + "`" + ` to see whether the user set the schedule, and ` + "`" + `user_can_set` + "`" + ` to see whether the deployment lets users set their own.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -15124,8 +15362,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "User ID",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15149,6 +15386,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional ` + "`" + `CRON_TZ=` + "`" + ` prefix, for example ` + "`" + `CRON_TZ=UTC 0 0 * * *` + "`" + `.\nReturns ` + "`" + `403` + "`" + ` when the deployment doesn't let users set their own schedule, which ` + "`" + `--allow-custom-quiet-hours=false` + "`" + ` controls.\nYou can update your own schedule, and updating another user's schedule requires permission to update personal user data.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15163,14 +15401,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "User ID",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update schedule request",
+                        "description": "Quiet hours schedule to set.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15199,6 +15436,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/roles": {
             "get": {
+                "description": "Returns the user's site-wide roles and their roles in each organization.\nYou can read your own roles, and reading another user's roles requires permission to read personal user data.",
                 "produces": [
                     "application/json"
                 ],
@@ -15210,7 +15448,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15231,6 +15469,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the user's site-wide roles with the given ` + "`" + `roles` + "`" + `.\nRequires permission to assign roles, but you can assign only the roles that your own roles allow.\nYou can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15245,13 +15484,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update roles request",
+                        "description": "Site-wide role names to assign, such as ` + "`" + `template-admin` + "`" + `. The list replaces the user's current site-wide roles.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15277,6 +15516,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets": {
             "get": {
+                "description": "Returns the metadata of a user's secrets, without their values.\nYou can read only your own secrets.",
                 "produces": [
                     "application/json"
                 ],
@@ -15288,7 +15528,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15312,6 +15552,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a secret for a user and returns its metadata without its value.\nAn enabled secret is injected into the user's workspaces as the environment variable ` + "`" + `env_name` + "`" + `, the file ` + "`" + `file_path` + "`" + `, or both, so it needs at least one of them.\nEach user can store up to 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an ` + "`" + `env_name` + "`" + `, and exceeding one of these limits returns ` + "`" + `400` + "`" + `.\nThe byte totals count stored bytes, and when the deployment sets ` + "`" + `--external-token-encryption-keys` + "`" + `, a stored value is about a third larger than the value you send.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15326,13 +15567,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create secret request",
+                        "description": "Secret to create. ` + "`" + `name` + "`" + ` and ` + "`" + `value` + "`" + ` are required, and ` + "`" + `value` + "`" + ` can be up to 24 KiB. ` + "`" + `enabled` + "`" + ` defaults to ` + "`" + `true` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15370,6 +15611,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/batch": {
             "post": {
+                "description": "Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` to the file's text.\nThe file can hold up to 50 secrets.\nThe per-user limits of 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an ` + "`" + `env_name` + "`" + ` include the secrets the user already has, and exceeding one returns ` + "`" + `400` + "`" + `.\nThe byte totals count stored bytes, and when the deployment sets ` + "`" + `--external-token-encryption-keys` + "`" + `, a stored value is about a third larger than the value in the file.\nThe import is atomic, so if any entry is invalid or would exceed a limit, none are created.\nA key that isn't a valid environment variable name is imported with no ` + "`" + `env_name` + "`" + ` and with ` + "`" + `enabled` + "`" + ` set to ` + "`" + `false` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15384,13 +15626,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Import secrets request",
+                        "description": "Secrets file to import. ` + "`" + `format` + "`" + ` is ` + "`" + `env` + "`" + `, ` + "`" + `json` + "`" + `, or ` + "`" + `yaml` + "`" + `, and ` + "`" + `content` + "`" + ` is the file's text, up to 1 MiB.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15437,6 +15679,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets/{name}": {
             "get": {
+                "description": "Returns the metadata of one of a user's secrets by name, without its value.",
                 "produces": [
                     "application/json"
                 ],
@@ -15448,14 +15691,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret name",
+                        "description": "Name of the secret, as set when it was created.",
                         "name": "name",
                         "in": "path",
                         "required": true
@@ -15476,6 +15719,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes one of a user's secrets by name.",
                 "tags": [
                     "Secrets"
                 ],
@@ -15484,14 +15728,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret name",
+                        "description": "Name of the secret, as set when it was created.",
                         "name": "name",
                         "in": "path",
                         "required": true
@@ -15509,6 +15753,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates the fields you send on one of a user's secrets and returns its metadata.\nSend at least one field, and keep an ` + "`" + `env_name` + "`" + ` or ` + "`" + `file_path` + "`" + ` on a secret that stays enabled.\nEach user can store up to 50 secrets, 200 KiB across all secrets, and 24 KiB in total for secrets that set an ` + "`" + `env_name` + "`" + `, and exceeding one of these limits returns ` + "`" + `400` + "`" + `.\nThe byte totals count stored bytes, and when the deployment sets ` + "`" + `--external-token-encryption-keys` + "`" + `, a stored value is about a third larger than the value you send.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15523,20 +15768,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Secret name",
+                        "description": "Name of the secret, as set when it was created.",
                         "name": "name",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update secret request",
+                        "description": "Fields to change. Send at least one field, and fields you omit stay as they are. ` + "`" + `value` + "`" + ` can be up to 24 KiB.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15574,6 +15819,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/status/activate": {
             "put": {
+                "description": "Sets a user's status to ` + "`" + `active` + "`" + `, for example to reactivate a suspended account.\nRequires permission to update users.",
                 "produces": [
                     "application/json"
                 ],
@@ -15585,7 +15831,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15608,6 +15854,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/status/suspend": {
             "put": {
+                "description": "Suspends a user account by setting its status to ` + "`" + `suspended` + "`" + `, which stops the user from signing in.\nRequires permission to update users.\nYou can't suspend yourself or a user with the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -15619,7 +15866,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15757,6 +16004,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/workspace/{workspacename}": {
             "get": {
+                "description": "Returns one workspace, found by its owner and name, including its latest build and template.\nUse it when you know the workspace name but not its ID.",
                 "produces": [
                     "application/json"
                 ],
@@ -15768,21 +16016,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Workspace name",
+                        "description": "Name of the workspace, owned by ` + "`" + `user` + "`" + `.",
                         "name": "workspacename",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "boolean",
-                        "description": "Return data instead of HTTP 404 if the workspace is deleted",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to return a deleted workspace. Otherwise the call returns ` + "`" + `404` + "`" + ` for a deleted workspace.",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -15810,6 +16058,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
             "get": {
+                "description": "Returns one workspace build, found by the workspace's owner, the workspace name, and the build number.\nUse it when you know the workspace name but not its ID.",
                 "produces": [
                     "application/json"
                 ],
@@ -15821,14 +16070,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Workspace name",
+                        "description": "Name of the workspace, owned by ` + "`" + `user` + "`" + `.",
                         "name": "workspacename",
                         "in": "path",
                         "required": true
@@ -15836,7 +16085,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "number",
-                        "description": "Build number",
+                        "description": "Number of the build within the workspace.",
                         "name": "buildnumber",
                         "in": "path",
                         "required": true
@@ -15874,13 +16123,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Username, UUID, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create workspace request",
+                        "description": "Workspace to create. Set ` + "`" + `name` + "`" + ` and either ` + "`" + `template_id` + "`" + ` or ` + "`" + `template_version_id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15906,6 +16155,7 @@ const docTemplate = `{
         },
         "/api/v2/workspace-quota/{user}": {
             "get": {
+                "description": "Returns a user's workspace quota in the default organization.\nDeprecated. Use ` + "`" + `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -15918,7 +16168,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15941,6 +16191,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/aws-instance-identity": {
             "post": {
+                "description": "Exchanges a signed AWS instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on an AWS instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15970,16 +16221,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/workspaceagents/azure-instance-identity": {
             "post": {
+                "description": "Exchanges a signed Azure instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on an Azure instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16009,12 +16256,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/workspaceagents/connection": {
@@ -16047,6 +16289,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/google-instance-identity": {
             "post": {
+                "description": "Exchanges a signed Google Cloud instance identity for the session token of the workspace agent that runs on that instance.\nThe workspace agent calls this to authenticate on a Google Cloud instance, and the instance must belong to the workspace's latest build.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16076,16 +16319,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/api/v2/workspaceagents/me/app-status": {
             "patch": {
+                "description": "Sets the state and message of one of the calling agent's workspace apps.\nLegacy workspace agents call this route, and other agents use ` + "`" + `UpdateAppStatus` + "`" + ` on the Agent API instead.\nAuthenticates with the workspace agent token instead of a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16100,7 +16339,7 @@ const docTemplate = `{
                 "deprecated": true,
                 "parameters": [
                     {
-                        "description": "app status",
+                        "description": "App status to set. ` + "`" + `app_slug` + "`" + ` selects the workspace app, ` + "`" + `state` + "`" + ` is one of ` + "`" + `working` + "`" + `, ` + "`" + `idle` + "`" + `, ` + "`" + `complete` + "`" + `, or ` + "`" + `failure` + "`" + `, and ` + "`" + `message` + "`" + ` is the status text.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -16126,6 +16365,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/external-auth": {
             "get": {
+                "description": "Returns an access token for an external authentication provider on behalf of the workspace owner, or a login URL when the owner hasn't linked the provider yet.\nThe workspace agent calls this for Git credentials and ` + "`" + `coder external-auth access-token` + "`" + `, with either ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + ` but not both.\nAuthenticates with the workspace agent token instead of a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -16137,21 +16377,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Match",
+                        "description": "URL or hostname that selects the external authentication provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
                         "name": "match",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Provider ID",
+                        "description": "ID of the external authentication provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
                         "name": "id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Wait for a new token to be issued",
+                        "description": "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away.",
                         "name": "listen",
                         "in": "query"
                     }
@@ -16173,6 +16411,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/gitauth": {
             "get": {
+                "description": "Returns the same response as ` + "`" + `GET /api/v2/workspaceagents/me/external-auth` + "`" + `, and exists so that legacy workspace agents keep working.\nUse that route instead.\nAuthenticates with the workspace agent token instead of a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -16184,21 +16423,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Match",
+                        "description": "URL or hostname that selects the external authentication provider by its configured regex. Pass ` + "`" + `match` + "`" + ` or ` + "`" + `id` + "`" + `, not both.",
                         "name": "match",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Provider ID",
+                        "description": "ID of the external authentication provider, as configured on the deployment. Pass ` + "`" + `id` + "`" + ` or ` + "`" + `match` + "`" + `, not both.",
                         "name": "id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Wait for a new token to be issued",
+                        "description": "When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away.",
                         "name": "listen",
                         "in": "query"
                     }
@@ -16220,6 +16457,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/gitsshkey": {
             "get": {
+                "description": "Returns the workspace owner's Git SSH key pair, including the private key, so the workspace agent can authenticate Git over SSH.\nAuthenticates with the workspace agent token instead of a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -16245,6 +16483,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/log-source": {
             "post": {
+                "description": "Registers a log source, identified by ` + "`" + `id` + "`" + `, that the workspace agent attaches to the logs it uploads.\nPosting an ` + "`" + `id` + "`" + ` that the agent already registered doesn't create another source.\nAuthenticates with the workspace agent token instead of a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16258,7 +16497,7 @@ const docTemplate = `{
                 "operationId": "post-workspace-agent-log-source",
                 "parameters": [
                     {
-                        "description": "Log source request",
+                        "description": "Log source to register. ` + "`" + `id` + "`" + ` identifies the source within the agent, ` + "`" + `display_name` + "`" + ` is its name, and ` + "`" + `icon` + "`" + ` is its icon.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -16284,6 +16523,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/logs": {
             "patch": {
+                "description": "Appends log lines from the workspace agent to the agent's logs, under the log source ` + "`" + `log_source_id` + "`" + `.\nEach agent can store up to 1 MiB of log output, and the route returns ` + "`" + `413` + "`" + ` once the agent exceeds that limit.\nAuthenticates with the workspace agent token instead of a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16297,7 +16537,7 @@ const docTemplate = `{
                 "operationId": "patch-workspace-agent-logs",
                 "parameters": [
                     {
-                        "description": "logs",
+                        "description": "Log lines to append. ` + "`" + `log_source_id` + "`" + ` selects the log source, and each entry in ` + "`" + `logs` + "`" + ` has ` + "`" + `created_at` + "`" + `, ` + "`" + `output` + "`" + `, and ` + "`" + `level` + "`" + `, which defaults to ` + "`" + `info` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -16329,6 +16569,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/me/reinit": {
             "get": {
+                "description": "Streams server-sent events that tell a workspace agent in a prebuilt workspace to reinitialize after a user claims the workspace, each carrying the ` + "`" + `workspace_id` + "`" + `, the ` + "`" + `reason` + "`" + `, and the ` + "`" + `owner_id` + "`" + ` of the new owner.\nWith ` + "`" + `wait` + "`" + ` set to ` + "`" + `true` + "`" + `, the route sends an event right away when the claim build already succeeded, and returns ` + "`" + `409` + "`" + ` when the workspace wasn't a prebuild, the claim build failed, or a later build replaced the claim build.\nAuthenticates with the workspace agent token instead of a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -16340,7 +16581,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "boolean",
-                        "description": "Opt in to durable reinit checks",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to opt in to the durable check, which sends an event right away for a claim that already succeeded. Without it, the route waits for a new claim.",
                         "name": "wait",
                         "in": "query"
                     }
@@ -16390,6 +16631,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}": {
             "get": {
+                "description": "Returns a workspace agent's details, including its status, apps, scripts, and log sources.\nYou must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16425,6 +16667,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/connection": {
             "get": {
+                "description": "Returns the settings a client needs to connect to a workspace agent, such as the DERP map and the workspace hostname suffix.\nClients such as the Coder CLI call this before they connect, and you must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16460,6 +16703,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers": {
             "get": {
+                "description": "Returns the containers and dev containers that a connected workspace agent detects, and filters the containers by ` + "`" + `label` + "`" + `.\nReturns ` + "`" + `400` + "`" + ` when the agent isn't connected, and you must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16480,10 +16724,9 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "key=value",
-                        "description": "Labels",
+                        "description": "Label filter in ` + "`" + `key=value` + "`" + ` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them.",
                         "name": "label",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -16503,6 +16746,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
             "delete": {
+                "description": "Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.\nRequires permission to update the workspace.\nReturns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "tags": [
                     "Agents"
                 ],
@@ -16519,7 +16763,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Devcontainer ID",
+                        "description": "Dev container ID. Get it from the ` + "`" + `id` + "`" + ` field of an entry in ` + "`" + `devcontainers` + "`" + ` in the list containers response.",
                         "name": "devcontainer",
                         "in": "path",
                         "required": true
@@ -16539,6 +16783,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
+                "description": "Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns ` + "`" + `202` + "`" + ` while the rebuild runs.\nRequires permission to update the workspace.\nReturns ` + "`" + `409` + "`" + ` while the dev container is starting, stopping, or deleting.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16558,7 +16803,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Devcontainer ID",
+                        "description": "Dev container ID. Get it from the ` + "`" + `id` + "`" + ` field of an entry in ` + "`" + `devcontainers` + "`" + ` in the list containers response.",
                         "name": "devcontainer",
                         "in": "path",
                         "required": true
@@ -16581,6 +16826,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/containers/watch": {
             "get": {
+                "description": "Upgrades to a WebSocket that streams the containers and dev containers that a connected workspace agent detects.\nEach message is a JSON object in the same shape as the list containers response, sent whenever the agent reports a change, and the route returns ` + "`" + `400` + "`" + ` when the agent isn't connected.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16616,6 +16862,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
+                "description": "Upgrades to a WebSocket that carries the tailnet coordination protocol, which a client uses to exchange network node updates with a workspace agent.\nClients such as the Coder CLI use it, and it requires permission to SSH to the workspace.\nIt returns ` + "`" + `409` + "`" + ` when the deployment turns on browser-only connections, and a workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead of a session token.",
                 "tags": [
                     "Agents"
                 ],
@@ -16645,6 +16892,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
+                "description": "Returns the TCP ports that a connected workspace agent listens on, except ports below ` + "`" + `9` + "`" + `, ports that a workspace app uses, and common non-HTTP ports such as databases and SSH.\nReturns ` + "`" + `400` + "`" + ` when the agent isn't connected.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16680,6 +16928,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/logs": {
             "get": {
+                "description": "Returns the logs that a workspace agent wrote, such as startup script output, in order, or streams them over a WebSocket when you set ` + "`" + `follow` + "`" + `, with each message a JSON array of log entries.\nYou must be able to read the workspace that the agent belongs to.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16699,25 +16948,25 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before log id",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After log id",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of ` + "`" + `0` + "`" + ` or more.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive. Not supported with ` + "`" + `format=text` + "`" + `.",
                         "name": "follow",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Disable compression for WebSocket connection",
+                        "description": "When present, turns off WebSocket compression. It only applies with ` + "`" + `follow` + "`" + `.",
                         "name": "no_compression",
                         "in": "query"
                     },
@@ -16727,7 +16976,7 @@ const docTemplate = `{
                             "text"
                         ],
                         "type": "string",
-                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "description": "Log output format, either ` + "`" + `json` + "`" + ` or ` + "`" + `text` + "`" + `. The default is ` + "`" + `json` + "`" + `, and ` + "`" + `text` + "`" + ` returns plain text with RFC3339 timestamps and ANSI colors. ` + "`" + `text` + "`" + ` isn't supported with ` + "`" + `follow` + "`" + `.",
                         "name": "format",
                         "in": "query"
                     }
@@ -16752,6 +17001,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/pty": {
             "get": {
+                "description": "Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.\nRequires permission to SSH to the workspace.",
                 "tags": [
                     "Agents"
                 ],
@@ -16765,6 +17015,50 @@ const docTemplate = `{
                         "name": "workspaceagent",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID that identifies the terminal session, so that a client can reconnect to it.",
+                        "name": "reconnect",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Terminal height in rows. The default is ` + "`" + `80` + "`" + `.",
+                        "name": "height",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Terminal width in columns. The default is ` + "`" + `80` + "`" + `.",
+                        "name": "width",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Command to run in the session. Without it, the session runs the user's login shell.",
+                        "name": "command",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Dev container to open the session in, when the agent has dev containers turned on.",
+                        "name": "container",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "User to run the session as inside ` + "`" + `container` + "`" + `.",
+                        "name": "container_user",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session backend, ` + "`" + `screen` + "`" + ` or ` + "`" + `buffered` + "`" + `. Without it, the agent uses ` + "`" + `screen` + "`" + ` on Linux when it's installed, and ` + "`" + `buffered` + "`" + ` otherwise.",
+                        "name": "backend_type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -16781,6 +17075,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/startup-logs": {
             "get": {
+                "description": "Returns the same response as ` + "`" + `GET /api/v2/workspaceagents/{workspaceagent}/logs` + "`" + `, and exists so that older clients keep working.\nUse that route instead.\nA workspace proxy can authenticate with its proxy token in the ` + "`" + `Coder-External-Proxy-Token` + "`" + ` header instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -16800,25 +17095,25 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before log id",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After log id",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID, and the value must be an integer of ` + "`" + `0` + "`" + ` or more.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive.",
                         "name": "follow",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Disable compression for WebSocket connection",
+                        "description": "When present, turns off WebSocket compression. It only applies with ` + "`" + `follow` + "`" + `.",
                         "name": "no_compression",
                         "in": "query"
                     }
@@ -16914,6 +17209,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}": {
             "get": {
+                "description": "Returns one workspace build, including its transition, status, template version, and resources.",
                 "produces": [
                     "application/json"
                 ],
@@ -16948,6 +17244,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/cancel": {
             "patch": {
+                "description": "Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.\nReturns ` + "`" + `400` + "`" + ` if the build's job already completed or was already canceled.\nRequires permission to update the workspace.\nYou can cancel a build if the template allows users to cancel workspace jobs or if you have the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -17035,6 +17332,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/logs": {
             "get": {
+                "description": "Returns the provisioner logs of a workspace build, oldest first.\nSet ` + "`" + `follow` + "`" + ` to upgrade the connection to a WebSocket that sends each log as a JSON ` + "`" + `ProvisionerJobLog` + "`" + ` message, first the existing logs and then new logs as they arrive, and closes when the build's job finishes.\nWithout ` + "`" + `follow` + "`" + `, the response is a JSON array of logs, or plain text when ` + "`" + `format` + "`" + ` is ` + "`" + `text` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17053,19 +17351,19 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before log id",
+                        "description": "Not used. The server ignores this parameter.",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After log id",
+                        "description": "ID of the last log you already have. Returns only the logs with a higher ID.",
                         "name": "after",
                         "in": "query"
                     },
                     {
                         "type": "boolean",
-                        "description": "Follow log stream",
+                        "description": "When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs until the job finishes.",
                         "name": "follow",
                         "in": "query"
                     },
@@ -17100,6 +17398,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/parameters": {
             "get": {
+                "description": "Returns the rich parameter names and values that a workspace build used.",
                 "produces": [
                     "application/json"
                 ],
@@ -17137,6 +17436,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/resources": {
             "get": {
+                "description": "Returns the resources, with their agents, of a completed workspace build.\nReturns ` + "`" + `400` + "`" + ` until the build's job completes.\nUse ` + "`" + `GET /api/v2/workspacebuilds/{workspacebuild}` + "`" + ` instead, which returns the build's ` + "`" + `resources` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17214,6 +17514,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/state": {
             "get": {
+                "description": "Returns the provisioner state that the build saved, as raw JSON.\nRequires permission to update the workspace's template.",
                 "produces": [
                     "application/json"
                 ],
@@ -17246,6 +17547,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the provisioner state that a build saved, without queuing a new build.\nUse it for state-only migrations.\nRequires permission to update the workspace's template.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17264,7 +17566,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Request body",
+                        "description": "New provisioner state for the build, in the ` + "`" + `state` + "`" + ` field.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17287,6 +17589,7 @@ const docTemplate = `{
         },
         "/api/v2/workspacebuilds/{workspacebuild}/timings": {
             "get": {
+                "description": "Returns how long each stage of a workspace build took.\nThe response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.",
                 "produces": [
                     "application/json"
                 ],
@@ -17322,6 +17625,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceproxies": {
             "get": {
+                "description": "Returns the primary region and every workspace proxy, each with its health status, under ` + "`" + `regions` + "`" + `.\nEvery member can read workspace proxies.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17348,6 +17652,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.\nSet ` + "`" + `name` + "`" + ` (not ` + "`" + `primary` + "`" + `), and optionally ` + "`" + `display_name` + "`" + ` and ` + "`" + `icon` + "`" + `.\nSave the token from the response, because Coder doesn't show it again unless you regenerate it.\nRequires permission to create workspace proxies.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17361,7 +17666,7 @@ const docTemplate = `{
                 "operationId": "create-workspace-proxy",
                 "parameters": [
                     {
-                        "description": "Create workspace proxy request",
+                        "description": "Workspace proxy to create.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17602,6 +17907,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceproxies/{workspaceproxy}": {
             "get": {
+                "description": "Returns a workspace proxy, including its health status.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17613,8 +17919,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Proxy ID or name",
+                        "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
                         "required": true
@@ -17635,6 +17940,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a workspace proxy, so Coder stops offering it as a region.\nYou can't delete the primary proxy.\nRequires permission to delete workspace proxies.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17646,8 +17952,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Proxy ID or name",
+                        "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
                         "required": true
@@ -17668,6 +17973,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates a workspace proxy's ` + "`" + `name` + "`" + `, ` + "`" + `display_name` + "`" + `, and ` + "`" + `icon` + "`" + `, and returns the proxy.\nSet ` + "`" + `regenerate_token` + "`" + ` to ` + "`" + `true` + "`" + ` to issue a new token, which the response returns and which invalidates the old one.\nFor the primary proxy, you can change only ` + "`" + `display_name` + "`" + ` and ` + "`" + `icon` + "`" + `.\nRequires permission to update workspace proxies.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17682,14 +17988,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Proxy ID or name",
+                        "description": "Workspace proxy ID or name, or ` + "`" + `primary` + "`" + ` for the built-in primary proxy.",
                         "name": "workspaceproxy",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update workspace proxy request",
+                        "description": "Workspace proxy fields to update. Set ` + "`" + `regenerate_token` + "`" + ` to ` + "`" + `true` + "`" + ` to issue a new token.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17715,6 +18020,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces": {
             "get": {
+                "description": "Returns the workspaces you can read, filtered by the ` + "`" + `q` + "`" + ` search query.\nUse it to find workspaces by owner, template, or status, for example ` + "`" + `owner:me status:running` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17726,19 +18032,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `id` + "`" + `, ` + "`" + `owner` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `has-agent` + "`" + `, ` + "`" + `dormant` + "`" + `, ` + "`" + `outdated` + "`" + `, ` + "`" + `last_used_after` + "`" + `, ` + "`" + `last_used_before` + "`" + `, ` + "`" + `has_external_agent` + "`" + `, ` + "`" + `healthy` + "`" + `, ` + "`" + `organization` + "`" + `, ` + "`" + `user` + "`" + `, ` + "`" + `shared` + "`" + `, ` + "`" + `shared_with_user` + "`" + `, ` + "`" + `shared_with_group` + "`" + `, ` + "`" + `param` + "`" + `, and ` + "`" + `include_agent_metadata` + "`" + ` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or ` + "`" + `owner/name` + "`" + `. Other keys return ` + "`" + `400` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -17760,6 +18066,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}": {
             "get": {
+                "description": "Returns one workspace, including its latest build and template.\nUse ` + "`" + `include_related` + "`" + ` to return only part of the related data.",
                 "produces": [
                     "application/json"
                 ],
@@ -17779,7 +18086,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Return data instead of HTTP 404 if the workspace is deleted",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to return a deleted workspace. Otherwise the call returns ` + "`" + `410` + "`" + ` for a deleted workspace.",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -17805,6 +18112,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Renames a workspace.\nReturns ` + "`" + `400` + "`" + ` unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17823,7 +18131,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Metadata update request",
+                        "description": "New workspace ` + "`" + `name` + "`" + `. An empty or unchanged name changes nothing.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17846,6 +18154,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/acl": {
             "get": {
+                "description": "Returns the users and groups that have been given access to a workspace, each with an ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + ` role.\nUsers appear with only their ID, username, name, and avatar, and groups with only their identity and member count.",
                 "produces": [
                     "application/json"
                 ],
@@ -17879,6 +18188,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Removes every user and group from a workspace's ACL.\nReturns ` + "`" + `403` + "`" + ` if workspace sharing is turned off for the organization.\nRequires permission to share the workspace.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -17906,6 +18216,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in ` + "`" + `user_roles` + "`" + ` and ` + "`" + `group_roles` + "`" + `.\nThe role is ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `, and an empty string removes the entry.\nReturns ` + "`" + `403` + "`" + ` if workspace sharing is turned off for the organization, and ` + "`" + `400` + "`" + ` if you change your own role without permission to share any workspace in the organization.\nRequires permission to share the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17927,7 +18238,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update workspace ACL request",
+                        "description": "Roles to set. Each map goes from a user or group ID to ` + "`" + `admin` + "`" + `, ` + "`" + `use` + "`" + `, or an empty string to remove the entry.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17950,6 +18261,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/agent-connection-watch": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one ` + "`" + `workspacesdk.ConnectionWatchEvent` + "`" + ` JSON message per event, so that a client can wait for a workspace agent to be ready.\nA ` + "`" + `build_update` + "`" + ` message holds the ` + "`" + `transition` + "`" + ` and ` + "`" + `job_status` + "`" + ` of the latest build, and the server sends one first and again whenever the build number, ` + "`" + `transition` + "`" + `, or ` + "`" + `job_status` + "`" + ` changes.\nAn ` + "`" + `agent_update` + "`" + ` message holds the agent's ` + "`" + `id` + "`" + ` and ` + "`" + `lifecycle` + "`" + ` state, and the server sends it only while the latest ` + "`" + `start` + "`" + ` build has succeeded.\nAn ` + "`" + `error` + "`" + ` message holds a ` + "`" + `code` + "`" + `, ` + "`" + `retryable` + "`" + `, and ` + "`" + `message` + "`" + ` and is the last message before the server closes the connection.\nThe server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -17966,6 +18278,12 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name of the agent to watch. Required when the workspace has more than one agent.",
+                        "name": "agent_name",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -17985,6 +18303,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
+                "description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as ` + "`" + `schedule` + "`" + ` in the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `.\nAn empty or omitted ` + "`" + `schedule` + "`" + ` turns autostart off.\nReturns ` + "`" + `400` + "`" + ` if the workspace's template doesn't allow users to set an autostart schedule, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18003,7 +18322,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Schedule update request",
+                        "description": "Autostart schedule to set. Omit ` + "`" + `schedule` + "`" + ` or set it to an empty string to turn autostart off.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18026,6 +18345,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autoupdates": {
             "put": {
+                "description": "Sets whether the workspace moves to the template's active version when it starts, with ` + "`" + `automatic_updates` + "`" + ` set to ` + "`" + `always` + "`" + ` or ` + "`" + `never` + "`" + `.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18044,7 +18364,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Automatic updates request",
+                        "description": "Automatic updates setting, in ` + "`" + `automatic_updates` + "`" + `, which is ` + "`" + `always` + "`" + ` or ` + "`" + `never` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18067,6 +18387,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/builds": {
             "get": {
+                "description": "Returns the builds of a workspace, newest build first.\nUse ` + "`" + `since` + "`" + ` to return only recent builds, and ` + "`" + `limit` + "`" + ` with ` + "`" + `offset` + "`" + ` to page through them.",
                 "produces": [
                     "application/json"
                 ],
@@ -18087,26 +18408,26 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of a build. Returns only the builds with a higher build number than that build.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "date-time",
-                        "description": "Since timestamp",
+                        "description": "Returns only builds created after this RFC 3339 timestamp.",
                         "name": "since",
                         "in": "query"
                     }
@@ -18129,6 +18450,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Starts, stops, or deletes a workspace by queuing a build with ` + "`" + `transition` + "`" + ` set to ` + "`" + `start` + "`" + `, ` + "`" + `stop` + "`" + `, or ` + "`" + `delete` + "`" + `.\nUse it to change a workspace's state, or set ` + "`" + `template_version_id` + "`" + ` to move the workspace to another template version.\nA ` + "`" + `start` + "`" + ` build also clears the workspace's dormant status, and ` + "`" + `orphan` + "`" + ` is allowed only with ` + "`" + `delete` + "`" + `.\nRequires permission to start, stop, or delete the workspace, and starting a dormant workspace requires permission to update it instead.\nSetting ` + "`" + `state` + "`" + ` or ` + "`" + `orphan` + "`" + ` also requires permission to update the template, and setting ` + "`" + `log_level` + "`" + ` returns ` + "`" + `400` + "`" + ` unless the deployment sets ` + "`" + `--enable-terraform-debug-mode` + "`" + ` and you have permission to read deployment configuration.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18150,7 +18472,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Create workspace build request",
+                        "description": "Build to queue. ` + "`" + `transition` + "`" + ` is required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18176,6 +18498,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/dormant": {
             "put": {
+                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304` + "`" + ` if the workspace is already in that state, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18197,7 +18520,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Make a workspace dormant or active",
+                        "description": "Set ` + "`" + `dormant` + "`" + ` to ` + "`" + `true` + "`" + ` to make the workspace dormant, or ` + "`" + `false` + "`" + ` to make it active.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18223,6 +18546,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/extend": {
             "put": {
+                "description": "Sets a new autostop deadline for a running workspace.\nThe new ` + "`" + `deadline` + "`" + ` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.\nReturns ` + "`" + `409` + "`" + ` if the workspace isn't running, is still building, has no autostop deadline, or is a prebuilt workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18244,7 +18568,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Extend deadline update request",
+                        "description": "New autostop deadline, in ` + "`" + `deadline` + "`" + `, as an RFC 3339 timestamp.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18270,6 +18594,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials": {
             "get": {
+                "description": "Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.\nTreat the response as a secret, because the token lets the holder act as the workspace agent.\nRequires permission to SSH to the workspace.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -18289,7 +18614,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
+                        "description": "Name of the external workspace agent, as it appears in the latest workspace build.",
                         "name": "agent",
                         "in": "path",
                         "required": true
@@ -18312,6 +18637,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/favorite": {
             "put": {
+                "description": "Marks a workspace as one of your favorites.\nYou can favorite only workspaces that you own.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -18339,6 +18665,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Removes a workspace from your favorites.\nYou can unfavorite only workspaces that you own.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -18368,6 +18695,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/port-share": {
             "get": {
+                "description": "Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.\nRequires permission to read the workspace.",
                 "produces": [
                     "application/json"
                 ],
@@ -18380,7 +18708,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID.",
                         "name": "workspace",
                         "in": "path",
                         "required": true
@@ -18401,6 +18729,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Shares a port on one of a workspace's agents at the given ` + "`" + `share_level` + "`" + `, or updates the share if the port is already shared.\nThe ` + "`" + `port` + "`" + ` must be from 9 to 65535, the ` + "`" + `share_level` + "`" + ` is ` + "`" + `authenticated` + "`" + `, ` + "`" + `organization` + "`" + `, or ` + "`" + `public` + "`" + `, and the ` + "`" + `protocol` + "`" + ` is ` + "`" + `http` + "`" + ` or ` + "`" + `https` + "`" + `.\nRequires permission to update the workspace.\nWith a Premium license, the template's ` + "`" + `max_port_share_level` + "`" + ` limits the levels you can set.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18416,13 +18745,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID.",
                         "name": "workspace",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Upsert port sharing level request",
+                        "description": "Port share to create or update. ` + "`" + `agent_name` + "`" + ` must name an agent in the workspace's latest build, and ` + "`" + `port` + "`" + `, ` + "`" + `share_level` + "`" + `, and ` + "`" + `protocol` + "`" + ` are as described above.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18446,6 +18775,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Stops sharing a port on one of a workspace's agents.\nReturns ` + "`" + `404` + "`" + ` if the port isn't shared.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18458,13 +18788,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID.",
                         "name": "workspace",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Delete port sharing level request",
+                        "description": "Port share to delete, identified by ` + "`" + `agent_name` + "`" + ` and ` + "`" + `port` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18487,6 +18817,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/resolve-autostart": {
             "get": {
+                "description": "Reports whether an autostart would fail because the template's active version needs parameter values that the workspace's latest build doesn't have.\n` + "`" + `parameter_mismatch` + "`" + ` is ` + "`" + `true` + "`" + ` only when the template requires the active version or the workspace has automatic updates set to ` + "`" + `always` + "`" + `, the latest build uses an older version, and a parameter of the active version can't be resolved from the build's values.",
                 "produces": [
                     "application/json"
                 ],
@@ -18522,6 +18853,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/timings": {
             "get": {
+                "description": "Returns how long each stage of the workspace's latest build took.\nThe response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.",
                 "produces": [
                     "application/json"
                 ],
@@ -18557,6 +18889,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/ttl": {
             "put": {
+                "description": "Sets or clears the time until the workspace stops automatically, given as ` + "`" + `ttl_ms` + "`" + ` in milliseconds.\nThe value must be between 1 minute and 30 days, and ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` turns autostop off for the workspace.\nThe template's autostop requirement still applies.\nReturns ` + "`" + `400` + "`" + ` if the workspace's template doesn't allow a custom autostop, and ` + "`" + `409` + "`" + ` for prebuilt workspaces.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18575,7 +18908,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Workspace TTL update request",
+                        "description": "Time until autostop in milliseconds, in ` + "`" + `ttl_ms` + "`" + `. Use ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` to turn autostop off for the workspace. The template's autostop requirement still applies.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18598,6 +18931,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/usage": {
             "post": {
+                "description": "Marks a workspace as recently used.\nWhen the ` + "`" + `workspace-usage` + "`" + ` experiment is enabled and the request body sets both ` + "`" + `agent_id` + "`" + ` and ` + "`" + `app_name` + "`" + `, it also counts a session for that app on that workspace agent.\nRequires permission to update the workspace.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18616,7 +18950,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Post workspace usage request",
+                        "description": "Optional usage report. Set ` + "`" + `agent_id` + "`" + ` and ` + "`" + `app_name` + "`" + ` together to count a session for that app.",
                         "name": "request",
                         "in": "body",
                         "schema": {
@@ -18638,6 +18972,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch": {
             "get": {
+                "description": "Streams server-sent events about a workspace, where ` + "`" + `data` + "`" + ` events hold a ` + "`" + `codersdk.Workspace` + "`" + `, ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `, and ` + "`" + `ping` + "`" + ` events have no data.\nThe server sends a ` + "`" + `ping` + "`" + ` first, then the current workspace, and then the workspace again each time it or its template changes.\nDeprecated. Use ` + "`" + `GET /api/v2/workspaces/{workspace}/watch-ws` + "`" + ` instead.",
                 "produces": [
                     "text/event-stream"
                 ],
@@ -18709,6 +19044,7 @@ const docTemplate = `{
         },
         "/oauth2/authorize": {
             "get": {
+                "description": "Shows the consent page where a signed-in user approves an OAuth2 client's request for access to their Coder account (RFC 6749 section 4.1.1).\nThe OAuth2 client sends the user's browser here, and a browser without a session goes to the login page first.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -18717,7 +19053,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID of the requesting OAuth2 client, which is the ID of its application.",
                         "name": "client_id",
                         "in": "query",
                         "required": true
@@ -18733,7 +19069,7 @@ const docTemplate = `{
                             "code"
                         ],
                         "type": "string",
-                        "description": "Response type",
+                        "description": "Response type. Only ` + "`" + `code` + "`" + ` is supported.",
                         "name": "response_type",
                         "in": "query",
                         "required": true
@@ -18794,6 +19130,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Records the user's approval and redirects the browser to the client's registered callback with a single-use authorization code that expires after 10 minutes (RFC 6749 section 4.1.2).\nThe consent page submits the same query parameters as the ` + "`" + `GET` + "`" + ` request, and the route needs the user's session.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -18805,7 +19142,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID of the requesting OAuth2 client, which is the ID of its application.",
                         "name": "client_id",
                         "in": "query",
                         "required": true
@@ -18821,7 +19158,7 @@ const docTemplate = `{
                             "code"
                         ],
                         "type": "string",
-                        "description": "Response type",
+                        "description": "Response type. Only ` + "`" + `code` + "`" + ` is supported.",
                         "name": "response_type",
                         "in": "query",
                         "required": true
@@ -18887,6 +19224,7 @@ const docTemplate = `{
         },
         "/oauth2/clients/{client_id}": {
             "get": {
+                "description": "Returns the registered configuration of a dynamically registered OAuth2 client, without its secret (RFC 7592).\nAuthenticates with the registration access token from ` + "`" + `POST /oauth2/register` + "`" + `, sent as a bearer token, and doesn't require a session token.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18901,7 +19239,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID that ` + "`" + `POST /oauth2/register` + "`" + ` returned.",
                         "name": "client_id",
                         "in": "path",
                         "required": true
@@ -18917,6 +19255,7 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "description": "Replaces the registered metadata of a dynamically registered OAuth2 client (RFC 7592).\nAuthenticates with the registration access token from ` + "`" + `POST /oauth2/register` + "`" + `, sent as a bearer token, and doesn't require a session token.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18931,13 +19270,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID that ` + "`" + `POST /oauth2/register` + "`" + ` returned.",
                         "name": "client_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Client update request",
+                        "description": "New client metadata. It replaces the registered metadata, using the same fields as the registration request.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18962,6 +19301,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "description": "Deletes a dynamically registered OAuth2 client along with its secrets and authorization codes, and revokes the access and refresh tokens issued to it (RFC 7592).\nAuthenticates with the registration access token from ` + "`" + `POST /oauth2/register` + "`" + `, sent as a bearer token, and doesn't require a session token.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -18970,7 +19310,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID that ` + "`" + `POST /oauth2/register` + "`" + ` returned.",
                         "name": "client_id",
                         "in": "path",
                         "required": true
@@ -18985,6 +19325,7 @@ const docTemplate = `{
         },
         "/oauth2/register": {
             "post": {
+                "description": "Registers a new OAuth2 client and returns its ` + "`" + `client_id` + "`" + `, its ` + "`" + `client_secret` + "`" + ` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).\nDoesn't require a session token, but returns ` + "`" + `403` + "`" + ` unless dynamic client registration is enabled in the OAuth2 provider settings.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18998,7 +19339,7 @@ const docTemplate = `{
                 "operationId": "oauth2-dynamic-client-registration",
                 "parameters": [
                     {
-                        "description": "Client registration request",
+                        "description": "Client metadata to register, as defined by RFC 7591. Requires ` + "`" + `redirect_uris` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19025,6 +19366,7 @@ const docTemplate = `{
         },
         "/oauth2/revoke": {
             "post": {
+                "description": "Revokes an access token or a refresh token that was issued to the calling OAuth2 client (RFC 7009).\nDoesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, and a ` + "`" + `200` + "`" + ` response doesn't confirm that the token existed or belonged to the client.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
@@ -19097,6 +19439,7 @@ const docTemplate = `{
         },
         "/oauth2/tokens": {
             "post": {
+                "description": "Exchanges an authorization code or a refresh token for an access token and a new refresh token (RFC 6749 sections 4.1.3 and 6).\nDoesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, or with ` + "`" + `code_verifier` + "`" + ` when it is a public client.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -19145,7 +19488,7 @@ const docTemplate = `{
                             "implicit"
                         ],
                         "type": "string",
-                        "description": "Grant type",
+                        "description": "Grant type. Use ` + "`" + `authorization_code` + "`" + ` with ` + "`" + `code` + "`" + `, or ` + "`" + `refresh_token` + "`" + ` with ` + "`" + `refresh_token` + "`" + `. Other values return ` + "`" + `unsupported_grant_type` + "`" + `.",
                         "name": "grant_type",
                         "in": "formData",
                         "required": true
@@ -19173,6 +19516,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "description": "Revokes the signed-in user's authorization codes and tokens for one OAuth2 application, so the application loses that user's access.\nAuthenticates with the user's session token instead of client credentials, so to revoke one token as the OAuth2 client, use ` + "`" + `POST /oauth2/revoke` + "`" + `.\nReturns ` + "`" + `404` + "`" + ` unless the OAuth2 provider is enabled with ` + "`" + `--oauth2-provider-enable` + "`" + `.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -19181,7 +19525,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID of the OAuth2 application, which is the application ID.",
                         "name": "client_id",
                         "in": "query",
                         "required": true
@@ -19201,6 +19545,7 @@ const docTemplate = `{
         },
         "/scim/v2/ServiceProviderConfig": {
             "get": {
+                "description": "Returns the service provider configuration for SCIM, which lists the features Coder supports.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `--scim-auth-header` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nReturns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.\nRequires a Premium license.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19218,6 +19563,7 @@ const docTemplate = `{
         },
         "/scim/v2/Users": {
             "get": {
+                "description": "Returns an empty user list with the legacy SCIM handler, which ` + "`" + `--scim-use-legacy` + "`" + ` selects and which is on by default, so the identity provider's SCIM client creates each user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of importing existing users.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `--scim-auth-header` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nReturns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.\nRequires a Premium license.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19238,6 +19584,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a user with the OIDC login type from a SCIM user that has ` + "`" + `active` + "`" + ` and a primary entry in ` + "`" + `emails` + "`" + `, or returns the existing user with the same email or username.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `--scim-auth-header` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nReturns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -19248,7 +19595,7 @@ const docTemplate = `{
                 "operationId": "scim-create-new-user",
                 "parameters": [
                     {
-                        "description": "New user",
+                        "description": "SCIM user to create. Requires ` + "`" + `active` + "`" + ` and a primary entry in ` + "`" + `emails` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19274,6 +19621,7 @@ const docTemplate = `{
         },
         "/scim/v2/Users/{id}": {
             "get": {
+                "description": "Returns ` + "`" + `404` + "`" + ` with the legacy SCIM handler, which ` + "`" + `--scim-use-legacy` + "`" + ` selects and which is on by default, so the identity provider's SCIM client creates the user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of reading it.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `--scim-auth-header` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nReturns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.\nRequires a Premium license.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19286,7 +19634,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "ID of the Coder user, which is the ` + "`" + `id` + "`" + ` that ` + "`" + `POST /scim/v2/Users` + "`" + ` returned.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -19304,6 +19652,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and returns ` + "`" + `400` + "`" + ` when ` + "`" + `userName` + "`" + ` differs from the user's current username.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `--scim-auth-header` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nReturns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.\nRequires a Premium license.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19316,13 +19665,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "ID of the Coder user, which is the ` + "`" + `id` + "`" + ` that ` + "`" + `POST /scim/v2/Users` + "`" + ` returned.",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Replace user request",
+                        "description": "SCIM user to apply. Requires ` + "`" + `active` + "`" + `, and ` + "`" + `userName` + "`" + `, if set, must match the current username.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19346,6 +19695,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and ignores the other SCIM attributes.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `--scim-auth-header` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nReturns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.\nRequires a Premium license.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19358,13 +19708,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "ID of the Coder user, which is the ` + "`" + `id` + "`" + ` that ` + "`" + `POST /scim/v2/Users` + "`" + ` returned.",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update user request",
+                        "description": "SCIM user to apply. Requires ` + "`" + `active` + "`" + `, and Coder ignores the other attributes.",
                         "name": "request",
                         "in": "body",
                         "required": true,

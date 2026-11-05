@@ -17,6 +17,9 @@ curl -X GET http://coder-server:8080/api/v2/ \
 
 `GET /api/v2/`
 
+Returns a short greeting from the API root, which you can use to check that the API is reachable.
+Doesn't require a session token.
+
 ### Example responses
 
 > 200 Response
@@ -52,6 +55,9 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 `GET /api/v2/buildinfo`
 
+Returns build information for the deployment, such as the Coder `version`, the `external_url`, and the `dashboard_url`.
+Doesn't require a session token.
+
 ### Example responses
 
 > 200 Response
@@ -86,11 +92,13 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: */*'
 ```
 
 `POST /api/v2/csp/reports`
+
+Logs a Content Security Policy violation report that a browser sends, at debug level in the server log.
+Doesn't require a session token, and the request body can't exceed 64 KiB.
 
 > Body parameter
 
@@ -102,9 +110,9 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 
 ### Parameters
 
-| Name   | In   | Type                                                 | Required | Description      |
-|--------|------|------------------------------------------------------|----------|------------------|
-| `body` | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Violation report |
+| Name   | In   | Type                                                 | Required | Description                                                                                           |
+|--------|------|------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
+| `body` | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Content Security Policy violation report. A JSON object with the browser's report under `csp-report`. |
 
 ### Example responses
 
@@ -116,8 +124,6 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 |--------|-------------------------------------------------------------------------|-----------------------------|--------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                          |                                                  |
 | 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 64 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get deployment config
 
@@ -131,6 +137,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 ```
 
 `GET /api/v2/deployment/config`
+
+Returns the deployment's configuration `values` with secrets removed, and its `options`.
+Each entry in `options` describes one setting, including its description, flag, and environment variable.
+Requires permission to read deployment configuration.
 
 ### Example responses
 
@@ -734,6 +744,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
 
 `GET /api/v2/deployment/ssh`
 
+Returns the SSH settings that clients use to write a local SSH configuration, such as the workspace `hostname_suffix` and `ssh_config_options`.
+Any authenticated user can call it.
+
 ### Example responses
 
 > 200 Response
@@ -769,6 +782,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 ```
 
 `GET /api/v2/deployment/stats`
+
+Returns usage statistics for the deployment, such as workspace counts and session counts.
+Returns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats.
 
 ### Example responses
 
@@ -836,6 +852,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/user-secrets/capabilities
 
 `GET /api/v2/deployment/user-secrets/capabilities`
 
+Returns whether the deployment writes the stored file paths of user secrets into workspaces, as `file_path_delivery_enabled`.
+Any authenticated user can call it.
+
 ### Example responses
 
 > 200 Response
@@ -866,6 +885,9 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 ```
 
 `GET /api/v2/experiments`
+
+Returns the experiments that are enabled for you.
+Rules can turn user-scoped experiments on or off for individual users, so the list can differ between users.
 
 ### Example responses
 
@@ -906,6 +928,8 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 
 `GET /api/v2/experiments/available`
 
+Returns the experiments that are safe to turn on, in the `safe` field.
+
 ### Example responses
 
 > 200 Response
@@ -944,6 +968,9 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
 
 `GET /api/v2/updatecheck`
 
+Returns the latest Coder release and whether the deployment runs it, in `current`, `version`, and `url`.
+Doesn't require a session token, and the route reports the running version as current when update checking is turned off or hasn't succeeded yet.
+
 ### Example responses
 
 > 200 Response
@@ -975,11 +1002,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig
 
 `GET /api/v2/users/{user}/keys/tokens/tokenconfig`
 
+Returns the longest lifetime that a user's API tokens can have, in `max_token_lifetime`.
+Users with the Owner role get the maximum admin token lifetime, and every other user gets the maximum token lifetime.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 

@@ -21,12 +21,16 @@ import (
 const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, numbers, and non-consecutive hyphens, cannot start or end with a hyphen."
 
 // @Summary Create AI Gateway key
+// @Description Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `GET /api/v2/ai-gateway/serve`.
+// @Description The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
+// @Description Requires permission to create AI Gateway keys.
+// @Description Requires a Premium license.
 // @ID create-ai-gateway-key
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.CreateAIGatewayKeyRequest true "Create AI Gateway key request"
+// @Param request body codersdk.CreateAIGatewayKeyRequest true "AI Gateway key to create. `name` must be unique, 64 characters or fewer, and made of lowercase letters, numbers, and non-consecutive hyphens, and it can't start or end with a hyphen."
 // @Success 201 {object} codersdk.CreateAIGatewayKeyResponse
 // @Router /api/v2/ai-gateway/keys [post]
 func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
@@ -111,6 +115,10 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 }
 
 // @Summary List AI Gateway keys
+// @Description Lists the AI Gateway keys, oldest first.
+// @Description Each key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.
+// @Description Requires permission to read AI Gateway keys.
+// @Description Requires a Premium license.
 // @ID list-ai-gateway-keys
 // @Security CoderSessionToken
 // @Produce json
@@ -141,10 +149,14 @@ func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete AI Gateway key
+// @Description Deletes an AI Gateway key.
+// @Description A standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.
+// @Description Requires permission to delete AI Gateway keys.
+// @Description Requires a Premium license.
 // @ID delete-ai-gateway-key
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param key path string true "Key ID" format(uuid)
+// @Param key path string true "AI Gateway key ID." format(uuid)
 // @Success 204
 // @Router /api/v2/ai-gateway/keys/{key} [delete]
 func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {

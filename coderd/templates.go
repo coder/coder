@@ -40,6 +40,8 @@ const defaultRequirementWeeks = 1
 // Returns a single template.
 //
 // @Summary Get template settings by ID
+// @Description Returns a template's settings, such as its active version, workspace lifecycle policies, and deprecation status.
+// @Description Returns `404` if the template is deleted or you can't read it.
 // @ID get-template-settings-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -55,6 +57,9 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete template by ID
+// @Description Deletes a template.
+// @Description Returns `400` if any workspaces still use the template, except prebuilt workspaces, which Coder cleans up afterward.
+// @Description Requires permission to delete the template.
 // @ID delete-template-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -171,13 +176,18 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 // Returns a single template.
 //
 // @Summary Create template by organization
+// @Description Creates a template in an organization from an existing template version.
+// @Description The template version must not be archived or already belong to a template, and its import job can still be running.
+// @Description Requires permission to create templates in the organization.
+// @Description The organization's Everyone group gets the `use` role on the new template unless you set `disable_everyone_group_access` to `true`.
+// @Description Settings that need a Premium license, such as `autostop_requirement`, `failure_ttl_ms`, and `require_active_version`, are ignored without one, and `max_port_share_level` returns a validation error.
 // @ID create-template-by-organization
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
-// @Param request body codersdk.CreateTemplateRequest true "Request body"
-// @Param organization path string true "Organization ID"
+// @Param request body codersdk.CreateTemplateRequest true "Template to create, including the `template_version_id` of the version to use as its first version."
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} codersdk.Template
 // @Router /api/v2/organizations/{organization}/templates [post]
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -543,7 +553,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.Template
 // @Router /api/v2/organizations/{organization}/templates [get]
 func (api *API) templatesByOrganization() http.HandlerFunc {
@@ -615,12 +625,14 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 }
 
 // @Summary Get templates by organization and template name
+// @Description Returns the template with the given name in an organization.
+// @Description The name match is case-insensitive.
 // @ID get-templates-by-organization-and-template-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param templatename path string true "Template name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param templatename path string true "Template name. The match is case-insensitive."
 // @Success 200 {object} codersdk.Template
 // @Router /api/v2/organizations/{organization}/templates/{templatename} [get]
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
@@ -648,13 +660,18 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary Update template settings by ID
+// @Description Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.
+// @Description Send only the fields you want to change, because omitted fields keep their current values.
+// @Description Requires permission to update the template.
+// @Description Without a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.
+// @Description Without a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.
 // @ID update-template-settings-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Param request body codersdk.UpdateTemplateMeta true "Patch template settings request"
+// @Param request body codersdk.UpdateTemplateMeta true "Template settings to change. Omitted fields keep their current values."
 // @Success 200 {object} codersdk.Template
 // @Router /api/v2/templates/{template} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
@@ -910,11 +927,14 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 }
 
 // @Summary Get template DAUs by ID
+// @Description Returns the number of active users per day for a template over the last 60 days.
+// @Description Requires permission to view the template's insights.
 // @ID get-template-daus-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
+// @Param tz_offset query int false "Offset from UTC in whole hours, such as `-2`, that sets where each day starts. The default, `0`, is UTC."
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /api/v2/templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
@@ -924,11 +944,13 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get template examples by organization
+// @Description Returns the starter templates that ship with Coder.
+// @Description Deprecated. Use `GET /api/v2/templates/examples` instead.
 // @ID get-template-examples-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {array} codersdk.TemplateExample
 // @Router /api/v2/organizations/{organization}/templates/examples [get]
 // @Deprecated Use /templates/examples instead
@@ -956,6 +978,8 @@ func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Get template examples
+// @Description Returns the starter templates that ship with Coder.
+// @Description Pass an example's `id` as `example_id` to `POST /api/v2/organizations/{organization}/templateversions` to create a template version from it.
 // @ID get-template-examples
 // @Security CoderSessionToken
 // @Produce json

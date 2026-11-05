@@ -76,6 +76,8 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 // Returns the merged OIDC claims for the authenticated user.
 //
 // @Summary Get OIDC claims for the authenticated user
+// @Description Returns the merged OpenID Connect (OIDC) claims from your last OIDC login, where userinfo claims take precedence over ID token claims.
+// @Description Returns `400` unless your account uses the `oidc` login type.
 // @ID get-oidc-claims-for-the-authenticated-user
 // @Security CoderSessionToken
 // @Produce json
@@ -134,8 +136,9 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created
+// @Description Returns `200` when the deployment already has its initial user and `404` when it doesn't.
+// @Description Doesn't require a session token.
 // @ID check-initial-user-created
-// @Security CoderSessionToken
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.Response
@@ -167,12 +170,14 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // Creates the initial user for a Coder deployment.
 //
 // @Summary Create initial user
+// @Description Creates the initial user in the default organization and gives the user the Owner role.
+// @Description Works only while the deployment has no users, and returns `409` after that.
+// @Description Doesn't require a session token.
 // @ID create-initial-user
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param request body codersdk.CreateFirstUserRequest true "First user request"
+// @Param request body codersdk.CreateFirstUserRequest true "Initial user account to create. `email`, `username`, and `password` are required."
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /api/v2/users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
@@ -305,14 +310,16 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get users
+// @Description Returns the users you can read, filtered by the `q` search query and paged with `limit`, `offset`, or `after_id`.
+// @Description Use it to find users by status, role, or login type, for example `status:active role:owner`.
 // @ID get-users
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param q query string false "Search query"
-// @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param q query string false "Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, `login_type`, and `search`. Text without a key, or with the `search` key, matches the username, name, or email. Other keys return `400`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.GetUsersResponse
 // @Router /api/v2/users [get]
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
@@ -429,12 +436,15 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 // Creates a new user.
 //
 // @Summary Create new user
+// @Description Creates a user account, or a service account for automation when `service_account` is `true`.
+// @Description Requires permission to create users.
+// @Description Creating a service account also requires a Premium license.
 // @ID create-new-user
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param request body codersdk.CreateUserRequest true "Create user request"
+// @Param request body codersdk.CreateUserRequest true "User account to create. Set `organization_ids` to at least one organization, or `service_account` to `true` for a service account, which can't have an email or password."
 // @Success 201 {object} codersdk.User
 // @Router /api/v2/users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
@@ -662,10 +672,13 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete user
+// @Description Deletes a user account and notifies the deployment's user admins.
+// @Description Requires permission to delete users.
+// @Description You can't delete yourself or a user who still has workspaces, so delete their workspaces first.
 // @ID delete-user
 // @Security CoderSessionToken
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200
 // @Router /api/v2/users/{user} [delete]
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
@@ -768,11 +781,13 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // is completed in the middleware for this route.
 //
 // @Summary Get user by name
+// @Description Returns a user's account details, including status, login type, and organization IDs.
+// @Description You can read your own account, and reading other users requires permission to read users.
 // @ID get-user-by-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.User
 // @Router /api/v2/users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
@@ -796,11 +811,14 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // and the requested user match. Eg: 'me'
 //
 // @Summary Get user login type
+// @Description Returns the user's login type, such as `password`, `github`, or `oidc`.
+// @Description You can only query your own login type, so use `me` or your own user ID.
+// @Description For any other user, the call returns `403` if you can read that user and `404` otherwise.
 // @ID get-user-login-type
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.UserLoginType
 // @Router /api/v2/users/{user}/login-type [get]
 func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
@@ -974,13 +992,16 @@ var (
 )
 
 // @Summary Update user profile
+// @Description Updates a user's username, display name, and avatar URL.
+// @Description Changing a username, including your own, requires permission to update users, and updating another user's profile requires permission to update personal user data.
+// @Description The avatar URL applies only to users with the `password` or `none` login type.
 // @ID update-user-profile
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserProfileRequest true "Updated profile"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateUserProfileRequest true "Updated profile. `username` is required. `avatar_url` is ignored for users whose login type isn't `password` or `none`."
 // @Success 200 {object} codersdk.User
 // @Router /api/v2/users/{user}/profile [put]
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -1075,11 +1096,14 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Suspend user account
+// @Description Suspends a user account by setting its status to `suspended`, which stops the user from signing in.
+// @Description Requires permission to update users.
+// @Description You can't suspend yourself or a user with the Owner role.
 // @ID suspend-user-account
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.User
 // @Router /api/v2/users/{user}/status/suspend [put]
 func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Request) {
@@ -1087,11 +1111,13 @@ func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Activate user account
+// @Description Sets a user's status to `active`, for example to reactivate a suspended account.
+// @Description Requires permission to update users.
 // @ID activate-user-account
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.User
 // @Router /api/v2/users/{user}/status/activate [put]
 func (api *API) putActivateUserAccount() func(rw http.ResponseWriter, r *http.Request) {
@@ -1238,11 +1264,13 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 }
 
 // @Summary Get user appearance settings
+// @Description Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.
+// @Description You can read your own settings, and reading another user's settings requires permission to read personal user data.
 // @ID get-user-appearance-settings
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.UserAppearanceSettings
 // @Router /api/v2/users/{user}/appearance [get]
 func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
@@ -1287,13 +1315,15 @@ func writeUserSettingsReadError(ctx context.Context, rw http.ResponseWriter, err
 }
 
 // @Summary Update user appearance settings
+// @Description Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.
+// @Description You can update your own settings, and updating another user's settings requires permission to update personal user data.
 // @ID update-user-appearance-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings. `theme_preference` and `terminal_font` are required. Set `theme_mode` to `single` or `sync`, and set `theme_light` and `theme_dark` when `theme_mode` is `sync`. Omit `theme_mode` to keep the saved mode and themes."
 // @Success 200 {object} codersdk.UserAppearanceSettings
 // @Router /api/v2/users/{user}/appearance [put]
 func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
@@ -1400,11 +1430,13 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Get user preference settings
+// @Description Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.
+// @Description You can read your own settings, and reading another user's settings requires permission to read personal user data.
 // @ID get-user-preference-settings
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.UserPreferenceSettings
 // @Router /api/v2/users/{user}/preferences [get]
 func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
@@ -1468,13 +1500,16 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update user preference settings
+// @Description Updates the user's Coder Agents chat preferences and returns all of them.
+// @Description Fields you omit keep their current values.
+// @Description You can update your own settings, and updating another user's settings requires permission to update personal user data.
 // @ID update-user-preference-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserPreferenceSettingsRequest true "New preference settings"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateUserPreferenceSettingsRequest true "New preference settings. `thinking_display_mode` accepts `auto`, `preview`, `always_expanded`, or `always_collapsed`. `shell_tool_display_mode` and `code_diff_display_mode` accept `auto`, `always_expanded`, or `always_collapsed`. `agent_chat_send_shortcut` accepts `enter` or `modifier_enter`."
 // @Success 200 {object} codersdk.UserPreferenceSettings
 // @Router /api/v2/users/{user}/preferences [put]
 func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
@@ -1700,12 +1735,15 @@ func isValidFontName(font codersdk.TerminalFontName) bool {
 }
 
 // @Summary Update user password
+// @Description Changes a user's password and revokes all of the user's API keys.
+// @Description Works only for users with the `password` login type, and changing your own password requires `old_password`.
+// @Description Changing another user's password requires permission to update personal user data, and only an Owner can change an Owner's password.
 // @ID update-user-password
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateUserPasswordRequest true "Current password in `old_password`, which is required when you change your own password, and the new password in `password`."
 // @Success 204
 // @Router /api/v2/users/{user}/password [put]
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
@@ -1856,11 +1894,13 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user roles
+// @Description Returns the user's site-wide roles and their roles in each organization.
+// @Description You can read your own roles, and reading another user's roles requires permission to read personal user data.
 // @ID get-user-roles
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.User
 // @Router /api/v2/users/{user}/roles [get]
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
@@ -1900,13 +1940,16 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Assign role to user
+// @Description Replaces the user's site-wide roles with the given `roles`.
+// @Description Requires permission to assign roles, but you can assign only the roles that your own roles allow.
+// @Description You can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.
 // @ID assign-role-to-user
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateRoles true "Update roles request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpdateRoles true "Site-wide role names to assign, such as `template-admin`. The list replaces the user's current site-wide roles."
 // @Success 200 {object} codersdk.User
 // @Router /api/v2/users/{user}/roles [put]
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
@@ -1979,11 +2022,13 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 // Returns organizations the parameterized user has access to.
 //
 // @Summary Get organizations by user
+// @Description Returns the organizations the user belongs to.
+// @Description Returns only the organizations you can read.
 // @ID get-organizations-by-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.Organization
 // @Router /api/v2/users/{user}/organizations [get]
 func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
@@ -2020,12 +2065,14 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get organization by user and organization name
+// @Description Returns the organization with the given name if you can read it.
+// @Description The lookup uses only the organization name, so it doesn't check that the user is a member.
 // @ID get-organization-by-user-and-organization-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param organizationname path string true "Organization name"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param organizationname path string true "Name of the organization, not its ID."
 // @Success 200 {object} codersdk.Organization
 // @Router /api/v2/users/{user}/organizations/{organizationname} [get]
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {

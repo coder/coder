@@ -295,6 +295,8 @@ type CustomNotificationRequest struct {
 	//   See: https://github.com/coder/coder/issues/19768
 }
 
+// The custom notification @Param text in coderd/notifications.go states
+// these limits.
 const (
 	maxCustomNotificationTitleLen   = 120
 	maxCustomNotificationMessageLen = 2000

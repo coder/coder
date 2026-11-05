@@ -74,6 +74,8 @@ import (
 // layer Enterprise functionality on top as much as possible.
 func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.EntitlementsUpdateInterval == 0 {
+		// The postRefreshEntitlements doc comment and @Description in
+		// licenses.go state this interval.
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
 	if options.LicenseKeys == nil {
@@ -1422,8 +1424,11 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 }
 
 // @Summary Get entitlements
+// @Description Returns the features the deployment's licenses enable, with each feature's entitlement, whether it's enabled, its limit, and its current usage.
+// @Description It also returns license warnings and errors, whether the deployment has a license or a trial license, whether telemetry is required, and when the entitlements were last refreshed.
+// @Description The dashboard reads it to decide which features to turn on.
+// @Description Doesn't require a session token.
 // @ID get-entitlements
-// @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.Entitlements
