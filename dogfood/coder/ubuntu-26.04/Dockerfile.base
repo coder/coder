@@ -5,17 +5,14 @@ SHELL ["/bin/bash", "-c"]
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
 
-# Read Ubuntu packages through the mirror list before the first apt-get update,
-# and copy in the retry settings it relies on, so every apt step reads the same
-# hosts. unminimize upgrades installed packages, and a package that requires an
-# exact version of one of them (apt-utils requires apt) fails to install below
-# if its index lacks that version.
-#
-# ca-certificates must be installed before copying in the rest of files/, whose
-# third-party apt sources use HTTPS. Also enable the en_US.UTF-8 locale so that
-# we don't generate multiple locales and unminimize to include man pages.
+# The mirror list and retry settings come first so that every apt step reads
+# Ubuntu packages from the same hosts.
 COPY dogfood/coder/ubuntu-26.04/files/etc/apt/ubuntu-mirrors.txt /etc/apt/ubuntu-mirrors.txt
 COPY dogfood/coder/ubuntu-26.04/files/etc/apt/apt.conf.d/80-retries /etc/apt/apt.conf.d/80-retries
+
+# Install ca-certificates before copying in files/, whose third-party apt
+# sources use HTTPS. Also enable the en_US.UTF-8 locale so that we don't
+# generate multiple locales and unminimize to include man pages.
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|mirror+file:/etc/apt/ubuntu-mirrors.txt|g; s|http://security.ubuntu.com/ubuntu/|mirror+file:/etc/apt/ubuntu-mirrors.txt|g' /etc/apt/sources.list.d/ubuntu.sources && \
 	apt-get update && \
 	apt-get install --yes ca-certificates locales unminimize && \
