@@ -136,9 +136,9 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           # Context is the repo root so Dockerfile.base can COPY the
           # distro-specific files/ tree. It is the checkout rather than
-          # {{defaultContext}} because Depot's cached git clone cannot fetch
-          # a commit by SHA while it keeps a deleted branch `x` and `x/y`
-          # exists.
+          # {{defaultContext}}: when Depot's cached git clone lacks a commit
+          # it builds by SHA, it fetches every branch, and that fetch fails
+          # while the clone keeps a deleted branch `x` and `x/y` exists.
           context: .
           file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile.base
           pull: true
