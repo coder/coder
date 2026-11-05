@@ -50,6 +50,33 @@ func TestExclusiveBatchRejected(t *testing.T) {
 	}
 }
 
+func TestBufferToolBillingRecorder_RecordsUnansweredCallPositions(t *testing.T) {
+	t.Parallel()
+
+	// The local calls sit at positions 0, 2 and 4, between pending dynamic
+	// calls. The batch dropped local call 1, so dispatch index 1 is local
+	// call 2.
+	startedAt := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+	started := map[int]time.Time{}
+	completed := map[int]time.Time{}
+	recorder := &bufferToolBillingRecorder{
+		allowedIndexes: []int{0, 2},
+		positions:      []int{0, 2, 4},
+		recordStart:    func(position int, at time.Time) { started[position] = at },
+		recordComplete: func(position int, at time.Time) { completed[position] = at },
+	}
+	recorder.RecordStart(0, startedAt)
+	recorder.RecordStart(1, startedAt.Add(time.Second))
+	recorder.RecordComplete(1, startedAt.Add(2*time.Second))
+	// Out-of-range dispatch indexes are ignored.
+	recorder.RecordStart(-1, startedAt)
+	recorder.RecordStart(2, startedAt)
+	recorder.RecordComplete(2, startedAt)
+
+	require.Equal(t, map[int]time.Time{0: startedAt, 4: startedAt.Add(time.Second)}, started)
+	require.Equal(t, map[int]time.Time{4: startedAt.Add(2 * time.Second)}, completed)
+}
+
 func TestCompactionMetricIdentity(t *testing.T) {
 	t.Parallel()
 

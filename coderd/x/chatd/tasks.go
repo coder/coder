@@ -818,10 +818,12 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 // every unresolved call of the chat's last step, because FinishInterruption
 // rejects the chat while any call is outstanding, whatever its kind. That
 // includes the calls of the chat's dynamic tools: a step can commit them
-// beside local calls, and Interrupt does not close them from running. It also
-// includes a call to a built-in that shares its name with a dynamic tool.
-// Generation ran that call as the built-in, but only the chat's dynamic tool
-// names are known here, so it counts as dynamic.
+// beside local calls, and Interrupt does not close them from running.
+//
+// It passes no dynamic tool names, so every call counts and keeps its call
+// order. A call's position is the key generation recorded its timing under,
+// and the chat's dynamic tool names cannot say which calls ran there: a call
+// to a built-in that shares its name with a dynamic tool ran as the built-in.
 func committedPendingToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
@@ -837,19 +839,9 @@ func committedPendingToolCancellationMessages(
 	if err != nil {
 		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
-	calls, dynamicCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	calls, _, _, err := unresolvedToolCallsFromHistory(messages, nil)
 	if err != nil {
 		return nil, err
-	}
-	// Dynamic calls go last. Generation numbers the calls it runs, and runs
-	// dynamic calls only after the local ones, so the local positions keep
-	// matching the indexes in toolCompletions.
-	for _, dynamicCall := range dynamicCalls {
-		calls = append(calls, fantasy.ToolCallContent{
-			ToolCallID: dynamicCall.ToolCallID,
-			ToolName:   dynamicCall.ToolName,
-			Input:      dynamicCall.Args,
-		})
 	}
 	if len(calls) == 0 {
 		return nil, nil

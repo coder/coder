@@ -1049,6 +1049,8 @@ func TestDecisionObservesToolCallsAnsweredBeforeExecution(t *testing.T) {
 	}
 	require.Equal(t, []string{"call-allowed"}, callIDs(decision.localToolCalls))
 	require.Equal(t, []string{"call-denied", "call-allowed"}, callIDs(decision.observedToolCalls))
+	// The answered call takes no position, but the pending client call does.
+	require.Equal(t, []int{1}, decision.localToolCallPositions)
 }
 
 func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *testing.T) {

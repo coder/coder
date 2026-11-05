@@ -647,9 +647,10 @@ func TestInterruptTask_ClosesEveryUnresolvedToolCall(t *testing.T) {
 		name         string
 		dynamicTools []string
 		calls        []string // Tool names, in call order.
-		// started lists the calls recorded as started, numbered as generation
-		// numbers the calls it runs.
+		// started and completed list call positions, numbered over every
+		// unresolved call as generation records tool timings.
 		started      []int
+		completed    []int
 		wantBilledMs int64 // Zero means no usage record.
 	}{
 		// A step commits a built-in call and a dynamic call: the built-in
@@ -659,9 +660,12 @@ func TestInterruptTask_ClosesEveryUnresolvedToolCall(t *testing.T) {
 		{name: "OnlyDynamic", dynamicTools: []string{dynamicTool}, calls: []string{dynamicTool}},
 		// Generation runs a built-in over a dynamic tool with the same name.
 		{name: "NameCollision", dynamicTools: []string{"execute"}, calls: []string{"execute"}, started: []int{0}, wantBilledMs: 7_000},
-		// Generation numbers only wait_agent, which is unbilled. The dynamic
-		// call before it must not take its index.
-		{name: "DynamicBeforeLocalKeepsBillingIndexes", dynamicTools: []string{dynamicTool}, calls: []string{dynamicTool, "wait_agent"}, started: []int{0}},
+		// The unbilled call finishes early, so billing the collision call
+		// from its interval would bill 1 s instead of 7 s.
+		{name: "NameCollisionBeforeUnbilledCall", dynamicTools: []string{"execute"}, calls: []string{"execute", "list_agents"}, started: []int{0, 1}, completed: []int{1}, wantBilledMs: 7_000},
+		// The unbilled call is second among the unresolved calls. Numbering
+		// only the calls that are not dynamic would bill the dynamic call.
+		{name: "DynamicBeforeUnbilledCall", dynamicTools: []string{dynamicTool}, calls: []string{dynamicTool, "wait_agent"}, started: []int{1}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -678,11 +682,16 @@ func TestInterruptTask_ClosesEveryUnresolvedToolCall(t *testing.T) {
 				})
 			}
 			batch := interruptedBatchFixtureForChat(t, f, f.createRunningChatWithDynamicTools(t, tc.dynamicTools...), calls)
+			buffer := batch.starter.opts.MessagePartBuffer
 			batch.clock.Advance(2 * time.Second)
-			for _, index := range tc.started {
-				require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, index, batch.clock.Now()))
+			for _, position := range tc.started {
+				require.NoError(t, buffer.RecordToolStart(batch.key, position, batch.clock.Now()))
 			}
-			batch.clock.Advance(7 * time.Second)
+			batch.clock.Advance(time.Second)
+			for _, position := range tc.completed {
+				require.NoError(t, buffer.RecordToolCompletion(batch.key, position, batch.clock.Now()))
+			}
+			batch.clock.Advance(6 * time.Second)
 
 			messages := batch.interrupt(t, f)
 			for _, call := range calls {
