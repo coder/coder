@@ -14,7 +14,7 @@ Script paths below (`scripts/`, `journeys/`, `features/`) are relative to this s
 ```sh
 scripts/launch.sh            # reuse this checkout's .coderv2 data
 scripts/launch.sh --fresh    # destroy this checkout's dev database first (--db-reset)
-scripts/launch.sh -- --trace       # after --, flags go to coder server, as with develop.sh
+scripts/launch.sh -- --verbose     # after --, flags go to coder server, as with develop.sh
 ```
 
 - It builds `build/.bin/develop` and `build/coder_<os>_<arch>` first, then picks free API and web ports (13000 and 18000 plus a per-checkout offset), then starts `scripts/develop.sh` in its own process session. Coder metrics are off (`--prometheus-port 0`).
@@ -40,7 +40,7 @@ Load the instance in every new shell, including each separate tool call: `source
 - Web UI: drive `$VC_WEB_URL`, the production frontend that coder server serves from the binary `launch.sh` built (the API port). Launch rebuilds it when files under `site/` changed, so relaunch after a frontend edit. `$VC_VITE_URL` is the Vite dev server with hot reload. Use it only to watch an edit live: under host load it failed lazy route imports (`Failed to fetch dynamically imported module`). Drive the UI with `agent-browser --session "$VC_BROWSER_SESSION"` (`vc_ab` in `lib.sh`). Never use another session name: sessions are host-global. `vc_browser_login [email password]` signs in through the real form. Prefer `find label`, `find role ... --name`, `data-testid` and page titles (`<Page> - Coder`) over refs from an old snapshot. `site/e2e/helpers.ts` has a working Playwright recipe for most pages: translate it, then check the labels against the page source because the e2e matchers ignore case.
 - CLI: `scripts/coder.sh <args>` runs the binary develop built with `--global-config .coderv2`, logged in as the admin. It unsets `CODER_URL` and `CODER_SESSION_TOKEN` so it never talks to the deployment this workspace runs on.
 - API: `vc_api /api/v2/<path>` GETs as the admin without printing the token. Never echo `.coderv2/session`.
-- Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Launch with `scripts/launch.sh -- --trace` for more.
+- Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Launch with `scripts/launch.sh -- --verbose` for debug lines.
 - Journeys: `journeys/create-user.sh` (7 checks, about 10 seconds), `journeys/templates.sh` (4 checks, about 10 seconds), `journeys/workspace.sh` (9 checks, about 90 seconds, needs Docker) and `journeys/coder-agents.sh` (6 checks, about 15 seconds, starts its own `llm-mock`). Each drives one mapped feature end to end and writes evidence. Copy one for a new feature.
 
 ## Evidence

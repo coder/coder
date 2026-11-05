@@ -2,8 +2,8 @@
 # Starts a Coder dev instance owned by this checkout and waits until it is
 # usable. Usage: launch.sh [--fresh] [develop.sh flags] [-- coder server flags]
 #   --fresh  passes --db-reset to develop.sh (destroys this checkout's .coderv2 database).
-# Every other argument reaches develop.sh unchanged, so "launch.sh -- --trace"
-# passes --trace to coder server.
+# Every other argument reaches develop.sh unchanged, so "launch.sh -- --verbose"
+# passes --verbose to coder server.
 set -euo pipefail
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
