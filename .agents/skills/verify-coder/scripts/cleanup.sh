@@ -199,7 +199,11 @@ remove_data() {
 		echo "kept $VC_CONFIG_DIR, another process still runs Postgres from it"
 		return 0
 	fi
-	rm -rf "$VC_CONFIG_DIR"
+	# The marker goes last, so a removal that fails part way still counts as
+	# the harness's data on the next try.
+	find "$VC_CONFIG_DIR" -mindepth 1 -maxdepth 1 ! -name .verify-coder-created -exec rm -rf {} +
+	rm -f "$VC_CONFIG_DIR/.verify-coder-created"
+	rmdir "$VC_CONFIG_DIR"
 	echo "removed $VC_CONFIG_DIR (launch.sh created it)"
 }
 
