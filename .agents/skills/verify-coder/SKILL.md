@@ -70,5 +70,6 @@ It deletes the instance's workspaces through the CLI, closes only `$VC_BROWSER_S
 
 - Inside a Coder workspace (`CODER_AGENT_URL` set) the dev build names the session cookie `dev_coder_session_token` instead of `coder_session_token` (`scripts/build_go.sh`). Sign in through the form instead of setting cookies by hand.
 - After `agent-browser cookies clear`, a cached `/login` breaks CSRF in the dev site and every POST answers 400. Sign in with `vc_browser_login`, which loads `/login` with a unique query. See `features/sign-in.md`.
+- At load average near 30 on 8 cores, Vite dev pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png`, its page errors, console and network requests next to `steps.log`.
 - `launch.sh` sets `umask 022` for the build and the server. Some agent shells default to 077.
 - A second checkout can run its own instance at the same time. Two instances in one checkout cannot: they share `.coderv2`.

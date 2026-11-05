@@ -100,7 +100,8 @@ add_model() {
 
 chat() {
 	vc_ab open "$VC_WEB_URL/agents" >/dev/null
-	vc_ab wait --load networkidle >/dev/null
+	vc_ab wait '[data-testid=chat-message-input]' >/dev/null
+	vc_ab wait --text "$model_display" >/dev/null
 	vc_ab snapshot -i >"$out/05-agents-empty.snapshot.txt"
 	grep -qF "combobox \"$model_display\"" "$out/05-agents-empty.snapshot.txt" || {
 		echo "the composer does not select $model_display"

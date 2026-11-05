@@ -93,16 +93,24 @@ vc_api() {
 	curl -fsS --max-time 10 -H "Coder-Session-Token: $(vc_session_token)" "$VC_API_URL$1"
 }
 
-# vc_capture_failure saves the page and URL a failed browser step left.
+# vc_capture_failure saves the page, URL, page errors and console a failed
+# browser step left.
 vc_capture_failure() {
 	local dir="$1" name="$2"
 	vc_ab screenshot "$dir/fail-$name.png"
 	echo "url at failure: $(vc_ab get url)" >>"$dir/steps.log"
+	vc_ab errors >"$dir/fail-$name-errors.txt" 2>&1
+	vc_ab console >"$dir/fail-$name-console.txt" 2>&1
+	vc_ab network requests >"$dir/fail-$name-network.txt" 2>&1
+	echo "document at failure: $(vc_ab eval 'document.readyState + ", root children " + (document.getElementById("root") || {}).childElementCount')" >>"$dir/steps.log"
 }
 
-# vc_ab runs agent-browser in this instance's own session.
+# vc_ab runs agent-browser in this instance's own session. At load average
+# near 30 on 8 cores, Vite dev pages took longer than agent-browser's 25 s
+# default to render, so waits and actions get 90 s unless overridden.
 vc_ab() {
-	agent-browser --session "$VC_BROWSER_SESSION" "$@"
+	AGENT_BROWSER_DEFAULT_TIMEOUT="${VERIFY_CODER_BROWSER_TIMEOUT_MS:-90000}" \
+		agent-browser --session "$VC_BROWSER_SESSION" "$@"
 }
 
 # vc_browser_login signs in through the real login form and waits for the
@@ -115,6 +123,8 @@ vc_browser_login() {
 	local email="${1:-$VC_ADMIN_EMAIL}" password="${2:-$VC_ADMIN_PASSWORD}"
 	vc_ab cookies clear >/dev/null
 	vc_ab open "$VC_WEB_URL/login?verify=$(date +%s%N)" >/dev/null
+	# The login page is lazy loaded and renders after the page load event.
+	vc_ab wait 'input[name=password]' >/dev/null
 	vc_ab find label "Email" fill "$email" >/dev/null
 	vc_ab find label "Password" fill "$password" >/dev/null
 	# Sign-in renders a client-side redirect and also sets location.href
