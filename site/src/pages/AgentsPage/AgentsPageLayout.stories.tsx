@@ -47,6 +47,7 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
+import AgentAutomationsPage from "./AgentAutomationsPage/AgentAutomationsPage";
 import AgentChatPage from "./AgentChatPage/AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage/AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage";
@@ -166,6 +167,7 @@ const agentsRouting = {
 				},
 			],
 		},
+		{ path: "automations", element: <AgentAutomationsPage /> },
 		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
@@ -395,6 +397,20 @@ type Story = StoryObj<typeof AgentsPageLayout>;
 
 const mockChats = (chats: Chat[]) => {
 	spyOn(API.experimental, "getChats").mockResolvedValue(chats);
+};
+
+export const Automations: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations" },
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+};
+
+export const AutomationsMobile: Story = {
+	...Automations,
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 export const EmptyState: Story = {

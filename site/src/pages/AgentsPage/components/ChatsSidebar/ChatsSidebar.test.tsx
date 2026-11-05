@@ -742,6 +742,20 @@ describe("ChatsSidebar projects", () => {
 	});
 });
 
+it("opens the Automations page", async () => {
+	const user = userEvent.setup();
+	render(
+		<Wrapper initialEntry="/agents/chat-1">
+			<ChatsSidebar {...defaultProps} />
+			<ProjectLocationProbe />
+		</Wrapper>,
+	);
+	await user.click(screen.getByRole("link", { name: "Automations" }));
+	expect(screen.getByTestId("location-pathname").textContent).toBe(
+		"/agents/automations",
+	);
+});
+
 describe("ChatsSidebar section switcher", () => {
 	const LocationProbe: React.FC = () => {
 		const location = useLocation();

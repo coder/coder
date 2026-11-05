@@ -11,6 +11,7 @@ import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
 	PanelLeftCloseIcon,
+	RotateCwFadingClockIcon,
 	SearchIcon,
 	SettingsIcon,
 	SquarePenIcon,
@@ -551,6 +552,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
+				/>
+				<SettingsNavItem
+					icon={RotateCwFadingClockIcon}
+					label="Automations"
+					active={location.pathname === "/agents/automations"}
+					to={{ pathname: "/agents/automations", search: locationSearch }}
 				/>
 				{onOpenSearchDialog && (
 					<SettingsNavItem

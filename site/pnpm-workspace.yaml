@@ -25,3 +25,6 @@ allowBuilds:
 
 patchedDependencies:
   frimousse@0.4.0: patches/frimousse@0.4.0.patch
+
+minimumReleaseAgeExclude:
+  - lucide-react@1.68.0

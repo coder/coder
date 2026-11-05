@@ -290,7 +290,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId
+					!sidebarView.projectId &&
+					location.pathname !== "/agents/automations"
 				}
 				location={location}
 				currentUserId={currentUserId}
