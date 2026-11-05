@@ -6,26 +6,30 @@ This guide is for Coder deployment administrators who download Coder release art
 Use it to confirm that an artifact came from the Coder release pipeline and that nobody changed it after the build.
 Verify an artifact before you install it or copy it into an internal mirror or registry.
 
-Each Coder release publishes three kinds of verification data:
+Each Coder release publishes the following verification data:
 
-- A checksum file signed with the Coder release GNU Privacy Guard (GPG) key.
-  It covers every file attached to the GitHub release.
+- A checksum file signed with the Coder release key, a GNU Privacy Guard (GPG) key.
+  It covers every other file that the release pipeline uploads to the GitHub release.
 - Build provenance attestations in the [Supply-chain Levels for Software Artifacts (SLSA) provenance](https://slsa.dev/spec/v1.0/provenance) format, published as [GitHub artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations).
 - A software bill of materials (SBOM) for the container image in the [Software Package Data Exchange (SPDX)](https://spdx.dev/) JSON format.
   It's attached to the image as a signed attestation and to the GitHub release as a file.
+- Detached GPG signatures for the standalone CLI binaries on `releases.coder.com`.
+- Operating system code signatures on the Windows and macOS binaries.
 
 The release pipeline creates provenance attestations on a best-effort basis, and a release can publish without them.
-The GPG-signed checksum file is the verification method that covers every file on the GitHub release.
+The signed checksum file is the verification method that covers every file the release pipeline uploads to the GitHub release.
+The **Source code** archives that GitHub generates for each release aren't in the checksum file.
 
 ## What you can verify
 
-| Artifact                                             | Where to get it                                   | How to verify it             |
-|------------------------------------------------------|---------------------------------------------------|------------------------------|
-| Archives, packages, and the Windows installer        | GitHub release                                    | Signed checksums, provenance |
-| Helm charts for Coder, provisioners, and AI Gateway  | GitHub release or `https://helm.coder.com/v2`     | Signed checksums, provenance |
-| SBOM file and offline docs                           | GitHub release                                    | Signed checksums             |
-| Container image `ghcr.io/coder/coder:v<version>`     | GitHub Container Registry                         | Provenance, SBOM attestation |
-| Standalone CLI binaries, such as `coder-linux-amd64` | `https://releases.coder.com/coder-cli/<version>/` | Detached GPG signature       |
+| Artifact                                                  | Where to get it                                                             | How to verify it                |
+|-----------------------------------------------------------|-----------------------------------------------------------------------------|---------------------------------|
+| Archives, packages, and the Windows installer             | GitHub release                                                              | Signed checksums, provenance    |
+| Helm charts for Coder, provisioners, and AI Gateway       | GitHub release, `https://helm.coder.com/v2`, or `oci://ghcr.io/coder/chart` | Signed checksums, provenance    |
+| SBOM file and offline docs                                | GitHub release                                                              | Signed checksums                |
+| Container image `ghcr.io/coder/coder:v<version>`          | GitHub Container Registry                                                   | Provenance, SBOM attestation    |
+| Standalone CLI binaries, such as `coder-linux-amd64`      | `https://releases.coder.com/coder-cli/<version>/`                           | Detached GPG signature          |
+| CLI binaries in the Windows and macOS archives, installer | GitHub release                                                              | Operating system code signature |
 
 ## Prerequisites
 
@@ -34,11 +38,11 @@ Install the tools for the checks you plan to run:
 - [GnuPG](https://gnupg.org/download/) for the checksum file and CLI binary signatures.
   On Windows, install [Gpg4win](https://www.gpg4win.org/), which adds `gpg` to PowerShell.
 - The [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`, for provenance attestations and release downloads.
-- [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) version 3 for the container image SBOM.
+- [Cosign](https://docs.sigstore.dev/cosign/system_config/installation/) version 2 or 3 for the container image SBOM.
 - On Linux and macOS, `jq` to extract the SBOM from the attestation.
 
 The commands on this page use a `VERSION` variable.
-Set it to the release you want to verify, without the leading `v`, for example `2.38.6`:
+Set it to the release you want to verify, without the leading `v` (for example, `2.38.6`):
 
 <div class="tabs">
 
@@ -62,13 +66,23 @@ Commands on this page that show no Windows variant run unchanged in PowerShell.
 
 The Coder release key signs the checksum file and the standalone CLI binaries.
 
-1. Download the Coder release public key:
+1. Download the Coder release key:
+
+   <div class="tabs">
+
+   ### Linux and macOS
 
    ```sh
    curl -fsSLO https://raw.githubusercontent.com/coder/coder/main/release.key
    ```
 
-   On Windows, run `Invoke-WebRequest -Uri https://raw.githubusercontent.com/coder/coder/main/release.key -OutFile release.key`.
+   ### Windows
+
+   ```ps1
+   Invoke-WebRequest -Uri https://raw.githubusercontent.com/coder/coder/main/release.key -OutFile release.key
+   ```
+
+   </div>
 
 2. Display the key and its fingerprint:
 
@@ -77,6 +91,8 @@ The Coder release key signs the checksum file and the standalone CLI binaries.
    ```
 
    The user ID is `Coder Release Signing Key <security@coder.com>`.
+   GPG also prints `WARNING: No valid encryption subkey left over.`
+   The warning is about the key's encryption subkey, which signature checks don't use.
 
 3. Confirm that the primary key fingerprint matches the published fingerprint:
 
@@ -90,20 +106,27 @@ The Coder release key signs the checksum file and the standalone CLI binaries.
    gpg --import release.key
    ```
 
+   The output confirms the import:
+
+   ```txt
+   gpg: key <key ID>: public key "Coder Release Signing Key <security@coder.com>" imported
+   ```
+
 ## Verify a release file with GPG
 
-The `coder_<version>_checksums.txt` file lists the SHA-256 hash of every file on the GitHub release.
+The `coder_<version>_checksums.txt` file lists the SHA-256 hash of every other file that the release pipeline uploads to the GitHub release.
 The `coder_<version>_checksums.txt.asc` file is its detached GPG signature.
 
-1. Download the checksum file, its signature, and the artifact you want to verify:
+1. Import the Coder release key, as [Import the Coder release key](#import-the-coder-release-key) describes.
+2. Download the checksum file, its signature, and the artifact you want to verify.
+
+   If your artifact isn't `linux_amd64.tar.gz`, replace that suffix, for example with `darwin_arm64.zip` or `windows_amd64.zip`:
 
    ```sh
    gh release download "v${VERSION}" --repo coder/coder --pattern "coder_${VERSION}_checksums.txt*" --pattern "coder_${VERSION}_linux_amd64.tar.gz"
    ```
 
-   Replace `linux_amd64.tar.gz` with the suffix of your artifact, such as `darwin_arm64.zip` or `windows_amd64.zip`.
-
-2. Verify the signature on the checksum file:
+3. Verify the signature on the checksum file:
 
    ```sh
    gpg --verify "coder_${VERSION}_checksums.txt.asc" "coder_${VERSION}_checksums.txt"
@@ -119,7 +142,9 @@ The `coder_<version>_checksums.txt.asc` file is its detached GPG signature.
    The warning means that you haven't marked the key as trusted in your local keyring.
    The fingerprint check when you imported the key is what ties the key to Coder.
 
-3. Check the artifact's hash against the checksum file:
+4. Check the artifact's hash against the checksum file.
+
+   If you downloaded a different artifact, replace the file name in the command:
 
    <div class="tabs">
 
@@ -164,27 +189,33 @@ The binaries are named `coder-<os>-<arch>`:
 - `coder-windows-amd64.exe` and `coder-windows-arm64.exe`
 
 1. Import the Coder release key, as [Import the Coder release key](#import-the-coder-release-key) describes.
-2. Download the binary and its signature, then verify the signature:
+2. Set `BINARY` to the binary for your platform, then download the binary and its signature:
 
    <div class="tabs">
 
    ### Linux and macOS
 
    ```sh
-   curl -fsSLO "https://releases.coder.com/coder-cli/${VERSION}/coder-linux-amd64"
-   curl -fsSLO "https://releases.coder.com/coder-cli/${VERSION}/coder-linux-amd64.asc"
-   gpg --verify coder-linux-amd64.asc coder-linux-amd64
+   BINARY="coder-linux-amd64"
+   curl -fsSLO "https://releases.coder.com/coder-cli/${VERSION}/${BINARY}"
+   curl -fsSLO "https://releases.coder.com/coder-cli/${VERSION}/${BINARY}.asc"
    ```
 
    ### Windows
 
    ```ps1
-   Invoke-WebRequest -Uri "https://releases.coder.com/coder-cli/${VERSION}/coder-windows-amd64.exe" -OutFile coder-windows-amd64.exe
-   Invoke-WebRequest -Uri "https://releases.coder.com/coder-cli/${VERSION}/coder-windows-amd64.exe.asc" -OutFile coder-windows-amd64.exe.asc
-   gpg --verify coder-windows-amd64.exe.asc coder-windows-amd64.exe
+   $BINARY = "coder-windows-amd64.exe"
+   Invoke-WebRequest -Uri "https://releases.coder.com/coder-cli/${VERSION}/${BINARY}" -OutFile $BINARY
+   Invoke-WebRequest -Uri "https://releases.coder.com/coder-cli/${VERSION}/${BINARY}.asc" -OutFile "${BINARY}.asc"
    ```
 
    </div>
+
+3. Verify the signature:
+
+   ```sh
+   gpg --verify "${BINARY}.asc" "${BINARY}"
+   ```
 
    The output includes `Good signature from "Coder Release Signing Key <security@coder.com>"`.
 
@@ -218,6 +249,9 @@ The following 1 attestation matched the policy criteria
   - Signer workflow: .github/workflows/release.yaml@refs/tags/v<version>
 ```
 
+A Helm chart that you pull from `oci://ghcr.io/coder/chart` with `helm pull` has a different file name, such as `coder-<version>.tgz`, and the same contents.
+Run the same command on that file.
+
 If GitHub has no attestation for the file's digest, the command fails with `HTTP 404: Not Found`.
 For a file on the GitHub release, verify it with the [signed checksum file](#verify-a-release-file-with-gpg) instead.
 
@@ -232,12 +266,18 @@ gh attestation verify "oci://ghcr.io/coder/coder:v${VERSION}" --repo coder/coder
 The output has the same format as the output for a release file.
 The tag points to the multi-architecture image index, and the attestation covers that index digest.
 
-## Verify the container image SBOM with cosign
+If the command fails with `HTTP 404: Not Found`, verify the [SBOM attestation](#verify-the-container-image-sbom-with-cosign) instead.
+Its signing certificate also identifies the Coder release workflow and the release tag.
+
+## Verify the container image SBOM with Cosign
 
 The release pipeline generates an SPDX SBOM for `ghcr.io/coder/coder:v<version>` and signs it as an attestation on the image with Sigstore keyless signing.
 The signing certificate identifies the Coder release workflow and the release tag.
 
-1. Verify the SBOM attestation and save the SBOM:
+1. Verify the SBOM attestation and save the SBOM.
+
+   If you use Cosign 2, remove the `--new-bundle-format=false` line from the command.
+   Cosign 3 needs the flag to read the older attestation format that the SBOM attestation uses, and it prints a warning that the flag is deprecated.
 
    <div class="tabs">
 
@@ -268,7 +308,8 @@ The signing certificate identifies the Coder release workflow and the release ta
 
    </div>
 
-   cosign prints the checks it performed and the certificate details to the terminal:
+   Cosign prints the checks it performed and the certificate details to the terminal.
+   The output includes these lines:
 
    ```txt
    The following checks were performed on each of these signatures:
@@ -279,14 +320,11 @@ The signing certificate identifies the Coder release workflow and the release ta
    Certificate issuer URL: https://token.actions.githubusercontent.com
    ```
 
-   The SBOM attestation uses the older cosign attestation format, which cosign 3 reads only with `--new-bundle-format=false`.
-   cosign 3 also prints a warning that the flag is deprecated.
-   With cosign 2, remove the `--new-bundle-format=false` line.
-
 2. Open `coder_<version>_image_sbom.spdx.json` in your SBOM or vulnerability scanning tool.
 
 The same SBOM is attached to the GitHub release as `coder_<version>_sbom.spdx.json`, and the signed checksum file covers it.
-When the release is also tagged `latest`, the release includes `coder_latest_sbom.spdx.json` for the `ghcr.io/coder/coder:latest` image.
+When the release is the highest Coder version that isn't a release candidate, the release pipeline also publishes `ghcr.io/coder/coder:latest`.
+The release then includes `coder_latest_sbom.spdx.json` for that image.
 
 ## Check operating system code signatures
 
@@ -304,13 +342,16 @@ Extract `coder` from the `coder_<version>_darwin_<arch>.zip` archive, then displ
 codesign -dvv coder
 ```
 
-To check that Gatekeeper accepts the notarized binary, run:
+The signing authority is `TODO(security): confirm the Apple Developer ID and Team ID to publish`.
+
+If the Mac has internet access, check that Gatekeeper accepts the notarized binary:
 
 ```sh
 spctl --assess -vvv -t install coder
 ```
 
-The signing authority is `TODO(security): confirm the Apple Developer ID and Team ID to publish`.
+The archive doesn't include the notarization ticket, so `spctl` downloads the ticket from Apple.
+Without internet access, the check fails even for a genuine binary.
 
 ### Windows
 
@@ -330,4 +371,4 @@ The signer certificate subject is `TODO(security): confirm the EV certificate su
 - [Security advisories](./index.md#security-advisories)
 - [`gh attestation verify` reference](https://cli.github.com/manual/gh_attestation_verify)
 - [Sigstore documentation](https://docs.sigstore.dev/)
-- [Coder release public key](../../../release.key)
+- [Coder release key](../../../release.key)
