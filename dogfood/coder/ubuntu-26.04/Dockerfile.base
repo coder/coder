@@ -5,16 +5,18 @@ SHELL ["/bin/bash", "-c"]
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
 
-# Use more reliable mirrors for Ubuntu packages. Switch before the first
-# apt-get update so every apt step reads the same mirror: unminimize upgrades
-# installed packages, and a package that requires an exact version of one of
-# them (apt-utils requires apt) fails to install below if the mirror lacks
-# that version.
+# Read Ubuntu packages through the mirror list before the first apt-get update,
+# and copy in the retry settings it relies on, so every apt step reads the same
+# hosts. unminimize upgrades installed packages, and a package that requires an
+# exact version of one of them (apt-utils requires apt) fails to install below
+# if its index lacks that version.
 #
-# ca-certificates must be installed before copying in files/, whose
-# third-party apt sources use HTTPS. Also enable the en_US.UTF-8 locale so
-# that we don't generate multiple locales and unminimize to include man pages.
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
+# ca-certificates must be installed before copying in the rest of files/, whose
+# third-party apt sources use HTTPS. Also enable the en_US.UTF-8 locale so that
+# we don't generate multiple locales and unminimize to include man pages.
+COPY dogfood/coder/ubuntu-26.04/files/etc/apt/ubuntu-mirrors.txt /etc/apt/ubuntu-mirrors.txt
+COPY dogfood/coder/ubuntu-26.04/files/etc/apt/apt.conf.d/80-retries /etc/apt/apt.conf.d/80-retries
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|mirror+file:/etc/apt/ubuntu-mirrors.txt|g; s|http://security.ubuntu.com/ubuntu/|mirror+file:/etc/apt/ubuntu-mirrors.txt|g' /etc/apt/sources.list.d/ubuntu.sources && \
 	apt-get update && \
 	apt-get install --yes ca-certificates locales unminimize && \
 	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \

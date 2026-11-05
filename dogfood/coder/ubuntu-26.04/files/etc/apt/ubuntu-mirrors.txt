@@ -1,0 +1,13 @@
+# Ubuntu archive hosts for the mirror+file: sources in ubuntu.sources. For
+# each file, apt tries them in priority order and falls back to the next host
+# on any error, including 403 and 404, without printing a warning.
+#
+# List only hosts that serve the archive's current state. Later apt steps in
+# Dockerfile.base install packages that require exact versions of packages an
+# earlier step installed, so falling back to a host that lags the archive
+# fails the build. mirrors.edge.kernel.org lagged by more than a day.
+#
+# The hosts use http because the base image has no CA certificates before the
+# first apt step. apt still verifies the signed InRelease files.
+http://archive.ubuntu.com/ubuntu/	priority:1
+http://azure.archive.ubuntu.com/ubuntu/	priority:2

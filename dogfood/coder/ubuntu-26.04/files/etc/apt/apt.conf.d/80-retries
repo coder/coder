@@ -1,1 +1,7 @@
-APT::Acquire::Retries "3";
+// Fail over to the next host in /etc/apt/ubuntu-mirrors.txt sooner. apt
+// retries a transient error on the same host before it tries the next host,
+// and its defaults (3 retries, 30 s timeout) spend minutes per file on a host
+// that accepts connections but never answers. The retry count also applies
+// to the HTTPS third-party sources, which have no fallback host.
+Acquire::Retries "1";
+Acquire::http::Timeout "15";
