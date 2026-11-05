@@ -55,3 +55,31 @@ coder:
     secretNames:
       - my-tls-secret-name
 ```
+
+## Network policy
+
+Set `coder.networkPolicy.enable` to create a Kubernetes `NetworkPolicy` for the
+Coder pods. Your CNI must enforce NetworkPolicy for it to have any effect.
+
+```yaml
+coder:
+  networkPolicy:
+    enable: true
+    ingress:
+      # Optional. If empty, any source can reach the HTTP(S) ports.
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    # Open other ports, such as Prometheus.
+    extraIngress:
+      - ports:
+          - port: 2112
+            protocol: TCP
+```
+
+Once enabled, ingress is limited to the HTTP(S) ports, plus ports 8080 and 6222
+between Coder replicas for high availability. Egress is unrestricted unless you
+set `coder.networkPolicy.egress.enable`. In that case only DNS and your
+`extraEgress` rules are allowed, so you must also allow PostgreSQL, the
+Kubernetes API, workspaces, and any external services Coder uses.

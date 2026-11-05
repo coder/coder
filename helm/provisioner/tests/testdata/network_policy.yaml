@@ -1,0 +1,15 @@
+coder:
+  image:
+    tag: latest
+  networkPolicy:
+    enable: true
+    extraIngress:
+      - ports:
+          - port: 2112
+            protocol: TCP
+    egress:
+      enable: true
+    extraEgress:
+      - ports:
+          - port: 8080
+            protocol: TCP

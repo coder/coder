@@ -549,6 +549,51 @@ coder:
       #   port: 80
       parentRefs: []
 
+  # coder.networkPolicy -- A NetworkPolicy for the Coder pods. Requires a CNI
+  # that enforces NetworkPolicy. Once enabled, ingress to the Coder pods is
+  # limited to the HTTP(S) ports; add other ports (e.g. Prometheus on 2112)
+  # with extraIngress.
+  networkPolicy:
+    # coder.networkPolicy.enable -- Whether to create the NetworkPolicy object.
+    enable: false
+    # coder.networkPolicy.annotations -- The NetworkPolicy annotations.
+    annotations: {}
+    # coder.networkPolicy.ingress.from -- Peers allowed to reach the HTTP(S)
+    # ports, as NetworkPolicyPeer objects. If empty, any source is allowed,
+    # which is typically required because users, agents, and load balancers
+    # connect from varying addresses. Other Coder replicas are always allowed
+    # on ports 8080 (DERP relay) and 6222 (pubsub) regardless of this setting.
+    ingress:
+      from: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: ingress-nginx
+    # coder.networkPolicy.extraIngress -- Additional NetworkPolicyIngressRule
+    # objects appended to spec.ingress.
+    extraIngress: []
+    # - ports:
+    #     - port: 2112
+    #       protocol: TCP
+    #   from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: monitoring
+    egress:
+      # coder.networkPolicy.egress.enable -- Whether to also restrict egress.
+      # When true, only DNS (port 53) and extraEgress rules are allowed, so
+      # you must allow PostgreSQL, the Kubernetes API, workspaces, and any
+      # external services Coder uses (OIDC, git providers, etc.).
+      enable: false
+    # coder.networkPolicy.extraEgress -- Additional NetworkPolicyEgressRule
+    # objects appended to spec.egress. Only used if egress.enable is true.
+    extraEgress: []
+    # - to:
+    #     - ipBlock:
+    #         cidr: 10.0.0.0/8
+    #   ports:
+    #     - port: 5432
+    #       protocol: TCP
+
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.
   command:

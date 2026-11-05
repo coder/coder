@@ -1,0 +1,23 @@
+coder:
+  image:
+    tag: latest
+  tls:
+    secretNames:
+      - coder-tls
+  networkPolicy:
+    enable: true
+    ingress:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    extraIngress:
+      - ports:
+          - port: 2112
+            protocol: TCP
+    egress:
+      enable: true
+    extraEgress:
+      - ports:
+          - port: 5432
+            protocol: TCP

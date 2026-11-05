@@ -82,6 +82,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "network_policy",
+		expectedError: "",
+	},
+	{
 		name:          "extra_templates",
 		expectedError: "",
 	},

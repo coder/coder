@@ -63,6 +63,33 @@ coder:
     com.coder/podLabel/baz: qux
 ```
 
+### Network Policy
+
+Set `coder.networkPolicy.enable` to create a `NetworkPolicy` for the provisioner
+pods. Your CNI must enforce NetworkPolicy for it to have any effect. The
+provisioner only makes outbound connections, so ingress is denied unless you
+allow it in `coder.networkPolicy.extraIngress`, for example to scrape metrics on
+port 2112. Egress is unrestricted unless you set
+`coder.networkPolicy.egress.enable`. In that case only DNS and your
+`extraEgress` rules are allowed, so you must also allow the Coder deployment,
+the Kubernetes API, and anything your templates reach during builds.
+
+```yaml
+coder:
+  networkPolicy:
+    enable: true
+    egress:
+      enable: true
+    extraEgress:
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: coder
+        ports:
+          - port: 8080
+            protocol: TCP
+```
+
 ### Additional Templates
 
 You can include extra Kubernetes manifests in `extraTemplates`.
