@@ -127,7 +127,6 @@ Messages are queued and delivered before the agent's next model call, so there i
 To redirect a busy agent, send a message.
 Do not interrupt it first.
 A message waits for the current step to finish, so a long tool call delays it.
-If you interrupt the agent after a message was delivered, the interrupt cancels the reply to it.
 After an interrupt, the agent starts with the messages that were already queued.
 A message sent while the agent works can change the model: the agent uses that message's model from its next model call.
 When several messages are delivered together, the agent uses the model of the last one, and the reasoning effort of the last one that sets an effort.
