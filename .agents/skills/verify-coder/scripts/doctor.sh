@@ -94,6 +94,35 @@ starter_template() {
 	echo "docker template exists"
 }
 
+# launch.sh makes the state folder private because develop.log records the
+# admin password.
+state_private() {
+	local mode
+	mode="$(stat -c '%a' "$VC_STATE")"
+	[[ "$mode" == 700 ]] || {
+		echo "$VC_STATE has mode $mode, not 700"
+		return 1
+	}
+	echo "$VC_STATE is private (700)"
+}
+
+# The server listens on every interface, so data that launch.sh created must
+# refuse the published default password.
+default_password_refused() {
+	local code
+	if [[ "$VC_ADMIN_PASSWORD" == "SomeSecurePassword!" ]]; then
+		echo "this data uses the published default password (launch.sh did not create its database)"
+		return 0
+	fi
+	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+		--data '{"email": "admin@coder.com", "password": "SomeSecurePassword!"}' "$VC_API_URL/api/v2/users/login")"
+	[[ "$code" == 401 ]] || {
+		echo "sign-in with the published default password answered $code, wanted 401"
+		return 1
+	}
+	echo "the published default password is refused (401)"
+}
+
 vc_check owner owner
 vc_check api-port port_owned "$VC_API_PORT"
 vc_check web-port port_owned "$VC_WEB_PORT"
@@ -103,6 +132,8 @@ vc_check admin-session admin_session
 vc_check embedded-ui embedded_ui
 vc_check vite vite_proxies_api
 vc_check starter-template starter_template
+vc_check state-private state_private
+vc_check default-password default_password_refused
 
 echo "INFO web UI and API $VC_WEB_URL, Vite dev server $VC_VITE_URL, admin $VC_ADMIN_EMAIL"
 echo "doctor: $VC_PASS/$VC_TOTAL checks passed"

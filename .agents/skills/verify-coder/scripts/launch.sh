@@ -78,18 +78,17 @@ fi
 # The marker tells cleanup.sh that this harness created the folder.
 # cleanup.sh --keep-data deletes it, so the folder then counts as the
 # developer's.
-created=0
 if [[ ! -d "$VC_CONFIG_DIR" ]]; then
 	mkdir -p "$VC_CONFIG_DIR"
 	touch "$VC_CONFIG_DIR/.verify-coder-created"
-	created=1
 fi
 
-# develop.sh binds every interface, so a database this harness creates gets a
-# random admin password instead of the published default. The password file
-# sits next to the data it belongs to and lives as long as that data.
+# develop.sh binds every interface, so a database that this launch creates
+# (--fresh, or no built-in Postgres data yet) gets a random admin password
+# instead of the published default. The password file sits next to the data
+# it belongs to and lives as long as that data.
 password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
-if [[ -f "$VC_CONFIG_DIR/.verify-coder-created" ]] && ((created || fresh)); then
+if ((fresh)) || [[ ! -d "$VC_CONFIG_DIR/postgres/data" ]]; then
 	password="${CODER_DEV_ADMIN_PASSWORD:-Vc-$(openssl rand -hex 16)}"
 	(
 		umask 077

@@ -121,7 +121,12 @@ new_user_can_sign_in() {
 # coder users create prints the generated password on stderr, so neither
 # stream is kept.
 cli_create_user() {
-	"$scripts/coder.sh" users create --username "$cli_username" --email "$cli_username@coder.com" --full-name "Verify $cli_username" >/dev/null 2>&1
+	local rc=0
+	"$scripts/coder.sh" users create --username "$cli_username" --email "$cli_username@coder.com" --full-name "Verify $cli_username" >/dev/null 2>&1 || rc=$?
+	((rc == 0)) || {
+		echo "coder users create exited $rc (output discarded, it holds the generated password)"
+		return 1
+	}
 	vc_api "/api/v2/users?q=$cli_username" |
 		jq '[.users[] | {username, email, login_type, status}]' >"$out/api-cli-user.json"
 	jq -e --arg u "$cli_username" 'length == 1 and .[0].username == $u and .[0].login_type == "password"' \
@@ -143,6 +148,11 @@ delete_users() {
 			return 1
 		}
 	done
+	# The search matches both usernames, so this also proves the loop covered both.
+	vc_api "/api/v2/users?q=$username" | jq -e '.users | length == 0' >/dev/null || {
+		echo "GET /api/v2/users?q=$username still lists a journey user"
+		return 1
+	}
 	echo "coder users delete removed $username and $cli_username, the API answers 404"
 }
 
