@@ -203,6 +203,31 @@ However, it does not mean that direct connections are impossible.
 **Solution:**
 Engage with your network administrator.
 
+## Network interfaces
+
+The network interface check inspects the network interfaces of the machine it runs on, not the Coder server.
+Its results don't appear on the deployment health page.
+[`coder ping`](../../reference/cli/ping.md) reports them for both the client and the workspace agent, [`coder netcheck`](../../reference/cli/netcheck.md) reports them for the client, and support bundles include them.
+
+### EIF01
+
+#### Network interface has a low MTU
+
+**Problem:**
+A network interface that is up and has a non-link-local address has a maximum transmission unit (MTU) smaller than 1378.
+Direct connections over this interface might have degraded quality or might hang entirely.
+This is a warning.
+Connections relayed through DERP are not affected.
+
+**Solution:**
+Increase the MTU of the affected interface to 1378 or higher, or use a different network interface.
+Virtual private network (VPN) tunnel interfaces often have a low MTU.
+
+If you can't change the MTU or use another interface, disable direct connections so that all traffic is relayed through DERP.
+To do this, set the [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
+
+For more information, refer to [Low MTU](../networking/troubleshooting.md#low-mtu) in the networking troubleshooting guide.
+
 ## Websocket
 
 Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/) for long-lived connections:
@@ -245,6 +270,22 @@ There are multiple possible causes of this problem:
 1. Validate that any reverse proxy servers in front of Coder's configured access URL are not prematurely closing the connection.
 2. Validate that the network link between Coder and the workspace proxy is stable, for example, by using `ping`.
 3. Validate that any internal network infrastructure (for example, firewalls, proxies, virtual private networks (VPNs)) do not interfere with WebSocket connections.
+
+### EWS03
+
+#### Received an unexpected WebSocket message
+
+**Problem:**
+Coder established a WebSocket connection over its own Access URL and sent a text message, but the reply did not match.
+Either the reply was not a text message, or its contents differ from the message Coder sent.
+This can happen when something between Coder and its Access URL changes WebSocket traffic, or when the Access URL does not route to Coder.
+
+**Solution:**
+There are multiple possible causes of this problem:
+
+1. Make sure that Coder's configured Access URL routes to Coder and not to another service.
+2. Make sure that reverse proxies and load balancers pass WebSocket messages through unchanged.
+3. Make sure that firewalls and traffic inspection proxies don't change or inject WebSocket messages.
 
 ## Workspace Proxy
 
