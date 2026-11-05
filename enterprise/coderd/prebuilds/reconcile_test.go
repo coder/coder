@@ -395,7 +395,8 @@ func (tc testCase) run(t *testing.T) {
 		logger := slogtest.Make(
 			t, &slogtest.Options{IgnoreErrors: true},
 		).Leveled(slog.LevelDebug)
-		db, pubSub := dbtestutil.NewDB(t)
+		db, rps := dbtestutil.NewDB(t)
+		var pubSub pubsub.Pubsub = rps
 
 		ownerID := uuid.New()
 		dbgen.User(t, db, database.User{
@@ -441,7 +442,7 @@ func (tc testCase) run(t *testing.T) {
 		}
 
 		if tc.useBrokenPubsub {
-			pubSub = &brokenPublisher{ReportingPubsub: pubSub}
+			pubSub = &brokenPublisher{Pubsub: pubSub}
 		}
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		controller := prebuilds.NewStoreReconciler(
@@ -495,7 +496,7 @@ func (tc testCase) run(t *testing.T) {
 // brokenPublisher is used to validate that Publish() calls which always fail do not affect the reconciler's behavior,
 // since the messages published are not essential but merely advisory.
 type brokenPublisher struct {
-	pubsub.ReportingPubsub
+	pubsub.Pubsub
 }
 
 // Publish deliberately fails.

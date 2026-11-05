@@ -169,7 +169,8 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           pubsub.ReportingPubsub
+	// Note that a _reporting_ pubsub here is just one that can generate a health check of itself.
+	Pubsub pubsub.ReportingPubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
 	ReplicaSyncPubsub pubsub.Pubsub
