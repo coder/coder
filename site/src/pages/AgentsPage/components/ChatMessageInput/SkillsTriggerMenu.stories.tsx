@@ -7,12 +7,12 @@ import { filterSkillsByQuery } from "../../utils/skills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
 	createCommandMenuItem,
-	type SkillMetadata,
+	type SkillSummary,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import { findVisibleText } from "./storyHelpers";
 
-const mockWorkspaceSkills: SkillMetadata[] = [
+const mockWorkspaceSkills: SkillSummary[] = [
 	{
 		name: "test-runner",
 		description: "Run the workspace test command.",
@@ -23,14 +23,14 @@ const mockWorkspaceSkills: SkillMetadata[] = [
 	},
 ];
 
-const mockOrganizationSkills: SkillMetadata[] = [
+const mockOrganizationSkills: SkillSummary[] = [
 	{
 		name: "release-notes",
 		description: "Write release notes in the organization style.",
 	},
 ];
 
-const mockProjectSkills: SkillMetadata[] = [
+const mockProjectSkills: SkillSummary[] = [
 	{
 		name: "project-conventions",
 		description: "Follow the conventions of this project.",

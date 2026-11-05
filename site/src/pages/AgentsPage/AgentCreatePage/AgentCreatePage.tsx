@@ -436,7 +436,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			canCreateChat={permissions.createChat}
 			canConfigureAgentSetup={permissions.editDeploymentConfig}
 			aiGatewayDisabled={aiGatewayDisabled}
-			workspaceCount={workspacesQuery.data?.count}
 			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}

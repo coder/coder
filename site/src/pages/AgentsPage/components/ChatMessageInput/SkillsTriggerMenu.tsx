@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { useLayoutEffect, useRef } from "react";
+import type { SkillMetadata } from "#/api/typesGenerated";
 import {
 	Command,
 	CommandEmpty,
@@ -14,10 +15,7 @@ import {
 } from "#/components/Popover/Popover";
 import type { SkillTrigger } from "../../utils/skillAliases";
 
-export type SkillMetadata = {
-	name: string;
-	description: string;
-};
+export type SkillSummary = Pick<SkillMetadata, "name" | "description">;
 
 export type SkillMenuItem = Omit<SkillTrigger, "source"> & {
 	source: SkillTrigger["source"] | "command";
@@ -27,7 +25,7 @@ export type SkillMenuItem = Omit<SkillTrigger, "source"> & {
 // combined keyboard-selection list and trigger replacement work
 // unchanged; their trigger text is never source-qualified.
 export const createCommandMenuItem = (
-	command: SkillMetadata,
+	command: SkillSummary,
 ): SkillMenuItem => ({
 	name: command.name,
 	description: command.description,

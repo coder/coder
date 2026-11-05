@@ -174,6 +174,9 @@ importers:
 
   .:
     dependencies:
+      '@coder/pixel-storybook':
+        specifier: 0.3.0
+        version: 0.3.0(playwright-core@1.63.0)(storybook@10.6.2(@types/react@19.3.0)(prettier@3.4.1)(react@19.3.1))
       '@dnd-kit/abstract':
         specifier: 0.5.1
         version: 0.5.1
@@ -412,9 +415,6 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.10
         version: 2.5.10
-      '@coder/pixel-storybook':
-        specifier: 0.3.0
-        version: 0.3.0(playwright-core@1.63.0)(storybook@10.6.2(@types/react@19.3.0)(prettier@3.4.1)(react@19.3.1))
       '@octokit/types':
         specifier: 12.6.0
         version: 12.6.0

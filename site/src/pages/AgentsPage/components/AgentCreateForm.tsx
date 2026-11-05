@@ -293,7 +293,6 @@ type AgentCreateFormProps = {
 	canCreateChat: boolean;
 	canConfigureAgentSetup: boolean;
 	aiGatewayDisabled?: boolean;
-	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
@@ -326,7 +325,6 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
-	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,

@@ -89,7 +89,7 @@ import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
-import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import type { SkillSummary } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
@@ -228,7 +228,7 @@ type AgentChatInputProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
-	workspaceSkills?: readonly SkillMetadata[];
+	workspaceSkills?: readonly SkillSummary[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;

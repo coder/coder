@@ -86,7 +86,7 @@ import {
 import {
 	createCommandMenuItem,
 	type SkillMenuItem,
-	type SkillMetadata,
+	type SkillSummary,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import {
@@ -671,7 +671,7 @@ type ChatMessageInputProps = Omit<
 	 * menu matches read_skill resolution. Undefined while the chat
 	 * detail is still loading (or when no chat exists yet).
 	 */
-	workspaceSkills?: readonly SkillMetadata[];
+	workspaceSkills?: readonly SkillSummary[];
 	/**
 	 * Built-in commands offered by the "/" trigger menu ahead of
 	 * skills. Selection inserts the command text; the parent
@@ -951,7 +951,7 @@ const ChatMessageInput = ({
 	// Project skills also wait for the caller's project list, and losing the
 	// use of the project gives a known empty list, because chatd then runs
 	// turns without project skills.
-	const skillLists: SkillSourceList<SkillMetadata>[] = [
+	const skillLists: SkillSourceList<SkillSummary>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: organizationSkillList },
 		{
