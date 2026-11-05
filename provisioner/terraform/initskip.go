@@ -27,10 +27,10 @@ import (
 type lockedProvider struct {
 	// Source is the fully qualified provider address, for example
 	// registry.terraform.io/coder/coder.
-	Source  string `hcl:"source,label"`
-	Version string `hcl:"version"`
-	// Remain absorbs the constraints and hashes attributes, which we
-	// don't need.
+	Source  string   `hcl:"source,label"`
+	Version string   `hcl:"version"`
+	Hashes  []string `hcl:"hashes,optional"`
+	// Remain absorbs the constraints attribute, which we don't need.
 	Remain hcl.Body `hcl:",remain"`
 }
 
@@ -60,15 +60,18 @@ func parseLockFile(path string) ([]lockedProvider, error) {
 	return lock.Providers, nil
 }
 
-// validateLockedProvider rejects lock file entries whose source or version
-// could escape the plugin cache or .terraform/providers, because both become
-// path components when providers are linked.
+// validateLockedProvider rejects lock file entries that linking can't use
+// safely: a source or version that could escape the plugin cache or
+// .terraform/providers, where both become path components, or no h1 hash,
+// without which plan would load the linked package unverified.
 func validateLockedProvider(p lockedProvider) error {
 	switch {
 	case strings.Count(p.Source, "/") != 2, strings.Contains(p.Source, ".."):
 		return xerrors.Errorf("unexpected provider source %q", p.Source)
 	case p.Version == "", strings.Contains(p.Version, "/"), strings.Contains(p.Version, ".."):
 		return xerrors.Errorf("unexpected version %q for provider %q", p.Version, p.Source)
+	case !slices.ContainsFunc(p.Hashes, func(hash string) bool { return strings.HasPrefix(hash, "h1:") }):
+		return xerrors.Errorf("no h1 hash for provider %q", p.Source)
 	}
 	return nil
 }
@@ -84,8 +87,9 @@ func providerPackageDir(root string, p lockedProvider) string {
 // for a workspace build when nothing needs to be downloaded: it links every
 // provider pinned by the lock file from the plugin cache into
 // .terraform/providers. It reports false without touching the working
-// directory when any pinned provider is missing from the cache, in which
-// case the caller must run a real init.
+// directory when any pinned provider is missing from the cache, or when the
+// working directory already holds something else in a provider's place, in
+// which case the caller must run a real init.
 //
 // This mirrors Terraform's own behavior with TF_PLUGIN_CACHE_DIR, which
 // creates an absolute symlink from the working directory into the cache.
@@ -102,6 +106,13 @@ func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lock
 			return strings.HasPrefix(entry.Name(), "terraform-provider-")
 		})
 		if !hasBinary {
+			return false, nil
+		}
+		// The template's source archive could have put a package there.
+		target, err := os.Readlink(providerPackageDir(files.ProvidersDirectory(), p))
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+		case err != nil, target != providerPackageDir(cachePath, p):
 			return false, nil
 		}
 	}
@@ -253,24 +264,27 @@ func (s *errorCapturingSink) capturedErrors() []string {
 	return slices.Clone(s.errors)
 }
 
-// initErrorMarkers are fragments of the Terraform diagnostics that mean the
-// working directory is missing something `terraform init` would install. The
-// generic "terraform init" covers diagnostics that tell the user to run it.
-var initErrorMarkers = []string{
-	"plugins are not installed",
-	"cached in .terraform/providers",
-	"dependency lock file",
-	"module not installed",
-	"module source has changed",
-	"initialization required",
-	"terraform init",
+// initErrorSummaries start the summaries of the Terraform diagnostics that
+// mean the working directory is missing something `terraform init` installs.
+var initErrorSummaries = []string{
+	"Required plugins are not installed",
+	"Inconsistent dependency lock file",
+	"Missing required provider",
+	"Module not installed",
+	"Module source has changed",
+	"Module version requirements have changed",
+	"Backend initialization required",
 }
 
-// needsInit reports whether any captured error indicates that the working
-// directory needs `terraform init`.
+// needsInit reports whether any captured error is a diagnostic that means the
+// working directory needs `terraform init`. Only the summary line counts,
+// because a diagnostic's detail can quote the template, such as a
+// precondition's error message.
 func (s *errorCapturingSink) needsInit() bool {
-	out := strings.ToLower(strings.Join(s.capturedErrors(), "\n"))
-	return slices.ContainsFunc(initErrorMarkers, func(marker string) bool {
-		return strings.Contains(out, marker)
+	return slices.ContainsFunc(s.capturedErrors(), func(line string) bool {
+		summary, ok := strings.CutPrefix(strings.TrimLeft(line, "│ "), "Error: ")
+		return ok && slices.ContainsFunc(initErrorSummaries, func(prefix string) bool {
+			return strings.HasPrefix(summary, prefix)
+		})
 	})
 }

@@ -305,8 +305,7 @@ func (s *server) Plan(
 	}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	resp, plan, err := planWithGraph(planLogs)
-	var fallbackInitTimings []*proto.Timing
-	if err != nil && sessState.initSkipped && planLogs.needsInit() {
+	if err != nil && sessState.initSkipped && ctx.Err() == nil && planLogs.needsInit() {
 		// Init only linked cached providers, and Terraform reports that the
 		// working directory needs more, for example a module the archive did
 		// not include. Run the real init and plan once more.
@@ -314,18 +313,15 @@ func (s *server) Plan(
 			slog.Error(err), slog.F("plan_errors", planLogs.capturedErrors()))
 		sess.ProvisionLog(proto.LogLevel_WARN, "Cached providers were not sufficient, running terraform init")
 		sessState.initSkipped = false
-		// A copy of the executor with its own timings keeps init's timings
-		// under the init stage.
-		initExecutor := *e
-		initExecutor.timings = newTimingAggregator(database.ProvisionerJobTimingStageInit)
-		endInit := initExecutor.timings.startStage(database.ProvisionerJobTimingStageInit)
-		initErr := s.initWorkingDirectory(ctx, killCtx, &initExecutor, sess, &sessState)
-		endInit(initErr)
+		// The init counts toward the plan stage: job stats measure each stage
+		// from its first start to its last end, so stages must not interleave.
+		initErr := s.initWorkingDirectory(ctx, killCtx, e, sess, &sessState)
 		if initErr != nil {
+			// The plan never ran again, so show why it failed the first time.
+			planLogs.flushHeldErrors()
 			endStage(initErr)
 			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
 		}
-		fallbackInitTimings = initExecutor.timings.aggregate()
 		resp, plan, err = planWithGraph(sess)
 	} else {
 		planLogs.flushHeldErrors()
@@ -341,7 +337,7 @@ func (s *server) Plan(
 	sessState.plan, sessState.graph = plan, rawGraph
 	s.setSessionState(sess.Context(), sess, sessState)
 
-	resp.Timings = append(e.timings.aggregate(), fallbackInitTimings...)
+	resp.Timings = e.timings.aggregate()
 	return resp
 }
 

@@ -848,10 +848,14 @@ func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
 	require.NoError(t, err)
 	const unrelated = `{"@level":"error","@message":"Error: Unsupported attribute","type":"diagnostic","diagnostic":{"severity":"error","summary":"Unsupported attribute","detail":"This object has no argument named \"x\"."}}`
 	const needsInit = `{"@level":"error","@message":"Error: Required plugins are not installed","type":"diagnostic","diagnostic":{"severity":"error","summary":"Required plugins are not installed","detail":"Run \"terraform init\" to install all required plugins."}}`
+	// The precondition's message is the template's own text.
+	const precondition = `{"@level":"error","@message":"Error: Resource precondition failed","type":"diagnostic","diagnostic":{"severity":"error","summary":"Resource precondition failed","detail":"Run \"terraform init\" before creating workspaces."}}`
 	tests := []struct {
-		name        string
-		planOutput  string
-		wantInit    bool
+		name       string
+		planOutput string
+		// failInit makes every terraform init fail.
+		failInit    bool
+		wantInits   int
 		wantError   string
 		wantInLog   string
 		wantNoInLog string
@@ -864,11 +868,27 @@ func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
 			wantNoInLog: logFallbackToInit,
 		},
 		{
+			name:        "PreconditionMentionsInit",
+			planOutput:  precondition,
+			wantError:   "terraform plan",
+			wantInLog:   "Error: Resource precondition failed",
+			wantNoInLog: logFallbackToInit,
+		},
+		{
 			name:        "NeedsInit",
 			planOutput:  needsInit,
-			wantInit:    true,
+			wantInits:   1,
 			wantInLog:   logFallbackToInit,
 			wantNoInLog: "Required plugins are not installed",
+		},
+		{
+			// The init runs again with the template's own lock file.
+			name:       "FallbackInitFails",
+			planOutput: needsInit,
+			failInit:   true,
+			wantInits:  2,
+			wantError:  "initialize terraform",
+			wantInLog:  "Error: Required plugins are not installed",
 		},
 	}
 	for _, test := range tests {
@@ -879,6 +899,10 @@ func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
 			planPath := filepath.Join(dir, "plan.json")
 			initArgsPath := filepath.Join(dir, "init-args")
 			planFailedPath := filepath.Join(dir, "plan-failed")
+			failInitPath := filepath.Join(dir, "fail-init")
+			if test.failInit {
+				require.NoError(t, os.WriteFile(failInitPath, nil, 0o600))
+			}
 			require.NoError(t, os.WriteFile(planOutputPath, []byte(test.planOutput+"\n"), 0o600))
 			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
 			// The shim fails the first plan and succeeds after that.
@@ -889,6 +913,9 @@ version)
 	;;
 init)
 	echo init >> %[1]q
+	if [ -f %[5]q ]; then
+		exit 1
+	fi
 	;;
 plan)
 	if [ ! -f %[2]q ]; then
@@ -907,7 +934,7 @@ graph)
 	exit 1
 	;;
 esac
-`, initArgsPath, planFailedPath, planOutputPath, planPath))
+`, initArgsPath, planFailedPath, planOutputPath, planPath, failInitPath))
 
 			// The module archive captured at import pins one provider that
 			// is already in the plugin cache, so Init skips terraform init.
@@ -917,7 +944,7 @@ esac
 			require.NoError(t, os.MkdirAll(providerDir, 0o700))
 			require.NoError(t, os.WriteFile(filepath.Join(providerDir, "terraform-provider-coder_v2.18.0"), nil, 0o600))
 			moduleArchive := testutil.CreateTar(t, map[string]string{
-				importedLockFileArchivePath(): fmt.Sprintf("provider %q {\n  version = \"2.18.0\"\n}\n", provider),
+				importedLockFileArchivePath(): fmt.Sprintf("provider %q {\n  version = \"2.18.0\"\n  hashes = [\"h1:fake=\"]\n}\n", provider),
 			})
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
@@ -939,16 +966,15 @@ esac
 				require.Contains(t, plan.Error, test.wantError)
 			}
 			require.Contains(t, planLog, test.wantInLog)
-			require.NotContains(t, planLog, test.wantNoInLog)
-			if test.wantInit {
-				require.Equal(t, []string{"init"}, readShimCalls(t, initArgsPath))
-				// The fallback init is reported under the init stage.
-				require.True(t, slices.ContainsFunc(plan.Timings, func(timing *proto.Timing) bool {
-					return timing.Stage == string(database.ProvisionerJobTimingStageInit)
-				}), "fallback init timings")
-			} else {
-				require.Nil(t, readShimCalls(t, initArgsPath))
+			if test.wantNoInLog != "" {
+				require.NotContains(t, planLog, test.wantNoInLog)
 			}
+			require.Len(t, readShimCalls(t, initArgsPath), test.wantInits)
+			// The fallback init counts toward the plan stage, so stages don't
+			// overlap in job stats.
+			require.False(t, slices.ContainsFunc(plan.Timings, func(timing *proto.Timing) bool {
+				return timing.Stage == string(database.ProvisionerJobTimingStageInit)
+			}), "init stage timings in the plan response")
 		})
 	}
 }

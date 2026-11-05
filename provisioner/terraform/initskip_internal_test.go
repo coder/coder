@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -53,19 +54,26 @@ func Test_parseLockFile(t *testing.T) {
 	}, got)
 
 	// Sources and versions become path components when providers are
-	// linked, so anything that could escape the cache is rejected.
-	for name, entry := range map[string]string{
-		"SourceTraversal":  `provider "registry.terraform.io/../x" { version = "1.0.0" }`,
-		"SourceTooShort":   `provider "coder/coder" { version = "1.0.0" }`,
-		"SourceTooLong":    `provider "registry.terraform.io/a/b/c" { version = "1.0.0" }`,
-		"EmptyVersion":     `provider "registry.terraform.io/coder/coder" { version = "" }`,
-		"VersionSeparator": `provider "registry.terraform.io/coder/coder" { version = "1.0/../../x" }`,
-		"VersionTraversal": `provider "registry.terraform.io/coder/coder" { version = ".." }`,
+	// linked, so anything that could escape the cache is rejected, and
+	// without an h1 hash plan would not verify the linked package.
+	entry := func(source, version, hashes string) string {
+		return fmt.Sprintf("provider %q {\n  version = %q\n  hashes = [%s]\n}\n", source, version, hashes)
+	}
+	const h1 = `"h1:abc="`
+	for name, content := range map[string]string{
+		"SourceTraversal":  entry("registry.terraform.io/../x", "1.0.0", h1),
+		"SourceTooShort":   entry("coder/coder", "1.0.0", h1),
+		"SourceTooLong":    entry("registry.terraform.io/a/b/c", "1.0.0", h1),
+		"EmptyVersion":     entry("registry.terraform.io/coder/coder", "", h1),
+		"VersionSeparator": entry("registry.terraform.io/coder/coder", "1.0/../../x", h1),
+		"VersionTraversal": entry("registry.terraform.io/coder/coder", "..", h1),
+		"NoHashes":         entry("registry.terraform.io/coder/coder", "1.0.0", ""),
+		"OnlyZipHashes":    entry("registry.terraform.io/coder/coder", "1.0.0", `"zh:abc"`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			bad := filepath.Join(t.TempDir(), ".terraform.lock.hcl")
-			require.NoError(t, os.WriteFile(bad, []byte(entry), 0o600))
+			require.NoError(t, os.WriteFile(bad, []byte(content), 0o600))
 			_, err := parseLockFile(bad)
 			require.Error(t, err)
 		})
@@ -107,12 +115,25 @@ func Test_linkCachedProviders(t *testing.T) {
 			require.Equal(t, providerPackageDir(cache, p), target)
 		}
 
-		// An existing provider entry is left in place rather than treated as
-		// an error. Plan checks whatever ends up linked against the lock
-		// file's hashes.
+		// Links from an earlier attempt are reused.
 		linked, err = linkCachedProviders(files, cache, []lockedProvider{coder, docker})
 		require.NoError(t, err)
 		require.True(t, linked)
+	})
+
+	// The template's source archive can put a package where the link goes.
+	t.Run("PackageInPlace", func(t *testing.T) {
+		t.Parallel()
+		cache := fakeCache(t, coder)
+		files := tfpath.Layout(t.TempDir())
+		planted := filepath.Join(providerPackageDir(files.ProvidersDirectory(), coder), "terraform-provider-coder")
+		require.NoError(t, os.MkdirAll(filepath.Dir(planted), 0o755))
+		require.NoError(t, os.WriteFile(planted, nil, 0o600))
+
+		linked, err := linkCachedProviders(files, cache, []lockedProvider{coder})
+		require.NoError(t, err)
+		require.False(t, linked)
+		require.FileExists(t, planted)
 	})
 
 	t.Run("MissingProvider", func(t *testing.T) {
@@ -255,14 +276,20 @@ func Test_errorCapturingSink(t *testing.T) {
 		t.Parallel()
 		// Diagnostics as Terraform reports them.
 		for line, want := range map[string]bool{
-			"Error: Required plugins are not installed":                           true,
-			"Error: Inconsistent dependency lock file":                            true,
-			"Error: Module not installed":                                         true,
-			"Error: Module source has changed":                                    true,
-			`Error: Backend initialization required, please run "terraform init"`: true,
-			"the cached package for registry.terraform.io/coder/coder 2.18.0 (in .terraform/providers) does not match any of the checksums recorded in the dependency lock file": true,
-			"Error: Unsupported attribute": false,
-			"Error: Invalid reference":     false,
+			"Error: Required plugins are not installed":                             true,
+			"Error: Inconsistent dependency lock file":                              true,
+			"Error: Missing required provider":                                      true,
+			"Error: Module not installed":                                           true,
+			"Error: Module source has changed":                                      true,
+			"Error: Module version requirements have changed":                       true,
+			`Error: Backend initialization required, please run "terraform init"`:   true,
+			`│ Error: Backend initialization required: please run "terraform init"`: true,
+			"Error: Unsupported attribute":                                          false,
+			"Error: Invalid reference":                                              false,
+			// Details can quote the template, for example a precondition's
+			// error message, so they never count.
+			"the cached package for registry.terraform.io/coder/coder 2.18.0 (in .terraform/providers) does not match any of the checksums recorded in the dependency lock file": false,
+			`Run "terraform init" before creating workspaces.`: false,
 		} {
 			sink := &errorCapturingSink{logSink: &mockLogger{}}
 			sink.ProvisionLog(proto.LogLevel_ERROR, line)
