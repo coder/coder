@@ -87,6 +87,8 @@ Workflow:
 
 - [x] A finished task.
 - [ ] An open task.
+  - [ ] A nested task.
+- A plain item in a task list.
 `;
 
 export const Lists: Story = {

@@ -73,7 +73,9 @@ const markdownRootClassName = cn(
 	// Streamdown places list markers inside the text box, so wrapped lines
 	// start under the marker. Outside markers align them with the item text.
 	"[&_ol]:list-outside [&_ol]:pl-6 [&_ul]:list-outside [&_ul]:pl-6",
-	"[&_.contains-task-list]:list-none [&_.contains-task-list]:pl-0",
+	// The checkbox replaces the marker only on task items, so mixed lists
+	// keep their other bullets and nested task lists keep their indent.
+	"[&_.task-list-item]:list-none",
 	// Streamdown renders every paragraph in a list item inline, which joins
 	// the paragraphs of a multi-paragraph item into one line.
 	"[&_li]:py-0.5 [&_li>p]:my-0 [&_li>p]:block [&_li>p+p]:mt-2",
