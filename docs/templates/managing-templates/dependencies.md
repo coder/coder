@@ -36,7 +36,7 @@ terraform {
 }
 ```
 
-New releases of the `coder` or `frobnicate` providers are picked up the next time you push a template version, because workspace builds reuse the [provider versions that Coder selected](../../../tutorials/best-practices/speed-up-templates.md#template-lock-file) when it imported the template version.
+New releases of the `coder` or `frobnicate` providers are picked up the next time you push a template version, because workspace builds reuse the [provider versions that Coder selected](../../workspaces/speed-up-templates.md#template-lock-file) when it imported the template version.
 Builds on a provisioner with a different operating system or architecture, or with module caching disabled, pick up new releases on every build.
 Builds that can't install the versions selected at import also pick up new releases, except for providers pinned by a lock file you commit with the template.
 New releases can include breaking changes.

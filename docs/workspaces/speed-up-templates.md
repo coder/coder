@@ -98,7 +98,7 @@ Builds on a provisioner with the same operating system and architecture as the i
 Terraform still asks the provider registry which versions are available.
 If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those versions, the build retries with the template's own lock file, or without one, and logs a warning.
 If the warning appears on every build, push a new template version and update workspaces to it.
-Coder doesn't reuse the lock file when [module caching](../../admin/templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
+Coder doesn't reuse the lock file when [module caching](../templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
 Committing your own lock file also pins provider versions across template pushes.
 
 To use `terraform init` to build the static provider version list:
