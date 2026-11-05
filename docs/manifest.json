@@ -637,6 +637,11 @@
 							"title": "Claude Desktop",
 							"description": "Let Claude Desktop access your Coder workspaces.",
 							"path": "./workspaces/workspace-access/claude-desktop.md"
+						},
+						{
+							"title": "Claude Code with a Claude subscription",
+							"description": "Sign in to Claude Code in your Coder workspace with your Claude subscription instead of an API key.",
+							"path": "./workspaces/workspace-access/claude-code-subscription.md"
 						}
 					]
 				},
