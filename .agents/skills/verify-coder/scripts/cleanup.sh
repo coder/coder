@@ -35,7 +35,9 @@ containers_since_launch() {
 
 # Only workspaces that a journey or vc_record_workspace recorded belong to the
 # harness. Any other workspace can be a developer's own work in the same
-# .coderv2 or come from another client, so it is listed and kept.
+# .coderv2 or come from another client, so it is listed and kept. When this
+# cleanup removes a .coderv2 that launch.sh created, its database goes too,
+# so every workspace in it is deleted first and leaves no container behind.
 delete_workspaces() {
 	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
 		local left
@@ -48,6 +50,10 @@ delete_workspaces() {
 		return 0
 	fi
 	local ws kept deleted=()
+	if [[ -f "$VC_CONFIG_DIR/.verify-coder-created" ]] && ((!keep_data)); then
+		"$here/coder.sh" list --all --output json 2>/dev/null |
+			jq -r '.[] | "\(.owner_name)/\(.name)"' >>"$VC_RUN/workspaces"
+	fi
 	if [[ -f "$VC_RUN/workspaces" ]]; then
 		while read -r ws; do
 			[[ -n "$ws" ]] || continue
