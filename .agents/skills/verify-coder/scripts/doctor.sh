@@ -63,7 +63,11 @@ admin_session() {
 }
 
 embedded_ui() {
-	curl -fsS --max-time 10 "$VC_WEB_URL/login" | grep -q '/assets/index-' || {
+	# A grep -q in the pipe would close it early, and curl would fail on the
+	# broken pipe under pipefail.
+	local page
+	page="$(curl -fsS --max-time 10 "$VC_WEB_URL/login")"
+	grep -q '/assets/index-' <<<"$page" || {
 		echo "$VC_WEB_URL/login does not serve the embedded production frontend"
 		return 1
 	}
