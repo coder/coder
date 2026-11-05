@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks harness behavior that needs no running instance: the launch.sh
-# refusals, the random password for a new database, and that vc_browser_login
-# keeps the password out of the process arguments. Usage: selftest.sh   (prints one line per check and a count line)
+# argument and password refusals, the random password for a new database, and
+# that vc_browser_login keeps the password out of the process arguments.
+# Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 tmp="$(mktemp -d)"
@@ -37,26 +38,30 @@ refuses() {
 launch_args=()
 vc_check agpl-env refuses "CODER_BUILD_AGPL is not supported" CODER_BUILD_AGPL=1
 launch_args=(--agpl)
-vc_check agpl-flag refuses "--agpl is not supported" CODER_BUILD_AGPL=
-launch_args=(--fresh --password secret)
-vc_check password-flag refuses "--password is not supported" CODER_BUILD_AGPL=
-launch_args=(--password=secret)
-vc_check password-eq-flag refuses "--password is not supported" CODER_BUILD_AGPL=
+vc_check develop-flag refuses "--agpl is not supported" CODER_BUILD_AGPL=
+launch_args=(--fresh --db-reset)
+vc_check db-reset-flag refuses "--db-reset is not supported" CODER_BUILD_AGPL=
+launch_args=(--port 1)
+vc_check port-flag refuses "--port is not supported" CODER_BUILD_AGPL=
+launch_args=(-- --verbose --postgres-url=postgres://elsewhere)
+vc_check server-flag refuses "server flag --postgres-url=postgres://elsewhere is not supported" CODER_BUILD_AGPL=
 launch_args=(--fresh)
 vc_check default-password refuses "must not use the published default password" CODER_BUILD_AGPL= CODER_DEV_ADMIN_PASSWORD='SomeSecurePassword!'
 
-# Without CODER_DEV_ADMIN_PASSWORD, a new database passes the password step
-# and reaches the stub make.
-random_password() {
+# A launch that passes every launch.sh check reaches the stub make.
+reaches_build() {
 	local out rc=0
-	out="$(env -u CODER_DEV_ADMIN_PASSWORD CODER_BUILD_AGPL= PATH="$tmp/bin:$PATH" "$here/launch.sh" --fresh 2>&1)" || rc=$?
+	out="$(env -u CODER_DEV_ADMIN_PASSWORD CODER_BUILD_AGPL= PATH="$tmp/bin:$PATH" "$here/launch.sh" "$@" 2>&1)" || rc=$?
 	[[ "$out" == *"selftest: launch reached the build"* ]] || {
-		echo "launch.sh exited $rc before the build: ${out##*$'\n'}"
+		echo "launch.sh $* exited $rc before the build: ${out##*$'\n'}"
 		return 1
 	}
-	echo "a new database without CODER_DEV_ADMIN_PASSWORD gets past the password step"
+	echo "launch.sh $* gets past its checks"
 }
-vc_check random-password random_password
+# Without CODER_DEV_ADMIN_PASSWORD, a new database gets a random password,
+# not the refused default.
+vc_check random-password reaches_build --fresh
+vc_check allowed-server-flags reaches_build --fresh -- --verbose --experiments=example
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"

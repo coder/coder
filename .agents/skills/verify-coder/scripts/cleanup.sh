@@ -33,9 +33,9 @@ containers_since_launch() {
 	done
 }
 
-# Only workspaces created after this launch belong to the harness. Older ones
-# can be a developer's own work in the same .coderv2, so they are listed and
-# kept.
+# Only workspaces that a journey or vc_record_workspace recorded belong to the
+# harness. Any other workspace can be a developer's own work in the same
+# .coderv2 or come from another client, so it is listed and kept.
 delete_workspaces() {
 	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
 		local left
@@ -47,20 +47,22 @@ delete_workspaces() {
 		echo "server is down, and no coder-* container was created since the launch"
 		return 0
 	fi
-	local list ws kept deleted=()
-	list="$("$here/coder.sh" list --all --output json 2>/dev/null)"
-	kept="$(jq -r --arg t "$VC_STARTED_AT" '[.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 < ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"] | join(" ")' <<<"$list")"
-	while read -r ws; do
-		[[ -n "$ws" ]] || continue
-		"$here/coder.sh" delete "$ws" --yes >>"$VC_LOG" 2>&1 || {
-			echo "coder delete $ws failed, see $VC_LOG"
-			return 1
-		}
-		deleted+=("$ws")
-	done < <(jq -r --arg t "$VC_STARTED_AT" '.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 >= ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"' <<<"$list")
+	local ws kept deleted=()
+	if [[ -f "$VC_RUN/workspaces" ]]; then
+		while read -r ws; do
+			[[ -n "$ws" ]] || continue
+			[[ "$(vc_api_status "/api/v2/users/${ws%%/*}/workspace/${ws#*/}")" == 200 ]] || continue
+			"$here/coder.sh" delete "$ws" --yes >>"$VC_LOG" 2>&1 || {
+				echo "coder delete $ws failed, see $VC_LOG"
+				return 1
+			}
+			deleted+=("$ws")
+		done < <(sort -u "$VC_RUN/workspaces")
+	fi
+	kept="$("$here/coder.sh" list --all --output json 2>/dev/null | jq -r '[.[] | "\(.owner_name)/\(.name)"] | join(" ")')"
 	echo "deleted: ${deleted[*]:-none}"
-	echo "kept older than $VC_STARTED_AT: ${kept:-none}"
-	echo "deleted ${#deleted[@]} created since the launch, kept $(wc -w <<<"$kept") older, names in $(basename "$VC_CHECK_LOG")"
+	echo "kept, not recorded by the harness: ${kept:-none}"
+	echo "deleted ${#deleted[@]} recorded workspaces, kept $(wc -w <<<"$kept") others, names in $(basename "$VC_CHECK_LOG")"
 }
 
 close_browser() {
@@ -150,6 +152,20 @@ archive_logs() {
 	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every journey and hand-driven folder"
 }
 
+# postgres_runs_from matches the path literally: pgrep -f would read it as a
+# regular expression, and a checkout path with [ or ( could then miss a live
+# server.
+postgres_runs_from() {
+	local f cmd
+	for f in /proc/[0-9]*/cmdline; do
+		cmd="$(tr '\0' ' ' 2>/dev/null <"$f")" || continue
+		if [[ "$cmd" == *"$1"* ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
 # --keep-data hands the folder over: without the marker, a later cleanup keeps
 # it, because the folder can then hold a developer's own work.
 remove_data() {
@@ -164,7 +180,7 @@ remove_data() {
 	fi
 	# The harness's own Postgres is stopped by now, so a live one on this
 	# folder belongs to someone else, such as a plain develop.sh run.
-	if pgrep -f -- "$VC_CONFIG_DIR/postgres" >/dev/null; then
+	if postgres_runs_from "$VC_CONFIG_DIR/postgres"; then
 		echo "kept $VC_CONFIG_DIR, another process still runs Postgres from it"
 		return 0
 	fi

@@ -22,6 +22,9 @@ vc_on_fail() {
 stamp="$(date +%s)"
 cli_ws="vcc-$stamp"
 ui_ws="vcu-$stamp"
+# cleanup.sh deletes only recorded workspaces, so a failed run leaves none.
+vc_record_workspace "admin/$cli_ws"
+vc_record_workspace "admin/$ui_ws"
 
 ws_json() {
 	vc_api "/api/v2/users/admin/workspace/$1"

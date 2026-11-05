@@ -59,6 +59,12 @@ vc_check() {
 	fi
 }
 
+# vc_record_workspace marks <owner>/<name> as created by the harness, so
+# cleanup.sh deletes it. Record a workspace before you create it.
+vc_record_workspace() {
+	echo "$1" >>"$VC_RUN/workspaces"
+}
+
 # vc_load_run returns instead of exiting, so a failure does not close an
 # interactive shell. Scripts stop on it through their own errexit.
 vc_load_run() {

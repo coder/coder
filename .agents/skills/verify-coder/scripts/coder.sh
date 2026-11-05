@@ -5,4 +5,6 @@ set -euo pipefail
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 vc_load_run
-exec env -u CODER_SESSION_TOKEN -u CODER_URL "$(vc_coder_bin)" --global-config "$VC_CONFIG_DIR" "$@"
+# A reused .coderv2 can hold the URL of an older develop.sh run, so the URL
+# always comes from the recorded instance.
+exec env -u CODER_SESSION_TOKEN CODER_URL="$VC_API_URL" "$(vc_coder_bin)" --global-config "$VC_CONFIG_DIR" "$@"

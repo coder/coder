@@ -1,17 +1,34 @@
 #!/usr/bin/env bash
 # Starts a Coder dev instance owned by this checkout and waits until it is
-# usable. Usage: launch.sh [--fresh] [develop.sh flags] [-- coder server flags]
+# usable. Usage: launch.sh [--fresh] [-- coder server flags]
 #   --fresh  passes --db-reset to develop.sh (destroys this checkout's .coderv2 database).
-# Every other argument reaches develop.sh unchanged, so "launch.sh -- --verbose"
-# passes --verbose to coder server.
+# After --, only the server flags in server_flag_allowed reach coder server.
 set -euo pipefail
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# The harness owns the database, ports, listen and access addresses and the
+# admin password, so it forwards no develop.sh flag and only server flags
+# that change none of them.
+server_flag_allowed() {
+	case "$1" in
+	--verbose | --experiments=*) return 0 ;;
+	*) return 1 ;;
+	esac
+}
 fresh=0
+server_flags=()
 if [[ "${1:-}" == "--fresh" ]]; then
 	fresh=1
 	shift
+fi
+if (($#)); then
+	[[ "$1" == -- ]] || vc_fail "$1 is not supported: launch.sh takes only --fresh and, after --, the server flags in server_flag_allowed"
+	shift
+	for arg in "$@"; do
+		server_flag_allowed "$arg" || vc_fail "server flag $arg is not supported: add it to server_flag_allowed in launch.sh if it changes no database, port, address or password"
+		server_flags+=("$arg")
+	done
 fi
 
 if [[ -f "$VC_RUN/env" ]]; then
@@ -35,18 +52,11 @@ if [[ "${DEVELOP_IN_CODER:-}" == 1 || -n "${CODER_AGENT_URL:-}" ]]; then
 	develop_in_coder=1
 fi
 # make tracks files, not CODER_BUILD_AGPL, so an existing enterprise binary
-# would be reused for --agpl.
+# would be reused for an AGPL build.
 case "${CODER_BUILD_AGPL:-}" in
 "" | 0 | false) ;;
 *) vc_fail "CODER_BUILD_AGPL is not supported: make would reuse the existing enterprise binary" ;;
 esac
-for arg in "$@"; do
-	case "$arg" in
-	--) break ;;
-	--agpl | --agpl=*) vc_fail "--agpl is not supported: make would reuse the existing enterprise binary" ;;
-	--password | --password=*) vc_fail "--password is not supported: set CODER_DEV_ADMIN_PASSWORD so the journeys sign in with it too" ;;
-	esac
-done
 
 # develop.sh binds every interface, so a database that this launch creates
 # (--fresh, or no built-in Postgres data yet) never gets the published
@@ -104,24 +114,24 @@ if [[ ! -d "$VC_CONFIG_DIR" ]]; then
 	touch "$VC_CONFIG_DIR/.verify-coder-created"
 fi
 
-if ((new_database)); then
-	(
-		umask 077
-		printf '%s\n' "$password" >"$password_file"
-	)
-fi
 args=(--port "$api_port" --web-port "$web_port" --prometheus-port 0)
 if ((fresh)); then
 	args+=(--db-reset)
 fi
 
-# Provider keys are dropped so the instance never spends real tokens by
-# itself (task naming calls Anthropic when a key is present).
+# develop.sh and coder server read many CODER_* variables (a database URL,
+# a reset, ports, an env file), so none of the caller's reach them. Provider
+# keys are dropped too, so the instance never spends real tokens by itself
+# (task naming calls Anthropic when a key is present). The password goes
+# through the environment, not an argument, so it stays out of the process
+# list.
+scrub=(-u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL)
+while read -r var; do
+	scrub+=(-u "$var")
+done < <(compgen -e | grep '^CODER_' || true)
 log="$VC_RUN/develop.log"
-# The password goes through the environment, not an argument, so it stays out
-# of the process list.
-CODER_DEV_ADMIN_PASSWORD="$password" env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL \
-	setsid "$VC_ROOT/scripts/develop.sh" "${args[@]}" "$@" >"$log" 2>&1 </dev/null &
+env "${scrub[@]}" CODER_DEV_ADMIN_PASSWORD="$password" DEVELOP_IN_CODER="$develop_in_coder" \
+	setsid "$VC_ROOT/scripts/develop.sh" "${args[@]}" -- "${server_flags[@]}" >"$log" 2>&1 </dev/null &
 pid=$!
 
 # Journeys drive the production frontend that coder server serves from the
@@ -144,8 +154,21 @@ pid=$!
 } >"$VC_RUN/env"
 echo "started develop.sh as pid $pid (api $api_port, web $web_port, log: $log)"
 
+# The password file changes only once develop has reset the database, so a
+# launch that fails before that keeps the old file for the old data.
+password_saved=0
+save_password() {
+	if ((new_database && !password_saved)) && grep -q 'creating first user' "$log"; then
+		(
+			umask 077
+			printf '%s\n' "$password" >"$password_file"
+		)
+		password_saved=1
+	fi
+}
 deadline=$((SECONDS + ${VERIFY_CODER_TIMEOUT:-900}))
 until grep -q 'Coder is now running in development mode' "$log"; do
+	save_password
 	if ! kill -0 "$pid" 2>/dev/null; then
 		tail -n 40 "$log" | cut -c1-300 >&2
 		vc_fail "develop.sh exited before it was ready, see $log, then run cleanup.sh"
@@ -156,6 +179,10 @@ until grep -q 'Coder is now running in development mode' "$log"; do
 	fi
 	sleep 2
 done
+save_password
+if ((new_database && !password_saved)); then
+	vc_fail "launch.sh created a new database but develop.sh logged no first user, see $log, then run cleanup.sh"
+fi
 
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
 exec "$(dirname "${BASH_SOURCE[0]}")/doctor.sh"

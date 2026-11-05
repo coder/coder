@@ -45,4 +45,5 @@ Preconditions:
 - The first workspace pulls `codercom/example-base:ubuntu`. Allow several minutes.
 - The agent name in the `docker` template is `main`.
 - About 6 seconds into a build, the workspace page scrolls down 72 px to follow the build log. The header buttons (`Stop`, `Start`, the options button) then sit under the sticky navbar, and a click lands on the navbar. Run `vc_ab eval 'window.scrollTo(0, 0)'` before clicking them.
+- `scripts/cleanup.sh` deletes only recorded workspaces. Run `vc_record_workspace admin/<name>` before you create one by hand.
 - Workspace containers and home volumes outlive a stopped server. Delete workspaces before `scripts/cleanup.sh` stops the server, or let it do so.
