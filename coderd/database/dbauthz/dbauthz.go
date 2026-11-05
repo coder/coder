@@ -4686,6 +4686,24 @@ func (q *querier) GetOrganizationAIProviderModelConfig(ctx context.Context, arg 
 	return q.db.GetOrganizationAIProviderModelConfig(ctx, arg)
 }
 
+func (q *querier) GetOrganizationAISpendPerDay(ctx context.Context, arg database.GetOrganizationAISpendPerDayParams) ([]database.GetOrganizationAISpendPerDayRow, error) {
+	// The daily totals aggregate the spend of every user in the organization,
+	// so the caller must be able to read every group member in it.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetOrganizationAISpendPerDay(ctx, arg)
+}
+
+func (q *querier) GetOrganizationAISpendTotals(ctx context.Context, arg database.GetOrganizationAISpendTotalsParams) (database.GetOrganizationAISpendTotalsRow, error) {
+	// The totals aggregate the spend of every user in the organization, so
+	// the caller must be able to read every group member in it.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+		return database.GetOrganizationAISpendTotalsRow{}, err
+	}
+	return q.db.GetOrganizationAISpendTotals(ctx, arg)
+}
+
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }
@@ -7395,6 +7413,15 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 		return nil, err
 	}
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
+}
+
+func (q *querier) ListOrganizationAISpendPerUser(ctx context.Context, arg database.ListOrganizationAISpendPerUserParams) ([]database.ListOrganizationAISpendPerUserRow, error) {
+	// Rows can belong to any user in the organization, so the caller must be
+	// able to read every group member in it, not only its own row.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.ListOrganizationAISpendPerUser(ctx, arg)
 }
 
 func (q *querier) ListOrganizationAISpendUsers(ctx context.Context, arg database.ListOrganizationAISpendUsersParams) ([]database.ListOrganizationAISpendUsersRow, error) {

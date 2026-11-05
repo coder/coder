@@ -663,6 +663,109 @@ ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
 LIMIT NULLIF(@limit_opt::int, 0)
 OFFSET @offset_opt::int;
 
+-- name: GetOrganizationAISpendPerDay :many
+-- Returns the AI spend in @organization_id for every UTC day in the
+-- [period_start, period_end) window, including days without spend. Both
+-- bounds are normalized to their UTC calendar day, matching
+-- ai_user_daily_spend, so a period_end after midnight excludes that day.
+SELECT
+	period_days.day::date AS day,
+	COALESCE(org_spend.spend_micros, 0)::BIGINT AS spend_micros
+FROM generate_series(
+	((@period_start::timestamptz) AT TIME ZONE 'UTC')::date,
+	((@period_end::timestamptz) AT TIME ZONE 'UTC')::date - 1,
+	'1 day'::interval
+) AS period_days(day)
+LEFT JOIN (
+	SELECT
+		spend.day,
+		SUM(spend.spend_micros) AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < ((@period_end::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.day
+) org_spend ON org_spend.day = period_days.day::date
+ORDER BY period_days.day;
+
+-- name: GetOrganizationAISpendTotals :one
+-- Returns the number of users with AI spend in @organization_id over the
+-- [period_start, period_end) window, their total spend, and the median of
+-- their per-user totals. Both bounds are normalized to their UTC calendar day,
+-- matching ai_user_daily_spend, so a period_end after midnight excludes that
+-- day.
+WITH user_spend AS (
+	SELECT
+		spend.user_id,
+		SUM(spend.spend_micros) AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < ((@period_end::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.user_id
+	HAVING SUM(spend.spend_micros) > 0
+)
+SELECT
+	COUNT(*)::BIGINT AS user_count,
+	COALESCE(SUM(spend_micros), 0)::BIGINT AS spend_micros,
+	COALESCE(ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY spend_micros::double precision)), 0)::BIGINT AS median_spend_micros
+FROM user_spend;
+
+-- name: ListOrganizationAISpendPerUser :many
+-- Returns one page of users with AI spend in @organization_id over the
+-- [period_start, period_end) window, most spend first, with one row for each
+-- group their spend was attributed to. A user's rows are adjacent and ordered
+-- by group spend. Both bounds are normalized to their UTC calendar day,
+-- matching ai_user_daily_spend, so a period_end after midnight excludes that
+-- day. Users match GetOrganizationAISpendTotals.
+WITH group_spend AS (
+	SELECT
+		spend.user_id,
+		spend.effective_group_id AS group_id,
+		SUM(spend.spend_micros)::BIGINT AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < ((@period_end::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.user_id, spend.effective_group_id
+	HAVING SUM(spend.spend_micros) > 0
+),
+user_page AS (
+	SELECT
+		group_spend.user_id,
+		SUM(group_spend.spend_micros)::BIGINT AS spend_micros
+	FROM group_spend
+	JOIN users ON users.id = group_spend.user_id
+	GROUP BY group_spend.user_id, users.username
+	ORDER BY spend_micros DESC, LOWER(users.username), group_spend.user_id
+	LIMIT NULLIF(@limit_opt::int, 0)
+	OFFSET @offset_opt::int
+)
+SELECT
+	user_page.user_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	user_page.spend_micros,
+	groups.id AS group_id,
+	groups.name AS group_name,
+	groups.display_name AS group_display_name,
+	group_spend.spend_micros AS group_spend_micros
+FROM user_page
+JOIN users ON users.id = user_page.user_id
+JOIN group_spend ON group_spend.user_id = user_page.user_id
+JOIN groups ON groups.id = group_spend.group_id
+ORDER BY
+	user_page.spend_micros DESC,
+	LOWER(users.username),
+	user_page.user_id,
+	group_spend.spend_micros DESC,
+	groups.name,
+	groups.id;
+
 -- name: GetUnpricedAIModelsSince :many
 -- Returns the models used since the given time that hold no price, most used
 -- first. openai-compat providers cannot be priced, so their models are excluded.
