@@ -127,7 +127,15 @@ Your workspace is now accessible via `ssh coder.<workspace_name>` (for example, 
 
 > [!TIP]
 > If you use a third-party SSH client that discovers hosts by parsing `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that enumerate known hosts), run `coder config-ssh --no-wildcard` instead.
-> This generates an individual `Host` entry per workspace rather than a single wildcard block, making your workspaces visible to those tools.
+> This generates an individual `Host` entry for each workspace and its known agents rather than a single wildcard block, making your workspaces visible to those tools.
+
+For a stopped workspace, Coder uses agent names from its most recent successful start.
+If that start is unavailable or used a different version from the workspace's current template version, Coder generates only the workspace entry.
+
+To populate missing agent entries:
+
+1. Start the workspace successfully.
+1. Run `coder config-ssh --no-wildcard` again to add the agent entries.
 
 ## Visual Studio Code
 
