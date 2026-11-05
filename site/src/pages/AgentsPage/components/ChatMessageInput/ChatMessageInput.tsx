@@ -371,9 +371,6 @@ const LockedFilePastePlugin: React.FC<{
 	return null;
 };
 
-// Pointer type, not viewport width, gates plain Enter (CODAGT-210).
-// With onSendAfterTurn, Cmd/Ctrl+Enter sends after the turn when plain Enter
-// sends, else Alt+Enter does.
 const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
 	onSendAfterTurn?: () => void;

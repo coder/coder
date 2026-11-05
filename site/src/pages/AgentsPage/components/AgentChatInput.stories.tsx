@@ -198,15 +198,17 @@ export const EnterSendsByDefault: Story = {
 	},
 };
 
+const mockModifierEnterPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	agent_chat_send_shortcut: "modifier_enter",
+};
+
 export const ModifierEnterSendsWhenRequired: Story = {
 	parameters: {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: {
-					...MockUserPreferenceSettings,
-					agent_chat_send_shortcut: "modifier_enter",
-				},
+				data: mockModifierEnterPreferenceSettings,
 			},
 		],
 	},
@@ -349,10 +351,7 @@ export const AfterTurnShortcutWhenModifierRequired: Story = {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: {
-					...MockUserPreferenceSettings,
-					agent_chat_send_shortcut: "modifier_enter",
-				},
+				data: mockModifierEnterPreferenceSettings,
 			},
 		],
 	},

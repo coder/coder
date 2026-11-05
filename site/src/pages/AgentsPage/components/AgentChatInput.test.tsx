@@ -700,9 +700,27 @@ describe("AgentChatInput", () => {
 		expect(onSend).toHaveBeenCalledWith("Run the tests after this", "queue");
 	});
 
+	it("on a busy chat, Escape closes the send menu and returns focus to Send", async () => {
+		const user = userEvent.setup();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		const sendButton = await screen.findByRole("button", { name: "Send" });
+		await user.pointer({ keys: "[MouseRight]", target: sendButton });
+		await screen.findByRole("menu");
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(sendButton).toHaveFocus());
+	});
+
 	it("on a busy chat, a long press on Send opens the menu and the release does not send", async () => {
-		// The open menu disables pointer events outside it, but the
-		// release still reaches Send in a browser.
+		// Allow the held touch to finish after the menu disables outside pointer events.
 		const user = userEvent.setup({
 			pointerEventsCheck: PointerEventsCheckLevel.Never,
 		});
@@ -753,7 +771,6 @@ describe("AgentChatInput", () => {
 		});
 		await screen.findByRole("menu");
 
-		// An open menu hides the rest of the page and blocks its pointer events.
 		rerender(input(false));
 		await user.click(screen.getByRole("button", { name: "Send" }));
 		expect(onSend).toHaveBeenCalledWith("Run the tests after this", undefined);
