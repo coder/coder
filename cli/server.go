@@ -2698,7 +2698,7 @@ func WithMaxIdleConns(n int) PostgresConnectOption {
 // future or past migration version.
 //
 // If no error is returned, the database is fully migrated and up to date.
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error, opts ...PostgresConnectOption) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(*sql.DB, ...migrations.Option) error, opts ...PostgresConnectOption) (*sql.DB, error) {
 	// Apply defaults.
 	options := PostgresConnectOptions{
 		MaxOpenConns: 10,
