@@ -126,6 +126,9 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Bar
+												role="img"
+												aria-label={`${label}: ${legend.label}`}
+												tabIndex={0}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
