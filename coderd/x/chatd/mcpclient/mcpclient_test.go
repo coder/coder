@@ -640,6 +640,59 @@ func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 	assert.Equal(t, "[]", string(bs))
 }
 
+// TestConnectAll_PreservesDraftSchemaAndDefs verifies that tool input schema
+// top-level attributes such as "$schema" and "$defs" are preserved on the tool
+// wrapper.
+func TestConnectAll_PreservesDraftSchemaAndDefs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	draft7Tool := testTool{
+		tool: &mcp.Tool{
+			Name:        "tuple_tool",
+			Description: "A tool with draft-07 tuple schema and $defs",
+			InputSchema: map[string]any{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"$defs": map[string]any{
+					"Coordinate": map[string]any{"type": "number"},
+				},
+				"type": "object",
+				"properties": map[string]any{
+					"range": map[string]any{
+						"type": "array",
+						"items": []any{
+							map[string]any{"type": "number"},
+							map[string]any{"type": "number"},
+						},
+					},
+				},
+			},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, draft7Tool)
+	cfg := makeConfig("srv", ts.URL)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	isp, ok := tools[0].(interface{ InputSchema() map[string]any })
+	require.True(t, ok, "tool must implement InputSchema() map[string]any")
+	schema := isp.InputSchema()
+	require.NotNil(t, schema)
+	assert.Equal(t, "http://json-schema.org/draft-07/schema#", schema["$schema"])
+	assert.NotNil(t, schema["$defs"])
+	assert.Equal(t, "object", schema["type"])
+
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, props, "range")
+}
+
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the
 // configured header and value on every request.
 func TestConnectAll_APIKeyAuth(t *testing.T) {
