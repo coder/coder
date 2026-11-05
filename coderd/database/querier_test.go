@@ -20597,6 +20597,7 @@ func TestOrganizationAISpendOverviewQueries(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	alpha := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "alpha", DisplayName: "Alpha"})
 	beta := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "beta"})
+	gamma := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "Gamma"})
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 
@@ -20617,8 +20618,10 @@ func TestOrganizationAISpendOverviewQueries(t *testing.T) {
 		{user: alice, group: beta, day: start.AddDate(0, 0, 1), spend: 300},
 		// bob ties with alice and sorts after her by username.
 		{user: bob, group: alpha, day: start, spend: 400},
-		// carol spends the least, on the last day in the window.
-		{user: carol, group: alpha, day: start.AddDate(0, 0, 2), spend: 100},
+		// carol spends the least, on the last day in the window, split evenly
+		// so her groups tie.
+		{user: carol, group: gamma, day: start.AddDate(0, 0, 2), spend: 50},
+		{user: carol, group: alpha, day: start.AddDate(0, 0, 2), spend: 50},
 		// Excluded: without spend.
 		{user: dave, group: alpha, day: start, spend: 0},
 		// Excluded: before the window.
@@ -20727,13 +20730,15 @@ func TestOrganizationAISpendOverviewQueries(t *testing.T) {
 			{
 				// alice and bob tie at 400 and sort by username, then carol at
 				// 100. alice's rows are ordered by group spend: beta 300, then
-				// alpha 100.
+				// alpha 100. carol's groups tie and sort by name, ignoring case:
+				// alpha, then Gamma.
 				name: "AllUsers",
 				want: []database.ListOrganizationAISpendPerUserRow{
 					userGroupSpend(alice, 400, beta, 300),
 					userGroupSpend(alice, 400, alpha, 100),
 					userGroupSpend(bob, 400, alpha, 400),
-					userGroupSpend(carol, 100, alpha, 100),
+					userGroupSpend(carol, 100, alpha, 50),
+					userGroupSpend(carol, 100, gamma, 50),
 				},
 			},
 			{

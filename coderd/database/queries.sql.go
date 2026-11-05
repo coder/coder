@@ -4045,7 +4045,7 @@ ORDER BY
 	LOWER(users.username),
 	user_page.user_id,
 	group_spend.spend_micros DESC,
-	groups.name,
+	LOWER(groups.name),
 	groups.id
 `
 
