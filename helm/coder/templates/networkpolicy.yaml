@@ -61,6 +61,15 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    - ports:
+        {{- range .Values.coder.networkPolicy.egress.postgres.ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.coder.networkPolicy.egress.postgres.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     {{- with .Values.coder.networkPolicy.extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

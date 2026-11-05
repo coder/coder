@@ -22,7 +22,11 @@ coder:
             protocol: TCP
     egress:
       enable: true
+      postgres:
+        to:
+          - ipBlock:
+              cidr: 10.0.0.5/32
     extraEgress:
       - ports:
-          - port: 5432
+          - port: 443
             protocol: TCP

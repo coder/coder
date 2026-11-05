@@ -86,7 +86,11 @@ coder:
 
 Once enabled, ingress is limited to the HTTP(S) ports, Prometheus metrics on port
 2112 (disable with `coder.networkPolicy.prometheus.enable`), and ports 8080 and
-6222 between Coder replicas for high availability. Egress is unrestricted unless you
-set `coder.networkPolicy.egress.enable`. In that case only DNS and your
-`extraEgress` rules are allowed, so you must also allow PostgreSQL, the
-Kubernetes API, workspaces, and any external services Coder uses.
+6222 between Coder replicas for high availability.
+
+Egress is unrestricted unless you set `coder.networkPolicy.egress.enable`. In
+that case only DNS, PostgreSQL, and your `extraEgress` rules are allowed, so you
+must also allow the Kubernetes API, workspaces, and any external services Coder
+uses. PostgreSQL defaults to any destination on port 5432, because its address
+varies. Restrict it with `coder.networkPolicy.egress.postgres.to`, and change
+`postgres.ports` if your connection URL uses another port.
