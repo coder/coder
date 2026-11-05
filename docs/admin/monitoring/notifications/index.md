@@ -85,7 +85,7 @@ You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
 
 This can help prevent agent disconnects due to OOM/OOD issues.
 
-To enable OOM/OOD notifications on a template, follow the steps in the [resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
+To enable OOM/OOD notifications on a template, follow the steps in the [resource monitoring guide](../../../templates/extending-templates/resource-monitoring.md).
 
 ## SMTP (Email)
 

@@ -181,4 +181,4 @@ To delete all encrypted data from your database, perform the following actions:
 
 ## Next steps
 
-- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)
+- [Security - best practices](security-best-practices.md)

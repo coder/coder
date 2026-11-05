@@ -39,6 +39,8 @@ import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 const BREADCRUMB_SEGMENT_CLASS = cn(
 	"flex items-center flex-row flex-nowrap gap-2",
 	"max-w-40 whitespace-nowrap cursor-default",
+	"m-0 p-0 border-0 bg-transparent text-inherit rounded-sm",
+	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 );
 const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
 
@@ -266,10 +268,15 @@ const OwnerBreadcrumb: React.FC<OwnerBreadcrumbProps> = ({
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span className={BREADCRUMB_SEGMENT_CLASS}>
-					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
+				<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
+					<Avatar
+						size="sm"
+						fallback={ownerName}
+						src={ownerAvatarUrl}
+						aria-hidden
+					/>
 					<span className={BREADCRUMB_TEXT_CLASS}>{ownerName}</span>
-				</span>
+				</button>
 			</HelpPopoverTrigger>
 
 			<HelpPopoverContent align="center">
@@ -293,15 +300,16 @@ const OrganizationBreadcrumb: React.FC<OrganizationBreadcrumbProps> = ({
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span className={BREADCRUMB_SEGMENT_CLASS}>
+				<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
 					<Avatar
 						size="sm"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
+						aria-hidden
 					/>
 					<span className={BREADCRUMB_TEXT_CLASS}>{orgName}</span>
-				</span>
+				</button>
 			</HelpPopoverTrigger>
 
 			<HelpPopoverContent align="center">
@@ -354,16 +362,17 @@ const WorkspaceBreadcrumb: React.FC<WorkspaceBreadcrumbProps> = ({
 		<div className="flex items-center">
 			<HelpPopover>
 				<HelpPopoverTrigger asChild>
-					<span className={BREADCRUMB_SEGMENT_CLASS}>
+					<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
 						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
+							aria-hidden
 						/>
 
 						<span className={cn(BREADCRUMB_TEXT_CLASS, "font-medium")}>
 							{workspaceName}
 						</span>
-					</span>
+					</button>
 				</HelpPopoverTrigger>
 
 				<HelpPopoverContent align="center">

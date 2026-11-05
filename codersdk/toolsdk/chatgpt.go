@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 )
 
 type ObjectType string
@@ -135,7 +135,7 @@ type SearchResult struct {
 // tool definition. This is in contrast to the "fetch" tool, where ChatGPT does not have access
 // to the description.
 var ChatGPTSearch = Tool[SearchArgs, SearchResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameChatGPTSearch,
 		// Note: the queries are passed directly to the list workspaces and list templates
 		// endpoints. The list of accepted parameters below is not exhaustive - some are omitted
@@ -280,7 +280,7 @@ List workspaces with multiple filters - running workspaces owned by "alice".
 }
 ` + "```" + `
 `,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"query": map[string]any{
 					"type": "string",
@@ -376,7 +376,7 @@ type FetchResult struct {
 // provided in the tool definition. ChatGPT sees "fetch" as a very simple tool that can take
 // an ID returned by the "search" tool and return the full details of the object.
 var ChatGPTFetch = Tool[FetchArgs, FetchResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameChatGPTFetch,
 		Description: `Fetch a template or workspace.
 
@@ -401,7 +401,7 @@ var ChatGPTFetch = Tool[FetchArgs, FetchResult]{
 		` + "```" + `
 		`,
 
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"id": map[string]any{
 					"type": "string",

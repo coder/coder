@@ -103,7 +103,7 @@ export const AppLink: React.FC<AppLinkProps> = ({
 			<>
 				Port forwarding will not work because hostname is too long, see the{" "}
 				<Link
-					href={docs("/user-guides/workspace-access/port-forwarding#dashboard")}
+					href={docs("/workspaces/workspace-access/port-forwarding#dashboard")}
 					target="_blank"
 					size="sm"
 				>

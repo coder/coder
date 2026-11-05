@@ -867,9 +867,10 @@ lint/docs-manifest: _gen/bin/docsmanifestgen
 # Fails when docs/redirects.json, the redirects the docs site applies for pages
 # that moved or were removed, is malformed, points at a page that is not in
 # docs/manifest.json, hides a live page, or has duplicate, chained, or looping
-# rules. Also warns, without failing, when a pull request removes docs routes
-# and leaves the file alone. Passes when the file does not exist. See
-# scripts/docsredirectscheck/README.md.
+# rules. Also fails when a route that worked on the base branch or on the live
+# site for the target branch no longer resolves. The live page list needs
+# network access; pass -offline to skip it. Passes when the file does not
+# exist. See scripts/docsredirectscheck/README.md.
 lint/docs-redirects:
 	echo "--- check docs/redirects.json"
 	go run ./scripts/docsredirectscheck

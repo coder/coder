@@ -20,3 +20,6 @@ children:
     path: ./reference/api-key-scopes.md
     icon_path: ./images/icons/api.svg
   - include: reference/agent-api.yml
+  - title: FAQs
+    description: Answers to frequently asked questions about Coder OSS and licensed deployments.
+    path: ./reference/faqs.md

@@ -24,7 +24,7 @@ export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 			.trim()
 			.email("Please enter a valid email address.")
 			.required("Please enter an email address."),
-		password: Yup.string(),
+		password: Yup.string().required("Please enter a password."),
 	});
 
 	const form = useFormik({

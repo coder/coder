@@ -12,6 +12,16 @@ globalThis.Blob = NativeBlob;
 
 globalThis.ResizeObserver = ResizeObserver;
 
+// JSDOM does not implement the CSS Font Loading API. The web terminal listens
+// for document.fonts loadingdone events. document.fonts is read-only in the
+// DOM types, so it is defined rather than assigned.
+if (!("fonts" in document)) {
+	Object.defineProperty(document, "fonts", {
+		configurable: true,
+		value: new EventTarget(),
+	});
+}
+
 // JSDOM does not implement window.matchMedia. Monaco editor (and other
 // libraries) rely on it for dark/light theme detection.
 if (typeof globalThis.matchMedia !== "function") {

@@ -57,7 +57,7 @@ They interact with Coder using the web interface, the CLI tool, or directly call
 
 ### Workspace
 
-A [workspace](../../../user-guides/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
+A [workspace](../../../workspaces/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
 Workspaces are fully configurable and can be tailored to specific project requirements, providing developers with a consistent and efficient development environment.
 Workspaces can be autostarted and autostopped, enabling efficient resource management.
 
@@ -67,7 +67,7 @@ Workspaces are instantiated using Coder templates and deployed on resources crea
 
 ### Template
 
-A [template](../../../admin/templates/index.md) in Coder is a predefined configuration for creating workspaces.
+A [template](../../../templates/index.md) in Coder is a predefined configuration for creating workspaces.
 Templates streamline the process of workspace creation by providing pre-configured settings, tooling, and dependencies.
 They are built by template administrators on top of Terraform, allowing for efficient management of infrastructure resources.
 Additionally, templates can utilize Coder modules to leverage existing features shared with other templates, enhancing flexibility and consistency across deployments.
@@ -96,8 +96,8 @@ Note that the Registry is a hosted service and isn't available for offline use.
 
 ### AI Gateway
 
-[AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
-It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md) that scales independently of the control plane.
+[AI Gateway](../../../ai-governance/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
+It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-governance/ai-gateway/standalone.md) that scales independently of the control plane.
 Size replicas based on your AI request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`.
 For the chart's resource requests and autoscaling defaults, refer to the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
@@ -339,11 +339,11 @@ Operational readiness is crucial because it helps prevent issues that could affe
 ### Template configuration
 
 1. Establish dedicated accounts for users with the _Template Administrator_ role.
-1. Maintain Coder templates using [version control](../../../admin/templates/managing-templates/change-management.md).
+1. Maintain Coder templates using [version control](../../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template versions into Coder from git.
 
    For example, on GitHub, you can use the [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
-1. Evaluate enabling [automatic template updates](../../../admin/templates/managing-templates/index.md#template-update-policies) upon workspace startup.
+1. Evaluate enabling [automatic template updates](../../../templates/managing-templates/index.md#template-update-policies) upon workspace startup.
 
 ### Observability
 

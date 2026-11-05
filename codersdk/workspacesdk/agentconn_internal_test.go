@@ -1,6 +1,8 @@
 package workspacesdk
 
 import (
+	"io"
+	"math"
 	neturl "net/url"
 	"testing"
 	"time"
@@ -67,4 +69,59 @@ func TestAgentAPIPath(t *testing.T) {
 		require.Equal(t, "/debug/logs", parsed.Path)
 		require.Equal(t, after.UTC().Format(time.RFC3339Nano), parsed.Query().Get("after"))
 	})
+}
+
+// countingReader serves filler bytes after a prefix, up to size bytes,
+// and records how many bytes the consumer pulled.
+type countingReader struct {
+	prefix string
+	size   int64
+	read   int64
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	if r.read >= r.size {
+		return 0, io.EOF
+	}
+	n := 0
+	for n < len(p) && r.read < r.size {
+		if int(r.read) < len(r.prefix) {
+			p[n] = r.prefix[r.read]
+		} else {
+			p[n] = 'a'
+		}
+		n++
+		r.read++
+	}
+	return n, nil
+}
+
+func TestLimitedResponseBody(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		limit   int64
+		size    int64
+		wantErr bool
+	}{
+		{name: "AtLimit", limit: 16, size: 16},
+		{name: "OverLimit", limit: 16, size: 1 << 20, wantErr: true},
+		{name: "MaxLimit", limit: math.MaxInt64, size: 16},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := &countingReader{size: tc.size}
+			body := newLimitedResponseBody(io.NopCloser(src), tc.limit)
+			got, err := io.ReadAll(body)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "workspace agent response exceeds 16 bytes")
+				require.LessOrEqual(t, src.read, tc.limit+1)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Len(t, got, 16)
+		})
+	}
 }
