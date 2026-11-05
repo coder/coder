@@ -32,8 +32,22 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8443
+          protocol: TCP
     - ports:
-      - port: 8080
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+    - ports:
+      - port: 443
         protocol: TCP
 ---
 # Source: coder-provisioner/templates/coder.yaml

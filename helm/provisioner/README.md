@@ -66,27 +66,41 @@ coder:
 ### Network Policy
 
 Set `coder.networkPolicy.enable` to create a `NetworkPolicy` for the provisioner
-pods. Your CNI must enforce NetworkPolicy for it to have any effect. The
-provisioner only makes outbound connections, so ingress is denied unless you
+pods. Your CNI must enforce NetworkPolicy for it to have any effect.
+
+The provisioner only makes outbound connections, so ingress is denied unless you
 allow it in `coder.networkPolicy.extraIngress`, for example to scrape metrics on
-port 2112. Egress is unrestricted unless you set
-`coder.networkPolicy.egress.enable`. In that case only DNS and your
-`extraEgress` rules are allowed, so you must also allow the Coder deployment,
-the Kubernetes API, and anything your templates reach during builds.
+port 2112.
+
+Egress is restricted by default. Only DNS, the Coder server, and the Kubernetes
+API are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set
+`coder.networkPolicy.egress.enable` to `false` to leave egress open.
+
+- `egress.coderServer` defaults to the Coder chart's pods in the release
+  namespace, matching the default `CODER_URL`. Override `to` and `ports` if
+  `CODER_URL` points elsewhere.
+- `egress.kubernetesAPI` defaults to any destination on ports 443 and 6443,
+  because control plane addresses vary by cluster. Set `to` to an `ipBlock` for
+  your API server to tighten it.
+
+Your templates probably reach other services during builds, such as cloud APIs
+and registries. Allow them with `extraEgress`:
 
 ```yaml
 coder:
   networkPolicy:
     enable: true
     egress:
-      enable: true
+      kubernetesAPI:
+        to:
+          - ipBlock:
+              cidr: 10.0.0.1/32
     extraEgress:
       - to:
-          - namespaceSelector:
-              matchLabels:
-                kubernetes.io/metadata.name: coder
+          - ipBlock:
+              cidr: 0.0.0.0/0
         ports:
-          - port: 8080
+          - port: 443
             protocol: TCP
 ```
 
