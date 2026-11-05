@@ -94,7 +94,7 @@ func (s *server) Init(
 
 	// The captured lock file only speeds up init, so failing to restore it
 	// isn't fatal.
-	restored, err := restoreImportedLockFile(sess.Files)
+	restored, err := restoreImportedLockFile(sess.Files, request.ModuleArchive)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to restore lock file captured during template import", slog.Error(err))
 	} else if restored {

@@ -352,10 +352,21 @@ func importedLockFilePath(platform string) string {
 }
 
 // restoreImportedLockFile replaces the template's lock file with the one
-// captured during import, and reports whether it did. Lock files captured on
-// another platform are ignored, because they may lack this platform's hashes.
-func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
-	src := filepath.Join(files.WorkDirectory(), filepath.FromSlash(importedLockFilePath(terraformPlatform())))
+// captured during import, and reports whether it did. Only a lock file that
+// moduleArchive delivered counts: the template's source archive is extracted
+// into the same directory first and could hold a file at that path. Lock
+// files captured on another platform are ignored, because they may lack this
+// platform's hashes.
+func restoreImportedLockFile(files tfpath.Layout, moduleArchive []byte) (bool, error) {
+	name := importedLockFilePath(terraformPlatform())
+	delivered, err := archiveHasFile(moduleArchive, name)
+	if err != nil {
+		return false, xerrors.Errorf("read module archive: %w", err)
+	}
+	if !delivered {
+		return false, nil
+	}
+	src := filepath.Join(files.WorkDirectory(), filepath.FromSlash(name))
 	if _, err := os.Stat(src); err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
 			return false, nil
@@ -364,7 +375,7 @@ func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
 	}
 
 	backup := filepath.Join(files.WorkDirectory(), filepath.FromSlash(templateLockFileBackupPath))
-	err := os.Rename(files.TerraformLockFile(), backup)
+	err = os.Rename(files.TerraformLockFile(), backup)
 	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
 		return false, xerrors.Errorf("set aside template lock file: %w", err)
 	}
@@ -374,6 +385,24 @@ func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
 		return false, errors.Join(err, restoreTemplateLockFile(files))
 	}
 	return true, nil
+}
+
+// archiveHasFile reports whether the tar archive holds a regular file named
+// name.
+func archiveHasFile(archive []byte, name string) (bool, error) {
+	r := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, err := r.Next()
+		if errors.Is(err, io.EOF) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if header.Typeflag == tar.TypeReg && path.Clean(header.Name) == name {
+			return true, nil
+		}
+	}
 }
 
 // restoreTemplateLockFile undoes restoreImportedLockFile.

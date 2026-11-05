@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	archivefs "github.com/coder/coder/v2/archive/fs"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
@@ -367,16 +368,17 @@ func TestRestoreImportedLockFile(t *testing.T) {
 	committed := []byte("# committed with the template\n")
 	imported := []byte("# captured during import\n")
 
-	setup := func(t *testing.T, templateLock []byte, platform string) tfpath.Layout {
+	// setup extracts a module archive holding a lock file captured on
+	// platform, the way Init does.
+	setup := func(t *testing.T, templateLock []byte, platform string) (tfpath.Layout, []byte) {
 		t.Helper()
 		layout := tfpath.Layout(t.TempDir())
 		if templateLock != nil {
 			require.NoError(t, os.WriteFile(layout.TerraformLockFile(), templateLock, 0o600))
 		}
-		src := filepath.Join(layout.WorkDirectory(), filepath.FromSlash(importedLockFilePath(platform)))
-		require.NoError(t, os.MkdirAll(filepath.Dir(src), 0o700))
-		require.NoError(t, os.WriteFile(src, imported, 0o600))
-		return layout
+		archive := testutil.CreateTar(t, map[string]string{importedLockFilePath(platform): string(imported)})
+		require.NoError(t, layout.ExtractArchive(t.Context(), slogtest.Make(t, nil), afero.NewOsFs(), nil, archive))
+		return layout, archive
 	}
 	requireLockFile := func(t *testing.T, layout tfpath.Layout, want []byte) {
 		t.Helper()
@@ -388,8 +390,8 @@ func TestRestoreImportedLockFile(t *testing.T) {
 	t.Run("TemplateLockFile", func(t *testing.T) {
 		t.Parallel()
 
-		layout := setup(t, committed, terraformPlatform())
-		restored, err := restoreImportedLockFile(layout)
+		layout, archive := setup(t, committed, terraformPlatform())
+		restored, err := restoreImportedLockFile(layout, archive)
 		require.NoError(t, err)
 		require.True(t, restored)
 		requireLockFile(t, layout, imported)
@@ -401,8 +403,8 @@ func TestRestoreImportedLockFile(t *testing.T) {
 	t.Run("NoTemplateLockFile", func(t *testing.T) {
 		t.Parallel()
 
-		layout := setup(t, nil, terraformPlatform())
-		restored, err := restoreImportedLockFile(layout)
+		layout, archive := setup(t, nil, terraformPlatform())
+		restored, err := restoreImportedLockFile(layout, archive)
 		require.NoError(t, err)
 		require.True(t, restored)
 		requireLockFile(t, layout, imported)
@@ -414,10 +416,33 @@ func TestRestoreImportedLockFile(t *testing.T) {
 	t.Run("OtherPlatform", func(t *testing.T) {
 		t.Parallel()
 
-		layout := setup(t, committed, "plan9_mips")
-		restored, err := restoreImportedLockFile(layout)
+		layout, archive := setup(t, committed, "plan9_mips")
+		restored, err := restoreImportedLockFile(layout, archive)
 		require.NoError(t, err)
 		require.False(t, restored)
 		requireLockFile(t, layout, committed)
+	})
+
+	// A template's source archive can hold a file at the captured path.
+	// Template imports and dry runs get no module archive, and builds may get
+	// one captured on another platform.
+	t.Run("NotFromModuleArchive", func(t *testing.T) {
+		t.Parallel()
+
+		source := testutil.CreateTar(t, map[string]string{
+			terraformLockFileName:                     string(committed),
+			importedLockFilePath(terraformPlatform()): string(imported),
+		})
+		for _, archive := range [][]byte{
+			nil,
+			testutil.CreateTar(t, map[string]string{importedLockFilePath("plan9_mips"): string(imported)}),
+		} {
+			layout := tfpath.Layout(t.TempDir())
+			require.NoError(t, layout.ExtractArchive(t.Context(), slogtest.Make(t, nil), afero.NewOsFs(), source, archive))
+			restored, err := restoreImportedLockFile(layout, archive)
+			require.NoError(t, err)
+			require.False(t, restored)
+			requireLockFile(t, layout, committed)
+		}
 	})
 }
