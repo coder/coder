@@ -5124,6 +5124,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "total_member_count": 0
     }
   ],
+  "owner": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "users": [
     {
       "avatar_url": "http://example.com",
@@ -5138,10 +5144,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name     | Type                                                            | Required | Restrictions | Description |
-|----------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |             |
-| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |             |
+| Name     | Type                                                            | Required | Restrictions | Description                                               |
+|----------|-----------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |                                                           |
+| `owner`  | [codersdk.MinimalUser](#codersdkminimaluser)                    | false    |              | Owner is the project owner, who is never listed in Users. |
+| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |                                                           |
 
 ## codersdk.ChatProjectGroup
 

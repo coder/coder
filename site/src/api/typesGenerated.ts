@@ -3569,10 +3569,14 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
- * ChatProjectACL lists who a chat project is shared with. The Everyone
- * group's ID is the organization ID.
+ * ChatProjectACL lists who a chat project is shared with and who owns
+ * it. The Everyone group's ID is the organization ID.
  */
 export interface ChatProjectACL {
+	/**
+	 * Owner is the project owner, who is never listed in Users.
+	 */
+	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
 }
