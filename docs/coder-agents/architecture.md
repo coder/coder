@@ -92,10 +92,9 @@ A "Context cleared" marker shows where the reset happened.
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working.
-Messages are queued in the database and delivered before the agent's next model call.
+Messages are held in the database and delivered before the agent's next model call.
 API and Model Context Protocol (MCP) clients can set `busy_behavior` to `queue` to deliver a message when the current turn ends (the full sequence of steps until the model stops calling tools).
-To redirect the agent, send a message.
-Interrupt the agent only to stop it.
+Interrupt the agent only to stop it, not to send it a message.
 There is no need to wait for a response before providing additional context or redirecting the agent.
 
 ## Tool execution

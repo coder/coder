@@ -154,8 +154,7 @@ If the agent is busy, the `busy_behavior` field controls when the message reache
 - `steer` (default): before the agent's next model call in the current turn.
 - `queue`: after the current turn ends.
 
-To redirect a busy agent, send the message with `steer`.
-Call `POST /api/v2/chats/{chat}/interrupt` only to stop the turn.
+Call `POST /api/v2/chats/{chat}/interrupt` only to stop the turn, not to send a message.
 The response includes a `queued` field that shows whether the message was delivered immediately or held for later delivery.
 
 ### 4. Switch from log polling to WebSocket streaming
