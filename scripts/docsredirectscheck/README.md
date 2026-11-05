@@ -18,15 +18,15 @@ A missing `docs/redirects.json` passes.
     "destination": "/"
   },
   {
-    "source": "tutorials/ai-agents/*",
-    "destination": "ai-coder/*",
+    "source": "ai-coder/ai-gateway/*",
+    "destination": "ai-governance/ai-gateway/*",
     "permanent": false
   }
 ]
 ```
 
 - `source` and `destination` are routes relative to the docs root.
-  A route is the URL path below `/docs` with no version, no leading or trailing slash, and no `.md`, such as `admin/templates/extending-templates`.
+  A route is the URL path below `/docs` with no version, no leading or trailing slash, and no `.md`, such as `templates/extending-templates`.
   Each segment matches `[A-Za-z0-9._-]+`.
 - `permanent` is optional and defaults to `true`.
   `true` answers 308 and `false` answers 307.
@@ -34,12 +34,12 @@ A missing `docs/redirects.json` passes.
   A wildcard matches the prefix itself and every route beneath it.
 - A `destination` is an exact route, `/` for the docs root, or an `https://` URL that starts with `https://github.com/coder/` or `https://coder.com/`.
   An external destination has no `:` after the scheme, no `*`, no `\`, and no `.` or `..` path segment, also when percent-encoded.
-- An exact route destination may end in one `#fragment` that matches `[A-Za-z0-9._-]+`, such as `user-guides/workspace-access#web-ides`.
+- An exact route destination may end in one `#fragment` that matches `[A-Za-z0-9._-]+`, such as `workspaces/workspace-access#other-web-ides`.
   The route part must be a live route.
   `/` and wildcard destinations never carry a fragment.
 - A `destination` ends in `/*` only when the `source` does.
   The part the source's `*` matched replaces the destination's `*`.
-  An empty match means the destination prefix itself, so `ai-coder/ai-gateway/*` with an empty match is `ai-coder/ai-gateway`.
+  An empty match means the destination prefix itself, so `ai-governance/ai-gateway/*` with an empty match is `ai-governance/ai-gateway`.
   A wildcard source with an exact destination sends everything under the prefix to that one page.
 - Rules apply in file order and the first match wins, so they must run from most specific to least.
   Put an exact rule above any wildcard that would also match it.

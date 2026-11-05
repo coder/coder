@@ -89,7 +89,7 @@ const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 				settings.{" "}
 				<Link
 					href={docs(
-						"/admin/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
+						"/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
 					)}
 					target="_blank"
 					rel="noreferrer"
@@ -111,7 +111,7 @@ const TemplateHelpPopover: React.FC = () => {
 				<br />
 				<Link
 					size="sm"
-					href={docs("/admin/templates")}
+					href={docs("/templates")}
 					target="_blank"
 					rel="noreferrer"
 				>

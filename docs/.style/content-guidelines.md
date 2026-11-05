@@ -267,7 +267,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
      Each rule has a `source` and a `destination`, both routes relative to the docs root with no leading slash, and an optional `permanent` flag that defaults to `true`.
      Write the route as the URL path below `/docs`, without a version and without `.md`.
      A `destination` of `/` is the docs root, and a `destination` can also be an `https` URL that starts with `https://github.com/coder/` or `https://coder.com/`.
-     An exact route destination can end in one `#fragment`, such as `user-guides/workspace-access#web-ides`.
+     An exact route destination can end in one `#fragment`, such as `workspaces/workspace-access#other-web-ides`.
      A `source` is an exact route or a route ending in `/*`, which matches the route and everything beneath it.
      A `destination` ending in `/*` carries the matched part over from the source.
      For example: `{"source": "about/architecture", "destination": "/"}`.

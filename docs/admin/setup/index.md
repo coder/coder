@@ -45,7 +45,7 @@ coder server
 > [!TIP]
 > Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../../templates/index.md) on an absolute path.
 Set it to a wildcard hostname that resolves to Coder, such as `*.coder.example.com` or `*-coder.example.com`.
 The suffix form creates application hostnames such as `8080--main--myworkspace--john-coder.example.com`.
 It requires a DNS record and TLS certificate for `*.example.com`.
@@ -62,16 +62,16 @@ If you are providing TLS certificates directly to the control plane, either
    These options both take a comma separated list of files.
    List certificates and their respective keys in the same order.
 
-After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.
+After you enable the wildcard access URL, you should [disable path-based apps](../security/security-best-practices.md#disable-path-based-apps) for security.
 
 ## TLS & Reverse Proxy
 
 The control plane can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags.
 However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
-- [Apache](../../tutorials/reverse-proxy-apache.md)
-- [Caddy](../../tutorials/reverse-proxy-caddy.md)
-- [NGINX](../../tutorials/reverse-proxy-nginx.md)
+- [Apache](../networking/reverse-proxy-apache.md)
+- [Caddy](../networking/reverse-proxy-caddy.md)
+- [NGINX](../networking/reverse-proxy-nginx.md)
 
 ### Kubernetes TLS configuration
 
@@ -153,5 +153,5 @@ Refer to the [external authentication](../external-auth.md) section for more inf
 
 ## Up Next
 
-- [Setup and manage templates](../templates/index.md)
+- [Setup and manage templates](../../templates/index.md)
 - [Setup external provisioners](../../install/operate/provisioners/index.md)

@@ -208,7 +208,7 @@ const TestHelpPopover: React.FC = () => {
 				<br />
 				<Link
 					size="sm"
-					href={docs("/admin/templates/open-in-coder")}
+					href={docs("/templates/open-in-coder")}
 					target="_blank"
 					rel="noreferrer"
 				>

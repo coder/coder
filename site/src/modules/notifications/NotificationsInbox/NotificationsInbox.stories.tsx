@@ -153,7 +153,9 @@ export const MarkNotificationAsRead: Story = {
 		within(secondNotification).getByText(/unread/i);
 
 		await userEvent.click(secondNotification);
-		const markButton = body.getByRole("button", { name: /mark as read/i });
+		const markButton = within(secondNotification).getByRole("button", {
+			name: /mark as read/i,
+		});
 		await userEvent.click(markButton);
 		await expect(within(secondNotification).queryByText(/unread/i)).toBeNull();
 	},
@@ -178,7 +180,9 @@ export const MarkNotificationAsReadFailure: Story = {
 		).getAllByRole("listitem");
 		const secondNotification = notifications[1];
 		await userEvent.click(secondNotification);
-		const markButton = body.getByRole("button", { name: /mark as read/i });
+		const markButton = within(secondNotification).getByRole("button", {
+			name: /mark as read/i,
+		});
 		await userEvent.click(markButton);
 		await body.findByText("Failed to mark notification as read");
 	},

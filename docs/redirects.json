@@ -1,7 +1,7 @@
 [
   {
     "source": "admin/templates/extending-templates/dynamic-parameters",
-    "destination": "admin/templates/extending-templates/parameters"
+    "destination": "templates/extending-templates/parameters"
   },
   {
     "source": "about/screenshots",
@@ -29,7 +29,7 @@
   },
   {
     "source": "workspaces/personalization",
-    "destination": "user-guides/workspace-dotfiles"
+    "destination": "workspaces/workspace-dotfiles"
   },
   {
     "source": "contributing",
@@ -65,7 +65,7 @@
   },
   {
     "source": "install/database",
-    "destination": "tutorials/external-database"
+    "destination": "install/server/external-database"
   },
   {
     "source": "install/1-click",
@@ -76,12 +76,8 @@
     "destination": "install/server/cloud"
   },
   {
-    "source": "templates",
-    "destination": "admin/templates"
-  },
-  {
     "source": "templates/creating",
-    "destination": "admin/templates/creating-templates"
+    "destination": "templates/creating-templates"
   },
   {
     "source": "start/coder-tour",
@@ -89,219 +85,207 @@
   },
   {
     "source": "ai-coder/tasks",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/tasks-core-principles",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/tasks-lifecycle",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/tasks-migration",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/github-to-tasks",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/custom-agents",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/agent-compatibility",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/security",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/securing",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/cli",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/api/tasks",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_create",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_delete",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_list",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_logs",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_pause",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_resume",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_send",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "reference/cli/task_status",
-    "destination": "ai-coder/agents"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/ai-bridge/client-config",
-    "destination": "ai-coder/ai-gateway/clients"
+    "destination": "ai-governance/ai-gateway/clients"
   },
   {
     "source": "templates/tutorial",
-    "destination": "tutorials/template-from-scratch"
+    "destination": "templates/template-from-scratch"
   },
   {
     "source": "templates/tour",
-    "destination": "tutorials/template-from-scratch"
+    "destination": "templates/template-from-scratch"
   },
   {
     "source": "templates/best-practices",
-    "destination": "admin/templates/managing-templates"
+    "destination": "templates/managing-templates"
   },
   {
     "source": "templates/dependencies",
-    "destination": "admin/templates/managing-templates/dependencies"
+    "destination": "templates/managing-templates/dependencies"
   },
   {
     "source": "templates/change-management",
-    "destination": "admin/templates/managing-templates/change-management"
+    "destination": "templates/managing-templates/change-management"
   },
   {
     "source": "templates/authentication",
-    "destination": "admin/templates/extending-templates/provider-authentication"
+    "destination": "templates/extending-templates/provider-authentication"
   },
   {
     "source": "templates/resource-persistence",
-    "destination": "admin/templates/extending-templates"
+    "destination": "templates/extending-templates"
   },
   {
     "source": "templates/modules",
-    "destination": "admin/templates/extending-templates/modules"
+    "destination": "templates/extending-templates/modules"
   },
   {
     "source": "templates/customizing",
-    "destination": "admin/templates/extending-templates"
+    "destination": "templates/extending-templates"
   },
   {
     "source": "templates/agent-metadata",
-    "destination": "admin/templates/extending-templates/agent-metadata"
+    "destination": "templates/extending-templates/agent-metadata"
   },
   {
     "source": "templates/resource-metadata",
-    "destination": "admin/templates/extending-templates/resource-metadata"
+    "destination": "templates/extending-templates/resource-metadata"
   },
   {
     "source": "templates/resource-ordering",
-    "destination": "admin/templates/extending-templates/resource-ordering"
+    "destination": "templates/extending-templates/resource-ordering"
   },
   {
     "source": "templates/parameters",
-    "destination": "admin/templates/extending-templates/parameters"
+    "destination": "templates/extending-templates/parameters"
   },
   {
     "source": "templates/variables",
-    "destination": "admin/templates/extending-templates/variables"
+    "destination": "templates/extending-templates/variables"
   },
   {
     "source": "templates/workspace-tags",
-    "destination": "admin/templates/extending-templates/workspace-tags"
+    "destination": "templates/extending-templates/workspace-tags"
   },
   {
     "source": "templates/configuration",
-    "destination": "admin/templates/managing-templates"
+    "destination": "templates/managing-templates"
   },
   {
     "source": "templates/general-settings",
-    "destination": "admin/templates/managing-templates"
+    "destination": "templates/managing-templates"
   },
   {
     "source": "templates/permissions",
-    "destination": "admin/templates/template-permissions"
+    "destination": "templates/template-permissions"
   },
   {
     "source": "templates/schedule",
-    "destination": "admin/templates/managing-templates/schedule"
-  },
-  {
-    "source": "templates/open-in-coder",
-    "destination": "admin/templates/open-in-coder"
+    "destination": "templates/managing-templates/schedule"
   },
   {
     "source": "templates/docker-in-workspaces",
-    "destination": "admin/templates/extending-templates/docker-in-workspaces"
+    "destination": "templates/extending-templates/docker-in-workspaces"
   },
   {
     "source": "templates/dev-containers",
     "destination": "admin/integrations/devcontainers"
   },
   {
-    "source": "templates/troubleshooting",
-    "destination": "admin/templates/troubleshooting"
-  },
-  {
     "source": "templates/process-logging",
-    "destination": "admin/templates/extending-templates/process-logging"
+    "destination": "templates/extending-templates/process-logging"
   },
   {
     "source": "templates/icons",
-    "destination": "admin/templates/extending-templates/icons"
-  },
-  {
-    "source": "workspaces",
-    "destination": "user-guides/workspace-management"
+    "destination": "templates/extending-templates/icons"
   },
   {
     "source": "ides",
-    "destination": "user-guides/workspace-access"
+    "destination": "workspaces/workspace-access"
   },
   {
     "source": "ides/web-ides",
-    "destination": "user-guides/workspace-access#other-web-ides"
+    "destination": "workspaces/workspace-access#other-web-ides"
   },
   {
     "source": "ides/fleet",
-    "destination": "user-guides/workspace-access/jetbrains"
+    "destination": "workspaces/workspace-access/jetbrains"
   },
   {
     "source": "ides/gateway",
-    "destination": "user-guides/workspace-access/jetbrains#jetbrains-gateway"
+    "destination": "workspaces/workspace-access/jetbrains#jetbrains-gateway"
   },
   {
     "source": "ides/emacs-tramp",
-    "destination": "user-guides/workspace-access/emacs-tramp"
+    "destination": "workspaces/workspace-access/emacs-tramp"
   },
   {
     "source": "ides/remote-desktops",
-    "destination": "user-guides/workspace-access/remote-desktops"
+    "destination": "workspaces/workspace-access/remote-desktops"
   },
   {
     "source": "ides/vscode-extensions",
-    "destination": "user-guides/workspace-access/vscode#vs-code-extensions"
+    "destination": "workspaces/workspace-access/vscode#vs-code-extensions"
   },
   {
     "source": "networking/*",
@@ -309,7 +293,7 @@
   },
   {
     "source": "dotfiles",
-    "destination": "user-guides/workspace-dotfiles"
+    "destination": "workspaces/workspace-dotfiles"
   },
   {
     "source": "secrets",
@@ -329,7 +313,7 @@
   },
   {
     "source": "admin/rbac",
-    "destination": "admin/templates/template-permissions"
+    "destination": "templates/template-permissions"
   },
   {
     "source": "admin/configure",
@@ -377,7 +361,7 @@
   },
   {
     "source": "templates/docker-in-docker",
-    "destination": "admin/templates/extending-templates/docker-in-workspaces"
+    "destination": "templates/extending-templates/docker-in-workspaces"
   },
   {
     "source": "admin/app-logs",
@@ -433,7 +417,7 @@
   },
   {
     "source": "faqs",
-    "destination": "tutorials/faqs"
+    "destination": "reference/faqs"
   },
   {
     "source": "guides/support-bundle",
@@ -452,8 +436,32 @@
     "destination": "admin/integrations/island"
   },
   {
+    "source": "guides/azure-federation",
+    "destination": "install/operate/azure-federation"
+  },
+  {
+    "source": "guides/cloning-git-repositories",
+    "destination": "workspaces/cloning-git-repositories"
+  },
+  {
+    "source": "guides/configuring-okta",
+    "destination": "admin/users/oidc-auth/configuring-okta"
+  },
+  {
+    "source": "guides/gcp-to-aws",
+    "destination": "install/operate/gcp-to-aws"
+  },
+  {
+    "source": "guides/image-pull-secret",
+    "destination": "install/operate/image-pull-secret"
+  },
+  {
+    "source": "guides/postgres-ssl",
+    "destination": "install/server/postgres-ssl"
+  },
+  {
     "source": "guides/*",
-    "destination": "tutorials/*"
+    "destination": "/"
   },
   {
     "source": "xray-integration",
@@ -485,23 +493,23 @@
   },
   {
     "source": "ai-coder/agent-boundary",
-    "destination": "ai-coder/agent-firewall"
+    "destination": "ai-governance/agent-firewall"
   },
   {
     "source": "ai-coder/boundary/agent-boundary",
-    "destination": "ai-coder/agent-firewall"
+    "destination": "ai-governance/agent-firewall"
   },
   {
     "source": "ai-coder/agents/chat-retention",
-    "destination": "ai-coder/agents/platform-controls/chat-retention"
+    "destination": "coder-agents/platform-controls/chat-retention"
   },
   {
     "source": "ai-coder/ai-bridge",
-    "destination": "ai-coder/ai-gateway"
+    "destination": "ai-governance/ai-gateway"
   },
   {
     "source": "ai-coder/agent-boundaries",
-    "destination": "ai-coder/agent-firewall"
+    "destination": "ai-governance/agent-firewall"
   },
   {
     "source": "ai-coder/agents/chats-api",
@@ -509,15 +517,15 @@
   },
   {
     "source": "ai-coder/agents/early-access",
-    "destination": "ai-coder/agents/getting-started"
+    "destination": "coder-agents/getting-started"
   },
   {
     "source": "ai-coder/agents/platform-controls/usage-insights",
-    "destination": "ai-coder/agents/platform-controls/spend-management"
+    "destination": "coder-agents/platform-controls/spend-management"
   },
   {
     "source": "ai-coder/usage-data-reporting",
-    "destination": "ai-coder/agents/licensing-usage"
+    "destination": "coder-agents/licensing-usage"
   },
   {
     "source": "reference/api/experimental",
@@ -525,15 +533,15 @@
   },
   {
     "source": "user-guides/workspace-access/windsurf",
-    "destination": "user-guides/workspace-access/devin-desktop"
+    "destination": "workspaces/workspace-access/devin-desktop"
   },
   {
     "source": "user-guides/workspace-access/jetbrains/fleet",
-    "destination": "user-guides/workspace-access/jetbrains"
+    "destination": "workspaces/workspace-access/jetbrains"
   },
   {
     "source": "ai-coder/ai-gateway/clients/mux",
-    "destination": "ai-coder/ai-gateway/clients/xum"
+    "destination": "ai-governance/ai-gateway/clients/xum"
   },
   {
     "source": "about/contributing",
@@ -1328,23 +1336,23 @@
   },
   {
     "source": "ai-coder/ai-bridge/ai-bridge-proxy/*",
-    "destination": "ai-coder/ai-gateway/ai-gateway-proxy/*"
+    "destination": "ai-governance/ai-gateway/ai-gateway-proxy/*"
   },
   {
     "source": "ai-coder/agent-boundaries/*",
-    "destination": "ai-coder/agent-firewall/*"
+    "destination": "ai-governance/agent-firewall/*"
   },
   {
     "source": "tutorials/ai-agents/*",
-    "destination": "ai-coder/*"
+    "destination": "coder-agents"
   },
   {
     "source": "ai-coder/ai-bridge/*",
-    "destination": "ai-coder/ai-gateway/*"
+    "destination": "ai-governance/ai-gateway/*"
   },
   {
     "source": "ai-coder/boundary/*",
-    "destination": "ai-coder/agent-firewall/*"
+    "destination": "ai-governance/agent-firewall/*"
   },
   {
     "source": "contributing/*",
@@ -1358,5 +1366,137 @@
   {
     "source": "platforms/*",
     "destination": "install/server/cloud"
+  },
+  {
+    "source": "ai-coder",
+    "destination": "coder-agents"
+  },
+  {
+    "source": "ai-coder/best-practices",
+    "destination": "coder-agents"
+  },
+  {
+    "source": "ai-coder/ide-agents",
+    "destination": "workspaces/workspace-access"
+  },
+  {
+    "source": "ai-coder/ai-governance",
+    "destination": "ai-governance"
+  },
+  {
+    "source": "ai-coder/mcp-server",
+    "destination": "mcp-server"
+  },
+  {
+    "source": "ai-coder/agents/*",
+    "destination": "coder-agents/*"
+  },
+  {
+    "source": "ai-coder/agent-firewall/*",
+    "destination": "ai-governance/agent-firewall/*"
+  },
+  {
+    "source": "ai-coder/ai-gateway/*",
+    "destination": "ai-governance/ai-gateway/*"
+  },
+  {
+    "source": "ai-coder/agent-relay/*",
+    "destination": "agent-relay/*"
+  },
+  {
+    "source": "tutorials/template-from-scratch",
+    "destination": "templates/template-from-scratch"
+  },
+  {
+    "source": "tutorials/testing-templates",
+    "destination": "templates/testing-templates"
+  },
+  {
+    "source": "admin/templates/*",
+    "destination": "templates/*"
+  },
+  {
+    "source": "tutorials/azure-federation",
+    "destination": "install/operate/azure-federation"
+  },
+  {
+    "source": "tutorials/best-practices/organizations",
+    "destination": "admin/users/organizations-best-practices"
+  },
+  {
+    "source": "tutorials/best-practices/scale-coder",
+    "destination": "install/validate/scale-coder"
+  },
+  {
+    "source": "tutorials/best-practices/security-best-practices",
+    "destination": "admin/security/security-best-practices"
+  },
+  {
+    "source": "tutorials/best-practices/speed-up-templates",
+    "destination": "workspaces/speed-up-templates"
+  },
+  {
+    "source": "tutorials/cloning-git-repositories",
+    "destination": "workspaces/cloning-git-repositories"
+  },
+  {
+    "source": "tutorials/configuring-okta",
+    "destination": "admin/users/oidc-auth/configuring-okta"
+  },
+  {
+    "source": "tutorials/external-database",
+    "destination": "install/server/external-database"
+  },
+  {
+    "source": "tutorials/faqs",
+    "destination": "reference/faqs"
+  },
+  {
+    "source": "tutorials/gcp-to-aws",
+    "destination": "install/operate/gcp-to-aws"
+  },
+  {
+    "source": "tutorials/image-pull-secret",
+    "destination": "install/operate/image-pull-secret"
+  },
+  {
+    "source": "tutorials/persistent-shared-workspaces",
+    "destination": "workspaces/persistent-shared-workspaces"
+  },
+  {
+    "source": "tutorials/postgres-ssl",
+    "destination": "install/server/postgres-ssl"
+  },
+  {
+    "source": "tutorials/reverse-proxy-apache",
+    "destination": "admin/networking/reverse-proxy-apache"
+  },
+  {
+    "source": "tutorials/reverse-proxy-caddy",
+    "destination": "admin/networking/reverse-proxy-caddy"
+  },
+  {
+    "source": "tutorials/reverse-proxy-nginx",
+    "destination": "admin/networking/reverse-proxy-nginx"
+  },
+  {
+    "source": "tutorials/best-practices",
+    "destination": "/"
+  },
+  {
+    "source": "tutorials",
+    "destination": "/"
+  },
+  {
+    "source": "about",
+    "destination": "/"
+  },
+  {
+    "source": "user-guides",
+    "destination": "workspaces"
+  },
+  {
+    "source": "user-guides/*",
+    "destination": "workspaces/*"
   }
 ]
