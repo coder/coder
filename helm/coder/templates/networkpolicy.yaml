@@ -31,7 +31,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     # HA replicas reach each other for the embedded DERP relay (8080) and
-    # NATS pubsub (6222, not configurable).
+    # NATS pubsub (6222). Neither port is configurable.
     - ports:
         - port: 8080
           protocol: TCP
