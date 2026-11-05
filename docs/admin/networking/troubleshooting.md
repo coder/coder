@@ -5,6 +5,9 @@ title: Troubleshooting
 `coder ping <workspace>` will ping the workspace agent and print diagnostics on the state of the connection.
 These diagnostics are created by inspecting both the client and agent network configurations, and provide insights into why a direct connection may be impeded, or why the quality of one might be degraded.
 
+If your workspace has more than one agent, run `coder ping <workspace>.<agent>` to select the agent to ping.
+For a workspace owned by another user, include the owner: `coder ping <owner>/<workspace>.<agent>`.
+
 The `-v/--verbose` flag can be appended to the command to print client debug logs.
 
 ```console

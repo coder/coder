@@ -206,7 +206,7 @@ jobs:
         run: |
           set -euo pipefail
           for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04 latest; do
-            mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
+            mise oci push --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
           done
 
       - name: Build and push vscode-coder image
