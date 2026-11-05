@@ -57,7 +57,7 @@ mock_ready() {
 }
 
 add_provider() {
-	vc_browser_login
+	vc_browser_login "$VC_ADMIN_EMAIL" "$VC_ADMIN_PASSWORD"
 	vc_ab open "$VC_WEB_URL/ai/settings/providers" >/dev/null
 	vc_ab wait --fn 'document.title === "AI Providers - Coder"' >/dev/null
 	vc_ab find role button click --name "Add provider" >/dev/null

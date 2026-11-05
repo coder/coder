@@ -22,7 +22,7 @@ vc_on_fail() {
 }
 
 sign_in() {
-	vc_browser_login
+	vc_browser_login "$VC_ADMIN_EMAIL" "$VC_ADMIN_PASSWORD"
 	vc_ab screenshot "$out/01-workspaces.png" >/dev/null
 	echo "signed in as $VC_ADMIN_EMAIL, title $(vc_ab get title)"
 }

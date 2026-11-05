@@ -131,7 +131,7 @@ cli_stop_start() {
 }
 
 ui_create() {
-	vc_browser_login
+	vc_browser_login "$VC_ADMIN_EMAIL" "$VC_ADMIN_PASSWORD"
 	vc_ab open "$VC_WEB_URL/templates/docker/workspace" >/dev/null
 	vc_ab wait --fn 'document.title === "Create workspace - Coder"' >/dev/null
 	vc_ab wait 'form[aria-label="Create workspace form"]' >/dev/null

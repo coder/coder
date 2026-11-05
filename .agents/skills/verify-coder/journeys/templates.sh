@@ -25,7 +25,7 @@ template_json() {
 }
 
 list() {
-	vc_browser_login
+	vc_browser_login "$VC_ADMIN_EMAIL" "$VC_ADMIN_PASSWORD"
 	vc_ab open "$VC_WEB_URL/templates" >/dev/null
 	vc_ab wait --fn 'document.title === "Templates - Coder"' >/dev/null
 	vc_ab wait 'a[href="/templates/docker/workspace"]' >/dev/null
