@@ -103,8 +103,11 @@ func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) b
 // returns when a transition is attempted from a state where the
 // matrix forbids it. N (missing chat) becomes ErrChatNotFound;
 // Invalid becomes ErrInvalidState (except for ReconcileInvalidState
-// which is allowed); everything else becomes ErrTransitionNotAllowed.
-func expectedErrorForDisallowed(tr chatstate.Transition, from chatstate.ExecutionState) error {
+// which is allowed); a transition on one queued message becomes
+// ErrQueuedMessageNotFound when the seed has no queued messages,
+// because its applier then targets ID 0; everything else becomes
+// ErrTransitionNotAllowed.
+func expectedErrorForDisallowed(tr chatstate.Transition, from chatstate.ExecutionState, seeded seededChat) error {
 	switch from {
 	case chatstate.StateN:
 		if tr == chatstate.TransitionCreateChat {
@@ -119,6 +122,14 @@ func expectedErrorForDisallowed(tr chatstate.Transition, from chatstate.Executio
 			return nil
 		}
 		return chatstate.ErrInvalidState
+	}
+	switch tr {
+	case chatstate.TransitionDeleteQueuedMessage,
+		chatstate.TransitionSteerQueuedMessage,
+		chatstate.TransitionEditQueuedMessage:
+		if len(seeded.queuedMessageIDs) == 0 {
+			return chatstate.ErrQueuedMessageNotFound
+		}
 	}
 	return chatstate.ErrTransitionNotAllowed
 }
@@ -713,7 +724,7 @@ func runDisallowedCase(t *testing.T, f *testFixture, tr chatstate.Transition, fr
 		return
 	}
 
-	expectErr := expectedErrorForDisallowed(tr, from)
+	expectErr := expectedErrorForDisallowed(tr, from, seeded)
 	require.Error(t, err)
 	require.ErrorIs(t, err, expectErr)
 	assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)

@@ -1036,6 +1036,27 @@ func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) 
 	return ClearContextResult{Chat: updated, InsertedMessages: inserted}, nil
 }
 
+// requireQueuedMessageTransition is requireFromAllowed for a transition
+// on one queued message. When t is refused and the message does not
+// exist, it returns ErrQueuedMessageNotFound.
+func (tx *Tx) requireQueuedMessageTransition(t Transition, id int64) (database.Chat, ExecutionState, error) {
+	chat, from, err := tx.requireFromAllowed(t)
+	if !errors.Is(err, ErrTransitionNotAllowed) {
+		return chat, from, err
+	}
+	_, lookupErr := tx.store.GetChatQueuedMessageByID(tx.ctx, database.GetChatQueuedMessageByIDParams{
+		ID:     id,
+		ChatID: tx.chatID,
+	})
+	if errors.Is(lookupErr, sql.ErrNoRows) {
+		return chat, from, ErrQueuedMessageNotFound
+	}
+	if lookupErr != nil {
+		return chat, from, xerrors.Errorf("get queued: %w", lookupErr)
+	}
+	return chat, from, err
+}
+
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
 	QueuedMessageID int64
@@ -1054,7 +1075,7 @@ type DeleteQueuedMessageResult struct {
 // leaves paused once the head is ready or the queue is empty (see
 // leavePaused).
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	chat, from, err := tx.requireQueuedMessageTransition(TransitionDeleteQueuedMessage, input.QueuedMessageID)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -1120,7 +1141,7 @@ type EditQueuedMessageResult struct {
 // leavePaused); beginning an edit on a different row is refused with
 // [ErrPausedQueuedHeadUnderEdit].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
+	chat, from, err := tx.requireQueuedMessageTransition(TransitionEditQueuedMessage, input.QueuedMessageID)
 	if err != nil {
 		return EditQueuedMessageResult{}, err
 	}
@@ -1306,7 +1327,7 @@ type SteerQueuedMessageResult struct {
 // and the chat runs with last_error cleared. Otherwise the chat keeps its
 // status.
 func (tx *Tx) SteerQueuedMessage(input SteerQueuedMessageInput) (SteerQueuedMessageResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionSteerQueuedMessage)
+	chat, from, err := tx.requireQueuedMessageTransition(TransitionSteerQueuedMessage, input.QueuedMessageID)
 	if err != nil {
 		return SteerQueuedMessageResult{}, err
 	}

@@ -3612,10 +3612,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot delete queued messages in an archived chat.",
 			})
-		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows), errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Every unarchived, valid state that refuses
-			// DeleteQueuedMessage has an empty queue, so the row no
-			// longer exists.
+		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3625,6 +3622,11 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot delete this queued message in the chat's current state.",
+				Detail:  err.Error(),
+			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to delete queued message.",
@@ -3700,10 +3702,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot promote queued messages in an archived chat.",
 			})
-		case xerrors.Is(txErr, chatstate.ErrQueuedMessageNotFound), errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
-			// Every unarchived, valid state that refuses
-			// SteerQueuedMessage has an empty queue, so the row no
-			// longer exists.
+		case xerrors.Is(txErr, chatstate.ErrQueuedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3713,6 +3712,11 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, txErr):
 			// response already written
+		case errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot promote this queued message in the chat's current state.",
+				Detail:  txErr.Error(),
+			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to promote queued message.",
@@ -3844,9 +3848,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot edit queued messages in an archived chat.",
 			})
-		case errors.Is(err, chatstate.ErrQueuedMessageNotFound), errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Every unarchived, valid state that refuses EditQueuedMessage
-			// has an empty queue, so the row no longer exists.
+		case errors.Is(err, chatstate.ErrQueuedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3860,6 +3862,11 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot edit this queued message in the chat's current state.",
+				Detail:  err.Error(),
+			})
 		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
