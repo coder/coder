@@ -334,14 +334,63 @@ This can be disabled with a server-wide [flag or environment variable](../../../
 coder server --provisioner-daemons=0
 ```
 
-## Prometheus metrics
+## Metrics
 
-Coder provisioner daemon exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
+Provisioner metrics come from two places:
 
-The Prometheus endpoint address is `http://localhost:2112/` by default.
-You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
+- Each provisioner daemon reports on the jobs it runs.
+  An external provisioner daemon serves these metrics on its own Prometheus endpoint, and the control plane reports them only for its built-in provisioners.
+- The control plane reports on the job queue for every provisioner, built-in or external.
 
-If you have provisioners daemons deployed as pods, it is advised to monitor them separately.
+To monitor external provisioners, scrape each provisioner daemon and the control plane.
+
+### Metrics from each provisioner daemon
+
+| Metric                                                | Type      | Labels                                                                                                     | Purpose                                                                            |
+|-------------------------------------------------------|-----------|------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| `coderd_provisionerd_jobs_current`                    | gauge     | `provisioner`                                                                                              | Provisioner jobs running now.                                                      |
+| `coderd_provisionerd_num_daemons`                     | gauge     |                                                                                                            | Provisioner daemons in the process. Always `1` for an external provisioner daemon. |
+| `coderd_provisionerd_job_timings_seconds`             | histogram | `provisioner`, `status`                                                                                    | Duration of each provisioner job.                                                  |
+| `coderd_provisionerd_workspace_build_timings_seconds` | histogram | `status`, `template_name`, `template_version`, `workspace_transition`                                      | Duration of each workspace build.                                                  |
+| `coderd_workspace_builds_total`                       | counter   | `status`, `template_name`, `template_version`, `workspace_name`, `workspace_owner`, `workspace_transition` | Workspaces started, updated, or deleted.                                           |
+
+An external provisioner daemon also exports the standard `go_*`, `process_*`, and `promhttp_*` metrics for its own process.
+
+### Metrics from the control plane
+
+| Metric                                      | Type      | Labels                                                       | Purpose                                                        |
+|---------------------------------------------|-----------|--------------------------------------------------------------|----------------------------------------------------------------|
+| `coderd_provisioner_job_queue_wait_seconds` | histogram | `build_reason`, `job_type`, `provisioner_type`, `transition` | Time from job creation until a provisioner daemon acquires it. |
+| `coderd_workspace_builds_enqueued_total`    | counter   | `build_reason`, `provisioner_type`, `status`, `transition`   | Attempts to add a workspace build to the job queue.            |
+
+A rising queue wait time means that jobs are waiting for a provisioner, either because every matching provisioner is busy or because no provisioner matches the job's [tags](#provisioner-tags).
+
+For the full list of Coder metrics, refer to [Available metrics](../../../admin/integrations/prometheus.md#available-metrics).
+
+### Enable metrics on a provisioner daemon
+
+An external provisioner daemon does not serve metrics by default.
+To turn on its Prometheus endpoint, set `CODER_PROMETHEUS_ENABLE=true` or pass [`--prometheus-enable`](../../../reference/cli/provisioner/start.md#--prometheus-enable) to `coder provisioner start`.
+
+The endpoint listens on `127.0.0.1:2112` by default.
+To listen on another address, set `CODER_PROMETHEUS_ADDRESS` or pass [`--prometheus-address`](../../../reference/cli/provisioner/start.md#--prometheus-address), for example `0.0.0.0:2112`.
+The endpoint does not require authentication, so expose it only to your monitoring network.
+
+If you install provisioners with the `coder-provisioner` Helm chart, the chart sets `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`, and you cannot change it.
+To turn on the endpoint, add `CODER_PROMETHEUS_ENABLE` with the value `"true"` to `coder.env` in your values file:
+
+```yaml
+coder:
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+```
+
+The chart then exposes container port `2112` with the name `prometheus-http`.
+It does not create a Service, so point your Prometheus scrape configuration at each provisioner Pod.
+
+The control plane exports its metrics on a separate endpoint.
+To turn it on and configure Prometheus to scrape it, refer to [Enable Prometheus metrics](../../../admin/integrations/prometheus.md#enable-prometheus-metrics) and [Prometheus configuration](../../../admin/integrations/prometheus.md#prometheus-configuration).
 
 ## Next
 
