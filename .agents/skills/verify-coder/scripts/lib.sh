@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Shared paths and ownership checks for the verify-coder skill scripts.
-set -euo pipefail
+# Shared paths and ownership checks for the verify-coder skill scripts. It sets
+# no shell options, so sourcing it in an interactive shell changes nothing.
 
 VC_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 VC_STATE="${VERIFY_CODER_STATE:-$VC_ROOT/build/verify-coder}"
@@ -21,19 +21,25 @@ VC_TOTAL=0
 # vc_check runs one step and prints "PASS|FAIL <name>: <last output line>".
 # The step runs with errexit on, so any failing command fails it. It must not
 # run inside an if test: bash ignores errexit there, and every step would pass.
+# It works the same in a hand-driven shell and leaves its errexit state alone.
 # VC_CHECK_LOG keeps full output, VC_RESULT_FILE the lines. A caller's
 # vc_on_fail <name> function, when defined, runs after a failed step.
 vc_check() {
-	local _vc_name="$1" _vc_out _vc_rc _vc_status=FAIL
+	local _vc_name="$1" _vc_out _vc_rc _vc_status=FAIL _vc_errexit=0
 	shift
 	VC_TOTAL=$((VC_TOTAL + 1))
+	if [[ $- == *e* ]]; then
+		_vc_errexit=1
+	fi
 	set +e
 	_vc_out="$(
 		set -e
 		"$@" 2>&1
 	)"
 	_vc_rc=$?
-	set -e
+	if ((_vc_errexit)); then
+		set -e
+	fi
 	if ((_vc_rc == 0)); then
 		VC_PASS=$((VC_PASS + 1))
 		_vc_status=PASS
@@ -97,6 +103,12 @@ vc_curl() {
 # vc_api GETs an API path as the admin user.
 vc_api() {
 	vc_curl -fsS --max-time 10 "$VC_API_URL$1"
+}
+
+# vc_api_status prints the HTTP status of a GET as the admin user, for checks
+# such as "the workspace API answers 404".
+vc_api_status() {
+	vc_curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$VC_API_URL$1"
 }
 
 # vc_capture_failure saves the page, URL, page errors and console a failed

@@ -60,7 +60,7 @@ wait_agent() {
 wait_gone() {
 	local ws="$1" code i
 	for i in $(seq 150); do
-		code="$(vc_curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$VC_API_URL/api/v2/users/admin/workspace/$ws")"
+		code="$(vc_api_status "/api/v2/users/admin/workspace/$ws")"
 		if [[ "$code" == 404 ]]; then
 			return 0
 		fi

@@ -116,16 +116,17 @@ ports_free() {
 }
 
 archive_logs() {
-	local stamp f
+	local stamp f kept=()
 	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 	mkdir -p "$VC_EVIDENCE"
 	for f in develop build; do
 		if [[ -f "$VC_RUN/$f.log" ]]; then
 			mv "$VC_RUN/$f.log" "$VC_EVIDENCE/$stamp-$f.log"
+			kept+=("$stamp-$f.log")
 		fi
 	done
 	rm -rf "$VC_RUN"
-	echo "logs kept in $VC_EVIDENCE/$stamp-*.log"
+	echo "moved ${kept[*]:-no logs} to $VC_EVIDENCE, journey and hand-driven folders kept"
 }
 
 # --keep-data hands the folder over: without the marker, a later cleanup keeps

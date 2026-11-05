@@ -26,12 +26,12 @@ Preconditions:
 - **Save.** `vc_ab find role button click --name "Save"`. A toast reads `User "<username>" created successfully.` and the list shows the email. A new row can sit below the fold and under the toast. For the after screenshot, open `$VC_WEB_URL/deployment/users?filter=<username>` (the search box keeps its query there).
 - **Second view.** `vc_api "/api/v2/users?q=<username>"` returns one user with `login_type` `password` and status `dormant`. `scripts/coder.sh users list --output json` includes the username.
 - **Sign in as the user.** `POST $VC_API_URL/api/v2/users/login` with the email and password answers `201`. Do not print the returned token.
-- **CLI create.** `scripts/coder.sh users create --username <u> --email <u>@coder.com --full-name "<name>" --password <pw> >/dev/null`. Prove it with the same API read and a UI load of `/deployment/users?filter=<u>`.
+- **CLI create.** `scripts/coder.sh users create --username <u> --email <u>@coder.com --full-name "<name>" >/dev/null 2>&1` and check its exit code. Without `--password`, the CLI generates a password and prints it on stderr, so discard both streams. Prove it with the same API read and a UI load of `/deployment/users?filter=<u>`.
 - **Roles.** On the filtered list, `vc_ab click 'tbody tr button[aria-label="Open menu"]'`, then `vc_ab find role menuitem click --name "Edit roles"`, `vc_ab find role checkbox click --name "Template Admin"` and `vc_ab find role button click --name "Confirm"`. The row shows `Template Admin`, and the API lists the role `template-admin`.
 
 ## Gotchas
 
-- `coder users create` prints `Your password is: <password>`. Discard its stdout or redact it before you save it as evidence.
+- `coder users create` prints `Your password is: <password>` on stderr. Never pass `--password`, which puts the password in the process list, and never save its output as evidence.
 - `site/e2e/helpers.ts` uses `getByLabel("Login Type")`. The label is `Login type`. Playwright ignores case, agent-browser exact matches do not.
 - `find label "Name"` also matches `Username`. Use `input[name=name]`.
 - New users show `Dormant` until their first sign-in. That is not a failure.
