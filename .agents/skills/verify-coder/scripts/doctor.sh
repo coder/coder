@@ -107,22 +107,13 @@ state_private() {
 	echo "$VC_STATE is private (700)"
 }
 
-# The server listens on every interface, so a database this launch created
-# must refuse the published default password. develop.log says "creating
-# first user" only when the launch created or reset the database, which does
-# not depend on the password logic in launch.sh.
+# The server listens on every interface, so it must refuse the published
+# default password, whatever data it runs on.
 default_password_refused() {
-	local code
-	if ! grep -q 'creating first user' "$VC_LOG"; then
-		echo "this launch reused an existing database, its password is unchanged"
-		return 0
-	fi
-	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
-		--data '{"email": "admin@coder.com", "password": "SomeSecurePassword!"}' "$VC_API_URL/api/v2/users/login")"
-	[[ "$code" == 401 ]] || {
-		echo "sign-in with the published default password answered $code, wanted 401"
+	if vc_default_password_accepted; then
+		echo "sign-in with the published default password did not answer 401"
 		return 1
-	}
+	fi
 	echo "the published default password is refused (401)"
 }
 

@@ -58,7 +58,7 @@ vc_check port-flag refuses "--port is not supported" CODER_BUILD_AGPL=
 launch_args=(-- --verbose --postgres-url=postgres://elsewhere)
 vc_check server-flag refuses "server flag --postgres-url=postgres://elsewhere is not supported" CODER_BUILD_AGPL=
 launch_args=(--fresh)
-vc_check default-password refuses "must not use the published default password" CODER_BUILD_AGPL= CODER_DEV_ADMIN_PASSWORD='SomeSecurePassword!'
+vc_check default-password refuses "the published default password is not allowed" CODER_BUILD_AGPL= CODER_DEV_ADMIN_PASSWORD='SomeSecurePassword!'
 
 # A launch that passes every launch.sh check reaches the stub make.
 reaches_build() {

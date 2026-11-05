@@ -78,17 +78,35 @@ push() {
 }
 
 delete() {
+	local listed
 	"$scripts/coder.sh" templates delete "$name" --yes >"$out/07-cli-delete.txt" 2>&1
-	if [[ -n "$(template_json "$name")" ]]; then
+	# A plain assignment keeps errexit, so a failed read fails the check.
+	listed="$(vc_api /api/v2/templates | jq --arg n "$name" 'any(.[]; .name == $n)')"
+	[[ "$listed" == false ]] || {
 		echo "GET /api/v2/templates still lists $name"
 		return 1
-	fi
+	}
 	echo "coder templates delete removed $name"
 }
+
+# A failed or interrupted run still deletes the template it made, unless the
+# delete check passed.
+deleted=0
+on_exit() {
+	if ((!deleted)); then
+		"$scripts/coder.sh" templates delete "$name" --yes >>"$VC_CHECK_LOG" 2>&1 || true
+	fi
+}
+trap on_exit EXIT
+trap 'exit 130' INT TERM
 
 vc_check list list
 vc_check starter starter
 vc_check push push
+passed_before_delete=$VC_PASS
 vc_check delete delete
+if ((VC_PASS > passed_before_delete)); then
+	deleted=1
+fi
 echo "templates: $VC_PASS/$VC_TOTAL checks passed, evidence in $out" | tee -a "$out/result.txt"
 ((VC_PASS == VC_TOTAL))

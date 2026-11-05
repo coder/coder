@@ -64,7 +64,11 @@ submit_form() {
 	echo "toast shown and $email listed on /deployment/users"
 }
 
+# The filtered list must show the journey user's row alone, so the menu can
+# never belong to another account.
 assign_role() {
+	vc_ab open "$VC_WEB_URL/deployment/users?filter=$username" >/dev/null
+	vc_ab wait --fn "document.querySelectorAll('tbody tr').length === 1 && document.querySelector('tbody tr').textContent.includes('$email')" >/dev/null
 	vc_ab click 'tbody tr button[aria-label="Open menu"]' >/dev/null
 	vc_ab wait '[role=menu]' >/dev/null
 	vc_ab find role menuitem click --name "Edit roles" >/dev/null
@@ -139,9 +143,19 @@ cli_create_user() {
 
 # Deleting both users keeps a reused .coderv2 free of accounts whose
 # passwords nobody knows.
+# delete_users skips a user that does not exist, so it also cleans up after
+# a run that failed half way.
 delete_users() {
-	local u
+	local u status
 	for u in "$username" "$cli_username"; do
+		status="$(vc_api_status "/api/v2/users/$u")"
+		if [[ "$status" == 404 ]]; then
+			continue
+		fi
+		[[ "$status" == 200 ]] || {
+			echo "GET /api/v2/users/$u answered $status"
+			return 1
+		}
 		"$scripts/coder.sh" users delete "$u" >"$out/08-cli-delete-$u.txt" 2>&1 || {
 			echo "coder users delete $u failed, see 08-cli-delete-$u.txt"
 			return 1
@@ -159,6 +173,20 @@ delete_users() {
 	echo "coder users delete removed $username and $cli_username, the API answers 404"
 }
 
+# A failed or interrupted run still deletes the users it made, unless the
+# delete check passed.
+deleted=0
+on_exit() {
+	if ((!deleted)); then
+		(
+			set -e
+			delete_users
+		) >>"$VC_CHECK_LOG" 2>&1 || true
+	fi
+}
+trap on_exit EXIT
+trap 'exit 130' INT TERM
+
 vc_check sign-in sign_in
 vc_check fill-form fill_form
 vc_check submit submit_form
@@ -167,6 +195,10 @@ vc_check api api_has_user
 vc_check cli cli_lists_user
 vc_check new-user-login new_user_can_sign_in
 vc_check cli-create cli_create_user
+passed_before_delete=$VC_PASS
 vc_check delete delete_users
+if ((VC_PASS > passed_before_delete)); then
+	deleted=1
+fi
 echo "create-user: $VC_PASS/$VC_TOTAL checks passed, evidence in $out" | tee -a "$out/result.txt"
 ((VC_PASS == VC_TOTAL))

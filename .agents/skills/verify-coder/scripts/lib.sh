@@ -82,6 +82,16 @@ vc_start_develop() {
 	VC_DEVELOP_PID=$!
 }
 
+# vc_default_password_accepted succeeds when the instance signs the admin in
+# with the published default password. It fails closed: any answer other than
+# 401 counts as accepted.
+vc_default_password_accepted() {
+	local code
+	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+		--data '{"email": "admin@coder.com", "password": "SomeSecurePassword!"}' "$VC_API_URL/api/v2/users/login" 2>/dev/null)" || true
+	[[ "$code" != 401 ]]
+}
+
 # vc_record_workspace marks <owner>/<name> as created by the harness, so
 # cleanup.sh deletes it. Record a workspace before you create it.
 vc_record_workspace() {

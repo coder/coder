@@ -11,9 +11,11 @@ here="$(dirname "${BASH_SOURCE[0]}")"
 source "$here/lib.sh"
 
 keep_data=0
-if [[ "${1:-}" == "--keep-data" ]]; then
-	keep_data=1
-fi
+case "$*" in
+"") ;;
+--keep-data) keep_data=1 ;;
+*) vc_fail "usage: cleanup.sh [--keep-data]" ;;
+esac
 if [[ ! -f "$VC_RUN/env" ]]; then
 	echo "cleanup: nothing recorded in $VC_RUN"
 	exit 0
@@ -49,7 +51,7 @@ delete_workspaces() {
 		echo "server is down, and no coder-* container was created since the launch"
 		return 0
 	fi
-	local ws kept deleted=()
+	local ws status kept deleted=()
 	if [[ -f "$VC_CONFIG_DIR/.verify-coder-created" ]] && ((!keep_data)); then
 		"$here/coder.sh" list --all --output json 2>/dev/null |
 			jq -r '.[] | "\(.owner_name)/\(.name)"' >>"$VC_RUN/workspaces"
@@ -57,7 +59,14 @@ delete_workspaces() {
 	if [[ -f "$VC_RUN/workspaces" ]]; then
 		while read -r ws; do
 			[[ -n "$ws" ]] || continue
-			[[ "$(vc_api_status "/api/v2/users/${ws%%/*}/workspace/${ws#*/}")" == 200 ]] || continue
+			status="$(vc_api_status "/api/v2/users/${ws%%/*}/workspace/${ws#*/}")"
+			if [[ "$status" == 404 ]]; then
+				continue
+			fi
+			[[ "$status" == 200 ]] || {
+				echo "GET workspace $ws answered $status, run cleanup.sh again"
+				return 1
+			}
 			"$here/coder.sh" delete "$ws" --yes >>"$VC_LOG" 2>&1 || {
 				echo "coder delete $ws failed, see $VC_LOG"
 				return 1
@@ -199,9 +208,13 @@ vc_check browser close_browser
 vc_check helpers stop_helpers
 vc_check develop stop_develop
 vc_check ports ports_free
+# The data goes before the run state, so a failed removal keeps the state
+# for a retry.
+if ((VC_PASS == VC_TOTAL)); then
+	vc_check data remove_data
+fi
 if ((VC_PASS == VC_TOTAL)); then
 	vc_check logs archive_logs
-	vc_check data remove_data
 fi
 echo "cleanup: $VC_PASS/$VC_TOTAL steps passed, evidence in $VC_EVIDENCE"
 ((VC_PASS == VC_TOTAL))

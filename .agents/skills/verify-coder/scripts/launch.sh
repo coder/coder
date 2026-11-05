@@ -58,24 +58,25 @@ case "${CODER_BUILD_AGPL:-}" in
 *) vc_fail "CODER_BUILD_AGPL is not supported: make would reuse the existing enterprise binary" ;;
 esac
 
-# develop.sh binds every interface, so a database that this launch creates
-# (--fresh, or no built-in Postgres data yet) never gets the published
-# default password. The password file sits next to the data it belongs to and
-# lives as long as that data.
+# develop.sh binds every interface, so the instance never runs with the
+# published default password. A database that this launch creates (--fresh,
+# or no built-in Postgres data yet) gets a random one. Reused data needs the
+# password it already has, from CODER_DEV_ADMIN_PASSWORD or the file that an
+# earlier launch saved next to the data.
 password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
 new_database=0
 if ((fresh)) || [[ ! -d "$VC_CONFIG_DIR/postgres/data" ]]; then
 	new_database=1
 	password="${CODER_DEV_ADMIN_PASSWORD:-Vc-$(openssl rand -hex 16)}"
-	if [[ "$password" == "SomeSecurePassword!" ]]; then
-		vc_fail "a new database must not use the published default password: develop.sh listens on every interface"
-	fi
 elif [[ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]]; then
 	password="$CODER_DEV_ADMIN_PASSWORD"
 elif [[ -f "$password_file" ]]; then
 	password="$(<"$password_file")"
 else
-	password="SomeSecurePassword!"
+	vc_fail "$VC_CONFIG_DIR has no saved admin password, so its admin likely has the published default, which develop.sh would expose on every interface: run launch.sh --fresh, or set CODER_DEV_ADMIN_PASSWORD to its real password"
+fi
+if [[ "$password" == "SomeSecurePassword!" ]]; then
+	vc_fail "the published default password is not allowed: develop.sh listens on every interface"
 fi
 
 bin="$(vc_coder_bin)"
@@ -171,6 +172,13 @@ done
 save_password
 if ((new_database && !password_saved)); then
 	vc_fail "launch.sh created a new database but develop.sh logged no first user, see $log, then run cleanup.sh"
+fi
+# Reused data can still have the default password when the one launch.sh was
+# given is wrong. Stop the server at once instead of leaving it exposed.
+VC_API_URL="http://127.0.0.1:$api_port"
+if vc_default_password_accepted; then
+	kill -INT "$pid" 2>/dev/null || true
+	vc_fail "the instance accepts the published default password, so launch.sh stopped it: run cleanup.sh, then launch.sh --fresh"
 fi
 
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
