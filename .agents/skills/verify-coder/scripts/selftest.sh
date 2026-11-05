@@ -78,8 +78,10 @@ vc_check allowed-server-flags reaches_build --fresh -- --verbose --experiments=e
 start_develop_isolates() {
 	local marker="selftest-$RANDOM-$RANDOM"
 	# vc_check runs this in a subshell, so the exports stay here.
-	export CODER_PG_CONNECTION_URL=postgres://selftest-elsewhere CODER_DEV_DB_RESET=1 PATH="$tmp/bin:$PATH"
-	vc_start_develop "$tmp/develop.log" "$marker" 0 --port 1
+	# A caller's own CODER_DEV_ADMIN_PASSWORD must lose to the one passed in.
+	export CODER_PG_CONNECTION_URL=postgres://selftest-elsewhere CODER_DEV_DB_RESET=1 \
+		CODER_DEV_ADMIN_PASSWORD=selftest-caller-value PATH="$tmp/bin:$PATH"
+	vc_start_develop "$tmp/develop.log" "$marker" 1 --port 1
 	wait "$VC_DEVELOP_PID"
 	if grep -qF "$marker" "$tmp/env-argv"; then
 		echo "the password appears in the arguments of env"
@@ -87,6 +89,10 @@ start_develop_isolates() {
 	fi
 	grep -qxF "CODER_DEV_ADMIN_PASSWORD=$marker" "$tmp/develop-env" || {
 		echo "develop.sh would not get the password"
+		return 1
+	}
+	grep -qxF "DEVELOP_IN_CODER=1" "$tmp/develop-env" || {
+		echo "develop.sh would not get DEVELOP_IN_CODER=1"
 		return 1
 	}
 	if grep -qE '^(CODER_PG_CONNECTION_URL|CODER_DEV_DB_RESET)=' "$tmp/develop-env"; then
