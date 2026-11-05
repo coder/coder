@@ -69,6 +69,7 @@ else
 	exit 2
 fi
 
+keep_out="${OUT:+1}"
 out="${OUT:-$(mktemp -d)}"
 mkdir -p "$out"
 meta="$(mktemp -d)"
@@ -120,6 +121,10 @@ else
 	echo "covered files unchanged since the last sync"
 fi
 
-echo "TLC output: $out"
+if [[ "$bad" -eq 0 && -z "$keep_out" ]]; then
+	rm -rf "$out"
+else
+	echo "TLC output: $out"
+fi
 echo "checks: $ok ok, $bad failed, ${#checks[@]} total"
 [[ "$bad" -eq 0 ]]

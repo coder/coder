@@ -25,7 +25,7 @@ Run it when your change touches a file in `coverage.txt`, or changes how a job r
 .agents/skills/verify-provisioner-jobs/run.sh
 ```
 
-It needs Java 11 or newer: `java` on `PATH`, `JAVA=<path>`, or `mise` (it then runs `mise exec java@temurin-25`). The first run downloads `tla2tools.jar` 1.7.4 into `build/verify-provisioner-jobs/` and checks its SHA-256. A run takes about 15 seconds. Set `OUT=<dir>` to keep the TLC logs in a folder you choose.
+It needs Java 11 or newer: `java` on `PATH`, `JAVA=<path>`, or `mise` (it then runs `mise exec java@temurin-25`). The first run downloads `tla2tools.jar` 1.7.4 into `build/verify-provisioner-jobs/` and checks its SHA-256. A run takes about 15 seconds. The TLC logs stay in a temp folder only when a check fails. Set `OUT=<dir>` to keep them in a folder you choose.
 
 The script prints one line per config and ends with `checks: N ok, M failed, 10 total`. It exits 0 only when every config gives its expected result. A run without the count line did not finish.
 
