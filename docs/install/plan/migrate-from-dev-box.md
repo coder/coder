@@ -7,7 +7,7 @@ It maps each Dev Box concept to its Coder equivalent, then walks through the mig
 
 Microsoft's [Dev Box retirement guide](https://learn.microsoft.com/azure/dev-box/dev-box-retirement-guide) states that the Dev Box closing-down period begins on September 14, 2026, and that the service retires on September 18, 2028.
 The guide also states that Microsoft expects to delete remaining customer workloads after retirement.
-Plan to move developer data before that date.
+Plan to move developer data before the retirement date.
 
 ## Before you begin
 
@@ -113,7 +113,7 @@ Refer to [Connect over Remote Desktop](#connect-over-remote-desktop) for Windows
 A Dev Box pool combines an image, a compute size, storage, a network connection, and schedule settings.
 In Coder, a template's Terraform defines the first 4, and the template's schedule settings define the rest.
 
-### Start from the Azure Windows template
+### Start from the Azure VM (Windows) template
 
 The [Azure VM (Windows)](https://registry.coder.com/templates/coder/azure-windows) template in the Coder Registry is a starting point for Windows workspaces.
 It uses the `azurerm` Terraform provider to create a Windows Server virtual machine, a network interface, and a data disk in a resource group for each workspace.
@@ -137,20 +137,21 @@ If you switch the template to a client edition, confirm with Microsoft licensing
 
 The starter template creates a virtual network for each workspace.
 To keep the network access that a Dev Box network connection provides, change the template to use your existing subnet.
-For example, read the subnet with an `azurerm_subnet` data source, and pass its ID to the network interface.
+For example, read the subnet with an `azurerm_subnet` data source and pass its ID to the network interface.
 
 ### Keep data across restarts
 
-By default, the starter template deletes the virtual machine when the workspace stops, and keeps the data disk mounted as `F:`.
+By default, the starter template deletes the virtual machine when the workspace stops and keeps the data disk mounted as `F:`.
 Files outside the data disk don't persist.
-The template README describes how to keep the whole virtual machine and deallocate it on stop instead.
+The [template README](https://registry.coder.com/templates/coder/azure-windows) describes how to keep the whole virtual machine and deallocate it on stop instead.
 Refer to [Resource persistence](../../templates/extending-templates/resource-persistence.md) to choose what to keep.
 
 ### Control who uses each template
 
 Dev Box grants access with the Dev Box User role on a project.
 In Coder, use [template permissions](../../templates/template-permissions.md) (Premium) to limit each template to the groups that need it.
-To limit how many workspaces each developer runs, as Dev Box limits do, configure [quotas](../../admin/users/quotas.md) (Premium), which limit workspaces by a per-group budget.
+To limit how many workspaces each developer runs, as Dev Box limits do, configure [quotas](../../admin/users/quotas.md) (Premium).
+Quotas give each developer a credit budget from the allowances of their groups, and each workspace spends credits from it.
 
 ## Translate customizations
 
@@ -177,8 +178,9 @@ In Coder, developers authorize their own Git accounts through [external authenti
 
 Move other secrets as follows:
 
-- **Shared secrets**: give the workspace VM a managed identity, and read values from Azure Key Vault at startup.
-  Do not put secret values in template code or parameters, because users with template access can read them.
+- **Shared secrets**: give the workspace VM a managed identity and read values from Azure Key Vault at startup.
+  Do not put secret values in template code or parameters.
+  Coder shows parameter values in cleartext to anyone who can view the workspace.
 - **Personal secrets**: ask developers to recreate them as [user secrets](../../workspaces/user-secrets.md).
 
 Refer to [Secrets](../../admin/security/secrets.md) for more options.
@@ -192,7 +194,7 @@ The starter template includes the [Windows RDP](https://registry.coder.com/modul
 Developers who prefer a desktop RDP client can connect through Coder Desktop or `coder port-forward`.
 Refer to [Remote desktops](../../workspaces/workspace-access/remote-desktops.md) for each method.
 
-The starter template creates a local administrator account with a generated password, and shows both on the workspace page.
+The starter template creates a local administrator account with a generated password and shows both on the workspace page.
 It doesn't join the VM to Entra ID, so developers don't sign in to Windows with their Entra ID account.
 If your Dev Box pools gave developers standard user accounts, change the template to match.
 
@@ -212,8 +214,10 @@ Recreate each cost control in your inventory with the matching Coder setting:
 
 - **Autostop schedule**: Dev Box stops each pool at one time of day.
   In Coder, set a [default autostop](../../templates/managing-templates/schedule.md#schedule) on the template, and let developers set [autostart and autostop](../../workspaces/workspace-scheduling.md).
-- **Stop on disconnect**: Coder stops idle workspaces through [activity detection](../../workspaces/workspace-scheduling.md#activity-detection).
-  RDP connections aren't in the list of tracked session types, so set the autostop duration to cover the working day for developers who work over RDP.
+- **Stop on disconnect**: Coder extends the autostop deadline by the template's activity bump duration when it detects activity.
+  It stops the workspace after the deadline passes with no activity.
+  Traffic through the Coder agent counts as activity, including RDP sessions that connect through Coder.
+  Refer to [activity detection](../../workspaces/workspace-scheduling.md#activity-detection).
 - **Hibernation**: Coder has no equivalent.
   Open applications don't survive a workspace stop, and the template decides which disks persist.
 - **Auto-delete**: configure the [dormancy threshold](../../templates/managing-templates/schedule.md#dormancy-threshold) and [dormancy auto-deletion](../../templates/managing-templates/schedule.md#dormancy-auto-deletion) (Premium).
@@ -221,7 +225,7 @@ Recreate each cost control in your inventory with the matching Coder setting:
 
 ## Plan for Intune and device policies
 
-Dev Box enrolls each dev box in Microsoft Intune, and joins it to Entra ID or Active Directory through the network connection.
+Dev Box enrolls each dev box in Microsoft Intune and joins it to Entra ID or Active Directory through the network connection.
 Coder doesn't enroll workspaces in Intune or join them to a directory.
 
 If your security policies require managed devices, configure the device join and Intune enrollment in the image or the template.
