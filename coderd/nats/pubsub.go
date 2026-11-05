@@ -485,7 +485,7 @@ func (p *Pubsub) HealthReport(context.Context) healthsdk.PubsubReport {
 		},
 		Backend: pubsub.BackendNATS,
 	}
-	if p.Server == nil || !p.Server.Running() {
+	if !p.Server.Running() {
 		report.Warnings = append(report.Warnings,
 			health.Messagef(health.CodePubsubServerNotRunning, "embedded NATS server is not running"))
 	}
