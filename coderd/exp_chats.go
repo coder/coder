@@ -3341,8 +3341,9 @@ func (api *API) sendChatMessage(
 	} else {
 		response.Message = new(db2sdk.ChatMessage(sendResult.Message))
 	}
-	// Return the full user-visible inserted batch. A queued send on an errored
-	// chat can promote the previous queue head, which clients must cache.
+	// Return the full user-visible inserted batch, which clients must cache.
+	// A send to an errored or paused chat can also insert queued messages
+	// (see chatd.SendMessageResult.InsertedMessages).
 	for _, inserted := range sendResult.InsertedMessages {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
