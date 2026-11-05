@@ -363,6 +363,13 @@ func (c *devConfig) listenAddress(port int64) string {
 	return net.JoinHostPort(c.bindAddress, strconv.FormatInt(port, 10))
 }
 
+// prometheusReusable reports whether a running Prometheus container, given
+// as docker inspect "{{.State.Running}} {{json .Args}}" output, listens on
+// the current bind address.
+func (c *devConfig) prometheusReusable(inspect string) bool {
+	return strings.Contains(inspect, `"--web.listen-address=`+c.listenAddress(prometheusServerPort)+`"`)
+}
+
 // prometheusRunArgs builds the docker run arguments for the Prometheus UI.
 func (c *devConfig) prometheusRunArgs(configPath, dataDir string) []string {
 	return []string{
@@ -1199,20 +1206,25 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 	}
 
 	// If the port is already in use, check whether it's our
-	// container from a previous run. If so, reuse it.
+	// container from a previous run. Reuse it only when it listens on
+	// the current bind address, so a loopback run never keeps a UI that
+	// an earlier run exposed on every interface.
 	if isPortBusy(ctx, prometheusServerPort) {
 		out, err := exec.CommandContext(ctx, "docker", "inspect",
-			"-f", "{{.State.Running}}",
+			"-f", "{{.State.Running}} {{json .Args}}",
 			prometheusContainerName).Output()
-		if err == nil && strings.TrimSpace(string(out)) == "true" {
+		if err != nil || !strings.HasPrefix(string(out), "true ") {
+			logger.Info(ctx, "prometheus server port already in use, skipping",
+				slog.F("port", prometheusServerPort))
+			return false, nil
+		}
+		if cfg.prometheusReusable(string(out)) {
 			logger.Info(ctx, "reusing existing prometheus server",
 				slog.F("ui", fmt.Sprintf("http://localhost:%d", prometheusServerPort)),
 				slog.F("note", fmt.Sprintf("scrape target may differ from current --prometheus-port %d; restart to apply", cfg.coderMetricsPort)))
 			return true, nil
 		}
-		logger.Info(ctx, "prometheus server port already in use, skipping",
-			slog.F("port", prometheusServerPort))
-		return false, nil
+		logger.Info(ctx, "replacing the prometheus server, it listens on another address")
 	}
 
 	// Remove any stopped leftover container from a previous run.

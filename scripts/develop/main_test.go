@@ -670,6 +670,14 @@ func TestListenAddresses(t *testing.T) {
 	assert.Contains(t, strings.Join(cfg.serverArgs(), " "), "--http-address 0.0.0.0:3000")
 }
 
+func TestPrometheusReusable(t *testing.T) {
+	t.Parallel()
+
+	inspect := fmt.Sprintf(`true ["--config.file=/etc/prometheus/prometheus.yml","--web.listen-address=0.0.0.0:%d"]`, prometheusServerPort)
+	assert.True(t, (&devConfig{bindAddress: defaultBindAddress}).prometheusReusable(inspect))
+	assert.False(t, (&devConfig{bindAddress: loopbackBindAddress}).prometheusReusable(inspect))
+}
+
 func TestPnpmCmdHost(t *testing.T) {
 	t.Parallel()
 
