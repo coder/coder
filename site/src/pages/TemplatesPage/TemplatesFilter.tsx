@@ -1,143 +1,123 @@
-import { API } from "#/api/api";
-import type { Organization } from "#/api/typesGenerated";
+import { Building2Icon, TagIcon, UserIcon } from "lucide-react";
+import { useMemo } from "react";
+import { useQueryClient } from "react-query";
+import {
+	getValidationErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import {
-	Filter,
-	MenuSkeleton,
-	type UseFilterResult,
-	useFilter,
-} from "#/components/Filter/Filter";
-import { useFilterMenu } from "#/components/Filter/menu";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "#/components/Filter/SelectFilter";
-import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-	useUserFilterMenu,
-} from "#/components/Filter/UserFilter";
+	getSelfUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getMemberOrganizations,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 
 export const CLASSIC_PARAMETER_FLOW_FILTER = "compatibility_mode:true";
 
-export type TemplateFilterState = {
-	filter: UseFilterResult;
-	menus: {
-		user?: ReturnType<typeof useUserFilterMenu>;
-	};
-};
+export type TemplateFilterState = { filter: UseFilterResult };
 
 type UseTemplatesFilterOptions = {
 	searchParams: URLSearchParams;
 	onSearchParamsChange: (params: URLSearchParams) => void;
-	enabled?: boolean;
 };
 
-export const useTemplatesFilter = ({
-	searchParams,
-	onSearchParamsChange,
-	enabled = true,
-}: UseTemplatesFilterOptions): TemplateFilterState => {
-	const filter = useFilter({
-		searchParams,
-		onSearchParamsChange,
-	});
+export const useTemplatesFilter = (
+	options: UseTemplatesFilterOptions,
+): TemplateFilterState => ({
+	filter: useFilter(options),
+});
 
-	const { permissions } = useAuthenticated();
-	const canFilterByUser = permissions.viewAllUsers;
-	const userMenu = useUserFilterMenu({
-		value: filter.values.author,
-		onChange: (option) =>
-			filter.update({ ...filter.values, author: option?.value }),
-		enabled: enabled && canFilterByUser,
-	});
-
-	return {
-		filter,
-		menus: {
-			user: canFilterByUser ? userMenu : undefined,
-		},
-	};
-};
-
-type TemplatesFilterProps = {
-	filter: UseFilterResult;
-	error?: unknown;
-
-	userMenu?: UserFilterMenu;
-};
+type TemplatesFilterProps = { filter: UseFilterResult; error?: unknown };
 
 export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 	filter,
 	error,
-	userMenu,
 }) => {
-	const { showOrganizations } = useDashboard();
-	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
-	const organizationMenu = useFilterMenu({
-		onChange: (option) =>
-			filter.update({ ...filter.values, organization: option?.value }),
-		value: filter.values.organization,
-		id: "organization",
-		getSelectedOption: async () => {
-			if (!filter.values.organization) {
-				return null;
-			}
-
-			const org = await API.getOrganization(filter.values.organization);
-			return orgOption(org);
-		},
-		getOptions: async () => {
-			const orgs = await API.getMyOrganizations();
-			return orgs.map(orgOption);
-		},
-	});
-
+	const { organizations } = useDashboard();
+	const { permissions, user: me } = useAuthenticated();
+	const queryClient = useQueryClient();
+	const categories = useMemo<FilterCategory[]>(
+		() => [
+			{
+				key: "author",
+				label: "Author",
+				icon: <UserIcon />,
+				getOptions: permissions.viewAllUsers
+					? (query) => getUserFilterOptions(query, me, queryClient)
+					: (query) => getSelfUserFilterOptions(query, me),
+			},
+			{
+				key: "organization",
+				optionsKey: "templates.organization",
+				label: "Organization",
+				icon: <Building2Icon />,
+				hideWhenSingleOption: true,
+				getOptions: async (query) =>
+					getMemberOrganizations(organizations, me)
+						.filter((org) =>
+							`${org.name} ${org.display_name}`
+								.toLowerCase()
+								.includes(query.trim().toLowerCase()),
+						)
+						.map((org) => ({
+							label: org.display_name || org.name,
+							value: org.name,
+							startIcon: (
+								<Avatar
+									size="sm"
+									fallback={org.display_name || org.name}
+									src={org.icon}
+								/>
+							),
+						})),
+			},
+			{
+				key: "attribute",
+				optionsKey: "templates.attribute",
+				label: "Attributes",
+				icon: <TagIcon />,
+				chipKeys: ["deprecated", "compatibility_mode"],
+				inlineOptions: true,
+				inlineOptionsLabel: "Template is…",
+				chipLabelOnly: true,
+				getOptions: async () => [
+					{
+						label: "Deprecated",
+						value: "deprecated",
+						token: "deprecated:true",
+					},
+					{
+						label: "Compatibility mode",
+						value: "compatibility_mode",
+						token: CLASSIC_PARAMETER_FLOW_FILTER,
+					},
+				],
+			},
+		],
+		[organizations, permissions.viewAllUsers, me, queryClient],
+	);
 	return (
-		<Filter
-			presets={[
-				{ query: "", name: "All templates" },
-				{ query: "author:me", name: "Templates you authored" },
-				{ query: "deprecated:true", name: "Deprecated templates" },
-				{
-					query: CLASSIC_PARAMETER_FLOW_FILTER,
-					name: "Templates using compatibility mode",
-				},
-			]}
-			// TODO: Add docs for this
-			// learnMoreLink={docs("/templates#template-filtering")}
-			isLoading={false}
-			filter={filter}
-			error={error}
-			options={
-				<>
-					{userMenu && <UserMenu width={width} menu={userMenu} />}
-					<SelectFilter
-						placeholder="All organizations"
-						label="Select an organization"
-						options={organizationMenu.searchOptions}
-						selectedOption={organizationMenu.selectedOption ?? undefined}
-						onSelect={organizationMenu.selectOption}
-					/>
-				</>
-			}
-			optionsSkeleton={
-				<>
-					{userMenu && <MenuSkeleton />}
-					<MenuSkeleton />
-				</>
-			}
-		/>
+		<div className="mb-6 flex min-w-0 flex-col">
+			<FilterCombobox
+				value={filter.query}
+				onChange={filter.update}
+				categories={categories}
+				placeholder="Search and filter templates…"
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
+				errorMessage={
+					hasError(error) && isApiValidationError(error)
+						? getValidationErrorMessage(error)
+						: undefined
+				}
+			/>
+		</div>
 	);
 };
-
-const orgOption = (org: Organization): SelectFilterOption => ({
-	label: org.display_name || org.name,
-	value: org.name,
-	startIcon: (
-		<Avatar key={org.id} size="sm" fallback={org.display_name} src={org.icon} />
-	),
-});

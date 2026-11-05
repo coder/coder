@@ -36,7 +36,6 @@ const TemplatesPage: React.FC = () => {
 	const filterState = useTemplatesFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		enabled: canManageTemplates,
 	});
 	const templatesQuery = useQuery({
 		...templates({ q: filterState.filter.query }),

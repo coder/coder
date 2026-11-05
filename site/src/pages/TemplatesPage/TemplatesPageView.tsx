@@ -334,11 +334,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<TemplatesFilter
-				filter={filterState.filter}
-				error={error}
-				userMenu={filterState.menus.user}
-			/>
+			<TemplatesFilter filter={filterState.filter} error={error} />
 			{/* Validation errors are shown on the filter, other errors are an alert box. */}
 			{hasError(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} />
