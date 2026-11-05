@@ -785,7 +785,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/ts/new-code lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -800,6 +800,18 @@ lint/ts: site/node_modules/.installed
 	cd site/
 	pnpm lint
 .PHONY: lint/ts
+
+# Revision whose merge base with HEAD bounds the files lint/ts/new-code checks.
+TS_LINT_NEW_CODE_BASE ?= $(GO_LINT_NEW_CODE_BASE)
+
+# Fails on complexity and dead code that the changed site/ files introduce,
+# and on functions over a complexity threshold that the change makes more
+# complex. Findings already on the base revision do not fail. See
+# site/.fallowrc.jsonc.
+lint/ts/new-code: site/node_modules/.installed
+	cd site/
+	pnpm exec fallow audit --changed-since "$(TS_LINT_NEW_CODE_BASE)"
+.PHONY: lint/ts/new-code
 
 # Cap cold-cache golangci-lint on high-core hosts to stay below memory limits.
 GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
