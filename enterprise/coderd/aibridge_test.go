@@ -6893,7 +6893,7 @@ type aiCostControlTestOptions struct {
 	GroupName string
 	Clock     quartz.Clock
 	Database  database.Store
-	Pubsub    pubsub.ReportingPubsub
+	Pubsub    pubsub.Pubsub
 	// Retention overrides the AI Gateway data retention duration. Nil leaves the
 	// deployment default in place, and zero disables purging.
 	Retention *time.Duration

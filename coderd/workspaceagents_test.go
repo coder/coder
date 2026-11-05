@@ -3757,7 +3757,7 @@ func TestReinit(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		pubsubSpy := pubsubReinitSpy{
-			ReportingPubsub:  ps,
+			Pubsub:           ps,
 			triedToSubscribe: make(chan string),
 		}
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -3963,14 +3963,14 @@ func TestReinit(t *testing.T) {
 }
 
 type pubsubReinitSpy struct {
-	pubsub.ReportingPubsub
+	pubsub.Pubsub
 	sync.Mutex
 	triedToSubscribe chan string
 	expectedEvent    string
 }
 
 func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
-	cancel, err = p.ReportingPubsub.Subscribe(event, listener)
+	cancel, err = p.Pubsub.Subscribe(event, listener)
 	p.Lock()
 	if p.expectedEvent != "" && event == p.expectedEvent {
 		close(p.triedToSubscribe)

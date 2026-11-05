@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -173,7 +174,7 @@ type Options struct {
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
 	Database          database.Store
-	Pubsub            pubsub.ReportingPubsub
+	Pubsub            pubsub.Pubsub
 	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
@@ -618,6 +619,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
+	// shim in the health report for the pubsub, if our original pubsub doesn't support it.
+	// PGPubsub, NATS, and the inmemory pubsub all do, but if a specific test adds a mock, then maybe it won't.
+	var rps pubsub.ReportingPubsub
+	rps, ok = options.Pubsub.(pubsub.ReportingPubsub)
+	if !ok {
+		rps = testReportingPubsub{options.Pubsub}
+	}
+
 	return func(h http.Handler) {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -636,7 +645,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       cacheDir,
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
-			Pubsub:                         options.Pubsub,
+			Pubsub:                         rps,
 			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 			UsageInserter:                  usageInserter,
@@ -2013,4 +2022,15 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 	}, testutil.IntervalFast, "no active provisioners available for workspace, expected at least one (non-stale)")
 
 	return id
+}
+
+type testReportingPubsub struct {
+	pubsub.Pubsub
+}
+
+func (t testReportingPubsub) HealthReport(_ context.Context) healthsdk.PubsubReport {
+	return healthsdk.PubsubReport{
+		Backend:    "coderd-shim",
+		BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+	}
 }
