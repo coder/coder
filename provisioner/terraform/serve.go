@@ -171,6 +171,15 @@ type server struct {
 // sessionState is what the RPCs of one session leave behind for the later
 // ones. A session runs its RPCs one at a time, so the fields need no lock.
 type sessionState struct {
+	// initSkipped is set when Init linked cached providers instead of
+	// running `terraform init`, so Plan can fall back to a real init if
+	// the shortcut turns out to be insufficient.
+	initSkipped bool
+
+	// importedLockFileRestored is set while the lock file captured during
+	// import replaces the template's, so a failed init can fall back.
+	importedLockFileRestored bool
+
 	// plan is the parsed plan file and graph the `terraform graph` output
 	// from the most recent successful Plan, so Graph can reuse them instead
 	// of running Terraform again. Template import plans the start and stop

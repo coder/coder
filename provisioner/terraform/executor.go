@@ -50,9 +50,7 @@ func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if e.cachePath != "" && runtime.GOOS == "linux" {
+	if pluginCacheEnabled(e.cachePath) {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	if e.cliConfigPath != "" {
@@ -88,6 +86,13 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 		}
 	}
 	return cmd
+}
+
+// pluginCacheEnabled reports whether Terraform gets cachePath as its plugin
+// cache directory. Only Linux reliably works with the Terraform plugin cache
+// directory. It's unknown why this is.
+func pluginCacheEnabled(cachePath string) bool {
+	return cachePath != "" && runtime.GOOS == "linux"
 }
 
 // execWriteOutput must only be called while the lock is held.
