@@ -7,8 +7,7 @@ We recommend using [declarative script ordering](../extending-templates/script-o
 As a template author, you can use the experimental `coder exp sync` commands to coordinate named units of work within startup scripts.
 You can mark a unit complete while its script continues other work.
 
-> [!NOTE]
-> The `coder exp sync` commands are experimental and might change without notice.
+<include>../../_includes/templates/coder-exp-sync-experimental.md</include>
 
 ## Why use this?
 

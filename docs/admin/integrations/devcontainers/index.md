@@ -17,11 +17,7 @@ By adopting dev containers, organizations can:
 Coder supports two approaches for running dev containers.
 Choose based on your infrastructure and workflow requirements.
 
-> [!TIP]
-> Nix flakes are an alternate way to handle dependency management.
-> With Nix flakes, developers and template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
->
-> To learn how to use them in Coder with or without NixOS, visit the [Nix(OS)](../nix.md) page.
+<include>../../../_includes/devcontainers/nix-flakes-tip.md</include>
 
 ## Dev Containers Integration
 
@@ -40,11 +36,7 @@ For user documentation, see the [Dev Containers user guide](../../../workspaces/
 
 ## Envbuilder
 
-> [!WARNING]
-> Envbuilder is in **maintenance mode** with no new features planned.
->
-> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](./integration.md).
-> To find the best approach for your deployment, join our [community](https://coder.com/community) to be guided towards the best approach.
+<include>../../../_includes/envbuilder/maintenance-mode.md</include>
 
 Envbuilder transforms the workspace image itself from a `devcontainer.json`, rather than running containers inside the workspace.
 It does not require a Docker daemon.

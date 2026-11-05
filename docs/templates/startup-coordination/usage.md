@@ -4,8 +4,7 @@ title: Workspace startup coordination usage
 
 For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync`.
 
-> [!NOTE]
-> The `coder exp sync` commands are experimental and might change without notice.
+<include>../../_includes/templates/coder-exp-sync-experimental.md</include>
 
 Startup coordination is built around the concept of **units**.
 You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources.

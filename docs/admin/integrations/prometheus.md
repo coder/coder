@@ -11,8 +11,7 @@ If you don't have a Prometheus server installed, you can follow the Prometheus [
 
 Coder server exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default.
-You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
+<include>../../_includes/prometheus/listen-address.md</include>
 
 If `coder server --prometheus-enable` is started locally, you can preview the metrics endpoint in your browser or with `curl`:
 

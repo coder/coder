@@ -3,8 +3,7 @@ title: Example policy
 description: Review a broad Agent Firewall allowlist policy for multi-language workspaces.
 ---
 
-> [!NOTE]
-> Agent Firewall is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/agent-firewall-premium.md</include>
 
 This page contains a broad Agent Firewall policy for workspaces where agents build software in many languages.
 It allows the domains an agent needs to fetch dependencies, read source repositories, and pull container images, and blocks everything else.

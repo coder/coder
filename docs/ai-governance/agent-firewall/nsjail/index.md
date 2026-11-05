@@ -2,8 +2,7 @@
 title: nsjail jail type
 ---
 
-> [!NOTE]
-> Agent Firewall is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/agent-firewall-premium.md</include>
 
 nsjail is Agent Firewall's default jail type that uses Linux namespaces to provide process isolation.
 It creates unprivileged network namespaces to control and monitor network access for processes running under Boundary.

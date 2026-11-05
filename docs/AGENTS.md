@@ -58,6 +58,7 @@ Do not run it over `docs/`.
 | Audience, scope, personas                    | [audience-and-scope.md](.style/style-guide/audience-and-scope.md)                         |
 | Numbers, units, dates                        | [numbers-units-and-dates.md](.style/style-guide/numbers-units-and-dates.md)               |
 | What belongs in `docs/` at all               | [content-guidelines.md](.style/content-guidelines.md)                                     |
+| Shared fragments and `<include>` directives  | [_includes/README.md](_includes/README.md)                                                |
 
 Vale enforces a subset of these rules and reports the rest as advisory annotations.
 A clean `make lint/prose` run does not mean the prose follows the style guide.

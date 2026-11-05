@@ -2,8 +2,7 @@
 title: Monitoring
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request.
 Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behavior.

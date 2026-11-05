@@ -2,8 +2,7 @@
 title: Zed
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 Zed IDE supports AI Gateway via its `language_models` configuration in `settings.json`.
 

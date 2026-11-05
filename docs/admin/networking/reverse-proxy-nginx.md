@@ -57,38 +57,11 @@ This example assumes Coder is running locally on `127.0.0.1:3000` and that you'r
 
 ## Create DNS provider credentials
 
-This example assumes you're using CloudFlare as your DNS provider.
-For other providers, refer to the [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
-
-1. Create an API token for the DNS provider you're using, for example, [CloudFlare](https://developers.cloudflare.com/fundamentals/api/get-started/create-token) with the following permissions:
-
-   - Zone - DNS - Edit
-
-2. Create a file in `.secrets/certbot/cloudflare.ini` with the following content:
-
-   ```ini
-   dns_cloudflare_api_token = YOUR_API_TOKEN
-   ```
-
-   ```sh
-   mkdir -p ~/.secrets/certbot
-   touch ~/.secrets/certbot/cloudflare.ini
-   nano ~/.secrets/certbot/cloudflare.ini
-   ```
-
-3. Set the correct permissions:
-
-   ```sh
-   sudo chmod 600 ~/.secrets/certbot/cloudflare.ini
-   ```
+<include>../../_includes/reverse-proxy/certbot-cloudflare-credentials.md</include>
 
 ## Create the certificate
 
-1. Create the wildcard certificate:
-
-   ```sh
-   sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com -d *.coder.example.com
-   ```
+<include>../../_includes/reverse-proxy/certbot-wildcard-certificate.md</include>
 
 ## Configure nginx
 
@@ -143,24 +116,7 @@ For other providers, refer to the [CertBot documentation](https://eff-certbot.re
 
 ## Refresh certificates automatically
 
-1. Create a new file in `/etc/cron.weekly`:
-
-   ```sh
-   sudo touch /etc/cron.weekly/certbot
-   ```
-
-2. Make it executable:
-
-   ```sh
-   sudo chmod +x /etc/cron.weekly/certbot
-   ```
-
-3. And add this code:
-
-   ```sh
-   #!/bin/sh
-   sudo certbot renew -q
-   ```
+<include>../../_includes/reverse-proxy/certbot-renewal.md</include>
 
 ## Restart NGINX
 

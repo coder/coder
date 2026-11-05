@@ -8,11 +8,7 @@ Coder's Dev Containers integration uses the [`@devcontainers/cli`](https://githu
 This guide covers the Dev Containers integration.
 For workspaces without Docker, administrators can configure [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md) instead, which builds the workspace image itself from your dev container configuration.
 
-> [!WARNING]
-> Envbuilder is in **maintenance mode** with no new features planned.
->
-> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../../admin/integrations/devcontainers/integration.md).
-> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+<include>../../_includes/envbuilder/maintenance-mode.md</include>
 
 <!-- Separate the alerts so they render as two blocks. -->
 

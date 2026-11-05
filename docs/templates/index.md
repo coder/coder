@@ -48,10 +48,6 @@ As your Coder deployment grows, you can create more templates to meet the needs 
 - [Permissions and Policies](./template-permissions.md): Control who may access and modify your template.
 - [External Workspaces](./managing-templates/external-workspaces.md): Learn how to connect your existing infrastructure to Coder workspaces.
 
-> [!WARNING]
-> Envbuilder is in **maintenance mode** with no new features planned.
->
-> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../admin/integrations/devcontainers/integration.md).
-> To find the best approach for your deployment, join the [Coder community](https://coder.com/community) to be guided towards the best approach.
+<include>../_includes/envbuilder/maintenance-mode.md</include>
 
 <children></children>

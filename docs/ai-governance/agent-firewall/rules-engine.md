@@ -2,8 +2,7 @@
 title: Rules engine documentation
 ---
 
-> [!NOTE]
-> Agent Firewall is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/agent-firewall-premium.md</include>
 
 ## Overview
 

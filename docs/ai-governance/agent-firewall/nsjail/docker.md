@@ -2,8 +2,7 @@
 title: nsjail on Docker
 ---
 
-> [!NOTE]
-> Agent Firewall is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/agent-firewall-premium.md</include>
 
 This page describes the runtime and permission requirements for running Agent Firewall with the **nsjail** jail type on **Docker**.
 

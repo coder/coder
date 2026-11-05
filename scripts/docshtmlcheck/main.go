@@ -71,7 +71,8 @@ var voidElements = map[string]bool{
 
 // allowedElements is the set of tag names permitted in docs Markdown: the
 // standard HTML5 element set plus "children", the one intentional renderer
-// component (a child-page card grid with no HTML equivalent). Lookups are
+// component (a child-page card grid with no HTML equivalent), and "include",
+// the docs sync's include directive. Lookups are
 // lowercase; a tag whose raw name is capitalized is treated as a component
 // reference and reported by scanNode before this set is consulted, so only
 // lowercase element names belong here. Any name outside the set is treated as
@@ -118,6 +119,11 @@ var allowedElements = map[string]bool{
 	// Intentional docs renderer component. Also listed in rendererComponents,
 	// which drives the self-closing balance rule in scanNode.
 	"children": true,
+
+	// Include directive: a whole line holding <include>path</include>, which
+	// the docs sync replaces with the named Markdown file (usually a fragment
+	// under docs/_includes) before rendering. Refer to docs/_includes/README.md.
+	"include": true,
 }
 
 // rendererComponents are the non-HTML tags the docs renderer accepts as MDX

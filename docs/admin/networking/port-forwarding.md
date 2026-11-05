@@ -29,29 +29,11 @@ See the [Coder Desktop documentation](../../workspaces/desktop/index.md) for ins
 
 ## The `coder port-forward` command
 
-This command can be used to forward TCP or UDP ports from the remote workspace so they can be accessed locally.
-Both the TCP and UDP command line flags (`--tcp` and `--udp`) can be given once or multiple times.
-
-The supported syntax variations for the `--tcp` and `--udp` flag are:
-
-- Single port with optional remote port: `local_port[:remote_port]`
-- Comma separation `local_port1,local_port2`
-- Port ranges `start_port-end_port`
-- Any combination of the above
+<include>../../_includes/port-forwarding/cli-syntax.md</include>
 
 ### Examples
 
-Forward the remote TCP port `8080` to local port `8000`:
-
-```console
-coder port-forward myworkspace --tcp 8000:8080
-```
-
-Forward the remote TCP port `3000` and all ports from `9990` to `9999` to their respective local ports.
-
-```console
-coder port-forward myworkspace --tcp 3000,9990-9999
-```
+<include>../../_includes/port-forwarding/cli-examples.md</include>
 
 Forward the remote TCP port `3000` and all ports from `9990` to `9999` to their respective local ports to the `agent` in your Workspace (typically main or dev).
 This is needed when you have multiple agents in your workspace.
@@ -64,49 +46,17 @@ For more examples, see `coder port-forward --help`.
 
 ## Dashboard
 
-To enable port forwarding via the dashboard, Coder must be configured with a [wildcard access URL](../../admin/setup/index.md#wildcard-access-url).
-If an access URL is not specified, Coder will create [a publicly accessible URL](../../admin/setup/index.md#tunnel) to reverse proxy the deployment, and port forwarding will work.
-
-There is a [DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1) where each segment of hostnames must not exceed 63 characters.
-If your app name, agent name, workspace name and username exceed 63 characters in the hostname, port forwarding via the dashboard will not work.
+<include>../../_includes/port-forwarding/dashboard-requirements.md</include>
 
 ### From a coder_app resource
 
-One way to port forward is to configure a `coder_app` resource in the workspace's template.
-This approach shows a visual application icon in the dashboard.
-See the following `coder_app` example for a Node React app and note the `subdomain` and `share` settings:
-
-```tf
-# node app
-resource "coder_app" "node-react-app" {
-  agent_id  = coder_agent.dev.id
-  slug      = "node-react-app"
-  icon      = "https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"
-  url       = "http://localhost:3000"
-  subdomain = true
-  share     = "authenticated"
-
-  healthcheck {
-    url       = "http://localhost:3000/healthz"
-    interval  = 10
-    threshold = 30
-  }
-
-}
-```
-
-Valid `share` values include `owner` - private to the user, `authenticated` - accessible by any user authenticated to the Coder deployment, and `public` - accessible by users outside of the Coder deployment.
-
-![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
+<include>../../_includes/port-forwarding/coder-app.md</include>
 
 <a id="accessing-workspace-ports"></a>
 
 ## Access workspace ports
 
-Another way to port forward in the dashboard is to use the "Open Ports" button to specify an arbitrary port.
-Coder will also detect if apps inside the workspace are listening on ports, and list them below the port input (this is only supported on Windows and Linux workspace agents).
-
-![Port forwarding in the UI](../../images/networking/listeningports.png)
+<include>../../_includes/port-forwarding/open-ports.md</include>
 
 <a id="sharing-ports"></a>
 
@@ -144,9 +94,7 @@ OSS deployments allow all workspaces to share ports at both the `authenticated` 
 
 ### Configure port protocol
 
-Both listening and shared ports can be configured to use either `HTTP` or `HTTPS` to connect to the port.
-For listening ports the protocol selector applies to any port you input or select from the menu.
-Shared ports have protocol configuration for each shared port individually.
+<include>../../_includes/port-forwarding/port-protocol.md</include>
 
 You can access any port on the workspace and can configure the port protocol manually by appending a `s` to the port in the URL.
 

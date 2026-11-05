@@ -1,0 +1,2 @@
+- "General purpose" virtual machines, such as the M8-series in AWS work well.
+- Deploy in the same region as `coderd`

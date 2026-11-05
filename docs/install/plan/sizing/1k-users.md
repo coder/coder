@@ -57,20 +57,12 @@ If your needs exceed any of these limits, consider increasing deployment resourc
 
 **Notes**:
 
-- "General purpose" virtual machines, such as the M8-series in AWS work well.
-- Deploy in the same region as `coderd`
+<include>../../../_includes/sizing/database-notes.md</include>
 
 ### Workspaces
 
-The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users work, and as such should be interpreted as the _bare minimum_ requirements for a Coder workspace.
-Size your workspaces to fit the use case your users will be undertaking.
-If in doubt, chose sizes based on the development environments your users are migrating from onto Coder.
-
-| vCPU | Memory      |
-|------|-------------|
-| 0.1  | 128&nbsp;MB |
+<include>../../../_includes/sizing/workspace-agent-requirements.md</include>
 
 ## Footnotes for AWS instance types
 
-- For production deployments, we recommend using non-burstable instance types, such as `m5` or `c5`, instead of burstable instances, such as `t3`.
-  Burstable instances can experience significant performance degradation once CPU credits are exhausted, leading to poor user experience under sustained load.
+<include>../../../_includes/sizing/aws-instance-footnotes.md</include>

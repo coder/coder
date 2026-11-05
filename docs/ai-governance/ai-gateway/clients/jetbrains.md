@@ -2,8 +2,7 @@
 title: JetBrains
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, and so on) support AI Gateway via the [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
 

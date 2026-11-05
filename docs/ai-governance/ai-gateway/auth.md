@@ -2,8 +2,7 @@
 title: Authentication
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 AI Gateway uses different credentials for different kinds of connections:
 

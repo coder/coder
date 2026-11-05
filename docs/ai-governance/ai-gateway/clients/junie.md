@@ -2,8 +2,7 @@
 title: Junie
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 [Junie CLI](https://junie.jetbrains.com/docs/junie-cli.html) supports AI Gateway through [custom model profiles](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models).
 
