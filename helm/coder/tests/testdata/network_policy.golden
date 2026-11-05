@@ -61,6 +61,17 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+    # HA replicas reach each other on the same fixed ports as the ingress rule.
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 6222
+          protocol: TCP
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
+              app.kubernetes.io/instance: release-name
     - ports:
         - port: 5432
           protocol: TCP
