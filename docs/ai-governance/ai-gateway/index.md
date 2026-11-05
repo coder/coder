@@ -2,7 +2,11 @@
 title: AI Gateway
 ---
 
+<div data-likec4-view="aiGateway">
+
 ![AI Gateway diagram](../../images/aibridge/aibridge_diagram.png)
+
+</div>
 
 AI Gateway is a smart gateway for AI.
 It acts as an intermediary between your users' coding agents / IDEs and providers like OpenAI and Anthropic.

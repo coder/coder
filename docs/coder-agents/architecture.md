@@ -20,7 +20,11 @@ Three components are involved in every agent interaction:
 
    It runs shell commands, reads and writes files, and executes processes (exactly what occurs when a developer connects via their IDE).
 
+<div data-likec4-view="agentsArchitecture">
+
 <img src="../images/guides/ai-agents/agent-loop-detailed.png" alt="Architecture diagram">
+
+</div>
 
 ## The same connection your IDE uses
 

@@ -1,6 +1,7 @@
 // Coder deployment architecture as code (LikeC4). docs-engine renders its views as
 // interactive diagrams wherever a page has a data-likec4-view marker. Facts and links
-// come from install/plan/architecture.md, admin/networking, provisioners, proxies, and AI docs.
+// come from install/plan/architecture.md, admin/networking, provisioners, proxies,
+// coder-agents/architecture.md, and ai-governance/ai-gateway.
 
 specification {
   element actor {
@@ -66,6 +67,11 @@ model {
       link https://coder.com/docs/@main/workspaces/workspace-access/vscode 'VS Code'
       link https://coder.com/docs/@main/workspaces/workspace-access/jetbrains 'JetBrains'
     }
+    aiTools = container 'Desktop AI tools' {
+      #ai
+      description 'Claude Code, Codex, Copilot, Zed, and other AI clients running outside a workspace.'
+      link https://coder.com/docs/@main/ai-governance/ai-gateway/clients#external-and-desktop-clients 'External and desktop clients'
+    }
   }
 
   coder = system 'Coder deployment' {
@@ -100,13 +106,65 @@ model {
       }
       agentLoop = component 'Coder Agents loop' {
         #ai
-        description 'Runs the AI agent loop in-process. Streams prompts to the LLM and sends tool calls to workspaces.'
+        description 'Runs the AI agent loop in-process. Streams prompts to the LLM and sends tool calls to workspaces. No separate service to deploy.'
         link https://coder.com/docs/@main/coder-agents/architecture 'Coder Agents architecture'
+
+        chatWorker = component 'Chat worker' {
+          #ai
+          description 'Claims a queued chat and runs a turn: stream to the model, run its tool calls, repeat until it stops calling tools.'
+          link https://coder.com/docs/@main/coder-agents/architecture#the-agent-loop 'The agent loop'
+        }
+        toolDispatch = component 'Tool dispatch' {
+          #ai
+          description 'Turns tool calls into workspace operations. Connects to the workspace lazily, on the first tool call that needs it.'
+          link https://coder.com/docs/@main/coder-agents/architecture#tool-execution 'Tool execution'
+        }
+        compaction = component 'Context compaction' {
+          #ai
+          description 'Summarizes older context when token usage passes a threshold, or on /compact.'
+          link https://coder.com/docs/@main/coder-agents/architecture#context-compaction 'Context compaction'
+        }
+        subagents = component 'Sub-agent orchestration' {
+          #ai
+          description 'Spawns child chats with their own context windows to work on independent tasks in parallel.'
+          link https://coder.com/docs/@main/coder-agents/architecture#orchestration-tools 'Orchestration tools'
+        }
+      }
+      agentCreds = component 'Credentials and identity' {
+        #ai
+        description 'LLM API keys, Git authentication, and the identity of the user behind every prompt. Never sent to workspaces.'
+        link https://coder.com/docs/@main/coder-agents/architecture#security-posture 'Security posture'
       }
       aiGateway = component 'AI Gateway (embedded)' {
         #ai
         description 'Sits between coding agents and LLM providers. Records prompts, token usage, and tool calls.'
         link https://coder.com/docs/@main/ai-governance/ai-gateway 'AI Gateway'
+
+        gwAuth = component 'Client authentication' {
+          #ai
+          description 'Clients authenticate with their Coder API token, so users never get provider API keys.'
+          link https://coder.com/docs/@main/ai-governance/ai-gateway/auth 'Authentication'
+        }
+        interception = component 'Interception and recording' {
+          #ai
+          description 'Records every prompt, token count, and tool call, attributed to the user who made it.'
+          link https://coder.com/docs/@main/ai-governance/ai-gateway/monitoring 'Monitoring'
+        }
+        costControl = component 'Cost controls' {
+          #ai #optional
+          description 'Stops a user’s requests once their spend reaches their budget, and reports spend by user and group.'
+          link https://coder.com/docs/@main/ai-governance/ai-gateway/cost-controls 'Cost control'
+        }
+        mcpInjection = component 'MCP tool injection' {
+          #ai #optional
+          description 'Injects tools from admin-approved MCP servers into requests, using each user’s own token. Deprecated.'
+          link https://coder.com/docs/@main/ai-governance/ai-gateway/mcp 'MCP'
+        }
+        providerRouting = component 'Provider routing' {
+          #ai
+          description 'Forwards each request to the configured provider with centrally managed credentials, or the user’s own key in BYOK mode.'
+          link https://coder.com/docs/@main/ai-governance/ai-gateway/providers 'Providers'
+        }
       }
     }
 
@@ -188,6 +246,11 @@ model {
     description 'Container registries and tools such as JFrog Artifactory.'
     link https://coder.com/docs/@main/admin/integrations/jfrog-artifactory 'JFrog Artifactory'
   }
+  mcpServers = external 'MCP servers' {
+    #ai #optional
+    description 'Remote MCP servers that support OAuth2, such as GitHub’s.'
+    link https://coder.com/docs/@main/ai-governance/ai-gateway/mcp 'MCP'
+  }
   stun = external 'STUN servers' {
     description 'Help clients and agents find each other for direct connections.'
     link https://coder.com/docs/@main/admin/networking/stun 'STUN and NAT'
@@ -218,9 +281,27 @@ model {
   coder.coderd.builtinProvisioners -> infra 'terraform apply'
   coder.coderd.derp -[tunnel]-> coder.workspace.agent 'relays encrypted traffic'
   coder.coderd.appProxy -[tunnel]-> coder.workspace.apps 'proxies app traffic'
-  coder.coderd.agentLoop -> llm 'streams prompts'
-  coder.coderd.agentLoop -[tunnel]-> coder.workspace.agent 'runs tool calls over the tailnet'
-  coder.coderd.aiGateway -> llm 'forwards requests'
+
+  // Coder Agents
+  developer -> coder.coderd.agentLoop.chatWorker 'submits prompts'
+  coder.coderd.agentLoop.chatWorker -> coder.postgres 'claims queued chats, saves messages'
+  coder.coderd.agentLoop.chatWorker -> llm 'streams the conversation'
+  coder.coderd.agentLoop.chatWorker -> coder.coderd.agentCreds 'LLM keys and user identity'
+  coder.coderd.agentLoop.chatWorker -> coder.coderd.agentLoop.toolDispatch 'tool calls from the model'
+  coder.coderd.agentLoop.chatWorker -> coder.coderd.agentLoop.compaction 'over the token threshold'
+  coder.coderd.agentLoop.compaction -> coder.postgres 'inserts a summary message'
+  coder.coderd.agentLoop.toolDispatch -> coder.coderd.agentLoop.subagents 'spawn_agent, wait_agent'
+  coder.coderd.agentLoop.subagents -> coder.coderd.agentLoop.chatWorker 'starts child chats'
+  coder.coderd.agentLoop.toolDispatch -[tunnel]-> coder.workspace.agent 'read_file, write_file, edit_files, execute'
+
+  // AI Gateway
+  coder.coderd.aiGateway.gwAuth -> coder.coderd.aiGateway.interception 'authenticated requests'
+  coder.coderd.aiGateway.interception -> coder.coderd.aiGateway.costControl 'checks budget, records spend'
+  coder.coderd.aiGateway.interception -> coder.coderd.aiGateway.mcpInjection 'adds approved tools'
+  coder.coderd.aiGateway.interception -> coder.coderd.aiGateway.providerRouting 'forwards the request'
+  coder.coderd.aiGateway.interception -> coder.postgres 'prompts, token usage, tool calls'
+  coder.coderd.aiGateway.mcpInjection -> mcpServers 'lists and calls tools as the user'
+  coder.coderd.aiGateway.providerRouting -> llm 'HTTPS with provider credentials'
 
   // Optional and premium services
   coder.provisioners -> coder.coderd.api 'claims build jobs'
@@ -237,7 +318,8 @@ model {
   coder.workspace.agent -> coder.workspace.apps 'starts and health-checks'
   coder.workspace.agent -> coder.workspace.devcontainers 'detects and manages'
   coder.workspace.codingAgent -> coder.workspace.firewall 'egress filtered by'
-  coder.workspace.codingAgent -> coder.coderd.aiGateway 'LLM requests'
+  coder.workspace.codingAgent -> coder.coderd.aiGateway.gwAuth 'LLM requests with a Coder token'
+  tools.aiTools -> coder.coderd.aiGateway.gwAuth 'LLM requests with a Coder token'
   coder.workspace.codingAgent -> coder.gatewayReplicas 'LLM requests (standalone)'
   coder.workspace.firewall -> coder.coderd.api 'streams audit logs'
   coder.workspace -> git 'clones repositories'
@@ -347,6 +429,74 @@ views {
     coder.provisioners -> infra 'terraform apply'
     infra -> coder.workspace.agent 'starts resources and the agent'
     coder.workspace.agent -> coder.coderd.api 'connects and reports ready'
+    autoLayout LeftRight
+  }
+
+  view aiGateway of coder.coderd.aiGateway {
+    title 'AI Gateway'
+    description 'Coding agents and AI tools, inside or outside workspaces, authenticate with a Coder token. The gateway records each request and forwards it to the provider.'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout LeftRight
+  }
+
+  dynamic view agentsLoop {
+    title 'How the Coder Agents loop works'
+    description 'The loop runs in the control plane. It calls the LLM and reaches the workspace only to run tools.'
+    developer -> coder.coderd.agentLoop 'submits a prompt'
+    coder.coderd.agentLoop -> llm 'streams the conversation'
+    coder.coderd.agentLoop <- llm 'responds with tool calls'
+    coder.coderd.agentLoop -> coder.workspace 'read_file, write_file, edit_files, execute'
+    coder.coderd.agentLoop <- coder.workspace 'tool results'
+    coder.coderd.agentLoop -> llm 'returns results, repeats until done'
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout LeftRight
+  }
+
+  view agentsArchitecture {
+    title 'Coder Agents architecture'
+    description 'The agent loop, keys, and identity stay in the control plane. Workspaces run no AI software and get tool calls over the same tunnel as IDEs and SSH.'
+    include developer, coder.coderd.agentLoop, coder.coderd.agentCreds, coder.postgres, llm, coder.workspace.agent
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
+    autoLayout TopBottom
+  }
+
+  view agentLoopInternals of coder.coderd.agentLoop {
+    title 'Inside the Coder Agents loop'
+    include *
+    style element.tag = #ai {
+      color indigo
+    }
+    style element.tag = #optional {
+      color sky
+    }
+    style element.tag = #premium {
+      color sky
+    }
     autoLayout LeftRight
   }
 }

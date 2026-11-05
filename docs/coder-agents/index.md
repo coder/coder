@@ -60,7 +60,11 @@ It is standard compute infrastructure.
 There are no LLM API keys, no agent harnesses, and no special software installed.
 All intelligence lives in the control plane.
 
+<div data-likec4-view="agentsLoop">
+
 <img src="../images/guides/ai-agents/agent-loop.png" alt="Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces">
+
+</div>
 
 <small>The agent loop runs in the control plane.
 It makes outbound requests to LLM providers and connects to workspaces only when tool execution is needed.</small>
