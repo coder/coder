@@ -17,3 +17,6 @@ children:
   - title: Security - best practices
     description: Follow security best practices to harden your Coder deployment against common risks.
     path: ./admin/security/security-best-practices.md
+  - title: Verify releases
+    description: Verify Coder release artifacts with GPG-signed checksums, build provenance attestations, and the container image SBOM.
+    path: ./admin/security/verify-releases.md
