@@ -752,7 +752,7 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 				},
 				"busy_behavior": map[string]any{
 					"type":        "string",
-					"description": "When a busy chat receives the message: \"steer\" (default) delivers it before the next model call of the active turn, \"queue\" delivers it after the active turn ends. To correct a busy chat, send a steer message; do not interrupt it first. Call " + ToolNameInterruptChat + " only to stop the chat.",
+					"description": "When a busy chat receives the message: \"steer\" (default) delivers it before the next model call of the active turn, \"queue\" delivers it after the active turn ends. Call " + ToolNameInterruptChat + " only to stop the chat, not before you send a message.",
 					"enum": []string{
 						string(codersdk.ChatBusyBehaviorSteer),
 						string(codersdk.ChatBusyBehaviorQueue),
@@ -803,7 +803,7 @@ type InterruptChatArgs struct {
 var InterruptChat = Tool[InterruptChatArgs, ChatToolStatus]{
 	Tool: tooldef.Tool{
 		Name:        ToolNameInterruptChat,
-		Description: `Interrupt a running Coder Agents chat. Progress so far is preserved. Use it only to stop the chat; to redirect it, send a message.`,
+		Description: "Interrupt a running Coder Agents chat. Progress so far is preserved. Use it only to stop the chat. To send a message to a busy chat, call " + ToolNameSendChatMessage + "; do not interrupt the chat first.",
 		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
