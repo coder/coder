@@ -24,7 +24,7 @@ Preconditions:
 - `scripts/doctor.sh` passes, and `scripts/coder.sh templates list --output json | jq -r '.[].Template.name'` prints `docker`.
 - `docker info` works for the user that runs the instance.
 
-- **Whole journey.** Run `journeys/workspace.sh`. It covers every sub-feature below, ends with `workspace: 10/10 checks passed` in about 90 seconds with a cached image, and writes evidence to `build/verify-coder/evidence/<stamp>-workspace/`.
+- **Whole journey.** Run `journeys/workspace.sh`. It covers every sub-feature below, ends with `workspace: 10/10 checks passed` in about 2 minutes with a cached image, and writes evidence to `build/verify-coder/evidence/<stamp>-workspace/`.
 - **Create in the CLI.** `scripts/coder.sh create <name> --template docker --parameter 'jetbrains_ides=[]' --yes </dev/null`. It streams the build and prints `The <name> workspace has been created`.
 - **Build state.** `vc_api /api/v2/users/admin/workspace/<name>` has `latest_build.transition` and `latest_build.status`. A finished start reads `start`/`running`, a finished stop `stop`/`stopped`, a failure `.../failed`.
 - **Agent connected.** Poll until `latest_build.resources[].agents[]` has `status` `connected` and `lifecycle_state` `ready` (agent name `main`): `for _ in $(seq 150); do vc_api /api/v2/users/admin/workspace/<name> | jq -e '[.latest_build.resources[].agents[]? | select(.status == "connected" and .lifecycle_state == "ready")] | length == 1' >/dev/null && break; sleep 2; done`. That gives up after about 5 minutes, so check the state again afterwards, and stop early when `latest_build.status` reads `failed`. `docker ps` then lists `coder-admin-<name>` from image `codercom/example-base:ubuntu`.

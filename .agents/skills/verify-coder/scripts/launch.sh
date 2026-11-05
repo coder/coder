@@ -31,6 +31,16 @@ develop_in_coder=0
 if [[ "${DEVELOP_IN_CODER:-}" == 1 || -n "${CODER_AGENT_URL:-}" ]]; then
 	develop_in_coder=1
 fi
+# make tracks files, not CODER_BUILD_AGPL, so an existing enterprise binary
+# would be reused for --agpl.
+for arg in "$@"; do
+	if [[ "$arg" == -- ]]; then
+		break
+	fi
+	if [[ "$arg" == --agpl ]]; then
+		vc_fail "--agpl is not supported: make would reuse the existing enterprise binary"
+	fi
+done
 bin="$(vc_coder_bin)"
 echo "building build/.bin/develop and ${bin#"$VC_ROOT"/} (log: $VC_RUN/build.log)"
 if ! (cd "$VC_ROOT" && DEVELOP_IN_CODER="$develop_in_coder" MAKE_TIMED=1 make -j build/.bin/develop "${bin#"$VC_ROOT"/}") >"$VC_RUN/build.log" 2>&1; then
@@ -59,8 +69,9 @@ else
 	web_port="$(pick_port $((18000 + offset)))"
 fi
 
-# The marker survives cleanup.sh --keep-data, so a later cleanup still knows
-# this harness created the folder.
+# The marker tells cleanup.sh that this harness created the folder.
+# cleanup.sh --keep-data deletes it, so the folder then counts as the
+# developer's.
 if [[ ! -d "$VC_CONFIG_DIR" ]]; then
 	mkdir -p "$VC_CONFIG_DIR"
 	touch "$VC_CONFIG_DIR/.verify-coder-created"

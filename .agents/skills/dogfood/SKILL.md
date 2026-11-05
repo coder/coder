@@ -11,6 +11,8 @@ The primary job is to run a reliable local dogfood instance and use the PR conte
 
 ## References
 
+For a scripted launch, ownership checks, UI and CLI journeys, and evidence that survives cleanup, use the `verify-coder` skill (`.agents/skills/verify-coder/`) for the run and this skill for scoping the PR.
+
 Use the canonical repo guidance for startup, isolation, observability, and cleanup:
 
 - `.claude/docs/WORKFLOWS.md`

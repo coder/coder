@@ -58,8 +58,13 @@ vc_check() {
 	fi
 }
 
+# vc_load_run returns instead of exiting, so a failure does not close an
+# interactive shell. Scripts stop on it through their own errexit.
 vc_load_run() {
-	[[ -f "$VC_RUN/env" ]] || vc_fail "no instance recorded in $VC_RUN/env, run launch.sh first"
+	if [[ ! -f "$VC_RUN/env" ]]; then
+		echo "error: no instance recorded in $VC_RUN/env, run launch.sh first" >&2
+		return 1
+	fi
 	# shellcheck disable=SC1091
 	source "$VC_RUN/env"
 }

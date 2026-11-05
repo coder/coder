@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Journey for features/coder-agents.md: the admin adds an OpenAI-compatible
 # provider that points at a local llm-mock, adds a default model, sends a chat
-# message from /agents, and the UI and the API show the mock's reply.
+# message from /agents, and the UI and the API show the mock's reply. It then
+# puts the instance back: chat archived, old default model, no mock provider.
 # Usage: coder-agents.sh   (prints one line per check and a count line)
 set -euo pipefail
 scripts="$(dirname "${BASH_SOURCE[0]}")/../scripts"
@@ -23,6 +24,10 @@ provider_display="Verify mock $stamp"
 model_display="Verify mock model $stamp"
 message="verify chat $stamp"
 reply="This is a mock response from OpenAI."
+# A reused .coderv2 can hold a developer's own default model. The journey
+# replaces it for the chat and puts it back in the restore check.
+org="$(vc_api /api/v2/organizations/default | jq -r '.id')"
+old_default="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r '[.models[] | select(.is_default)][0].id // empty')"
 
 mock_port=19460
 while vc_port_busy "$mock_port"; do
@@ -73,9 +78,6 @@ add_provider() {
 }
 
 add_model() {
-	local org had_default
-	org="$(vc_api /api/v2/organizations/default | jq -r '.id')"
-	had_default="$(vc_api "/api/v2/organizations/$org/chats/models" | jq '[.models[] | select(.is_default)] | length')"
 	vc_ab open "$VC_WEB_URL/ai/settings/models" >/dev/null
 	vc_ab wait --fn 'document.title === "Models - AI Settings - Coder"' >/dev/null
 	vc_ab find role button click --name "Add model" >/dev/null
@@ -90,7 +92,7 @@ add_model() {
 	vc_ab screenshot "$out/03-model-form.png" >/dev/null
 	vc_ab find role button click --name "Add Model" >/dev/null
 	# With a default already set, saving asks "Replace default model" first.
-	if ((had_default > 0)); then
+	if [[ -n "$old_default" ]]; then
 		vc_ab wait --text "Replace default model" >/dev/null
 		vc_ab find role button click --name "Confirm" >/dev/null
 	fi
@@ -140,6 +142,48 @@ chat_api() {
 	echo "chat $id is waiting with the user message and the assistant reply"
 }
 
+vc_send() {
+	local method="$1" path="$2" body="${3:-}"
+	if [[ -n "$body" ]]; then
+		vc_curl -fsS --max-time 10 -X "$method" -H 'Content-Type: application/json' --data "$body" "$VC_API_URL$path" >/dev/null
+	else
+		vc_curl -fsS --max-time 10 -X "$method" "$VC_API_URL$path" >/dev/null
+	fi
+}
+
+# restore archives the chat, gives the default back to the model that had it
+# before, and deletes the journey's model and provider.
+restore() {
+	local model_id chat_id
+	if [[ -f "$out/06-chat-url.txt" ]]; then
+		chat_id="$(sed 's#.*/agents/##; s#[?].*##' "$out/06-chat-url.txt")"
+		vc_send PATCH "/api/v2/chats/$chat_id" '{"archived": true}'
+		vc_api "/api/v2/chats/$chat_id" | jq -e '.archived == true' >/dev/null
+	fi
+	if [[ -n "$old_default" ]]; then
+		vc_send PATCH "/api/v2/organizations/$org/chats/models/$old_default" '{"is_default": true}'
+	fi
+	model_id="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r --arg d "$model_display" '[.models[] | select(.display_name == $d)][0].id // empty')"
+	if [[ -n "$model_id" ]]; then
+		vc_send DELETE "/api/v2/organizations/$org/chats/models/$model_id"
+	fi
+	if [[ "$(vc_api_status "/api/v2/ai/providers/$provider_name")" == 200 ]]; then
+		vc_send DELETE "/api/v2/ai/providers/$provider_name"
+	fi
+	vc_api "/api/v2/organizations/$org/chats/models" >"$out/08-api-models-after.json"
+	jq -e --arg d "$model_display" --arg o "$old_default" \
+		'([.models[] | select(.display_name == $d)] | length == 0) and ([.models[] | select(.is_default)][0].id // "") == $o' \
+		"$out/08-api-models-after.json" >/dev/null || {
+		echo "the model list still has the journey's model or the wrong default"
+		return 1
+	}
+	[[ "$(vc_api_status "/api/v2/ai/providers/$provider_name")" == 404 ]] || {
+		echo "provider $provider_name still exists"
+		return 1
+	}
+	echo "chat archived, default model ${old_default:-none} restored, journey model and provider deleted"
+}
+
 mock_stops() {
 	stop_mock
 	sleep 1
@@ -155,6 +199,7 @@ vc_check provider add_provider
 vc_check model add_model
 vc_check chat chat
 vc_check chat-api chat_api
+vc_check restore restore
 vc_check mock-stop mock_stops
 echo "coder-agents: $VC_PASS/$VC_TOTAL checks passed, evidence in $out" | tee -a "$out/result.txt"
 ((VC_PASS == VC_TOTAL))

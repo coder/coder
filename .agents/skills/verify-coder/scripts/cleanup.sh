@@ -21,12 +21,30 @@ fi
 vc_load_run
 VC_CHECK_LOG="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-cleanup.log"
 
+containers_since_launch() {
+	command -v docker >/dev/null || return 0
+	local since id name created
+	since="$(date -d "$VC_STARTED_AT" +%s)"
+	for id in $(docker ps -aq --filter 'name=^coder-'); do
+		read -r name created < <(docker inspect -f '{{.Name}} {{.Created}}' "$id")
+		if (($(date -d "$created" +%s) >= since)); then
+			printf '%s ' "${name#/}"
+		fi
+	done
+}
+
 # Only workspaces created after this launch belong to the harness. Older ones
 # can be a developer's own work in the same .coderv2, so they are listed and
 # kept.
 delete_workspaces() {
 	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
-		echo "server is down, skipped (check docker ps for coder-* containers by hand)"
+		local left
+		left="$(containers_since_launch)"
+		if [[ -n "$left" ]]; then
+			echo "server is down, coder-* containers created since the launch remain: $left (check they are yours, then docker rm -f them and their coder-<id>-home volumes)"
+			return 1
+		fi
+		echo "server is down, and no coder-* container was created since the launch"
 		return 0
 	fi
 	local list ws kept deleted=()
@@ -142,6 +160,12 @@ remove_data() {
 	fi
 	if [[ ! -f "$VC_CONFIG_DIR/.verify-coder-created" ]]; then
 		echo "kept $VC_CONFIG_DIR (launch.sh did not create it)"
+		return 0
+	fi
+	# The harness's own Postgres is stopped by now, so a live one on this
+	# folder belongs to someone else, such as a plain develop.sh run.
+	if pgrep -f -- "$VC_CONFIG_DIR/postgres" >/dev/null; then
+		echo "kept $VC_CONFIG_DIR, another process still runs Postgres from it"
 		return 0
 	fi
 	rm -rf "$VC_CONFIG_DIR"
