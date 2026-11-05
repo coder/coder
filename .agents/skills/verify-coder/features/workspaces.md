@@ -21,7 +21,7 @@ A user creates a workspace from a template, waits for its agent to connect, open
 
 Preconditions:
 
-- `scripts/doctor.sh` passes and prints `INFO templates: docker`.
+- `scripts/doctor.sh` passes, and `scripts/coder.sh templates list --output json | jq -r '.[].Template.name'` prints `docker`.
 - `docker info` works for the user that runs the instance.
 
 - **Create in the UI.** `vc_ab open "$VC_WEB_URL/templates/docker/workspace"`, fill `find label "Workspace name"`, then `vc_ab find role button click --name "Create workspace"`. The URL becomes `/@admin/<name>`.

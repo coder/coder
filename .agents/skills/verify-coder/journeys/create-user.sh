@@ -27,6 +27,7 @@ sign_in() {
 fill_form() {
 	vc_ab open "$VC_WEB_URL/deployment/users" >/dev/null
 	vc_ab wait --fn 'document.title === "Users - Coder"' >/dev/null
+	vc_ab screenshot "$out/02-users-before.png" >/dev/null
 	vc_ab find role link click --name "New user" >/dev/null
 	vc_ab wait --fn 'document.title === "New user - Coder"' >/dev/null
 	local login_type
@@ -38,7 +39,7 @@ fill_form() {
 	vc_ab find label "Username" fill "$username" >/dev/null
 	vc_ab fill 'input[name=name]' "Verify $username" >/dev/null
 	vc_ab find label "Email" fill "$email" >/dev/null
-	vc_ab screenshot "$out/02-new-user-form.png" >/dev/null
+	vc_ab screenshot "$out/03-new-user-form.png" >/dev/null
 	vc_ab fill 'input[name=password]' "$password" >/dev/null
 	echo "filled the form for $username (login type was '$login_type')"
 }
@@ -48,8 +49,13 @@ submit_form() {
 	vc_ab wait --text "created successfully" >/dev/null
 	vc_ab wait --fn 'document.title === "Users - Coder"' >/dev/null
 	vc_ab wait --text "$email" >/dev/null
-	vc_ab screenshot "$out/03-users-list.png" >/dev/null
-	vc_ab snapshot >"$out/03-users-list.snapshot.txt"
+	vc_ab screenshot "$out/04-users-after-save.png" >/dev/null
+	# The search box stores its query in ?filter=, so this is the list a user
+	# sees after searching for the new user, with the row above the fold.
+	vc_ab open "$VC_WEB_URL/deployment/users?filter=$username" >/dev/null
+	vc_ab wait --text "$email" >/dev/null
+	vc_ab screenshot "$out/05-users-search.png" >/dev/null
+	vc_ab snapshot >"$out/05-users-search.snapshot.txt"
 	echo "toast shown and $email listed on /deployment/users"
 }
 

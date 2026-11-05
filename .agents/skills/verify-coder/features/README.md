@@ -4,7 +4,7 @@ This folder is the maintained source for verifying the user-facing behavior of C
 
 ## Baseline preconditions
 
-- `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 7/7 checks passed`.
+- `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 8/8 checks passed`.
 - `source scripts/lib.sh && vc_load_run` exported `VC_WEB_URL`, `VC_API_URL` and `VC_BROWSER_SESSION`.
 - Seed data from `scripts/develop/main.go`: owner `admin@coder.com`, user `member@coder.com`, both with password `SomeSecurePassword!`, the default organization `coder`, and the `docker` template when Docker works on the host.
 - Nothing seeds an AI provider, a model, a license, a workspace or a second organization.
@@ -20,7 +20,7 @@ This folder is the maintained source for verifying the user-facing behavior of C
 
 - Capture the action and the resulting state: a screenshot before and after, and an accessibility snapshot of the result.
 - Prove each mutation from a second view: the API or the CLI after a UI change, the UI after a CLI change.
-- Name the sub-feature ID and the entry point next to each artifact.
+- Put hand-driven artifacts in `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/`, named `<NN>-<entry point>-<state>.<ext>` (see SKILL.md, Evidence).
 - Report an entry point you could not reach with the command you ran and the missing precondition. Do not report it as verified through another entry point.
 
 ## Feature entry contract

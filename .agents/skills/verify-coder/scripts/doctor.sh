@@ -70,6 +70,18 @@ web_proxies_api() {
 	echo "$VC_WEB_URL proxies /api"
 }
 
+starter_template() {
+	if ! docker info >/dev/null 2>&1; then
+		echo "docker unavailable, so develop.sh creates no docker template"
+		return 0
+	fi
+	vc_api /api/v2/templates | jq -e '[.[].name] | index("docker")' >/dev/null || {
+		echo "docker works but the docker template is missing: grep 'starter template' \$VC_LOG, then relaunch"
+		return 1
+	}
+	echo "docker template exists"
+}
+
 vc_check owner owner
 vc_check api-port port_owned "$VC_API_PORT"
 vc_check web-port port_owned "$VC_WEB_PORT"
@@ -77,9 +89,8 @@ vc_check healthz healthz
 vc_check build build_current
 vc_check admin-session admin_session
 vc_check web web_proxies_api
+vc_check starter-template starter_template
 
-templates="$(vc_api /api/v2/templates 2>/dev/null | jq -r '[.[].name] | join(",")' 2>/dev/null || true)"
-echo "INFO templates: ${templates:-none}"
 echo "INFO web $VC_WEB_URL, api $VC_API_URL, admin $VC_ADMIN_EMAIL"
 echo "doctor: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

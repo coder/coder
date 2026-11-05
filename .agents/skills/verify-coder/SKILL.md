@@ -5,9 +5,9 @@ description: "Launch an isolated local Coder from this checkout with scripts/dev
 
 # Verify Coder
 
-Drive the real app, not tests. Every helper prints one line per check and ends with a count line such as `doctor: 7/7 checks passed`. A run without its count line is unchecked.
+Drive the real app, not tests. Every helper prints one line per check and ends with a count line such as `doctor: 8/8 checks passed`. A run without its count line is unchecked.
 
-Paths below are relative to this skill's directory (`.agents/skills/verify-coder/`). Run the scripts from anywhere inside the checkout.
+Script paths below (`scripts/`, `journeys/`, `features/`) are relative to this skill's directory, `.agents/skills/verify-coder/`. From the repo root, prefix them with that directory. The scripts work from any working directory. State and evidence paths (`build/verify-coder/`, `.coderv2/`) are relative to the repo root.
 
 ## Launch
 
@@ -20,7 +20,7 @@ scripts/launch.sh -- --use-proxy   # extra flags go to scripts/develop.sh
 - It builds `build/.bin/develop` and `build/coder_<os>_<arch>` first, then picks free API and web ports (13000 and 18000 plus a per-checkout offset), then starts `scripts/develop.sh` in its own process session. Coder metrics are off (`--prometheus-port 0`).
 - The first build in a checkout compiles the site and seven slim binaries. It took 13 minutes on 8 cores at load average 15 to 27. With the build done, startup took about 40 seconds on a new database and 9 seconds on kept data.
 - Ready means the develop banner `Coder is now running in development mode` appeared, which comes after migrations, the first user, the `member` user and the `docker` starter template. Then `launch.sh` runs the doctor and exits with its result.
-- Seed data: `admin@coder.com` (owner) and `member@coder.com`, both with password `SomeSecurePassword!` (`CODER_DEV_ADMIN_PASSWORD` overrides it). The `docker` template exists only when `docker info` works.
+- Seed data: `admin@coder.com` (owner) and `member@coder.com`, both with password `SomeSecurePassword!` (`CODER_DEV_ADMIN_PASSWORD` overrides it). The `docker` template exists only when `docker info` works and Terraform can download its providers from GitHub. When Docker works but the import failed (a `starter template setup failed` warning in the log, often a GitHub 504), the doctor fails `starter-template`. Relaunch to retry: `scripts/cleanup.sh --keep-data && scripts/launch.sh`.
 - It refuses to start when `build/verify-coder/run/env` records an instance. It never reuses a Coder it did not start: `develop.sh` itself would silently reuse any Coder on its API port, so never point `CODER_DEV_PORT` at a busy port.
 - It unsets `ANTHROPIC_*` and `OPENAI_*` keys for the server, so nothing spends real tokens unless you configure a provider in the UI.
 - State: `build/verify-coder/run/` (env file, `build.log`, `develop.log`) and `.coderv2/` (built-in Postgres, CLI session). Both are per checkout and gitignored.
@@ -31,11 +31,11 @@ scripts/launch.sh -- --use-proxy   # extra flags go to scripts/develop.sh
 scripts/doctor.sh
 ```
 
-Read-only. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch), that the CLI session in `.coderv2/session` is the admin, and that the web port proxies `/api`. It prints the URLs and template names as INFO lines.
+Read-only. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch), that the CLI session in `.coderv2/session` is the admin, that the web port proxies `/api`, and that the `docker` template exists whenever `docker info` works. It prints the URLs as an INFO line.
 
 ## Drive
 
-Load the instance first: `source scripts/lib.sh && vc_load_run` gives `VC_WEB_URL`, `VC_API_URL`, `VC_BROWSER_SESSION` and the helpers below.
+Load the instance in every new shell, including each separate tool call: `source scripts/lib.sh && vc_load_run`. It sets `VC_WEB_URL`, `VC_API_URL`, `VC_LOG`, `VC_BROWSER_SESSION`, `VC_ADMIN_EMAIL`, `VC_ADMIN_PASSWORD`, `VC_EVIDENCE` and the helpers below.
 
 - Web UI: drive `$VC_WEB_URL` (the Vite dev server, which proxies `/api` to the API port) with `agent-browser --session "$VC_BROWSER_SESSION"` (`vc_ab` in `lib.sh`). Never use another session name: sessions are host-global. `vc_browser_login [email password]` signs in through the real form. Prefer `find label`, `find role ... --name`, `data-testid` and page titles (`<Page> - Coder`) over refs from an old snapshot. `site/e2e/helpers.ts` has a working Playwright recipe for most pages: translate it, then check the labels against the page source because the e2e matchers ignore case.
 - CLI: `scripts/coder.sh <args>` runs the binary develop built with `--global-config .coderv2`, logged in as the admin. It unsets `CODER_URL` and `CODER_SESSION_TOKEN` so it never talks to the deployment this workspace runs on.
@@ -46,10 +46,11 @@ Load the instance first: `source scripts/lib.sh && vc_load_run` gives `VC_WEB_UR
 ## Evidence
 
 - Each journey writes `build/verify-coder/evidence/<UTC stamp>-<journey>/`: numbered screenshots of the action and the result, an accessibility snapshot of the final page, the API and CLI read-backs as JSON, `result.txt` with the check lines and count line, and `steps.log` with each step's full output.
+- Hand-driven checks put their files in `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/` (for example `20261105T090000Z-users-create-cli/`), named `<NN>-<entry point>-<state>.<ext>`, such as `01-cli-create.txt` or `02-ui-users-after.png`. Cleanup keeps them.
 - Prove the real user path: the UI form or the CLI command a user runs, not a test endpoint or a direct DB write. Capture the state before and after the action, not only the final screen.
 - Verify side effects next to what is visible: rows through the API, CLI output, files, containers (`docker ps`), log lines.
 - Pass absolute paths to `agent-browser screenshot`. Relative paths resolve against the daemon's working directory.
-- Never screenshot or snapshot a form after typing a real secret. Journeys use throwaway passwords and screenshot before typing them.
+- Never screenshot or snapshot a form after typing a real secret, and never save command output that echoes one. Journeys use throwaway passwords and screenshot before typing them.
 - Mocks only where a production boundary already isolates the external system, for example an OpenAI-compatible fake for an LLM provider.
 
 ## Cleanup
