@@ -19,6 +19,7 @@ if [[ ! -f "$VC_RUN/env" ]]; then
 	exit 0
 fi
 vc_load_run
+VC_CHECK_LOG="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-cleanup.log"
 
 # Only workspaces created after this launch belong to the harness. Older ones
 # can be a developer's own work in the same .coderv2, so they are listed and
@@ -39,7 +40,9 @@ delete_workspaces() {
 		}
 		deleted+=("$ws")
 	done < <(jq -r --arg t "$VC_STARTED_AT" '.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 >= ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"' <<<"$list")
-	echo "deleted ${deleted[*]:-none} (created since $VC_STARTED_AT), kept older: ${kept:-none}"
+	echo "deleted: ${deleted[*]:-none}"
+	echo "kept older than $VC_STARTED_AT: ${kept:-none}"
+	echo "deleted ${#deleted[@]} created since the launch, kept $(wc -w <<<"$kept") older, names in $(basename "$VC_CHECK_LOG")"
 }
 
 close_browser() {

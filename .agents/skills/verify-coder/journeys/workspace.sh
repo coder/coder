@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Journey for features/workspaces.md: the admin creates one Docker workspace
 # with the CLI and one in the web UI, proves each agent connected, runs a
-# command over SSH and in the web terminal, stops, starts and deletes the UI
-# workspace from its page, and deletes the CLI workspace with the CLI.
+# command over SSH and in the web terminal, stops and starts each workspace
+# (CLI and UI), and deletes each one (UI dialog and CLI).
 # Usage: workspace.sh   (prints one line per check and a count line)
 set -euo pipefail
 scripts="$(dirname "${BASH_SOURCE[0]}")/../scripts"
@@ -114,6 +114,22 @@ cli_ssh() {
 	echo "coder ssh $cli_ws -- echo printed verify-ssh-ok"
 }
 
+cli_stop_start() {
+	"$scripts/coder.sh" stop "$cli_ws" --yes </dev/null >"$out/04-cli-stop.txt" 2>&1
+	wait_state "$cli_ws" stop/stopped
+	[[ "$(container_count "$cli_ws")" == 0 ]] || {
+		echo "the container still runs after coder stop"
+		return 1
+	}
+	"$scripts/coder.sh" start "$cli_ws" --yes </dev/null >"$out/05-cli-start.txt" 2>&1
+	wait_state "$cli_ws" start/running
+	[[ "$(container_count "$cli_ws")" == 1 ]] || {
+		echo "no container runs after coder start"
+		return 1
+	}
+	echo "coder stop and coder start moved $cli_ws to stop/stopped and back to start/running"
+}
+
 ui_create() {
 	vc_browser_login
 	vc_ab open "$VC_WEB_URL/templates/docker/workspace" >/dev/null
@@ -121,7 +137,7 @@ ui_create() {
 	vc_ab wait 'form[aria-label="Create workspace form"]' >/dev/null
 	vc_ab wait --load networkidle >/dev/null
 	vc_ab find label "Workspace name" fill "$ui_ws" >/dev/null
-	vc_ab screenshot "$out/04-ui-create-form.png" >/dev/null
+	vc_ab screenshot "$out/06-ui-create-form.png" >/dev/null
 	vc_ab find role button click --name "Create workspace" >/dev/null
 	vc_ab wait --url "**/@admin/$ui_ws*" >/dev/null
 	wait_state "$ui_ws" start/running
@@ -132,7 +148,7 @@ ui_agent() {
 	wait_agent "$ui_ws"
 	vc_ab wait '[data-testid=agent-status-ready]' >/dev/null
 	ui_status Running
-	vc_ab screenshot "$out/05-ui-running.png" >/dev/null
+	vc_ab screenshot "$out/07-ui-running.png" >/dev/null
 	echo "the page shows agent-status-ready and Workspace status: Running"
 }
 
@@ -146,7 +162,7 @@ ui_terminal() {
 	vc_ab keyboard type "echo verify-web-terminal-ok > /tmp/verify-web-terminal" >/dev/null
 	vc_ab press Enter >/dev/null
 	sleep 2
-	vc_ab screenshot "$out/06-ui-terminal.png" >/dev/null
+	vc_ab screenshot "$out/08-ui-terminal.png" >/dev/null
 	got="$("$scripts/coder.sh" ssh "$ui_ws" -- cat /tmp/verify-web-terminal 2>/dev/null)"
 	[[ "$got" == verify-web-terminal-ok ]] || {
 		echo "the file the terminal wrote holds '$got'"
@@ -162,7 +178,7 @@ ui_stop_start() {
 	click_header '[data-testid=workspace-stop-button]'
 	wait_state "$ui_ws" stop/stopped
 	ui_status Stopped
-	vc_ab screenshot "$out/07-ui-stopped.png" >/dev/null
+	vc_ab screenshot "$out/09-ui-stopped.png" >/dev/null
 	[[ "$(container_count "$ui_ws")" == 0 ]] || {
 		echo "the container still runs after stop"
 		return 1
@@ -185,7 +201,7 @@ ui_delete() {
 	vc_ab find role menuitem click --name "Delete…" >/dev/null
 	vc_ab wait '[role=dialog] input' >/dev/null
 	vc_ab fill '[role=dialog] input' "$ui_ws" >/dev/null
-	vc_ab screenshot "$out/08-ui-delete-dialog.png" >/dev/null
+	vc_ab screenshot "$out/10-ui-delete-dialog.png" >/dev/null
 	vc_ab find role button click --name "Delete" --exact >/dev/null
 	wait_gone "$ui_ws"
 	[[ "$(docker ps -a --filter "name=^coder-admin-$ui_ws\$" --format '{{.Names}}' | wc -l)" == 0 ]] || {
@@ -200,7 +216,7 @@ ui_delete() {
 }
 
 cli_delete() {
-	"$scripts/coder.sh" delete "$cli_ws" --yes >"$out/09-cli-delete.txt" 2>&1
+	"$scripts/coder.sh" delete "$cli_ws" --yes >"$out/11-cli-delete.txt" 2>&1
 	wait_gone "$cli_ws"
 	[[ "$(docker ps -a --filter "name=^coder-admin-$cli_ws\$" --format '{{.Names}}' | wc -l)" == 0 ]] || {
 		echo "a container for $cli_ws is left"
@@ -212,6 +228,7 @@ cli_delete() {
 vc_check cli-create cli_create
 vc_check cli-agent cli_agent
 vc_check cli-ssh cli_ssh
+vc_check cli-stop-start cli_stop_start
 vc_check ui-create ui_create
 vc_check ui-agent ui_agent
 vc_check ui-terminal ui_terminal
