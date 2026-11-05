@@ -15,6 +15,7 @@ import {
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import { getOrganizationFilterOptions } from "#/components/Filter/organizationOptions";
 import {
 	getSelfUserFilterOptions,
 	getUserFilterOptions,
@@ -24,7 +25,6 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
-	getOrganizationFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
 } from "./categoryOptions";
@@ -114,7 +114,13 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 				// can hide while its one option would still narrow the results.
 				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
-				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
+				// TODO(DEVEX-421 follow-up): use workspace-read or organization
+				// membership instead of the inherited audit-log permission gate.
+				getOptions: (query) =>
+					getOrganizationFilterOptions(query, queryClient, {
+						object: { resource_type: "audit_log" },
+						action: "read",
+					}),
 			});
 		}
 

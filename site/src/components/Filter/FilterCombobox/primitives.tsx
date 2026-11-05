@@ -16,6 +16,8 @@ import {
 	PopoverContent,
 } from "#/components/Popover/Popover";
 
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
+
 // Primitive layer for `FilterCombobox`, built on cmdk (listbox, keyboard
 // navigation) and Radix Popover (positioning, dismissal). These are prefixed
 // `FilterCombobox*` and kept single-consumer to avoid shadowing the unrelated
@@ -524,6 +526,7 @@ export const FilterComboboxChipsInput: React.FC<
 
 	return (
 		<CommandPrimitive.Input
+			{...passwordManagerIgnoreProps}
 			ref={ref}
 			data-slot="combobox-chip-input"
 			value={inputValue}

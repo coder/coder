@@ -1,6 +1,5 @@
 import { MoonIcon, RefreshCwOffIcon } from "lucide-react";
 import type { QueryClient } from "react-query";
-import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
 import type { WorkspaceStatus } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -138,46 +137,4 @@ export const getAttributeFilterOptions = async (
 			token: `${attribute.value}:true`,
 			startIcon: attribute.icon,
 		}));
-};
-
-export const getOrganizationFilterOptions = async (
-	query: string,
-	queryClient: OptionsQueryClient,
-): Promise<FilterOption[]> => {
-	// Reuse the shared `permittedOrganizations` query, which fetches the org list
-	// and applies the `audit_log:read` authorization gate, rather than duplicating
-	// that logic under a private key.
-	// TODO(DEVEX-421 follow-up): the `audit_log:read` gate is carried over from the
-	// old `useOrganizationsFilterMenu` and is wrong for workspace filtering. A
-	// plain member sees an empty org list here. Replace it with a workspace-read /
-	// org-membership check.
-	const permitted = await queryClient.fetchQuery(
-		permittedOrganizations({
-			object: { resource_type: "audit_log" },
-			action: "read",
-		}),
-	);
-
-	const normalized = query.trim().toLowerCase();
-	const mapped = permitted.map((organization) => ({
-		label: organization.display_name || organization.name,
-		value: organization.name,
-		startIcon: (
-			<Avatar
-				key={organization.id}
-				size="sm"
-				fallback={organization.display_name || organization.name}
-				src={organization.icon}
-			/>
-		),
-	}));
-
-	if (normalized.length === 0) {
-		return mapped;
-	}
-	return mapped.filter(
-		(option) =>
-			option.label.toLowerCase().includes(normalized) ||
-			option.value.toLowerCase().includes(normalized),
-	);
 };

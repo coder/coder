@@ -5,7 +5,14 @@ import {
 	ListFilterIcon,
 	SearchIcon,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+	Fragment,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -14,6 +21,7 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -24,6 +32,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
@@ -130,6 +139,7 @@ export function FilterCombobox({
 		valueSuggestions,
 		inlineSections,
 		chipValues,
+		isOptionSelected,
 		highlightRef,
 		scopeState,
 		scopePillCategoryKey,
@@ -323,7 +333,7 @@ export function FilterCombobox({
 				unfilteredOptionCount={
 					unfilteredOptionsByKey.get(activeCategoryKey)?.length
 				}
-				selectedTokens={chipValues}
+				isOptionSelected={isOptionSelected}
 				optionTokenFor={(option) => optionTokenFor(activeCategoryKey, option)}
 				scope={scopeState(activeCategoryKey)}
 				onToggleScope={actions.toggleScope}
@@ -595,7 +605,7 @@ export function FilterCombobox({
 											key={flyoutOptions.category.key}
 											offset={panelOffset}
 											flyout={flyoutOptions}
-											selectedTokens={chipValues}
+											isOptionSelected={isOptionSelected}
 											optionTokenFor={(option) =>
 												optionTokenFor(flyoutOptions.category.key, option)
 											}
@@ -813,25 +823,29 @@ function MainPanel({
 					<Skeleton variant="text" className="w-24" />
 				</div>
 			))}
-			{listedCategories.map((category) => (
-				<FilterComboboxItem
-					ref={(element) => registerCategoryRow(category.key, element)}
-					className={OPTION_ITEM_CLASS}
-					key={category.key}
-					value={category.key}
-					onMouseEnter={() => onOpenFlyout(category.key)}
-					onSelect={() => {
-						if (drillIn) {
-							onSelectCategory(category.key);
-							return;
-						}
-						onOpenFlyout(category.key, true);
-					}}
-				>
-					{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
-					<span className="shrink-0">{category.label}</span>
-					<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
-				</FilterComboboxItem>
+			{listedCategories.map((category, index) => (
+				<Fragment key={category.key}>
+					{category.separatorBefore && index > 0 && (
+						<Separator className="my-1" />
+					)}
+					<FilterComboboxItem
+						ref={(element) => registerCategoryRow(category.key, element)}
+						className={OPTION_ITEM_CLASS}
+						value={category.key}
+						onMouseEnter={() => onOpenFlyout(category.key)}
+						onSelect={() => {
+							if (drillIn) {
+								onSelectCategory(category.key);
+								return;
+							}
+							onOpenFlyout(category.key, true);
+						}}
+					>
+						{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
+						<span className="shrink-0">{category.label}</span>
+						<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
+					</FilterComboboxItem>
+				</Fragment>
 			))}
 			{inlineSections.map(
 				({ category, heading, rows, status, loadRowValue }) => (
@@ -943,6 +957,7 @@ function FlyoutSearch({
 				className="mr-2 size-icon-sm shrink-0 opacity-50"
 			/>
 			<input
+				{...passwordManagerIgnoreProps}
 				aria-label={`Search ${label}`}
 				className="h-10 w-full border-0 bg-transparent py-3 text-sm text-content-primary outline-hidden placeholder:text-content-secondary"
 				placeholder={`Search ${label.toLowerCase()}…`}
@@ -1171,7 +1186,7 @@ const useFlyoutOptions = (
 type FlyoutCategoryPanelProps = Readonly<{
 	offset: number;
 	flyout: NonNullable<ReturnType<typeof useFlyoutOptions>>;
-	selectedTokens: readonly string[];
+	isOptionSelected: (option: FilterOption, token: string) => boolean;
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1182,7 +1197,7 @@ type FlyoutCategoryPanelProps = Readonly<{
 function FlyoutCategoryPanel({
 	offset,
 	flyout,
-	selectedTokens,
+	isOptionSelected,
 	optionTokenFor,
 	scope,
 	onToggleScope,
@@ -1221,7 +1236,7 @@ function FlyoutCategoryPanel({
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 				{filteredOptions.map((option) => {
 					const token = optionTokenFor(option);
-					const selected = selectedTokens.includes(token);
+					const selected = isOptionSelected(option, token);
 					return (
 						<button
 							className={cn(
@@ -1258,7 +1273,7 @@ type CategoryOptionsListProps = Readonly<{
 	emptyMessage: string | undefined;
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
-	selectedTokens: readonly string[];
+	isOptionSelected: (option: FilterOption, token: string) => boolean;
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1277,7 +1292,7 @@ function CategoryOptionsList({
 	optionsError,
 	emptyMessage,
 	unfilteredOptionCount,
-	selectedTokens,
+	isOptionSelected,
 	optionTokenFor,
 	scope,
 	onToggleScope,
@@ -1328,7 +1343,7 @@ function CategoryOptionsList({
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
 					const token = optionTokenFor(option);
-					const selected = selectedTokens.includes(token);
+					const selected = isOptionSelected(option, token);
 					return (
 						<FilterComboboxItem
 							className={cn(
