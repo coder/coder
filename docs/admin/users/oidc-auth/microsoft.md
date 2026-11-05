@@ -27,7 +27,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 12. Check **Security groups**.
 13. Select **Save**.
 14. Select the tab labeled "Authentication" and select "Add a platform".
-15. Select "Web" and for the redirect URI enter your Coder callback URL.
+15. Select "Web" and for the redirect Uniform Resource Identifier (URI) enter your Coder callback URL.
 16. Then select "Configure" at the bottom:
     - `https://coder.example.com/api/v2/users/oidc/callback`
 

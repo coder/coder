@@ -16,7 +16,7 @@ You can install and run Coder using the official Docker images published on [Git
 > [!IMPORTANT]
 > This guide is for **Linux** hosts only.
 > The `getent` and `--group-add` Docker socket patterns used below are Linux-specific and do not translate cleanly to macOS Docker runtimes.
-> For macOS, install Coder using the [standalone binary](../cli.md) instead.
+> For macOS, install Coder using the [standalone binary](https://coder.com/downloads) instead.
 
 <div class="tabs">
 
@@ -125,7 +125,7 @@ Then restart the control plane.
 ### Docker-based workspace is stuck in "Connecting..."
 
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set.
-See [troubleshooting templates](../../admin/templates/troubleshooting.md) for more steps.
+See [troubleshooting templates](../../templates/troubleshooting.md) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
@@ -144,5 +144,5 @@ For production deployments, we recommend setting an [access URL](../../admin/set
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

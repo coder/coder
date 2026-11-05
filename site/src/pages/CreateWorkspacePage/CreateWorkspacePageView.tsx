@@ -442,7 +442,9 @@ export const CreateWorkspacePageView: React.FC<
 								<br />
 								<Link
 									size="sm"
-									href={docs("/admin/templates/extending-templates/parameters")}
+									href={docs("/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
 								>
 									View docs
 								</Link>
@@ -482,13 +484,12 @@ export const CreateWorkspacePageView: React.FC<
 								to dynamic parameters.{" "}
 								<Link
 									href={docs(
-										"/admin/templates/extending-templates/parameters/compatibility-mode",
+										"/templates/extending-templates/parameters/compatibility-mode",
 									)}
 									target="_blank"
 									rel="noreferrer"
 								>
 									View docs
-									<span className="sr-only"> (opens in new tab)</span>
 								</Link>
 							</AlertDescription>
 						</Alert>
@@ -647,9 +648,9 @@ export const CreateWorkspacePageView: React.FC<
 									These are the settings used by your template. Immutable
 									parameters cannot be modified once the workspace is created.
 									<Link
-										href={docs(
-											"/admin/templates/extending-templates/parameters",
-										)}
+										href={docs("/templates/extending-templates/parameters")}
+										target="_blank"
+										rel="noreferrer"
 									>
 										View docs
 									</Link>

@@ -1,4 +1,5 @@
 import type {
+	AdvisorConfig,
 	Chat,
 	ChatAttachment,
 	ChatContext,
@@ -100,6 +101,47 @@ export const MockChatContextClean: ChatContext = {
 	resources: MockChatContextResources,
 };
 
+export const MockChatContextResourceFailures: ChatContext = {
+	...MockChatContextClean,
+	resources: [
+		{
+			source: "/home/coder/AGENTS.md",
+			kind: "instruction_file",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Permission denied reading AGENTS.md.",
+		},
+		{
+			source: "/home/coder/skills/review",
+			kind: "skill",
+			status: "invalid",
+			size_bytes: 0,
+			error: "Skill is missing a description.",
+		},
+		{
+			source: "/home/coder/.mcp.json",
+			kind: "mcp_config",
+			status: "invalid",
+			size_bytes: 0,
+			error: "Invalid MCP configuration.",
+		},
+		{
+			source: "storybook",
+			kind: "mcp_server",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Failed to connect to MCP server.",
+		},
+		{
+			source: "codex",
+			kind: "acp_harness",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Unable to start coding agent.",
+		},
+	],
+};
+
 export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
@@ -138,6 +180,12 @@ export const MockChatContextACPHarnessIssue: ChatContext = {
 			error: "cannot start harness",
 		},
 	],
+};
+
+export const MockAdvisorConfig: AdvisorConfig = {
+	enabled: true,
+	max_uses_per_run: 5,
+	max_output_tokens: 2048,
 };
 
 export const MockMCPServerConfig: MCPServerConfig = {
@@ -238,4 +286,9 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	additions: 1,
 	deletions: 0,
 	changed_files: 1,
+};
+
+export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	editing_since: MOCK_TIMESTAMP,
 };

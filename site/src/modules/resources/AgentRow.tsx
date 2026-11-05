@@ -441,11 +441,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 					)}
 
 					{!browser_only && agent.display_apps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={agent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
+						<AgentSSHButton workspace={workspace} agentName={agent.name} />
 					)}
 					{canShowPortForwarding(agent, proxy.preferredWildcardHostname) && (
 						<PortForwardButton

@@ -3436,6 +3436,27 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectACL,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+			req,
+		);
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,
@@ -3605,6 +3626,17 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.post(
 			`/api/v2/chats/${chatId}/queue/${queuedMessageId}/promote`,
+		);
+	};
+
+	editChatQueuedMessage = async (
+		chatId: string,
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
+			req,
 		);
 	};
 
@@ -3874,7 +3906,7 @@ class ExperimentalApiMethods {
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
-			"/api/experimental/chats/config/advisor",
+			"/api/v2/chats/config/advisor",
 		);
 		return response.data;
 	};
@@ -3882,7 +3914,7 @@ class ExperimentalApiMethods {
 	updateChatAdvisorConfig = async (
 		req: UpdateAdvisorConfigRequest,
 	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/advisor", req);
+		await this.axios.put("/api/v2/chats/config/advisor", req);
 	};
 
 	getChatWorkspaceTTL =

@@ -7,7 +7,7 @@ type ResultType string
 const (
 	// ResultTypeAdvice indicates the advisor returned guidance.
 	ResultTypeAdvice ResultType = "advice"
-	// ResultTypeLimitReached indicates the per-run advisor budget is exhausted.
+	// ResultTypeLimitReached indicates the per-turn advisor budget is exhausted.
 	ResultTypeLimitReached ResultType = "limit_reached"
 	// ResultTypeError indicates the nested advisor run failed.
 	ResultTypeError ResultType = "error"

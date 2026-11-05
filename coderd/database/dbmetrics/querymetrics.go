@@ -1976,14 +1976,6 @@ func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uui
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatQueuedMessagesByPosition(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatQueuedMessagesByPosition").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatQueuedMessagesByPosition").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatRetentionDays(ctx)
@@ -4080,6 +4072,14 @@ func (m queryMetricsStore) GetWorkspaceBuildParameters(ctx context.Context, work
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceBuildParametersByBuildIDsAndNames(ctx context.Context, arg database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams) ([]database.WorkspaceBuildParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParametersByBuildIDsAndNames").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildParametersByBuildIDsAndNames").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuildID)
@@ -5783,6 +5783,22 @@ func (m queryMetricsStore) UpdateChatProjectIDByID(ctx context.Context, arg data
 	m.queryLatencies.WithLabelValues("UpdateChatProjectIDByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectIDByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateChatQueuedMessageContent(ctx context.Context, arg database.UpdateChatQueuedMessageContentParams) (database.ChatQueuedMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatQueuedMessageContent(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageContent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageContent").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatQueuedMessageEditing(ctx context.Context, arg database.UpdateChatQueuedMessageEditingParams) (database.ChatQueuedMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatQueuedMessageEditing(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageEditing").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageEditing").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {

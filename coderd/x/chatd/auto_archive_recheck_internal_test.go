@@ -221,10 +221,17 @@ func TestAutoArchiveCandidateQueriesAgree(t *testing.T) {
 		database.ChatStatusRunning,
 		database.ChatStatusInterrupting,
 		database.ChatStatusRequiresAction,
+		database.ChatStatusPaused,
 	} {
 		chat := f.createArchiveCandidate(t, old)
 		forceExecutionState(t, f, chat.ID, status, false)
 		add("status "+string(status), chat, false)
+
+		family := f.createArchiveCandidate(t, old)
+		member := f.createArchiveCandidate(t, old)
+		f.linkChild(t, family.ID, member.ID)
+		forceExecutionState(t, f, member.ID, status, false)
+		add("root of child in status "+string(status), family, false)
 	}
 
 	recent := f.createArchiveCandidate(t, old)

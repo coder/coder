@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,17 +45,24 @@ type OpenAIReasoningItem struct {
 // Responses API test server.
 type OpenAIWebSearchCall struct {
 	ID string `json:"id,omitempty"`
+	// ActionType is action.type. It defaults to "search".
+	ActionType string `json:"action_type,omitempty"`
+	// URL is action.url for open_page and find_in_page.
+	URL string `json:"url,omitempty"`
+	// Pattern is action.pattern for find_in_page.
+	Pattern string `json:"pattern,omitempty"`
 	// Queries is action.queries.
 	Queries []string `json:"queries,omitempty"`
 	// Query is the deprecated action.query; OpenAI sends both.
 	Query string `json:"query,omitempty"`
 	// Sources are the pages the search found, reported in action.sources
 	// on the item's output_item.done. Like OpenAI, the server returns them
-	// only when the request includes web_search_call.action.sources.
+	// only for search actions and when the request includes
+	// web_search_call.action.sources.
 	Sources []string `json:"sources,omitempty"`
-	// SummaryOnlySources are added to the search's action.sources only in
-	// the response.completed output, as OpenAI does for pages the answer
-	// cited.
+	// SummaryOnlySources are added to a search action's action.sources
+	// only in the response.completed output, as OpenAI does for pages the
+	// answer cited.
 	SummaryOnlySources []string `json:"summary_only_sources,omitempty"`
 	// Status is the finished item's status. It defaults to "completed".
 	Status string `json:"status,omitempty"`
@@ -214,6 +222,11 @@ type OpenAICompletion struct {
 type openAIServer struct {
 	t       testing.TB
 	handler OpenAIHandler
+
+	mu sync.Mutex
+	// unstoredItems holds the ids of streamed output items served for
+	// store: false requests, which OpenAI cannot resolve as item references.
+	unstoredItems map[string]struct{}
 }
 
 // OpenAI creates a fake OpenAI-compatible test server with a
@@ -244,8 +257,9 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 	t.Helper()
 
 	s := &openAIServer{
-		t:       t,
-		handler: handler,
+		t:             t,
+		handler:       handler,
+		unstoredItems: make(map[string]struct{}),
 	}
 
 	mux := http.NewServeMux()
@@ -290,6 +304,10 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Prompt != nil {
+		if errResp := s.rejectUnstoredItemReference(req); errResp != nil {
+			writeErrorResponse(s.t, w, errResp)
+			return
+		}
 		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
 			writeErrorResponse(s.t, w, errResp)
 			return
@@ -298,6 +316,42 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.handler(req)
 	s.writeResponsesAPIResponse(w, req, resp)
+}
+
+// rejectUnstoredItemReference returns the 404 OpenAI sends for an
+// item_reference to an item from a store: false response. Like OpenAI, it
+// adds the store hint only when the referencing request is unstored too.
+func (s *openAIServer) rejectUnstoredItemReference(req *OpenAIRequest) *ErrorResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, raw := range req.Prompt {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := ResponsesItemReferenceID(item)
+		if _, unstored := s.unstoredItems[id]; id != "" && unstored {
+			message := fmt.Sprintf("Item with id '%s' not found.", id)
+			if req.Store != nil && !*req.Store {
+				message += " Items are not persisted when `store` is set to false. Try again with `store` set to true, or remove this item from your input."
+			}
+			return &ErrorResponse{
+				StatusCode: http.StatusNotFound,
+				Type:       "invalid_request_error",
+				Message:    message,
+			}
+		}
+	}
+	return nil
+}
+
+func (s *openAIServer) recordUnstoredItem(req *OpenAIRequest, id string) {
+	if req.Store == nil || *req.Store || id == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unstoredItems[id] = struct{}{}
 }
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
@@ -332,7 +386,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 	case msg != "":
 		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req, resp)
+		writeResponsesAPIStreaming(s.t, w, req, resp, func(id string) { s.recordUnstoredItem(req, id) })
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -487,7 +541,7 @@ func writeNamedSSEEvent(w http.ResponseWriter, eventType string, v interface{}) 
 	return err
 }
 
-func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse, servedItem func(id string)) {
 	r := req.Request
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -525,6 +579,9 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 	outputs := make(map[int]*outputItemState)
 
 	writeEvent := func(eventType string, payload map[string]interface{}) bool {
+		if item, ok := payload["item"].(map[string]any); ok && eventType == "response.output_item.done" {
+			servedItem(StringResponseField(item, "id"))
+		}
 		payload["type"] = eventType
 		payload["sequence_number"] = sequenceNumber
 		sequenceNumber++
@@ -653,14 +710,25 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 		}
 		includeSources := requestIncludes(req.RawBody, "web_search_call.action.sources")
 		newAction := func(sourceURLs []string) map[string]interface{} {
-			action := map[string]interface{}{"type": "search"}
+			actionType := resp.WebSearch.ActionType
+			if actionType == "" {
+				actionType = "search"
+			}
+			action := map[string]any{"type": actionType}
+			if resp.WebSearch.URL != "" {
+				action["url"] = resp.WebSearch.URL
+			}
+			if resp.WebSearch.Pattern != "" {
+				action["pattern"] = resp.WebSearch.Pattern
+			}
 			if len(resp.WebSearch.Queries) > 0 {
 				action["queries"] = resp.WebSearch.Queries
 			}
 			if resp.WebSearch.Query != "" {
 				action["query"] = resp.WebSearch.Query
 			}
-			if includeSources && len(sourceURLs) > 0 {
+			// OpenAI returns sources only on search actions.
+			if actionType == "search" && includeSources && len(sourceURLs) > 0 {
 				sources := make([]interface{}, 0, len(sourceURLs))
 				for _, source := range sourceURLs {
 					sources = append(sources, map[string]interface{}{"type": "url", "url": source})

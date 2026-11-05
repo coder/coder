@@ -325,7 +325,7 @@ func chatStatusBusy(status codersdk.ChatStatus) bool {
 var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameAwaitChat,
-		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, and requires_action all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
+		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, requires_action, and paused all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -495,7 +495,7 @@ var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
 				},
 				"query": map[string]any{
 					"type":        "string",
-					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: search:<text> (full-text, cannot combine with title, pr_title, or pr), title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed|none>, diff_url:<url>, archived:<true|false>, has_unread:<true|false>, status:<waiting|running|error|requires_action|interrupting>, source:<created_by_me|shared_with_me>. Quote values containing spaces or colons (URLs always need quoting), e.g. search:\"failed deployment\" or diff_url:\"https://github.com/org/repo/pull/1\".",
+					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: search:<text> (full-text, cannot combine with title, pr_title, or pr), title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed|none>, diff_url:<url>, archived:<true|false>, has_unread:<true|false>, status:<waiting|running|error|requires_action|interrupting|paused>, source:<created_by_me|shared_with_me>. Quote values containing spaces or colons (URLs always need quoting), e.g. search:\"failed deployment\" or diff_url:\"https://github.com/org/repo/pull/1\".",
 				},
 				"limit": map[string]any{
 					"type":        "integer",

@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -535,6 +536,43 @@ func currentTurnStepCount(messages []database.ChatMessage) int {
 		}
 	}
 	return count
+}
+
+// currentTurnAdvisorUses counts the advisor calls that consumed a use
+// since the latest user prompt. Error and limit results are excluded
+// because the runtime refunds or never acquires a use for them; any
+// other non-error result, including advice the tool-result byte budget
+// truncated into a wrapped output, counts as successful.
+func currentTurnAdvisorUses(ctx context.Context, logger slog.Logger, messages []database.ChatMessage) (int, error) {
+	count := 0
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			return 0, xerrors.Errorf("parse tool message %d: %w", msg.ID, err)
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult ||
+				part.IsError ||
+				part.ToolName != chatadvisor.ToolName {
+				continue
+			}
+			var result chatadvisor.AdvisorResult
+			if err := json.Unmarshal(part.Result, &result); err != nil {
+				logger.Warn(ctx, "advisor tool result is not an object, counting it as a used advisor call",
+					slog.F("message_id", msg.ID),
+					slog.F("tool_call_id", part.ToolCallID),
+					slog.Error(err),
+				)
+			}
+			if result.Type != chatadvisor.ResultTypeError && result.Type != chatadvisor.ResultTypeLimitReached {
+				count++
+			}
+		}
+	}
+	return count, nil
 }
 
 type compactionRequirement int

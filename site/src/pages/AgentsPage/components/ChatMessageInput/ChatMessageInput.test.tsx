@@ -20,7 +20,6 @@ import type {
 	SkillMetadata,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
@@ -30,7 +29,7 @@ import {
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
-import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
+import { getEditableContentPayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -391,6 +390,101 @@ describe("ChatMessageInput", () => {
 			);
 			expect(getRequestContent(inputRef)).toEqual([
 				mockSkillPart("personal", "reviewer"),
+			]);
+		});
+
+		it.each(["/reviewer", "/personal/reviewer"])(
+			"sends a typed %s ended by a space as a skill chip",
+			async (alias) => {
+				const inputRef = renderWithSkills({
+					personal: [mockReviewerSkill],
+					organization: [],
+				});
+				const user = await pasteTrigger(`Run ${alias}`);
+				await screen.findByRole("option", { name: /^\/reviewer/ });
+				await user.keyboard(" now");
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Run " },
+					mockSkillPart("personal", "reviewer"),
+					{ type: "text", text: " now" },
+				]);
+			},
+		);
+
+		it("keeps a typed alias as text at the skill limit and says why", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+			const user = await pasteTrigger("/reviewer");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(inputRef.current?.getValue()).toContain("/reviewer now");
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
+		it("keeps a typed alias as text when its chip is already present", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => inputRef.current?.insertSkill("personal", "reviewer"));
+			const user = await pasteTrigger("/reviewer");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+				{ type: "text", text: " /reviewer now" },
+			]);
+		});
+
+		it("keeps an alias as text when the caret only moves past its space", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			const user = await pasteTrigger("/reviewer rest");
+			await user.keyboard("{ArrowLeft>5/}");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard("{ArrowRight}");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "/reviewer rest" },
+			]);
+		});
+
+		it("sends a typed bare alias that two sources share as text", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [mockReviewerSkill],
+			});
+			const user = await pasteTrigger("Run /reviewer");
+			await screen.findAllByRole("option", { name: /reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Run /reviewer now" },
+			]);
+		});
+
+		it("sends a typed partial skill name as text", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			const user = await pasteTrigger("Run /rev");
+			await screen.findByRole("option", { name: /^\/reviewer/ });
+			await user.keyboard(" now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Run /rev now" },
 			]);
 		});
 
@@ -879,29 +973,47 @@ describe("ChatMessageInput", () => {
 			expect(errorSpy).not.toHaveBeenCalled();
 		});
 
-		it("reopens an edited message with its skill chips in place", async () => {
-			const content: ChatMessagePart[] = [
-				{ type: "text", text: "Use " },
-				mockSkillPart("project", "triage"),
-				{ type: "text", text: " on\nthe diff" },
-			];
-			const { text, editorState } = getEditableUserMessagePayload({
-				...MockChatMessage,
-				content,
-			});
-			const inputRef = createRef<ChatMessageInputRef>();
-			renderWithQueryClient(
-				<ChatMessageInput
-					{...requiredProps()}
-					ref={inputRef}
-					initialValue={text}
-					initialEditorState={editorState}
-					aria-label="Chat message input"
-				/>,
-			);
-			await waitFor(() => {
-				expect(getRequestContent(inputRef)).toEqual(content);
-			});
-		});
+		const fileReferencePart: ChatMessagePart = {
+			type: "file-reference",
+			file_name: "main.go",
+			start_line: 3,
+			end_line: 5,
+			content: "func main() {}",
+		};
+
+		it.each<[string, ChatMessagePart[]]>([
+			[
+				"skill and file-reference chips",
+				[
+					{ type: "text", text: "Use " },
+					mockSkillPart("project", "triage"),
+					{ type: "text", text: " on\nthe diff" },
+					fileReferencePart,
+					{ type: "text", text: " here" },
+				],
+			],
+			[
+				"file-reference chip and no skill chip",
+				[{ type: "text", text: "Explain " }, fileReferencePart],
+			],
+		])(
+			"reopens an edited message with its %s in place",
+			async (_name, content) => {
+				const { text, editorState } = getEditableContentPayload(content);
+				const inputRef = createRef<ChatMessageInputRef>();
+				renderWithQueryClient(
+					<ChatMessageInput
+						{...requiredProps()}
+						ref={inputRef}
+						initialValue={text}
+						initialEditorState={editorState}
+						aria-label="Chat message input"
+					/>,
+				);
+				await waitFor(() => {
+					expect(getRequestContent(inputRef)).toEqual(content);
+				});
+			},
+		);
 	});
 });
