@@ -44,8 +44,16 @@ spec:
             matchLabels:
               app.kubernetes.io/name: coder
               app.kubernetes.io/instance: release-name
+    # Prometheus metrics.
     - ports:
-      - port: 2112
+        - port: 2112
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+    - ports:
+      - port: 6060
         protocol: TCP
   egress:
     - ports:

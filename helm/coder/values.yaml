@@ -551,7 +551,7 @@ coder:
 
   # coder.networkPolicy -- A NetworkPolicy for the Coder pods. Requires a CNI
   # that enforces NetworkPolicy. Once enabled, ingress to the Coder pods is
-  # limited to the HTTP(S) ports; add other ports (e.g. Prometheus on 2112)
+  # limited to the HTTP(S) ports and Prometheus metrics (2112); add other ports
   # with extraIngress.
   networkPolicy:
     # coder.networkPolicy.enable -- Whether to create the NetworkPolicy object.
@@ -568,6 +568,17 @@ coder:
       # - namespaceSelector:
       #     matchLabels:
       #       kubernetes.io/metadata.name: ingress-nginx
+    prometheus:
+      # coder.networkPolicy.prometheus.enable -- Whether to allow ingress to the Prometheus
+      # metrics port (2112). Metrics are only served if Prometheus is enabled
+      # (CODER_PROMETHEUS_ENABLE) and the address keeps its default port.
+      enable: true
+      # coder.networkPolicy.prometheus.from -- NetworkPolicyPeer objects allowed to scrape
+      # metrics. Empty allows any source; restrict it to your Prometheus.
+      from: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: monitoring
     # coder.networkPolicy.extraIngress -- Additional NetworkPolicyIngressRule
     # objects appended to spec.ingress.
     extraIngress: []

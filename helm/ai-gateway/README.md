@@ -132,8 +132,10 @@ external entry point through a `LoadBalancer` Service.
 Set `networkPolicy.enable` to create a `NetworkPolicy` for the gateway pods.
 Your CNI must enforce NetworkPolicy for it to have any effect. Ingress is limited
 to the data-plane port (4001), from the peers in `networkPolicy.ingress.from`
-(any source if empty). Open other ports, such as Prometheus metrics on 2112,
-with `networkPolicy.extraIngress`.
+(any source if empty). Prometheus metrics on port 2112 are also allowed; restrict
+who can scrape with `networkPolicy.prometheus.from` or disable it with
+`networkPolicy.prometheus.enable`. Open other ports with
+`networkPolicy.extraIngress`.
 
 Egress is unrestricted unless you set `networkPolicy.egress.enable`. In that
 case only DNS and your `networkPolicy.extraEgress` rules are allowed, so you
@@ -147,10 +149,11 @@ networkPolicy:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: ingress-nginx
-  extraIngress:
-    - ports:
-        - port: 2112
-          protocol: TCP
+  prometheus:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
 ```
 
 ## Scaling and resources

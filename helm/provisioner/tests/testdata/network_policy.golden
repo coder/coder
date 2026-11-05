@@ -23,9 +23,14 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Prometheus metrics. The provisioner has no other listeners.
     - ports:
-      - port: 2112
-        protocol: TCP
+        - port: 2112
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
   egress:
     - ports:
         - port: 53

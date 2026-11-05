@@ -31,6 +31,16 @@ spec:
             matchLabels:
               {{- include "coder.selectorLabels" $ | nindent 14 }}
       {{- end }}
+    {{- if .Values.networkPolicy.prometheus.enable }}
+    # Prometheus metrics.
+    - ports:
+        - port: 2112
+          protocol: TCP
+      {{- with .Values.networkPolicy.prometheus.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
     {{- with .Values.networkPolicy.extraIngress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

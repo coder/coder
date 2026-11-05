@@ -11,9 +11,14 @@ coder:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+    prometheus:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
     extraIngress:
       - ports:
-          - port: 2112
+          - port: 6060
             protocol: TCP
     egress:
       enable: true

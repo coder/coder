@@ -188,13 +188,24 @@ coder:
 
   # coder.networkPolicy -- A NetworkPolicy for the provisioner pods. Requires a
   # CNI that enforces NetworkPolicy. The provisioner only makes outbound
-  # connections, so once enabled all ingress is denied unless extraIngress
-  # allows it (e.g. to scrape Prometheus metrics on port 2112).
+  # connections, so once enabled ingress is limited to Prometheus metrics (2112)
+  # unless extraIngress allows more.
   networkPolicy:
     # coder.networkPolicy.enable -- Whether to create the NetworkPolicy object.
     enable: false
     # coder.networkPolicy.annotations -- The NetworkPolicy annotations.
     annotations: {}
+    prometheus:
+      # coder.networkPolicy.prometheus.enable -- Whether to allow ingress to the Prometheus
+      # metrics port (2112). Metrics are only served if Prometheus is enabled
+      # (CODER_PROMETHEUS_ENABLE) and the address keeps its default port.
+      enable: true
+      # coder.networkPolicy.prometheus.from -- NetworkPolicyPeer objects allowed to scrape
+      # metrics. Empty allows any source; restrict it to your Prometheus.
+      from: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: monitoring
     # coder.networkPolicy.extraIngress -- NetworkPolicyIngressRule objects to
     # allow.
     extraIngress: []
