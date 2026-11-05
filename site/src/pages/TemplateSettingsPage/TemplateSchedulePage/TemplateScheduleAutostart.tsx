@@ -34,7 +34,7 @@ export const TemplateScheduleAutostart: React.FC<
 					<Button
 						variant="outline"
 						// TODO: Adding a background color would also help
-						className={`flex-1 rounded-none ${value.includes(day.value) ? "text-content-primary bg-surface-tertiary" : "text-content-secondary"}`}
+						className={`min-w-0 flex-1 rounded-none px-0 ${value.includes(day.value) ? "text-content-primary bg-surface-tertiary" : "text-content-secondary"}`}
 						key={day.key}
 						disabled={isSubmitting || !enabled}
 						onClick={() => {
