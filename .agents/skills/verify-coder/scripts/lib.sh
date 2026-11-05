@@ -88,9 +88,15 @@ vc_session_token() {
 	cat "$VC_CONFIG_DIR/session"
 }
 
-# vc_api GETs an API path as the admin user without printing the token.
+# vc_curl runs curl as the admin user. The token header comes from a file
+# descriptor, so it never shows in the process list.
+vc_curl() {
+	curl -H @<(printf 'Coder-Session-Token: %s\n' "$(vc_session_token)") "$@"
+}
+
+# vc_api GETs an API path as the admin user.
 vc_api() {
-	curl -fsS --max-time 10 -H "Coder-Session-Token: $(vc_session_token)" "$VC_API_URL$1"
+	vc_curl -fsS --max-time 10 "$VC_API_URL$1"
 }
 
 # vc_capture_failure saves the page, URL, page errors and console a failed
@@ -106,8 +112,8 @@ vc_capture_failure() {
 }
 
 # vc_ab runs agent-browser in this instance's own session. At load average
-# near 30 on 8 cores, Vite dev pages took longer than agent-browser's 25 s
-# default to render, so waits and actions get 90 s unless overridden.
+# near 30 on 8 cores, pages took longer than agent-browser's 25 s default to
+# render, so waits and actions get 90 s unless overridden.
 vc_ab() {
 	AGENT_BROWSER_DEFAULT_TIMEOUT="${VERIFY_CODER_BROWSER_TIMEOUT_MS:-90000}" \
 		agent-browser --session "$VC_BROWSER_SESSION" "$@"
@@ -115,10 +121,10 @@ vc_ab() {
 
 # vc_browser_login signs in through the real login form and waits for the
 # workspaces page, the same synchronization point as site/e2e/helpers.ts login.
-# The Vite dev server sets a fixed csrf_token cookie that matches the site's
-# fixed CSRF header (site/vite.config.mts). After a cookie clear, a cached
-# /login sets no cookie, coderd issues a different one, and every POST then
-# fails with a CSRF 400. The unique query forces a fresh response.
+# On the Vite dev server (VC_VITE_URL), a cached /login after a cookie clear
+# sets no fixed csrf_token cookie (site/vite.config.mts), and every POST then
+# fails with a CSRF 400. The unique query forces a fresh response there and
+# costs nothing on the embedded frontend.
 vc_browser_login() {
 	local email="${1:-$VC_ADMIN_EMAIL}" password="${2:-$VC_ADMIN_PASSWORD}"
 	vc_ab cookies clear >/dev/null

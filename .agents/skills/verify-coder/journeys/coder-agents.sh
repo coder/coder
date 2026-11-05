@@ -56,6 +56,7 @@ add_provider() {
 	vc_ab open "$VC_WEB_URL/ai/settings/providers" >/dev/null
 	vc_ab wait --fn 'document.title === "AI Providers - Coder"' >/dev/null
 	vc_ab find role button click --name "Add provider" >/dev/null
+	vc_ab wait '[role=menu]' >/dev/null
 	vc_ab find role menuitem click --name "OpenAI-compatible" >/dev/null
 	vc_ab wait --url "**/ai/settings/providers/add?type=openai-compat" >/dev/null
 	vc_ab wait 'input[name=apiKey]' >/dev/null
@@ -78,6 +79,7 @@ add_model() {
 	vc_ab open "$VC_WEB_URL/ai/settings/models" >/dev/null
 	vc_ab wait --fn 'document.title === "Models - AI Settings - Coder"' >/dev/null
 	vc_ab find role button click --name "Add model" >/dev/null
+	vc_ab wait '[role=menu]' >/dev/null
 	vc_ab find role menuitem click --name "$provider_display" >/dev/null
 	vc_ab wait --url "**/ai/settings/models/add*" >/dev/null
 	vc_ab wait '#contextLimit' >/dev/null

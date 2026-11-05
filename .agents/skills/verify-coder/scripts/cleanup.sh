@@ -3,7 +3,8 @@
 # session, the develop process session, and the run state. Evidence and the
 # develop log move to build/verify-coder/evidence and are never deleted.
 # Usage: cleanup.sh [--keep-data]
-#   --keep-data  keep .coderv2 even when launch.sh created it.
+#   --keep-data  keep .coderv2 even when launch.sh created it, and from then on
+#                treat it as the developer's (later cleanups keep it too).
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
@@ -19,12 +20,17 @@ if [[ ! -f "$VC_RUN/env" ]]; then
 fi
 vc_load_run
 
+# Only workspaces created after this launch belong to the harness. Older ones
+# can be a developer's own work in the same .coderv2, so they are listed and
+# kept.
 delete_workspaces() {
 	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
 		echo "server is down, skipped (check docker ps for coder-* containers by hand)"
 		return 0
 	fi
-	local ws n=0
+	local list ws kept n=0
+	list="$("$here/coder.sh" list --all --output json 2>/dev/null)"
+	kept="$(jq -r --arg t "$VC_STARTED_AT" '[.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 < ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"] | join(" ")' <<<"$list")"
 	while read -r ws; do
 		[[ -n "$ws" ]] || continue
 		"$here/coder.sh" delete "$ws" --yes >>"$VC_LOG" 2>&1 || {
@@ -32,8 +38,8 @@ delete_workspaces() {
 			return 1
 		}
 		n=$((n + 1))
-	done < <("$here/coder.sh" list --all --output json | jq -r '.[] | "\(.owner_name)/\(.name)"')
-	echo "deleted $n workspaces"
+	done < <(jq -r --arg t "$VC_STARTED_AT" '.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 >= ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"' <<<"$list")
+	echo "deleted $n workspaces created since $VC_STARTED_AT, kept older: ${kept:-none}"
 }
 
 close_browser() {
@@ -55,7 +61,7 @@ stop_helpers() {
 		[[ -f "$f" ]] || continue
 		pid="$(cat "$f")"
 		if [[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$bin"* ]]; then
-			kill "$pid"
+			kill "$pid" 2>/dev/null || true
 			n=$((n + 1))
 		fi
 		rm -f "$f"
@@ -122,9 +128,16 @@ archive_logs() {
 	echo "logs kept in $VC_EVIDENCE/$stamp-*.log"
 }
 
+# --keep-data hands the folder over: without the marker, a later cleanup keeps
+# it, because the folder can then hold a developer's own work.
 remove_data() {
-	if ((keep_data)) || [[ ! -f "$VC_CONFIG_DIR/.verify-coder-created" ]]; then
-		echo "kept $VC_CONFIG_DIR"
+	if ((keep_data)); then
+		rm -f "$VC_CONFIG_DIR/.verify-coder-created"
+		echo "kept $VC_CONFIG_DIR, a later cleanup keeps it too"
+		return 0
+	fi
+	if [[ ! -f "$VC_CONFIG_DIR/.verify-coder-created" ]]; then
+		echo "kept $VC_CONFIG_DIR (launch.sh did not create it)"
 		return 0
 	fi
 	rm -rf "$VC_CONFIG_DIR"

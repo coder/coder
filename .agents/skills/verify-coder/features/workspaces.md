@@ -44,4 +44,5 @@ Preconditions:
 - The template rewrites `127.0.0.1` in the agent URL to `host.docker.internal`, mapped to the host gateway. The API binds `0.0.0.0`, so agents reach it from a local Docker daemon (`unix:///var/run/docker.sock`). A remote daemon was not tested.
 - The first workspace pulls `codercom/example-base:ubuntu`. Allow several minutes.
 - The agent name in the `docker` template is `main`.
+- About 6 seconds into a build, the workspace page scrolls down 72 px to follow the build log. The header buttons (`Stop`, `Start`, the options button) then sit under the sticky navbar, and a click lands on the navbar. Run `vc_ab eval 'window.scrollTo(0, 0)'` before clicking them.
 - Workspace containers and home volumes outlive a stopped server. Delete workspaces before `scripts/cleanup.sh` stops the server, or let it do so.

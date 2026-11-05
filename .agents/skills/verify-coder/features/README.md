@@ -1,10 +1,10 @@
 # Coder verification map
 
-This folder is the maintained source for verifying the user-facing behavior of Coder. Read the index before you drive the app, then use the matching feature file as the recipe. Commands below are relative to `.agents/skills/verify-coder/`.
+This folder is the maintained source for verifying the Coder features listed below. Features not listed have no recipe yet. Read the index before you drive the app, then use the matching feature file as the recipe. Commands below are relative to `.agents/skills/verify-coder/`.
 
 ## Baseline preconditions
 
-- `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 8/8 checks passed`.
+- `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 9/9 checks passed`.
 - `source scripts/lib.sh && vc_load_run` exported `VC_WEB_URL`, `VC_API_URL` and `VC_BROWSER_SESSION`.
 - Seed data from `scripts/develop/main.go`: owner `admin@coder.com`, user `member@coder.com`, both with password `SomeSecurePassword!`, the default organization `coder`, and the `docker` template when Docker works on the host.
 - Nothing seeds an AI provider, a model, a license, a workspace or a second organization.
@@ -30,7 +30,7 @@ Each feature file has an H1 title and one paragraph on the user-visible behavior
 ## Features
 
 - [Sign in](./sign-in.md) covers the password form, the redirect to workspaces, and CLI login. Journey: `vc_browser_login` in `scripts/lib.sh`.
-- [Users](./users.md) covers creating a password user in the UI and the CLI, and proving it through the API and a fresh sign-in. Journey: `journeys/create-user.sh`.
-- [Templates](./templates.md) covers the template list, the seeded `docker` template, the starter gallery and `coder templates push`.
+- [Users](./users.md) covers creating a password user in the UI and the CLI, assigning a role, and proving it through the API and a fresh sign-in. Journey: `journeys/create-user.sh`.
+- [Templates](./templates.md) covers the template list, the seeded `docker` template, creating from the starter gallery, `coder templates pull` and `push`, and delete. Journey: `journeys/templates.sh`.
 - [Workspaces](./workspaces.md) covers creating a Docker workspace in the UI and the CLI, agent connection, `coder ssh`, the web terminal, stop, start and delete. Journey: `journeys/workspace.sh`.
 - [Coder Agents](./coder-agents.md) covers provider and model setup, then a chat with a reply from a local fake LLM (`llm-mock`). Journey: `journeys/coder-agents.sh`.

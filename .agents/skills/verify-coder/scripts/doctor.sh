@@ -62,12 +62,20 @@ admin_session() {
 	echo "CLI session is the admin user"
 }
 
-web_proxies_api() {
-	curl -fsS --max-time 10 "$VC_WEB_URL/api/v2/buildinfo" | jq -e '.version' >/dev/null || {
-		echo "$VC_WEB_URL does not proxy /api to the API server"
+embedded_ui() {
+	curl -fsS --max-time 10 "$VC_WEB_URL/login" | grep -q '/assets/index-' || {
+		echo "$VC_WEB_URL/login does not serve the embedded production frontend"
 		return 1
 	}
-	echo "$VC_WEB_URL proxies /api"
+	echo "$VC_WEB_URL serves the embedded frontend"
+}
+
+vite_proxies_api() {
+	curl -fsS --max-time 10 "$VC_VITE_URL/api/v2/buildinfo" | jq -e '.version' >/dev/null || {
+		echo "$VC_VITE_URL does not proxy /api to the API server"
+		return 1
+	}
+	echo "$VC_VITE_URL proxies /api"
 }
 
 starter_template() {
@@ -88,9 +96,10 @@ vc_check web-port port_owned "$VC_WEB_PORT"
 vc_check healthz healthz
 vc_check build build_current
 vc_check admin-session admin_session
-vc_check web web_proxies_api
+vc_check embedded-ui embedded_ui
+vc_check vite vite_proxies_api
 vc_check starter-template starter_template
 
-echo "INFO web $VC_WEB_URL, api $VC_API_URL, admin $VC_ADMIN_EMAIL"
+echo "INFO web UI and API $VC_WEB_URL, Vite dev server $VC_VITE_URL, admin $VC_ADMIN_EMAIL"
 echo "doctor: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

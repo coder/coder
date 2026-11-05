@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Starts a Coder dev instance owned by this checkout and waits until it is
-# usable. Usage: launch.sh [--fresh] [-- extra develop.sh flags]
+# usable. Usage: launch.sh [--fresh] [develop.sh flags] [-- coder server flags]
 #   --fresh  passes --db-reset to develop.sh (destroys this checkout's .coderv2 database).
+# Every other argument reaches develop.sh unchanged, so "launch.sh -- --trace"
+# passes --trace to coder server.
 set -euo pipefail
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -9,9 +11,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 fresh=0
 if [[ "${1:-}" == "--fresh" ]]; then
 	fresh=1
-	shift
-fi
-if [[ "${1:-}" == "--" ]]; then
 	shift
 fi
 
@@ -78,12 +77,17 @@ env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI
 	setsid "$VC_ROOT/scripts/develop.sh" "${args[@]}" "$@" >"$log" 2>&1 </dev/null &
 pid=$!
 
+# Journeys drive the production frontend that coder server serves from the
+# embedded build (VC_WEB_URL, the API port). The Vite dev server
+# (VC_VITE_URL) serves thousands of unbundled modules per page, and under host
+# load one failed fetch broke a lazy route import with the app's error page.
 cat >"$VC_RUN/env" <<EOF
 VC_PID=$pid
 VC_API_PORT=$api_port
 VC_WEB_PORT=$web_port
 VC_API_URL=http://127.0.0.1:$api_port
-VC_WEB_URL=http://127.0.0.1:$web_port
+VC_WEB_URL=http://127.0.0.1:$api_port
+VC_VITE_URL=http://127.0.0.1:$web_port
 VC_LOG=$log
 VC_BROWSER_SESSION=verify-coder-$api_port
 VC_STARTED_AT=$(date -u +%FT%TZ)

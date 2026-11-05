@@ -5,7 +5,7 @@ description: "Launch an isolated local Coder from this checkout with scripts/dev
 
 # Verify Coder
 
-Drive the real app, not tests. Every helper prints one line per check and ends with a count line such as `doctor: 8/8 checks passed`. A run without its count line is unchecked.
+Drive the real app, not tests. Every helper prints one line per check and ends with a count line such as `doctor: 9/9 checks passed`. A run without its count line is unchecked.
 
 Script paths below (`scripts/`, `journeys/`, `features/`) are relative to this skill's directory, `.agents/skills/verify-coder/`. From the repo root, prefix them with that directory. The scripts work from any working directory. State and evidence paths (`build/verify-coder/`, `.coderv2/`) are relative to the repo root.
 
@@ -14,7 +14,7 @@ Script paths below (`scripts/`, `journeys/`, `features/`) are relative to this s
 ```sh
 scripts/launch.sh            # reuse this checkout's .coderv2 data
 scripts/launch.sh --fresh    # destroy this checkout's dev database first (--db-reset)
-scripts/launch.sh -- --use-proxy   # extra flags go to scripts/develop.sh
+scripts/launch.sh -- --trace       # after --, flags go to coder server, as with develop.sh
 ```
 
 - It builds `build/.bin/develop` and `build/coder_<os>_<arch>` first, then picks free API and web ports (13000 and 18000 plus a per-checkout offset), then starts `scripts/develop.sh` in its own process session. Coder metrics are off (`--prometheus-port 0`).
@@ -31,17 +31,17 @@ scripts/launch.sh -- --use-proxy   # extra flags go to scripts/develop.sh
 scripts/doctor.sh
 ```
 
-Read-only. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch), that the CLI session in `.coderv2/session` is the admin, that the web port proxies `/api`, and that the `docker` template exists whenever `docker info` works. It prints the URLs as an INFO line.
+Read-only. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch), that the CLI session in `.coderv2/session` is the admin, that the API port serves the embedded frontend, that the Vite port proxies `/api`, and that the `docker` template exists whenever `docker info` works. It prints the URLs as an INFO line.
 
 ## Drive
 
 Load the instance in every new shell, including each separate tool call: `source scripts/lib.sh && vc_load_run`. It sets `VC_WEB_URL`, `VC_API_URL`, `VC_LOG`, `VC_BROWSER_SESSION`, `VC_ADMIN_EMAIL`, `VC_ADMIN_PASSWORD`, `VC_EVIDENCE` and the helpers below.
 
-- Web UI: drive `$VC_WEB_URL` (the Vite dev server, which proxies `/api` to the API port) with `agent-browser --session "$VC_BROWSER_SESSION"` (`vc_ab` in `lib.sh`). Never use another session name: sessions are host-global. `vc_browser_login [email password]` signs in through the real form. Prefer `find label`, `find role ... --name`, `data-testid` and page titles (`<Page> - Coder`) over refs from an old snapshot. `site/e2e/helpers.ts` has a working Playwright recipe for most pages: translate it, then check the labels against the page source because the e2e matchers ignore case.
+- Web UI: drive `$VC_WEB_URL`, the production frontend that coder server serves from the binary `launch.sh` built (the API port). Launch rebuilds it when files under `site/` changed, so relaunch after a frontend edit. `$VC_VITE_URL` is the Vite dev server with hot reload. Use it only to watch an edit live: under host load it failed lazy route imports (`Failed to fetch dynamically imported module`). Drive the UI with `agent-browser --session "$VC_BROWSER_SESSION"` (`vc_ab` in `lib.sh`). Never use another session name: sessions are host-global. `vc_browser_login [email password]` signs in through the real form. Prefer `find label`, `find role ... --name`, `data-testid` and page titles (`<Page> - Coder`) over refs from an old snapshot. `site/e2e/helpers.ts` has a working Playwright recipe for most pages: translate it, then check the labels against the page source because the e2e matchers ignore case.
 - CLI: `scripts/coder.sh <args>` runs the binary develop built with `--global-config .coderv2`, logged in as the admin. It unsets `CODER_URL` and `CODER_SESSION_TOKEN` so it never talks to the deployment this workspace runs on.
 - API: `vc_api /api/v2/<path>` GETs as the admin without printing the token. Never echo `.coderv2/session`.
-- Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Add `-- --trace` to the launch for more.
-- Journeys: `journeys/create-user.sh` (6 checks, about 10 seconds), `journeys/workspace.sh` (9 checks, about 90 seconds, needs Docker) and `journeys/coder-agents.sh` (6 checks, about 15 seconds, starts its own `llm-mock`). Each drives one mapped feature end to end and writes evidence. Copy one for a new feature.
+- Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Launch with `scripts/launch.sh -- --trace` for more.
+- Journeys: `journeys/create-user.sh` (7 checks, about 10 seconds), `journeys/templates.sh` (4 checks, about 10 seconds), `journeys/workspace.sh` (9 checks, about 90 seconds, needs Docker) and `journeys/coder-agents.sh` (6 checks, about 15 seconds, starts its own `llm-mock`). Each drives one mapped feature end to end and writes evidence. Copy one for a new feature.
 
 ## Evidence
 
@@ -57,10 +57,10 @@ Load the instance in every new shell, including each separate tool call: `source
 
 ```sh
 scripts/cleanup.sh             # also removes .coderv2 when launch.sh created it
-scripts/cleanup.sh --keep-data # keep .coderv2 for the next launch
+scripts/cleanup.sh --keep-data # keep .coderv2, and treat it as yours from then on
 ```
 
-It deletes the instance's workspaces through the CLI, closes only `$VC_BROWSER_SESSION`, stops helpers that journeys recorded as `build/verify-coder/run/*.pid` when they still run this checkout's coder binary, sends SIGINT to the develop session it started and then TERM and KILL to leftovers of that session only, checks both ports are free, and moves `develop.log` and `build.log` into `build/verify-coder/evidence/`. It never kills by process name and never deletes `build/verify-coder/evidence/`. Run it after every failed attempt too. A FAIL line keeps the run state so you can fix the cause and run it again.
+It deletes, through the CLI, only the workspaces created after this launch started (`VC_STARTED_AT`), and lists older ones as kept, because a reused `.coderv2` can hold a developer's own workspaces. It closes only `$VC_BROWSER_SESSION`, stops helpers that journeys recorded as `build/verify-coder/run/*.pid` when they still run this checkout's coder binary, sends SIGINT to the develop session it started and then TERM and KILL to leftovers of that session only, checks both ports are free, and moves `develop.log` and `build.log` into `build/verify-coder/evidence/`. It removes `.coderv2` only when `launch.sh` created it (marker file `.coderv2/.verify-coder-created`). `--keep-data` deletes the marker, so later cleanups keep the folder too. It never kills by process name and never deletes `build/verify-coder/evidence/`. Run it after every failed attempt too. A FAIL line keeps the run state so you can fix the cause and run it again.
 
 ## Features
 
@@ -70,6 +70,6 @@ It deletes the instance's workspaces through the CLI, closes only `$VC_BROWSER_S
 
 - Inside a Coder workspace (`CODER_AGENT_URL` set) the dev build names the session cookie `dev_coder_session_token` instead of `coder_session_token` (`scripts/build_go.sh`). Sign in through the form instead of setting cookies by hand.
 - After `agent-browser cookies clear`, a cached `/login` breaks CSRF in the dev site and every POST answers 400. Sign in with `vc_browser_login`, which loads `/login` with a unique query. See `features/sign-in.md`.
-- At load average near 30 on 8 cores, Vite dev pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png`, its page errors, console and network requests next to `steps.log`.
+- At load average near 30 on 8 cores, pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png`, its page errors, console and network requests next to `steps.log`.
 - `launch.sh` sets `umask 022` for the build and the server. Some agent shells default to 077.
 - A second checkout can run its own instance at the same time. Two instances in one checkout cannot: they share `.coderv2`.

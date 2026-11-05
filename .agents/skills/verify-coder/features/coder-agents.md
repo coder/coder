@@ -35,3 +35,4 @@ Preconditions:
 - Label fills on the provider and model forms failed when they ran before the form rendered. Wait for an input first, and fill by `name` or `id`.
 - With `llm-mock`, the chat title is the first message's text.
 - A text-only chat created no workspace.
+- On the Vite dev server (`$VC_VITE_URL`) at load average 25 to 30, `/agents` twice showed the app's `Something went wrong` page. The console held `Failed to fetch dynamically imported module: .../AgentCreatePage.tsx`. Journeys drive the embedded frontend on `$VC_WEB_URL` instead, which loads bundled chunks.

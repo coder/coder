@@ -60,8 +60,7 @@ wait_agent() {
 wait_gone() {
 	local ws="$1" code i
 	for i in $(seq 150); do
-		code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
-			-H "Coder-Session-Token: $(vc_session_token)" "$VC_API_URL/api/v2/users/admin/workspace/$ws")"
+		code="$(vc_curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$VC_API_URL/api/v2/users/admin/workspace/$ws")"
 		if [[ "$code" == 404 ]]; then
 			return 0
 		fi
@@ -73,6 +72,15 @@ wait_gone() {
 
 container_count() {
 	docker ps --filter "name=^coder-admin-$1\$" --format '{{.Names}}' | wc -l
+}
+
+# During a build the workspace page scrolls to follow the build log, which
+# moves the header buttons under the sticky navbar. Scroll back up first, as a
+# user would.
+click_header() {
+	vc_ab wait "$1" >/dev/null
+	vc_ab eval 'window.scrollTo(0, 0)' >/dev/null
+	vc_ab click "$1" >/dev/null
 }
 
 ui_status() {
@@ -151,8 +159,7 @@ ui_stop_start() {
 	local tab
 	tab="$(vc_ab tab list | grep -o '\[t[0-9]*\] admin/'"$ui_ws"' - Coder' | head -n 1 | grep -o 't[0-9]*')"
 	vc_ab tab "$tab" >/dev/null
-	vc_ab wait '[data-testid=workspace-stop-button]' >/dev/null
-	vc_ab click '[data-testid=workspace-stop-button]' >/dev/null
+	click_header '[data-testid=workspace-stop-button]'
 	wait_state "$ui_ws" stop/stopped
 	ui_status Stopped
 	vc_ab screenshot "$out/07-ui-stopped.png" >/dev/null
@@ -160,8 +167,7 @@ ui_stop_start() {
 		echo "the container still runs after stop"
 		return 1
 	}
-	vc_ab wait '[data-testid=workspace-start]' >/dev/null
-	vc_ab click '[data-testid=workspace-start]' >/dev/null
+	click_header '[data-testid=workspace-start]'
 	wait_state "$ui_ws" start/running
 	ui_status Running
 	[[ "$(container_count "$ui_ws")" == 1 ]] || {
@@ -174,8 +180,10 @@ ui_stop_start() {
 ui_delete() {
 	local id
 	id="$(ws_json "$ui_ws" | jq -r '.id')"
-	vc_ab click '[data-testid=workspace-options-button]' >/dev/null
+	click_header '[data-testid=workspace-options-button]'
+	vc_ab wait '[role=menu]' >/dev/null
 	vc_ab find role menuitem click --name "Delete…" >/dev/null
+	vc_ab wait '[role=dialog] input' >/dev/null
 	vc_ab fill '[role=dialog] input' "$ui_ws" >/dev/null
 	vc_ab screenshot "$out/08-ui-delete-dialog.png" >/dev/null
 	vc_ab find role button click --name "Delete" --exact >/dev/null
