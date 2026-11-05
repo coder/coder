@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -368,16 +369,18 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 	// at e851c57.
 	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
 	require.NoError(t, err)
+	// Graph reads the state file that apply leaves in the working directory,
+	// so this fixture uses Terraform's state file format.
 	const stateJSON = `{
-		"format_version":"1.0",
+		"version":4,
 		"terraform_version":"1.15.0",
-		"values":{"root_module":{"resources":[
-			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
-			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
-			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
-			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
-		]}}
+		"resources":[
+			{"mode":"managed","type":"docker_container","name":"workspace","provider":"provider[\"registry.terraform.io/kreuzwerker/docker\"]","instances":[{"schema_version":0,"attributes":{}}]},
+			{"mode":"managed","type":"coder_agent","name":"main","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":1,"attributes":{"arch":"amd64","id":"agent-id"}}]},
+			{"mode":"managed","type":"coder_script","name":"prerequisite","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":0,"attributes":{"agent_id":"agent-id","run_on_start":true}}]},
+			{"mode":"managed","type":"coder_script","name":"dependent","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":0,"attributes":{"agent_id":"agent-id","run_on_start":true}}]},
+			{"mode":"data","type":"coder_script_order","name":"order","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":0,"attributes":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}]}
+		]
 	}`
 	// Keep both scripts bound to agent-id while changing the applied agent's ID.
 	mismatchedAgentStateJSON := strings.Replace(
@@ -434,12 +437,10 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
-			statePath := filepath.Join(dir, "state.json")
 			graphPath := filepath.Join(dir, "graph.dot")
 			showArgsPath := filepath.Join(dir, "show-args")
 			graphArgsPath := filepath.Join(dir, "graph-args")
 			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(test.stateJSON), 0o600))
 			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
 
 			binaryPath := filepath.Join(dir, "terraform")
@@ -450,11 +451,7 @@ version)
 	;;
 show)
 	printf '%%s\n' "$*" >> %q
-	if [ "$#" -eq 3 ]; then
-		cat %q
-	else
-		cat %q
-	fi
+	cat %q
 	;;
 graph)
 	printf '%%s\n' "$*" >> %q
@@ -467,16 +464,25 @@ plan|init)
 	exit 1
 	;;
 esac
-`, showArgsPath, statePath, planPath, graphArgsPath, graphPath)
+`, showArgsPath, planPath, graphArgsPath, graphPath)
 			// #nosec G306 - The test Terraform shim must be executable.
 			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
 
+			workDir := t.TempDir()
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binaryPath,
+				workDir:    workDir,
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
 			require.Empty(t, init.Error)
+			// Stand in for the state file apply would have written.
+			sessionDirs, err := filepath.Glob(tfpath.Session(workDir, "*").WorkDirectory())
+			require.NoError(t, err)
+			require.Len(t, sessionDirs, 1)
+			require.NoError(t, os.WriteFile(
+				tfpath.Layout(sessionDirs[0]).StateFilePath(), []byte(test.stateJSON), 0o600,
+			))
 			if test.planFirst {
 				require.NoError(t, sendPlan(sess, test.transition))
 				_, response := readProvisionLog(t, sess)
@@ -501,15 +507,16 @@ esac
 			} else {
 				require.Contains(t, graph.Error, test.errorContains)
 			}
+			// Only Plan runs `terraform show`, on the plan file. Graph reads the
+			// state file directly.
 			showArgs, err := os.ReadFile(showArgsPath)
-			require.NoError(t, err)
-			commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
 			if test.planFirst {
-				require.Len(t, commands, 2)
+				require.NoError(t, err)
+				commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
+				require.Len(t, commands, 1)
 				require.Contains(t, commands[0], "terraform.tfplan")
-				require.Equal(t, "show -json -no-color", commands[1])
 			} else {
-				require.Equal(t, []string{"show -json -no-color"}, commands)
+				require.ErrorIs(t, err, os.ErrNotExist)
 			}
 
 			if test.wantGraphCall {
@@ -560,8 +567,17 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64"}}
 		]}}
 	}`
-	// `terraform show -json` output for the applied state.
-	const stateJSON = `{
+	// The state file as apply leaves it.
+	const stateFileJSON = `{
+		"version":4,
+		"terraform_version":"1.15.0",
+		"resources":[
+			{"mode":"managed","type":"docker_container","name":"workspace","provider":"provider[\"registry.terraform.io/kreuzwerker/docker\"]","instances":[{"schema_version":0,"attributes":{}}]},
+			{"mode":"managed","type":"coder_agent","name":"main","provider":"provider[\"registry.terraform.io/coder/coder\"]","instances":[{"schema_version":1,"attributes":{"arch":"amd64","id":"agent-id"}}]}
+		]
+	}`
+	// `terraform show -json` output for the same state.
+	const shownStateJSON = `{
 		"format_version":"1.0",
 		"terraform_version":"1.15.0",
 		"values":{"root_module":{"resources":[
@@ -593,6 +609,8 @@ func TestGraphReusesPlanResults(t *testing.T) {
 		rebuiltGraphDOT string
 		// failFirstGraph makes the graph run during Plan fail.
 		failFirstGraph bool
+		// stateFile replaces stateFileJSON as the state file's content.
+		stateFile      string
 		wantShowCalls  []string
 		wantGraphCalls int
 	}{
@@ -607,7 +625,7 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			name:           "StateSourceReusesGraph",
 			source:         proto.GraphSource_SOURCE_STATE,
 			graphDOT:       graphDOT,
-			wantShowCalls:  []string{"plan", "state"},
+			wantShowCalls:  []string{"plan"},
 			wantGraphCalls: 1,
 		},
 		{
@@ -615,7 +633,7 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			source:          proto.GraphSource_SOURCE_STATE,
 			graphDOT:        graphWithDeposedDOT,
 			rebuiltGraphDOT: graphDOT,
-			wantShowCalls:   []string{"plan", "state"},
+			wantShowCalls:   []string{"plan"},
 			wantGraphCalls:  2,
 		},
 		{
@@ -623,8 +641,17 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			source:         proto.GraphSource_SOURCE_STATE,
 			graphDOT:       graphDOT,
 			failFirstGraph: true,
-			wantShowCalls:  []string{"plan", "state"},
+			wantShowCalls:  []string{"plan"},
 			wantGraphCalls: 2,
+		},
+		{
+			// Graph leaves a state file it can't read to `terraform show`.
+			name:           "UnreadableStateFile",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphDOT,
+			stateFile:      `{"version":3}`,
+			wantShowCalls:  []string{"plan", "state"},
+			wantGraphCalls: 1,
 		},
 	}
 	for _, test := range tests {
@@ -639,7 +666,7 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			showCallsPath := filepath.Join(dir, "show-calls")
 			graphCallsPath := filepath.Join(dir, "graph-calls")
 			require.NoError(t, os.WriteFile(planPath, []byte(planJSON), 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(stateJSON), 0o600))
+			require.NoError(t, os.WriteFile(statePath, []byte(shownStateJSON), 0o600))
 			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
 			if test.rebuiltGraphDOT != "" {
 				require.NoError(t, os.WriteFile(rebuiltGraphPath, []byte(test.rebuiltGraphDOT), 0o600))
@@ -690,7 +717,15 @@ esac
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
 			require.Empty(t, init.Error)
-			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+			// Plan writes the state it is given to the state file.
+			stateFile := test.stateFile
+			if stateFile == "" {
+				stateFile = stateFileJSON
+			}
+			require.NoError(t, sess.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
+				Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_START},
+				State:    []byte(stateFile),
+			}}}))
 			_, response := readProvisionLog(t, sess)
 			require.NotNil(t, response.GetPlan())
 			require.Empty(t, response.GetPlan().Error)
