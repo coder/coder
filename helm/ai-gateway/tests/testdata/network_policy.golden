@@ -33,7 +33,7 @@ spec:
             matchLabels:
               app.kubernetes.io/name: coder-ai-gateway
               app.kubernetes.io/instance: ai-gateway
-    # Prometheus metrics.
+    # Prometheus metrics, unless CODER_PROMETHEUS_ENABLE is false in coder.env.
     - ports:
         - port: 2112
           protocol: TCP

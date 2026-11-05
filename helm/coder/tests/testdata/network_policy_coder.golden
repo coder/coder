@@ -44,9 +44,9 @@ spec:
             matchLabels:
               app.kubernetes.io/name: coder
               app.kubernetes.io/instance: release-name
-    # Prometheus metrics.
+    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
     - ports:
-        - port: 2112
+        - port: 2113
           protocol: TCP
       from:
         - namespaceSelector:
@@ -229,8 +229,6 @@ spec:
         env:
         - name: CODER_HTTP_ADDRESS
           value: 0.0.0.0:8080
-        - name: CODER_PROMETHEUS_ADDRESS
-          value: 0.0.0.0:2112
         - name: CODER_PPROF_ADDRESS
           value: 0.0.0.0:6060
         - name: CODER_ACCESS_URL
@@ -253,6 +251,10 @@ spec:
           value: /etc/ssl/certs/coder/coder-tls/tls.crt
         - name: CODER_TLS_KEY_FILE
           value: /etc/ssl/certs/coder/coder-tls/tls.key
+        - name: CODER_PROMETHEUS_ENABLE
+          value: "true"
+        - name: CODER_PROMETHEUS_ADDRESS
+          value: 0.0.0.0:2113
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
@@ -263,6 +265,9 @@ spec:
           protocol: TCP
         - containerPort: 8443
           name: https
+          protocol: TCP
+        - containerPort: 2112
+          name: prometheus-http
           protocol: TCP
         readinessProbe:
           httpGet:

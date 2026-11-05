@@ -1,6 +1,9 @@
 coder:
   image:
     tag: latest
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
   networkPolicy:
     enable: true
     prometheus:

@@ -84,8 +84,9 @@ coder:
             protocol: TCP
 ```
 
-Once enabled, ingress is limited to the HTTP(S) ports, Prometheus metrics on port
-2112 (disable with `coder.networkPolicy.prometheus.enable`), and ports 8080 and
+Once enabled, ingress is limited to the HTTP(S) ports, Prometheus metrics (when
+`CODER_PROMETHEUS_ENABLE` is set in `coder.env`, on the port from
+`CODER_PROMETHEUS_ADDRESS`), and ports 8080 and
 6222 between Coder replicas for high availability.
 
 Egress is unrestricted unless you set `coder.networkPolicy.egress.enable`. In

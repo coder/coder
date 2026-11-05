@@ -31,12 +31,12 @@ spec:
             matchLabels:
               {{- include "coder.selectorLabels" $ | nindent 14 }}
       {{- end }}
-    {{- if .Values.networkPolicy.prometheus.enable }}
-    # Prometheus metrics.
+    {{- with include "libcoder.prometheusPort" (list . true) }}
+    # Prometheus metrics, unless CODER_PROMETHEUS_ENABLE is false in coder.env.
     - ports:
-        - port: 2112
+        - port: {{ . }}
           protocol: TCP
-      {{- with .Values.networkPolicy.prometheus.from }}
+      {{- with $.Values.networkPolicy.prometheus.from }}
       from:
         {{- toYaml . | nindent 8 }}
       {{- end }}
