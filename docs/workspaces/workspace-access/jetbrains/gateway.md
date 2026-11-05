@@ -146,7 +146,8 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
    ![Gateway Add Connection](../../../images/gateway/gateway-add-ssh-configuration.png)
 
-1. For the Host, enter `coder.<workspace name>`
+1. For the Host, enter `<workspace name>.coder`.
+   For a workspace with more than one agent, enter `<agent name>.<workspace name>.<owner>.coder` instead.
 
 1. For the Port, enter `22` (this is ignored by Coder)
 
@@ -158,8 +159,9 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
    > [!TIP]
    > Gateway discovers hosts by parsing `~/.ssh/config`.
-   > If your workspaces do not appear in Gateway's host list, re-run `coder config-ssh
-   > --no-wildcard` to generate an individual `Host` entry per workspace instead of a wildcard block.
+   > If your workspaces don't appear in Gateway's host list, re-run `coder config-ssh --no-wildcard`.
+   > This command generates individual `Host` entries for each workspace and its known agents instead of a wildcard block.
+   > For stopped-workspace behavior, refer to [Configure SSH](../index.md#configure-ssh).
 
 1. Select **Test Connection** to validate these settings.
 
