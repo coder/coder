@@ -295,6 +295,7 @@ func TestDevConfigValidate(t *testing.T) {
 			proxyPort:        3010,
 			coderMetricsPort: 2114,
 			password:         defaultPassword,
+			bindAddress:      defaultBindAddress,
 		}
 	}
 
@@ -305,6 +306,15 @@ func TestDevConfigValidate(t *testing.T) {
 	}{
 		{
 			name: "Valid",
+		},
+		{
+			name:   "LoopbackBindAddress",
+			mutate: func(cfg *devConfig) { cfg.bindAddress = "127.0.0.1" },
+		},
+		{
+			name:     "BindAddressNotIP",
+			mutate:   func(cfg *devConfig) { cfg.bindAddress = "localhost" },
+			wantErrs: []string{"--bind-address", "not an IP address"},
 		},
 		{
 			name: "AgplAndProxy",
@@ -611,6 +621,42 @@ func TestDevConfigResolveEnvExplicitAccessURL(t *testing.T) {
 	}
 	require.NoError(t, cfg.resolveEnv())
 	assert.Equal(t, "http://myhost:5000", cfg.accessURL)
+}
+
+func TestDevConfigListenAddress(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		bind string
+		want string
+	}{
+		{bind: defaultBindAddress, want: "0.0.0.0:3000"},
+		{bind: "127.0.0.1", want: "127.0.0.1:3000"},
+		{bind: "::1", want: "[::1]:3000"},
+	} {
+		cfg := &devConfig{bindAddress: tc.bind}
+		assert.Equal(t, tc.want, cfg.listenAddress(3000))
+	}
+}
+
+func TestPnpmCmdUsesBindAddress(t *testing.T) {
+	t.Parallel()
+
+	cfg := &devConfig{bindAddress: "127.0.0.1", webPort: 8080, apiPort: 3000}
+	cmd := pnpmCmd(context.Background(), cfg)
+	assert.Equal(t, []string{"pnpm", "--dir", "./site", "dev", "--host", "127.0.0.1"}, cmd.Args)
+}
+
+func TestBannerHosts(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"localhost"}, bannerHosts("127.0.0.1"))
+	assert.Equal(t, []string{"localhost"}, bannerHosts("::1"))
+	assert.Equal(t, []string{"10.1.2.3"}, bannerHosts("10.1.2.3"))
+	assert.Equal(t, []string{"[fd00::1]"}, bannerHosts("fd00::1"))
+	all := bannerHosts(defaultBindAddress)
+	require.NotEmpty(t, all)
+	assert.Equal(t, "localhost", all[0])
 }
 
 func TestDevConfigCmd(t *testing.T) {

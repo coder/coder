@@ -42,10 +42,15 @@ variables:
 | Per-worktree port offset          | `--port-offset`      | `CODER_DEV_PORT_OFFSET`      |
 | Access URL                        | `--access-url`       | `CODER_DEV_ACCESS_URL`       |
 | Admin password                    | `--password`         | `CODER_DEV_ADMIN_PASSWORD`   |
+| Listen address                    | `--bind-address`     | `CODER_DEV_BIND_ADDRESS`     |
 | Starter template                  | `--starter-template` | `CODER_DEV_STARTER_TEMPLATE` |
 | Roll back missing migrations      | `--db-rollback`      | `CODER_DEV_DB_ROLLBACK`      |
 | Reset the development database    | `--db-reset`         | `CODER_DEV_DB_RESET`         |
 | Accept changed migration tracking | `--db-continue`      | `CODER_DEV_DB_CONTINUE`      |
+
+The API server, the frontend dev server and the embedded Prometheus UI listen
+on every interface by default. Pass `--bind-address 127.0.0.1` to keep them off
+the network, for example on a shared host.
 
 Extra `coder server` flags can be passed after `--`. For example,
 `./scripts/develop.sh -- --trace` passes `--trace` to the API server.

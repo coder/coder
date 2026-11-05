@@ -64,6 +64,7 @@ const (
 	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
+	defaultBindAddress     = "0.0.0.0"
 	defaultStarterTemplate = "docker"
 	healthTimeout          = 60 * time.Second
 	shutdownTimeout        = 15 * time.Second
@@ -147,6 +148,13 @@ func main() {
 				Default:     defaultAccessURL,
 				Description: "Override access URL. The %d placeholder will be replaced with the API port. Set to empty to enable devtunnel (pit-1.try.coder.app).",
 				Value:       serpent.StringOf(&cfg.accessURL),
+			},
+			{
+				Flag:        "bind-address",
+				Env:         "CODER_DEV_BIND_ADDRESS",
+				Default:     defaultBindAddress,
+				Description: "IP address the API server, the frontend dev server and Prometheus listen on. Use 127.0.0.1 to keep the instance off the network.",
+				Value:       serpent.StringOf(&cfg.bindAddress),
 			},
 			{
 				Flag:        "password",
@@ -239,6 +247,7 @@ type devConfig struct {
 	prometheusServer  bool
 	agpl              bool
 	accessURL         string
+	bindAddress       string
 	password          string
 	useProxy          bool
 	debug             bool
@@ -343,6 +352,11 @@ func (c *devConfig) applyPortOffset() {
 	}
 }
 
+// listenAddress joins the bind address and a port, with brackets for IPv6.
+func (c *devConfig) listenAddress(port int64) string {
+	return net.JoinHostPort(c.bindAddress, strconv.FormatInt(port, 10))
+}
+
 func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
 	if c.portOffset == 0 {
 		return portSourceDefault
@@ -352,6 +366,9 @@ func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
 }
 
 func (c *devConfig) validate() error {
+	if net.ParseIP(c.bindAddress) == nil {
+		return xerrors.Errorf("--bind-address %q is not an IP address", c.bindAddress)
+	}
 	if c.agpl && c.useProxy {
 		return xerrors.New("cannot use both --agpl and --use-proxy")
 	}
@@ -769,7 +786,7 @@ func startServer(cfg *devConfig, group *procGroup) error {
 	serverArgs := []string{
 		"--global-config", cfg.configDir,
 		"server",
-		"--http-address", fmt.Sprintf("0.0.0.0:%d", cfg.apiPort),
+		"--http-address", cfg.listenAddress(cfg.apiPort),
 		"--swagger-enable",
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
@@ -781,7 +798,7 @@ func startServer(cfg *devConfig, group *procGroup) error {
 	if cfg.coderMetricsPort != 0 {
 		serverArgs = append(serverArgs,
 			"--prometheus-enable",
-			"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", cfg.coderMetricsPort),
+			"--prometheus-address", cfg.listenAddress(cfg.coderMetricsPort),
 			"--prometheus-collect-agent-stats",
 			"--prometheus-collect-db-metrics",
 		)
@@ -1237,7 +1254,7 @@ scrape_configs:
 		"-v", prometheusDataDir+":/prometheus",
 		prometheusImage,
 		"--config.file=/etc/prometheus/prometheus.yml",
-		fmt.Sprintf("--web.listen-address=0.0.0.0:%d", prometheusServerPort),
+		"--web.listen-address="+cfg.listenAddress(prometheusServerPort),
 	)
 
 	named := logger.Named("prometheus")
@@ -1275,7 +1292,7 @@ scrape_configs:
 }
 
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
-	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
+	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host", cfg.bindAddress)
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("PORT=%d", cfg.webPort),
 		fmt.Sprintf("CODER_HOST=http://127.0.0.1:%d", cfg.apiPort),
@@ -1320,20 +1337,39 @@ func portSourceLabel(source portSource, offset int) string {
 	}
 }
 
-func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
-	ifaces := []string{"localhost"}
+// bannerHosts lists the hosts the banner shows URLs for. An unspecified bind
+// address (0.0.0.0) listens on every interface, so the banner lists each IPv4
+// interface and, inside a workspace, the Coder Desktop names. Any other bind
+// address is the only host that answers.
+func bannerHosts(bindAddress string) []string {
+	ip := net.ParseIP(bindAddress)
+	if ip == nil || !ip.IsUnspecified() {
+		if ip != nil && ip.IsLoopback() {
+			return []string{"localhost"}
+		}
+		if ip != nil && ip.To4() == nil {
+			return []string{"[" + bindAddress + "]"}
+		}
+		return []string{bindAddress}
+	}
+	hosts := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-				ifaces = append(ifaces, ipnet.IP.String())
+				hosts = append(hosts, ipnet.IP.String())
 			}
 		}
 	}
 	if os.Getenv("CODER") == "true" {
 		// Inside a workspace, add Coder Desktop entry.
-		ifaces = append(ifaces, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
-		ifaces = append(ifaces, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
+		hosts = append(hosts, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
+		hosts = append(hosts, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
 	}
+	return hosts
+}
+
+func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
+	ifaces := bannerHosts(cfg.bindAddress)
 	var b strings.Builder
 	w := 64
 	line := func(content ...string) {
