@@ -47,6 +47,79 @@ var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
 	WorkspaceAppSharingLevelPublic:        {},
 }
 
+// VSCodeCoderExtensionID is the Coder VS Code extension, the authority of its
+// deep links such as `vscode://coder.coder-remote/open?...`.
+const VSCodeCoderExtensionID = "coder.coder-remote"
+
+// VSCodeSessionTokenScheme is a VS Code-family scheme whose Coder extension
+// links, `<scheme>://` + VSCodeCoderExtensionID + a VSCodeSessionTokenPath, may
+// receive the user's session token in place of `$SESSION_TOKEN` in an
+// external app URL. The dashboard and `coder open app` both use this list, with
+// JetBrainsSessionTokenHandler.
+type VSCodeSessionTokenScheme string
+
+//nolint:gosec // G101: URL schemes, not credentials.
+const (
+	VSCodeSessionTokenSchemeVSCode         VSCodeSessionTokenScheme = "vscode"
+	VSCodeSessionTokenSchemeVSCodeInsiders VSCodeSessionTokenScheme = "vscode-insiders"
+	VSCodeSessionTokenSchemeWindsurf       VSCodeSessionTokenScheme = "windsurf"
+	VSCodeSessionTokenSchemeDevin          VSCodeSessionTokenScheme = "devin"
+	VSCodeSessionTokenSchemeCursor         VSCodeSessionTokenScheme = "cursor"
+	VSCodeSessionTokenSchemeKiro           VSCodeSessionTokenScheme = "kiro"
+	VSCodeSessionTokenSchemePositron       VSCodeSessionTokenScheme = "positron"
+	VSCodeSessionTokenSchemeAntigravity    VSCodeSessionTokenScheme = "antigravity"
+	VSCodeSessionTokenSchemeAntigravityIDE VSCodeSessionTokenScheme = "antigravity-ide"
+)
+
+// VSCodeSessionTokenSchemes lists every VSCodeSessionTokenScheme.
+var VSCodeSessionTokenSchemes = []VSCodeSessionTokenScheme{
+	VSCodeSessionTokenSchemeVSCode,
+	VSCodeSessionTokenSchemeVSCodeInsiders,
+	VSCodeSessionTokenSchemeWindsurf,
+	VSCodeSessionTokenSchemeDevin,
+	VSCodeSessionTokenSchemeCursor,
+	VSCodeSessionTokenSchemeKiro,
+	VSCodeSessionTokenSchemePositron,
+	VSCodeSessionTokenSchemeAntigravity,
+	VSCodeSessionTokenSchemeAntigravityIDE,
+}
+
+// VSCodeSessionTokenPath is a Coder VS Code extension route that takes a
+// session token, through the start of its query.
+type VSCodeSessionTokenPath string
+
+//nolint:gosec // G101: URL paths, not credentials.
+const (
+	VSCodeSessionTokenPathOpen             VSCodeSessionTokenPath = "/open?"
+	VSCodeSessionTokenPathOpenDevContainer VSCodeSessionTokenPath = "/openDevContainer?"
+)
+
+// VSCodeSessionTokenPaths lists every VSCodeSessionTokenPath.
+var VSCodeSessionTokenPaths = []VSCodeSessionTokenPath{
+	VSCodeSessionTokenPathOpen,
+	VSCodeSessionTokenPathOpenDevContainer,
+}
+
+// JetBrainsSessionTokenHandler is a JetBrains deep-link prefix that may receive
+// the session token. The scheme and authority match ASCII case-insensitively,
+// the rest exactly.
+type JetBrainsSessionTokenHandler string
+
+//nolint:gosec // G101: link prefixes, not credentials.
+const (
+	JetBrainsSessionTokenHandlerToolbox      JetBrainsSessionTokenHandler = "jetbrains://gateway/coder?"
+	JetBrainsSessionTokenHandlerToolboxCoder JetBrainsSessionTokenHandler = "jetbrains://gateway/com.coder.toolbox?"
+	// Gateway also handles non-Coder providers, such as `type=ssh`.
+	JetBrainsSessionTokenHandlerGateway JetBrainsSessionTokenHandler = "jetbrains-gateway://connect#type=coder&"
+)
+
+// JetBrainsSessionTokenHandlers lists every JetBrainsSessionTokenHandler.
+var JetBrainsSessionTokenHandlers = []JetBrainsSessionTokenHandler{
+	JetBrainsSessionTokenHandlerToolbox,
+	JetBrainsSessionTokenHandlerToolboxCoder,
+	JetBrainsSessionTokenHandlerGateway,
+}
+
 type WorkspaceAppOpenIn string
 
 const (

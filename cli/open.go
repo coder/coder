@@ -483,7 +483,7 @@ func buildVSCodeWorkspaceLink(
 
 	return &url.URL{
 		Scheme:   "vscode",
-		Host:     "coder.coder-remote",
+		Host:     codersdk.VSCodeCoderExtensionID,
 		Path:     "/open",
 		RawQuery: qp.Encode(),
 	}, qp
@@ -521,7 +521,7 @@ func buildVSCodeWorkspaceDevContainerLink(
 
 	return &url.URL{
 		Scheme:   "vscode",
-		Host:     "coder.coder-remote",
+		Host:     codersdk.VSCodeCoderExtensionID,
 		Path:     "/openDevContainer",
 		RawQuery: qp.Encode(),
 	}, qp
@@ -703,31 +703,26 @@ type sessionTokenHandler struct {
 }
 
 // sessionTokenHandlers are the only deep-link handlers that may receive the
-// session token. Keep in sync with SESSION_TOKEN_HANDLERS in
-// site/src/modules/apps/apps.ts.
+// session token. They come from codersdk, which also generates the dashboard's
+// list, and split like SESSION_TOKEN_HANDLERS in site/src/modules/apps/apps.ts:
+// the scheme and authority end at the first `/`, `?` or `#` after `://`.
 var sessionTokenHandlers = func() []sessionTokenHandler {
-	var handlers []sessionTokenHandler
-	for _, scheme := range []string{
-		"vscode",
-		"vscode-insiders",
-		"windsurf",
-		"devin",
-		"cursor",
-		"kiro",
-		"positron",
-		"antigravity",
-		"antigravity-ide",
-	} {
-		for _, p := range []string{"/open?", "/openDevContainer?"} {
-			handlers = append(handlers, sessionTokenHandler{base: scheme + "://coder.coder-remote", path: p})
+	var prefixes []string
+	for _, scheme := range codersdk.VSCodeSessionTokenSchemes {
+		for _, p := range codersdk.VSCodeSessionTokenPaths {
+			prefixes = append(prefixes, string(scheme)+"://"+codersdk.VSCodeCoderExtensionID+string(p))
 		}
 	}
-	return append(handlers,
-		sessionTokenHandler{base: "jetbrains://gateway", path: "/coder?"},
-		sessionTokenHandler{base: "jetbrains://gateway", path: "/com.coder.toolbox?"},
-		// Gateway also handles non-Coder providers, such as `type=ssh`.
-		sessionTokenHandler{base: "jetbrains-gateway://connect", path: "#type=coder&"},
-	)
+	for _, h := range codersdk.JetBrainsSessionTokenHandlers {
+		prefixes = append(prefixes, string(h))
+	}
+	handlers := make([]sessionTokenHandler, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		authority := strings.Index(prefix, "://") + len("://")
+		pathStart := authority + strings.IndexAny(prefix[authority:], "/?#")
+		handlers = append(handlers, sessionTokenHandler{base: prefix[:pathStart], path: prefix[pathStart:]})
+	}
+	return handlers
 }()
 
 // sessionTokenOrigins returns the origins that external app links may send

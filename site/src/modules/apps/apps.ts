@@ -1,7 +1,11 @@
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
+import {
+	JetBrainsSessionTokenHandlers,
+	VSCodeCoderExtensionID,
+	VSCodeSessionTokenPaths,
+	VSCodeSessionTokenSchemes,
+	type Workspace,
+	type WorkspaceAgent,
+	type WorkspaceApp,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 
@@ -18,30 +22,21 @@ type SessionTokenHandler = {
 	path: string;
 };
 
-// The only deep-link handlers that may receive the session token. Keep in
-// sync with sessionTokenHandlers in cli/open.go.
+// The only deep-link handlers that may receive the session token. They come
+// from codersdk, which cli/open.go also uses, and split the same way there: the
+// scheme and authority end at the first `/`, `?` or `#` after `://`.
 const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
-	...[
-		"vscode",
-		"vscode-insiders",
-		"windsurf",
-		"devin",
-		"cursor",
-		"kiro",
-		"positron",
-		"antigravity",
-		"antigravity-ide",
-	].flatMap((scheme) =>
-		["/open?", "/openDevContainer?"].map((path) => ({
-			base: `${scheme}://coder.coder-remote`,
-			path,
-		})),
+	...VSCodeSessionTokenSchemes.flatMap((scheme) =>
+		VSCodeSessionTokenPaths.map(
+			(path) => `${scheme}://${VSCodeCoderExtensionID}${path}`,
+		),
 	),
-	{ base: "jetbrains://gateway", path: "/coder?" },
-	{ base: "jetbrains://gateway", path: "/com.coder.toolbox?" },
-	// Gateway also handles non-Coder providers, such as `type=ssh`.
-	{ base: "jetbrains-gateway://connect", path: "#type=coder&" },
-];
+	...JetBrainsSessionTokenHandlers,
+].map((prefix) => {
+	const authority = prefix.indexOf("://") + "://".length;
+	const pathStart = authority + prefix.slice(authority).search(/[/?#]/);
+	return { base: prefix.slice(0, pathStart), path: prefix.slice(pathStart) };
+});
 
 type GetVSCodeHrefParams = {
 	owner: string;
@@ -72,7 +67,7 @@ export const getVSCodeHref = (
 	if (chatId) {
 		query.set("chatId", chatId);
 	}
-	return `${app}://coder.coder-remote/open?${query}`;
+	return `${app}://${VSCodeCoderExtensionID}/open?${query}`;
 };
 
 type GetTerminalHrefParams = {
