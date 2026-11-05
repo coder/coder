@@ -591,10 +591,19 @@ coder:
     #           kubernetes.io/metadata.name: monitoring
     egress:
       # coder.networkPolicy.egress.enable -- Whether to also restrict egress.
-      # When true, only DNS (port 53) and extraEgress rules are allowed, so
-      # you must allow PostgreSQL, the Kubernetes API, workspaces, and any
+      # When true, only DNS (port 53), PostgreSQL, and extraEgress rules are
+      # allowed, so you must also allow the Kubernetes API, workspaces, and any
       # external services Coder uses (OIDC, git providers, etc.).
       enable: false
+      postgres:
+        # coder.networkPolicy.egress.postgres.to -- NetworkPolicyPeer objects
+        # for PostgreSQL. PostgreSQL is required and its address varies, so
+        # the default is empty, which allows any destination on the ports
+        # below. Restrict it to your database with a podSelector or ipBlock.
+        to: []
+        # coder.networkPolicy.egress.postgres.ports -- TCP ports of PostgreSQL.
+        # Change this if CODER_PG_CONNECTION_URL uses a non-default port.
+        ports: [5432]
     # coder.networkPolicy.extraEgress -- Additional NetworkPolicyEgressRule
     # objects appended to spec.egress. Only used if egress.enable is true.
     extraEgress: []
