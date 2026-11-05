@@ -523,6 +523,184 @@ esac
 	}
 }
 
+// writeTerraformShim writes an executable script that stands in for the
+// terraform binary and returns its path.
+func writeTerraformShim(t *testing.T, dir, script string) string {
+	t.Helper()
+	binaryPath := filepath.Join(dir, "terraform")
+	// #nosec G306 - The test Terraform shim must be executable.
+	require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o700))
+	return binaryPath
+}
+
+// readShimCalls returns the argument lines a shim recorded in path, or nil if
+// it never ran the command.
+func readShimCalls(t *testing.T, path string) []string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	require.NoError(t, err)
+	return strings.Split(strings.TrimSpace(string(content)), "\n")
+}
+
+// TestGraphReusesPlanResults covers when Graph reuses the parsed plan and the
+// graph that Plan computed, and the fallbacks that run Terraform again.
+//
+//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
+func TestGraphReusesPlanResults(t *testing.T) {
+	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
+	require.NoError(t, err)
+	const graphDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+	// A deposed agent left by an interrupted create_before_destroy
+	// replacement shares the agent's label but has none of its edges.
+	const graphWithDeposedDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] coder_agent.main (deposed 00000001)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+	// `terraform show -json` output for the applied state.
+	const shownStateJSON = `{
+		"format_version":"1.0",
+		"terraform_version":"1.15.0",
+		"values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}}
+		]}}
+	}`
+
+	tests := []struct {
+		name     string
+		source   proto.GraphSource
+		graphDOT string
+		// failFirstGraph makes the graph run during Plan fail.
+		failFirstGraph bool
+		wantShowCalls  []string
+		wantGraphCalls int
+		// wantAgentID is the ID of the agent the state attaches to
+		// docker_container.workspace.
+		wantAgentID string
+	}{
+		{
+			name:           "PlanSourceReusesPlanAndGraph",
+			source:         proto.GraphSource_SOURCE_PLAN,
+			graphDOT:       graphDOT,
+			wantShowCalls:  []string{"plan"},
+			wantGraphCalls: 1,
+		},
+		{
+			name:           "StateSourceReusesGraph",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphDOT,
+			wantShowCalls:  []string{"plan", "state"},
+			wantGraphCalls: 1,
+			wantAgentID:    "agent-id",
+		},
+		{
+			name:           "PriorStateNodesRebuildGraph",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphWithDeposedDOT,
+			wantShowCalls:  []string{"plan", "state"},
+			wantGraphCalls: 2,
+		},
+		{
+			name:           "GraphFailedDuringPlan",
+			source:         proto.GraphSource_SOURCE_STATE,
+			graphDOT:       graphDOT,
+			failFirstGraph: true,
+			wantShowCalls:  []string{"plan", "state"},
+			wantGraphCalls: 2,
+			wantAgentID:    "agent-id",
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid "text file busy"; see above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planPath := filepath.Join(dir, "plan.json")
+			statePath := filepath.Join(dir, "state.json")
+			graphPath := filepath.Join(dir, "graph.dot")
+			failGraphPath := filepath.Join(dir, "fail-graph")
+			showArgsPath := filepath.Join(dir, "show-args")
+			graphArgsPath := filepath.Join(dir, "graph-args")
+			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
+			require.NoError(t, os.WriteFile(statePath, []byte(shownStateJSON), 0o600))
+			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
+			if test.failFirstGraph {
+				require.NoError(t, os.WriteFile(failGraphPath, nil, 0o600))
+			}
+
+			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+show)
+	if [ "$#" -eq 3 ]; then
+		echo state >> %[1]q
+		cat %[2]q
+	else
+		echo plan >> %[1]q
+		cat %[3]q
+	fi
+	;;
+graph)
+	echo graph >> %[4]q
+	if [ -f %[5]q ]; then
+		rm %[5]q
+		exit 1
+	fi
+	cat %[6]q
+	;;
+plan|init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`, showArgsPath, statePath, planPath, graphArgsPath, failGraphPath, graphPath))
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+			require.Empty(t, init.Error)
+			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_STOP))
+			_, response := readProvisionLog(t, sess)
+			require.NotNil(t, response.GetPlan())
+			require.Empty(t, response.GetPlan().Error)
+
+			require.NoError(t, sess.Send(&proto.Request{
+				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+					Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_STOP},
+					Source:   test.source,
+				}},
+			}))
+			_, response = readProvisionLog(t, sess)
+			require.NotNil(t, response.GetGraph())
+			require.Empty(t, response.GetGraph().Error)
+			if test.wantAgentID != "" {
+				resources := response.GetGraph().GetResources()
+				require.Len(t, resources, 1)
+				require.Equal(t, "workspace", resources[0].GetName())
+				require.Len(t, resources[0].GetAgents(), 1)
+				require.Equal(t, test.wantAgentID, resources[0].GetAgents()[0].GetId())
+			}
+
+			require.Equal(t, test.wantShowCalls, readShimCalls(t, showArgsPath))
+			require.Len(t, readShimCalls(t, graphArgsPath), test.wantGraphCalls)
+		})
+	}
+}
+
 // below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
 // one process tries to do this simultaneously, it can cause "text file busy"
 // nolint: paralleltest
@@ -1491,8 +1669,15 @@ func TestProvision(t *testing.T) {
 				require.NotNil(t, applyComplete)
 
 				if testCase.Response != nil {
-					normalizeResources(graphComplete.Resources)
-					resourcesGot, err := json.Marshal(graphComplete.Resources)
+					// Graph reads the state file that apply wrote.
+					resp = provision(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+						Source: proto.GraphSource_SOURCE_STATE,
+					}}})
+					stateGraph := resp.GetGraph()
+					require.NotNil(t, stateGraph)
+					require.Empty(t, stateGraph.Error)
+					normalizeResources(stateGraph.Resources)
+					resourcesGot, err := json.Marshal(stateGraph.Resources)
 					require.NoError(t, err)
 					resourcesWant, err := json.Marshal(testCase.Response.Resources)
 					require.NoError(t, err)
