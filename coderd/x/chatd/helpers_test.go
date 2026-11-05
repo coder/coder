@@ -169,6 +169,38 @@ func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
 	return res.Chat
 }
 
+// createRunningChatWithDynamicTools creates a running chat that declares the
+// named dynamic tools.
+func (f *workerTestFixture) createRunningChatWithDynamicTools(t *testing.T, names ...string) database.Chat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tools := make([]codersdk.DynamicTool, 0, len(names))
+	for _, name := range names {
+		tools = append(tools, codersdk.DynamicTool{
+			Name:        name,
+			Description: "test tool",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		})
+	}
+	dynamicTools, err := json.Marshal(tools)
+	require.NoError(t, err)
+	res, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID:    f.org.ID,
+		OwnerID:           f.user.ID,
+		LastModelConfigID: f.model.ID,
+		Title:             "test",
+		ClientType:        database.ChatClientTypeApi,
+		DynamicTools:      pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true},
+		InitialStatus:     database.ChatStatusRunning,
+		InitialMessages: []chatstate.Message{
+			userTextMessage(t, "hello", f.user.ID, f.model.ID),
+		},
+	})
+	require.NoError(t, err)
+	f.pubsub.clear()
+	return res.Chat
+}
+
 func (f *workerTestFixture) createRunningSubagentChat(t *testing.T, parentID uuid.UUID) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)

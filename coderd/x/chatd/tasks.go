@@ -337,9 +337,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions, canceled)
+		committedCancels, err := committedPendingToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions, canceled)
 		if err != nil {
-			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
+			return xerrors.Errorf("committed pending tool cancellation messages: %w", err)
 		}
 		if len(committedCancels) > 0 {
 			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
@@ -814,7 +814,15 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 	return results
 }
 
-func committedPendingLocalToolCancellationMessages(
+// committedPendingToolCancellationMessages builds a cancellation result for
+// every unresolved call of the chat's last step, because FinishInterruption
+// rejects the chat while any call is outstanding, whatever its kind. That
+// includes the calls of the chat's dynamic tools: a step can commit them
+// beside local calls, and Interrupt does not close them from running. It also
+// includes a call to a built-in that shares its name with a dynamic tool.
+// Generation ran that call as the built-in, but only the chat's dynamic tool
+// names are known here, so it counts as dynamic.
+func committedPendingToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
@@ -829,16 +837,26 @@ func committedPendingLocalToolCancellationMessages(
 	if err != nil {
 		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
-	localCalls, _, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	calls, dynamicCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
 		return nil, err
 	}
-	if len(localCalls) == 0 {
+	// Dynamic calls go last. Generation numbers the calls it runs, and runs
+	// dynamic calls only after the local ones, so the local positions keep
+	// matching the indexes in toolCompletions.
+	for _, dynamicCall := range dynamicCalls {
+		calls = append(calls, fantasy.ToolCallContent{
+			ToolCallID: dynamicCall.ToolCallID,
+			ToolName:   dynamicCall.ToolName,
+			Input:      dynamicCall.Args,
+		})
+	}
+	if len(calls) == 0 {
 		return nil, nil
 	}
 	var intervals []chatloop.BilledInterval
-	result := make([]chatstate.Message, 0, len(localCalls))
-	for i, call := range localCalls {
+	result := make([]chatstate.Message, 0, len(calls))
+	for i, call := range calls {
 		resp, ok := canceled[call.ToolCallID]
 		if !ok {
 			resp = fantasy.NewTextErrorResponse(interruptedToolResultErrorMessage)

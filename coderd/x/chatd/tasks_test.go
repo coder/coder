@@ -495,7 +495,16 @@ func interruptedBatchFixture(
 	calls []codersdk.ChatMessagePart,
 ) interruptedBatch {
 	t.Helper()
-	chat := f.createRunningChat(t)
+	return interruptedBatchFixtureForChat(t, f, f.createRunningChat(t), calls)
+}
+
+func interruptedBatchFixtureForChat(
+	t *testing.T,
+	f *workerTestFixture,
+	chat database.Chat,
+	calls []codersdk.ChatMessagePart,
+) interruptedBatch {
+	t.Helper()
 	raw, err := chatprompt.MarshalParts(calls)
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
@@ -625,6 +634,73 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnUsageRecord(t *testing.T) {
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
 	requireSingleBatchUsageRecord(t, f, batch.chat.ID, 3_000, 1)
+}
+
+// TestInterruptTask_ClosesEveryUnresolvedToolCall covers steps that commit a
+// call the interrupt cannot cancel on an agent. FinishInterruption rejects
+// every outstanding call, so the interrupt must close those calls too.
+func TestInterruptTask_ClosesEveryUnresolvedToolCall(t *testing.T) {
+	t.Parallel()
+
+	const dynamicTool = "my_dynamic_tool"
+	tests := []struct {
+		name         string
+		dynamicTools []string
+		calls        []string // Tool names, in call order.
+		// started lists the calls recorded as started, numbered as generation
+		// numbers the calls it runs.
+		started      []int
+		wantBilledMs int64 // Zero means no usage record.
+	}{
+		// A step commits a built-in call and a dynamic call: the built-in
+		// runs while the dynamic call stays pending.
+		{name: "DynamicBesideLocal", dynamicTools: []string{dynamicTool}, calls: []string{"read_file", dynamicTool}},
+		// The chat is running between committing the step and requiring action.
+		{name: "OnlyDynamic", dynamicTools: []string{dynamicTool}, calls: []string{dynamicTool}},
+		// Generation runs a built-in over a dynamic tool with the same name.
+		{name: "NameCollision", dynamicTools: []string{"execute"}, calls: []string{"execute"}, started: []int{0}, wantBilledMs: 7_000},
+		// Generation numbers only wait_agent, which is unbilled. The dynamic
+		// call before it must not take its index.
+		{name: "DynamicBeforeLocalKeepsBillingIndexes", dynamicTools: []string{dynamicTool}, calls: []string{dynamicTool, "wait_agent"}, started: []int{0}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newWorkerTestFixture(t)
+			calls := make([]codersdk.ChatMessagePart, 0, len(tc.calls))
+			for i, toolName := range tc.calls {
+				calls = append(calls, codersdk.ChatMessagePart{
+					Type:       codersdk.ChatMessagePartTypeToolCall,
+					ToolCallID: fmt.Sprintf("call_%d_%s", i, uuid.NewString()),
+					ToolName:   toolName,
+					Args:       json.RawMessage(`{}`),
+				})
+			}
+			batch := interruptedBatchFixtureForChat(t, f, f.createRunningChatWithDynamicTools(t, tc.dynamicTools...), calls)
+			batch.clock.Advance(2 * time.Second)
+			for _, index := range tc.started {
+				require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, index, batch.clock.Now()))
+			}
+			batch.clock.Advance(7 * time.Second)
+
+			messages := batch.interrupt(t, f)
+			for _, call := range calls {
+				parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, call.ToolCallID))
+				require.NoError(t, err)
+				require.Len(t, parts, 1)
+				require.True(t, parts[0].IsError, call.ToolName)
+			}
+			latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), batch.chat.ID)
+			require.NoError(t, err)
+			require.NotEqual(t, database.ChatStatusInterrupting, latest.Status)
+			if tc.wantBilledMs == 0 {
+				require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
+				return
+			}
+			requireSingleBatchUsageRecord(t, f, batch.chat.ID, tc.wantBilledMs, 1)
+		})
+	}
 }
 
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
