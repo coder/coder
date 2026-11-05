@@ -20,3 +20,6 @@ allowBuilds:
   protobufjs: false
   ssh2: true
   storybook-addon-remix-react-router: false
+
+patchedDependencies:
+  frimousse@0.4.0: patches/frimousse@0.4.0.patch
