@@ -132,8 +132,7 @@ When several messages are delivered together, the agent uses the model of the la
 Queued messages show above the message box in two groups.
 The agent receives messages under **Next step** before its next model call, and messages under **After turn** when the current turn ends.
 **Send now** moves a message to **Next step**, or sends it at once when the agent isn't working.
-**Send now** doesn't stop the agent.
-API and MCP clients can set `busy_behavior` to `queue` to deliver a message when the current turn ends instead.
+From the chat UI, a message sent while the agent works goes under **Next step**.
 Users can edit a queued message before it is delivered.
 While it is being edited, it and the messages behind it wait.
 
