@@ -147,6 +147,47 @@ func TestConnectionReporter(t *testing.T) {
 	})
 }
 
+func TestConnectionReporterWaitUntilReported(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	reporter := newConnectionReporter(ctx, testutil.Logger(t))
+	sink := newFakeConnectionReportSink()
+	loopCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() { _ = reporter.reportLoop(loopCtx, sink) }()
+
+	require.NoError(t, reporter.waitUntilReported(ctx), "no connections are open")
+
+	connection := reporter.Connect(proto.ConnectEvent{ID: uuid.New(), Method: proto.Connection_METHOD_SSH})
+	waited := make(chan error, 1)
+	go func() { waited <- reporter.waitUntilReported(ctx) }()
+	requireWaiting := func() {
+		t.Helper()
+		select {
+		case err := <-waited:
+			t.Fatalf("wait finished early: %v", err)
+		default:
+		}
+	}
+	// The sink holds each report until the test receives it. The wait must
+	// last until the open connection reports its disconnect and that report
+	// has been sent.
+	testutil.RequireReceive(ctx, t, sink.report)
+	requireWaiting()
+	connection.Disconnect(proto.DisconnectEvent{})
+	connection.Disconnect(proto.DisconnectEvent{})
+	requireWaiting()
+	testutil.RequireReceive(ctx, t, sink.report)
+	require.NoError(t, testutil.RequireReceive(ctx, t, waited))
+
+	// An ended context stops the wait while a connection is still open.
+	reporter.Connect(proto.ConnectEvent{ID: uuid.New(), Method: proto.Connection_METHOD_SSH})
+	waitCtx, waitCancel := context.WithCancel(ctx)
+	waitCancel()
+	require.ErrorIs(t, reporter.waitUntilReported(waitCtx), context.Canceled)
+	testutil.RequireReceive(ctx, t, sink.report)
+}
+
 type fakeConnectionReportSink struct {
 	report chan *proto.ReportConnectionRequest
 }

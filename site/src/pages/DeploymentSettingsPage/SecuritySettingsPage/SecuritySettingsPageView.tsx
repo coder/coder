@@ -62,9 +62,15 @@ export const SecuritySettingsPageView: React.FC<
 						className="items-center"
 					>
 						Browser-Only Connections{" "}
-						<BadgeGroup>
-							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-						</BadgeGroup>
+						{isBrowserOnlyEntitled && (
+							<BadgeGroup>
+								{featureBrowserOnlyEnabled ? (
+									<EnabledBadge />
+								) : (
+									<DisabledBadge />
+								)}
+							</BadgeGroup>
+						)}
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other

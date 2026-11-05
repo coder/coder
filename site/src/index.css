@@ -164,6 +164,20 @@
 		}
 	}
 
+	/* Ends at the element's base opacity, so pair it with opacity-0. */
+	@keyframes flash {
+		0% {
+			opacity: 0;
+		}
+		15%,
+		50% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+
 	/* Steep ease-out for overlay enter and exit. Named curves start too gently. */
 	--ease-out-strong: cubic-bezier(0.19, 1, 0.22, 1);
 
@@ -175,6 +189,7 @@
 		calc(var(--spinner-leaf-count) * 0.1s) ease-in-out
 		calc(var(--spinner-leaf-index) * -0.1s) infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-flash: flash 1.4s ease-out;
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
 	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
@@ -518,6 +533,7 @@
 		--avatar-lg: 2.5rem;
 		--avatar-default: 2rem;
 		--avatar-sm: 1.5rem;
+		--avatar-xs: 1.125rem;
 	}
 	.dark {
 		--content-primary: 0 0% 100%;
@@ -776,6 +792,34 @@
 	html[data-agents-layout] body,
 	html[data-agents-layout] body[data-scroll-locked] {
 		overflow: hidden !important;
+	}
+
+	/* iOS 26+ standalone colors the status bar from the fixed box 4px below the
+	top edge's midpoint when it spans at least 90% of the viewport and is over
+	10px tall (WebKit fixedContainerEdges). Without one, iPadOS blurs about 40pt
+	of the page below the status bar. The element lives in index.html so it
+	exists from the first frame: iPadOS can keep the blur after a frame without
+	it. */
+	.ios-status-bar-band {
+		display: none;
+	}
+
+	@media (display-mode: standalone) {
+		@supports (-webkit-touch-callout: none) {
+			.ios-status-bar-band {
+				display: block;
+				position: fixed;
+				inset: 0 0 auto;
+				height: 12px;
+				background-color: hsl(var(--surface-primary));
+				/* WebKit reads the color from the style, and with no text this clip
+				paints nothing. */
+				background-clip: text;
+				/* Topmost, so no menu or overlay covers the sampled point. */
+				z-index: 2147483647;
+				pointer-events: none;
+			}
+		}
 	}
 
 	h1 {

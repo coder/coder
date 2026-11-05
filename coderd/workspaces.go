@@ -582,9 +582,9 @@ type createWorkspaceOptions struct {
 	// preCreateInTX is a function that is called within the transaction, before
 	// the workspace is created.
 	preCreateInTX func(ctx context.Context, tx database.Store) error
-	// postCreateInTX is a function that is called within the transaction, after
-	// the workspace is created but before the workspace build is created.
-	postCreateInTX func(ctx context.Context, tx database.Store, workspace database.Workspace) error
+	// postBuildInTX is a function that is called within the transaction, after
+	// the workspace and its first build are created.
+	postBuildInTX func(ctx context.Context, tx database.Store, workspace database.Workspace, build database.WorkspaceBuild) error
 	// remoteAddr is the IP address of the request initiator, used for
 	// audit logging. HTTP handlers should pass r.RemoteAddr;
 	// programmatic callers may leave it empty.
@@ -819,15 +819,6 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		// If the postCreate hook is provided, execute it. This can be used to
-		// perform additional actions after the workspace has been created, like
-		// linking the workspace to a task.
-		if opts.postCreateInTX != nil {
-			if err := opts.postCreateInTX(ctx, db, workspace); err != nil {
-				return xerrors.Errorf("workspace postCreate failed: %w", err)
-			}
-		}
-
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
@@ -856,7 +847,16 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggage{IP: opts.remoteAddr},
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if opts.postBuildInTX != nil {
+			if err := opts.postBuildInTX(ctx, db, workspace, *workspaceBuild); err != nil {
+				return xerrors.Errorf("workspace postBuild failed: %w", err)
+			}
+		}
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err
@@ -885,9 +885,23 @@ func createWorkspace(
 
 	auditReq.New = workspace.WorkspaceTable()
 
+	// Report the stored parameters, not the request: coderd drops values for
+	// parameters the template does not declare and fills in defaults and
+	// presets, so this matches what the periodic snapshot reports.
+	var storedParameters map[string]string
+	if api.Telemetry.Enabled() {
+		buildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			api.Logger.Warn(ctx, "get workspace build parameters for telemetry", slog.Error(err))
+		}
+		storedParameters = make(map[string]string, len(buildParameters))
+		for _, param := range buildParameters {
+			storedParameters[param.Name] = param.Value
+		}
+	}
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
-		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild)},
+		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild, storedParameters)},
 	})
 
 	apiBuild, err := api.convertWorkspaceBuild(
@@ -3141,6 +3155,16 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 			Int64: int64(templateDefault),
 			Valid: true,
 		}, nil
+	}
+
+	// Check the bounds before converting to a time.Duration: out of range
+	// values wrap around and can land inside the valid range. The maximum
+	// check compares whole minutes to match the truncation below.
+	if *millis < 0 {
+		return sql.NullInt64{}, errTTLMin
+	}
+	if *millis/time.Minute.Milliseconds() > int64(ttlMaximum/time.Minute) {
+		return sql.NullInt64{}, errTTLMax
 	}
 
 	dur := time.Duration(*millis) * time.Millisecond

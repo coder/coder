@@ -57,7 +57,7 @@ They interact with Coder using the web interface, the CLI tool, or directly call
 
 ### Workspace
 
-A [workspace](../../../user-guides/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
+A [workspace](../../../workspaces/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
 Workspaces are fully configurable and can be tailored to specific project requirements, providing developers with a consistent and efficient development environment.
 Workspaces can be autostarted and autostopped, enabling efficient resource management.
 
@@ -67,7 +67,7 @@ Workspaces are instantiated using Coder templates and deployed on resources crea
 
 ### Template
 
-A [template](../../../admin/templates/index.md) in Coder is a predefined configuration for creating workspaces.
+A [template](../../../templates/index.md) in Coder is a predefined configuration for creating workspaces.
 Templates streamline the process of workspace creation by providing pre-configured settings, tooling, and dependencies.
 They are built by template administrators on top of Terraform, allowing for efficient management of infrastructure resources.
 Additionally, templates can utilize Coder modules to leverage existing features shared with other templates, enhancing flexibility and consistency across deployments.
@@ -92,12 +92,12 @@ The [Coder Registry](https://registry.coder.com) is a platform where you can fin
 
 Templates help create self-service development environments using Terraform-defined infrastructure, while _Modules_ simplify template creation by providing common features like workspace applications, third-party integrations, or helper scripts.
 
-Please note that the Registry is a hosted service and isn't available for offline use.
+Note that the Registry is a hosted service and isn't available for offline use.
 
 ### AI Gateway
 
-[AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
-It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md) that scales independently of the control plane.
+[AI Gateway](../../../ai-governance/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
+It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-governance/ai-gateway/standalone.md) that scales independently of the control plane.
 Size replicas based on your AI request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`.
 For the chart's resource requests and autoscaling defaults, refer to the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
@@ -220,7 +220,7 @@ We recommend leveraging a [supported Container Storage Interface (CSI) driver](h
 The following Kubernetes volume types have been validated by Coder internally, and/or by our customers:
 
 - [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/volumes/#persistentvolumeclaim)
-- [NFS](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
+- [Network File System (NFS)](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
 - [subPath](https://kubernetes.io/docs/concepts/storage/volumes/#using-subpath)
 - [cephfs](https://kubernetes.io/docs/concepts/storage/volumes/#cephfs)
 
@@ -254,7 +254,7 @@ When determining scaling requirements, take into account the following considera
 
 - `2 vCPU x 8 GB RAM x 512 GB storage`: A baseline for database requirements for Coder deployment with less than 1000 users, and low activity level (30% active users).
   This capacity should be sufficient to support 100 external provisioners.
-- Storage size depends on user activity, workspace builds, log verbosity, overhead on database encryption, etc.
+- Storage size depends on user activity, workspace builds, log verbosity, overhead on database encryption, and so on.
 - Allocate two additional CPU core to the database instance for every 1000 active users.
 - Enable High Availability mode for database engine for large scale deployments.
 
@@ -301,8 +301,8 @@ Below are recommended instance types for each major cloud provider:
 For optimal database performance, use the following storage types:
 
 - **AWS RDS/Aurora**:
-  Use `gp3` (General Purpose SSD) volumes with at least 3,000 IOPS for production workloads.
-  For high-performance requirements, consider `io1` or `io2` volumes with provisioned IOPS.
+  For Amazon Relational Database Service (RDS), use `gp3` volumes, the General Purpose solid-state drive (SSD) type, with at least 3,000 IOPS for production workloads.
+  For high-performance requirements, consider `io1` or `io2` volumes with provisioned input/output operations per second (IOPS).
 
 - **Azure Database for PostgreSQL**:
   Use Premium SSD (P-series) with appropriate IOPS and throughput provisioning.
@@ -339,20 +339,23 @@ Operational readiness is crucial because it helps prevent issues that could affe
 ### Template configuration
 
 1. Establish dedicated accounts for users with the _Template Administrator_ role.
-1. Maintain Coder templates using [version control](../../../admin/templates/managing-templates/change-management.md).
+1. Maintain Coder templates using [version control](../../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template versions into Coder from git.
+
    For example, on GitHub, you can use the [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
-1. Evaluate enabling [automatic template updates](../../../admin/templates/managing-templates/index.md#template-update-policies) upon workspace startup.
+1. Evaluate enabling [automatic template updates](../../../templates/managing-templates/index.md#template-update-policies) upon workspace startup.
 
 ### Observability
 
 1. Enable the Prometheus endpoint (environment variable: `CODER_PROMETHEUS_ENABLE`).
 1. Deploy the [Coder Observability bundle](https://github.com/coder/observability) to leverage pre-configured dashboards, alerts, and runbooks for monitoring Coder.
+
    This includes integrations between Prometheus, Grafana, Loki, and Alertmanager.
 1. Review the [Prometheus response](../../../admin/integrations/prometheus.md) and set up alarms on selected metrics.
 
 ### User support
 
 1. Incorporate [support links](../../../admin/setup/appearance.md#support-links) into internal documentation accessible from the user context menu.
+
    Ensure that hyperlinks are valid and lead to up-to-date materials.
 1. Encourage the use of `coder support bundle` to allow workspace users to generate and provide network-related diagnostic data.

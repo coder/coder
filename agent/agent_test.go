@@ -134,8 +134,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
-	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC216WithRole(context.Context, string) (
+	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -470,85 +470,107 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 	})
 
-	t.Run("TracksJetBrains", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS != "linux" {
-			t.Skip("JetBrains tracking is only supported on Linux")
+	for _, shutdown := range []bool{false, true} {
+		name := "TracksJetBrains"
+		if shutdown {
+			name = "TracksJetBrainsAgentShutdown"
 		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS != "linux" {
+				t.Skip("JetBrains tracking is only supported on Linux")
+			}
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-		// JetBrains tracking works by looking at the process name listening on the
-		// forwarded port.  If the process's command line includes the magic string
-		// we are looking for, then we assume it is a JetBrains editor.  So when we
-		// connect to the port we must ensure the process includes that magic string
-		// to fool the agent into thinking this is JetBrains.  To do this we need to
-		// spawn an external process (in this case a simple echo server) so we can
-		// control the process name.  The -D here is just to mimic how Java options
-		// are set but is not necessary as the agent looks only for the magic
-		// string itself anywhere in the command.
-		_, b, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
-		echoServerCmd := exec.Command("go", "run", dir,
-			"-D", agentssh.MagicProcessCmdlineJetBrains)
-		stdout, err := echoServerCmd.StdoutPipe()
-		require.NoError(t, err)
-		err = echoServerCmd.Start()
-		require.NoError(t, err)
-		defer echoServerCmd.Process.Kill()
+			// JetBrains tracking works by looking at the process name listening on the
+			// forwarded port.  If the process's command line includes the magic string
+			// we are looking for, then we assume it is a JetBrains editor.  So when we
+			// connect to the port we must ensure the process includes that magic string
+			// to fool the agent into thinking this is JetBrains.  To do this we need to
+			// spawn an external process (in this case a simple echo server) so we can
+			// control the process name.  The -D here is just to mimic how Java options
+			// are set but is not necessary as the agent looks only for the magic
+			// string itself anywhere in the command.
+			_, b, _, ok := runtime.Caller(0)
+			require.True(t, ok)
+			dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
+			echoServerCmd := exec.Command("go", "run", dir,
+				"-D", agentssh.MagicProcessCmdlineJetBrains)
+			stdout, err := echoServerCmd.StdoutPipe()
+			require.NoError(t, err)
+			err = echoServerCmd.Start()
+			require.NoError(t, err)
+			defer echoServerCmd.Process.Kill()
 
-		// The echo server prints its port as the first line.
-		sc := bufio.NewScanner(stdout)
-		sc.Scan()
-		remotePort := sc.Text()
+			// The echo server prints its port as the first line.
+			sc := bufio.NewScanner(stdout)
+			sc.Scan()
+			remotePort := sc.Text()
 
-		//nolint:dogsled
-		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
+			sink := testutil.NewFakeSink(t)
+			conn, agentClient, stats, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+				o.Logger = sink.Logger()
+			})
+			sshClient, err := conn.SSHClient(ctx)
+			require.NoError(t, err)
 
-		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			// always close on failure of test
-			_ = conn.Close()
+			tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				// always close on failure of test
+				_ = conn.Close()
+				_ = tunneledConn.Close()
+			})
+
+			require.Eventuallyf(t, func() bool {
+				s, ok := <-stats
+				t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
+					ok, s.ConnectionCount, s.SessionCounts["jetbrains"])
+				return ok && s.SessionCounts["jetbrains"] == 1
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats with conn open",
+			)
+
+			written := requireEcho(t, tunneledConn)
+			if shutdown {
+				require.NoError(t, agnt.Close())
+				assertConnectionReport(t, agentClient,
+					proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
+					proto.DisconnectEvent{
+						Reason:  string(codersdk.DisconnectReasonServerShutdown),
+						RxBytes: int64(written),
+						TxBytes: int64(written),
+					},
+				)
+				requireDisconnectLog(t, sink, "JetBrains channel closed", "", codersdk.DisconnectReasonServerShutdown)
+				return
+			}
+
+			// Kill the server and connection after checking for the echo.
+			_ = echoServerCmd.Process.Kill()
 			_ = tunneledConn.Close()
+
+			require.Eventuallyf(t, func() bool {
+				s, ok := <-stats
+				t.Logf("got stats after disconnect %t, %d",
+					ok, s.SessionCounts["jetbrains"])
+				return ok &&
+					s.SessionCounts["jetbrains"] == 0
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats after conn closes",
+			)
+
+			assertConnectionReport(t, agentClient,
+				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
+				proto.DisconnectEvent{
+					Reason:  "normal close",
+					RxBytes: int64(written),
+					TxBytes: int64(written),
+				},
+			)
 		})
-
-		require.Eventuallyf(t, func() bool {
-			s, ok := <-stats
-			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
-				ok, s.ConnectionCount, s.SessionCounts["jetbrains"])
-			return ok && s.SessionCounts["jetbrains"] == 1
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats with conn open",
-		)
-
-		// Kill the server and connection after checking for the echo.
-		written := requireEcho(t, tunneledConn)
-		_ = echoServerCmd.Process.Kill()
-		_ = tunneledConn.Close()
-
-		require.Eventuallyf(t, func() bool {
-			s, ok := <-stats
-			t.Logf("got stats after disconnect %t, %d",
-				ok, s.SessionCounts["jetbrains"])
-			return ok &&
-				s.SessionCounts["jetbrains"] == 0
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats after conn closes",
-		)
-
-		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
-			proto.DisconnectEvent{
-				Reason:  "normal close",
-				RxBytes: int64(written),
-				TxBytes: int64(written),
-			},
-		)
-	})
+	}
 }
 
 func TestAgent_SessionExec(t *testing.T) {
@@ -1836,68 +1858,38 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 func TestAgent_CoderEnvVars(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_OWNER_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
+	manifest := agentsdk.Manifest{
+		AgentName:        "test-agent",
+		OwnerName:        "test-user",
+		WorkspaceName:    "test-workspace",
+		WorkspaceID:      uuid.New(),
+		WorkspaceBuildID: uuid.New(),
+		TemplateID:       uuid.New(),
+		TemplateName:     "test-template",
+	}
+	for key, want := range map[string]string{
+		"CODER":                         "true",
+		"CODER_WORKSPACE_NAME":          manifest.WorkspaceName,
+		"CODER_WORKSPACE_OWNER_NAME":    manifest.OwnerName,
+		"CODER_WORKSPACE_AGENT_NAME":    manifest.AgentName,
+		"CODER_WORKSPACE_ID":            manifest.WorkspaceID.String(),
+		"CODER_WORKSPACE_BUILD_ID":      manifest.WorkspaceBuildID.String(),
+		"CODER_WORKSPACE_TEMPLATE_ID":   manifest.TemplateID.String(),
+		"CODER_WORKSPACE_TEMPLATE_NAME": manifest.TemplateName,
+	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+			session := setupSSHSession(t, manifest, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
 			}
 			output, err := session.Output(command)
 			require.NoError(t, err)
-			require.NotEmpty(t, strings.TrimSpace(string(output)))
+			require.Equal(t, want, strings.TrimSpace(string(output)))
 		})
 	}
-}
-
-func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
-	t.Parallel()
-
-	command := "sh -c 'echo $CODER_WORKSPACE_BUILD_ID'"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo %CODER_WORKSPACE_BUILD_ID%"
-	}
-
-	buildID := uuid.New()
-	session := setupSSHSession(t, agentsdk.Manifest{WorkspaceBuildID: buildID}, codersdk.ServiceBannerConfig{}, nil)
-	output, err := session.Output(command)
-	require.NoError(t, err)
-	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
-
-	// A manifest from a server that predates the build ID leaves it unset
-	// rather than exporting the nil UUID.
-	t.Run("Unset", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS == "windows" {
-			t.Skip("uses POSIX parameter expansion")
-		}
-		// The agent inherits the runner's environment, so hide any build ID the
-		// runner itself exports.
-		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
-			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
-		})
-		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
-		require.NoError(t, err)
-		require.Equal(t, "unset", strings.TrimSpace(string(output)))
-	})
-}
-
-// withoutEnvInfo is the system environment without one variable.
-type withoutEnvInfo struct {
-	usershell.SystemEnvInfo
-	exclude string
-}
-
-func (e withoutEnvInfo) Environ() []string {
-	var environ []string
-	for _, kv := range e.SystemEnvInfo.Environ() {
-		if !strings.HasPrefix(kv, e.exclude+"=") {
-			environ = append(environ, kv)
-		}
-	}
-	return environ
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
@@ -4776,12 +4768,16 @@ func requireEcho(t *testing.T, conn net.Conn) int {
 const (
 	wantSomeBytes   int64 = -1
 	wantIgnoreBytes int64 = -2
+	// wantIgnoreCode skips the disconnect status code check, for disconnects
+	// whose code depends on process timing.
+	wantIgnoreCode = -1
 )
 
 // assertConnectionReport expects the provided connect and disconnect events
 // have been reported.  If the disconnection bytes are wantSomeBytes, assert the
 // bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
-// they match exactly.
+// they match exactly. If the disconnect code is wantIgnoreCode, do not check
+// the status code, otherwise assert it matches exactly.
 func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
 ) {
@@ -4810,7 +4806,9 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
+	if disconnect.Code != wantIgnoreCode {
+		assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
+	}
 	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
 	if disconnect.Reason != "" {
 		assert.Contains(t, reports[1].GetConnection().GetReason(), disconnect.Reason, "disconnect reason should contain %s", disconnect.Reason)

@@ -17,12 +17,11 @@ import (
 func TestExperimentRules(t *testing.T) {
 	t.Parallel()
 
-	// mcp-tool-search is enabled at startup; example is not.
-	setup := func(t *testing.T) (*codersdk.Client, *codersdk.Client, func(args ...string) (string, string, error)) {
+	setup := func(t *testing.T, experiments ...string) (*codersdk.Client, *codersdk.Client, func(args ...string) (string, string, error)) {
 		t.Helper()
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: coderdtest.DeploymentValues(t, func(v *codersdk.DeploymentValues) {
-				v.Experiments = []string{string(codersdk.ExperimentMCPToolSearch)}
+				v.Experiments = experiments
 			}),
 		})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
@@ -76,8 +75,9 @@ func TestExperimentRules(t *testing.T) {
 
 		_, _, err = run("off", "example")
 		require.NoError(t, err)
-		_, _, err = run("reset", "example")
+		_, stderr, err := run("reset", "example")
 		require.NoError(t, err)
+		require.NotContains(t, stderr, "Reset is not a kill switch")
 		rule := storedRule(ctx, t, ownerClient, codersdk.ExperimentExample)
 		require.Equal(t, string(codersdk.ExperimentRuleModeInherit), rule.Mode)
 		require.Equal(t, int64(4), rule.Revision)
@@ -86,13 +86,12 @@ func TestExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		var entries []codersdk.ExperimentRuleEntry
 		require.NoError(t, json.Unmarshal([]byte(stdout), &entries))
-		require.Len(t, entries, 2)
+		require.Len(t, entries, 1)
 		require.Equal(t, rule, entries[0].Rule)
 
 		stdout, _, err = run("list")
 		require.NoError(t, err)
 		require.Regexp(t, `example\s+false\s+inherit\s+4`, stdout)
-		require.Regexp(t, `mcp-tool-search\s+true\s+\(none\)\s+0`, stdout)
 	})
 
 	// A stale --expected-revision fails with the current state and is not
@@ -117,19 +116,19 @@ func TestExperimentRules(t *testing.T) {
 	// that it is not a kill switch.
 	t.Run("ResetWarnsWhenStaticDefaultOn", func(t *testing.T) {
 		t.Parallel()
-		_, memberClient, run := setup(t)
+		_, memberClient, run := setup(t, string(codersdk.ExperimentExample))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, _, err := run("off", "mcp-tool-search")
+		stdout, _, err := run("list")
 		require.NoError(t, err)
-		requireMemberEnabled(ctx, t, memberClient, codersdk.ExperimentMCPToolSearch, false)
-		_, stderr, err := run("reset", "mcp-tool-search")
+		require.Regexp(t, `example\s+true\s+\(none\)\s+0`, stdout)
+
+		_, _, err = run("off", "example")
+		require.NoError(t, err)
+		requireMemberEnabled(ctx, t, memberClient, codersdk.ExperimentExample, false)
+		_, stderr, err := run("reset", "example")
 		require.NoError(t, err)
 		require.Contains(t, stderr, "Reset is not a kill switch")
-		requireMemberEnabled(ctx, t, memberClient, codersdk.ExperimentMCPToolSearch, true)
-
-		_, stderr, err = run("reset", "example")
-		require.NoError(t, err)
-		require.NotContains(t, stderr, "Reset is not a kill switch")
+		requireMemberEnabled(ctx, t, memberClient, codersdk.ExperimentExample, true)
 	})
 }

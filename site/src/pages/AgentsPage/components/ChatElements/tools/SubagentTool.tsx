@@ -3,7 +3,6 @@ import {
 	CircleXIcon,
 	ClockIcon,
 	ExternalLinkIcon,
-	LoaderIcon,
 	MonitorIcon,
 } from "lucide-react";
 import type React from "react";
@@ -107,28 +106,13 @@ function getSubagentLabel(
 	);
 }
 
-/**
- * Resolves a sub-agent status string and tool-level status into a
- * display icon. The sub-agent status in the tool result is a
- * snapshot from when the tool returned and may be stale (e.g. a
- * background sub-agent records "running" forever). The icon is
- * therefore driven primarily by the tool-call status itself.
- */
 const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
 	isTimeout: boolean;
 	iconKind: SubagentDescriptor["iconKind"];
-	showDesktopPreview: boolean;
-}> = ({
-	subagentStatus,
-	toolStatus,
-	isError,
-	isTimeout,
-	iconKind,
-	showDesktopPreview,
-}) => {
+}> = ({ subagentStatus, toolStatus, isError, isTimeout, iconKind }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
@@ -136,16 +120,6 @@ const SubagentStatusIcon: React.FC<{
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
-	}
-	if (toolStatus === "running") {
-		if (showDesktopPreview) {
-			return (
-				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
-			);
-		}
-		return (
-			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
-		);
 	}
 	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
@@ -230,7 +204,6 @@ export const SubagentTool: React.FC<{
 							isError={isError}
 							isTimeout={isTimeout}
 							iconKind={descriptor.iconKind}
-							showDesktopPreview={showDesktopPreview}
 						/>
 					</ToolCall.LeadingIcon>
 					<ToolCall.Label>
@@ -243,6 +216,11 @@ export const SubagentTool: React.FC<{
 							modelDisplay,
 						)}
 					</ToolCall.Label>
+					{/* Spinner only: the leading icon shows failures, and a failed call
+					    keeps toolStatus "running" while its sub-agent still runs. */}
+					{toolStatus === "running" && !isError && !isTimeout && (
+						<ToolCall.Status />
+					)}
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (

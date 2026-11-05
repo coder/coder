@@ -36,6 +36,7 @@ export const Bar: React.FC<BarProps> = ({
 			className={cn(
 				"relative flex h-[inherit] min-w-6 rounded-lg border border-border bg-surface-primary p-[7px]",
 				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
+				"outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				htmlProps.className,
 			)}
 			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}

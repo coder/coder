@@ -2,7 +2,7 @@
 title: Licensing
 ---
 
-Some features are only accessible with a Premium license, including [AI Governance](../../ai-coder/ai-governance.md).
+Some features are only accessible with a Premium license, including [AI Governance](../../ai-governance/index.md).
 See our [pricing page](https://coder.com/pricing) for more details.
 To try paid features, you can [request a trial](https://coder.com/trial) or [contact sales](https://coder.com/contact).
 
@@ -10,7 +10,7 @@ To try paid features, you can [request a trial](https://coder.com/trial) or [con
 
 ## Offline license validation
 
-Coder license keys are signed JWTs that are validated locally using cryptographic signatures.
+Coder license keys are signed JSON Web Tokens (JWTs) that are validated locally using cryptographic signatures.
 No outbound connection to Coder's servers is required for license validation.
 This means licenses work in [air-gapped and offline deployments](./airgap.md) without any additional configuration.
 
@@ -30,13 +30,13 @@ There are two ways to add a license to a Coder deployment:
 
    ![Add a license from the licenses screen](../../images/admin/licenses/licenses-nolicense.png)
 
-1. On the **Add a license** screen, drag your `.jwt` license file into the **Upload Your License** section, or paste your license in the **Paste Your License** text box, then select **Upload License**:
+1. On the **Add a license** screen, drag your `.jwt` file into **Upload Your License** or paste it into **Paste Your License**, then select **Upload License**:
 
    ![Add a license screen](../../images/admin/licenses/add-license-ui.png)
 
 ### Coder CLI
 
-1. Ensure you have the [Coder CLI](../cli.md) installed.
+1. Make sure you have the [Coder CLI](https://coder.com/downloads) installed.
 1. Save your license key to disk and make note of the path.
 1. Open a terminal.
 1. Log in to your Coder deployment:

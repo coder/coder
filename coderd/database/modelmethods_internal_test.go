@@ -215,12 +215,12 @@ func TestChatProjectRBACObjects(t *testing.T) {
 
 		memory := ChatProjectMemoryRBACObject(project)
 		require.Equal(t, map[string][]policy.Action{
-			readUser:     {policy.ActionRead},
+			readUser:     readWrite,
 			updateUser:   readWrite,
 			wildcardUser: readWrite,
 		}, memory.ACLUserList)
 		require.Equal(t, map[string][]policy.Action{
-			readGroup:   {policy.ActionRead},
+			readGroup:   readWrite,
 			updateGroup: readWrite,
 		}, memory.ACLGroupList)
 
@@ -238,8 +238,8 @@ func TestChatProjectRBACObjects(t *testing.T) {
 		ctx := context.Background()
 		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionRead, obj))
 		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionRead, memory))
-		require.Error(t, auth.Authorize(ctx, subject, policy.ActionCreate, memory))
-		require.Error(t, auth.Authorize(ctx, subject, policy.ActionDelete, withID))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionCreate, memory))
+		require.NoError(t, auth.Authorize(ctx, subject, policy.ActionDelete, withID))
 		require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
 	})
 

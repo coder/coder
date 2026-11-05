@@ -103,7 +103,6 @@ const meta: Meta<typeof GitPanel> = {
 		repositories: new Map(),
 		everDirty: new Set(),
 		isGitStatusLoading: false,
-		isExpanded: false,
 		chatInputRef: { current: null },
 	},
 	decorators: [

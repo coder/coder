@@ -10,7 +10,7 @@ Kubernetes provides container orchestration capabilities, allowing Coder to effi
 This ensures high availability, fault tolerance, and scalability for Coder deployments.
 Coder is deployed on this cluster using the [Helm chart](../server/kubernetes/index.md#4-install-coder-with-helm).
 
-For more information about scaling, see our [Coder scaling best practices](../../tutorials/best-practices/scale-coder.md).
+For more information about scaling, see our [Coder scaling best practices](scale-coder.md).
 
 ## Methodology
 
@@ -20,11 +20,12 @@ Our scale tests include the following stages:
 
 1. SSH connections: establish user connections with agents, verifying their ability to echo back received content.
 
-1. Web Terminal: verify the PTY connection used for communication with Web Terminal.
+1. Web Terminal: verify the pseudo-terminal (PTY) connection used for communication with Web Terminal.
 
-1. Workspace application traffic: assess the handling of user connections with specific workspace apps, confirming their capability to echo back received content effectively.
+1. Workspace application traffic: confirm that specific workspace apps handle user connections and echo back received content.
 
 1. Dashboard evaluation: verify the responsiveness and stability of Coder dashboards under varying load conditions.
+
    This is achieved by simulating user interactions using instances of headless Chromium browsers.
 
 1. Cleanup: delete workspaces and users created in step 1.
@@ -33,7 +34,7 @@ Our scale tests include the following stages:
 
 The scale tests runner can distribute the workload to overlap single scenarios based on the workflow configuration:
 
-|                      | T0 | T1 | T2 | T3 | T4 | T5 | T6 |
+| Scenario             | T0 | T1 | T2 | T3 | T4 | T5 | T6 |
 |----------------------|----|----|----|----|----|----|----|
 | SSH connections      | X  | X  | X  | X  |    |    |    |
 | Web Terminal (PTY)   |    | X  | X  | X  | X  |    |    |
@@ -64,7 +65,7 @@ Here are the resulting metrics:
 Coder:
 
 - Median CPU usage for `coderd`: 3&nbsp;vCPU, peaking at 3.7&nbsp;vCPU while all tests are running concurrently.
-- Median API request rate: 350 RPS during dashboard tests, 250 RPS during Web Terminal and workspace apps tests.
+- Median API request rate: 350 requests per second (RPS) during dashboard tests, 250 RPS during Web Terminal and workspace apps tests.
 - 2000 agent API connections with latency: p90 at 60&nbsp;ms, p95 at 220&nbsp;ms.
 - on average 2400 Web Socket connections during dashboard tests.
 
@@ -184,4 +185,4 @@ Another option is to scale based on metrics such as the number of workspaces or 
 It's important to note that as new users onboard, the autoscaling configuration should account for ongoing workspaces.
 
 Scaling down workspace nodes to zero is not recommended, as it will result in longer wait times for workspace provisioning by users.
-However, this may be necessary for workspaces with special resource requirements (e.g. GPUs) that incur significant cost overheads.
+However, this may be necessary for workspaces with special resource requirements (for example, graphics processing units (GPUs)) that incur significant cost overheads.

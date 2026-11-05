@@ -59,10 +59,7 @@ type CompactProjectSelectorProps = {
 	readonly disabled?: boolean;
 };
 
-/**
- * Picks the project a new chat joins, if any. The choice is final: chats
- * cannot move into or out of a project after they are created.
- */
+/** Picks the project a new chat joins, if any. */
 export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 	value,
 	options,
@@ -127,13 +124,8 @@ export const CompactProjectSelector: React.FC<CompactProjectSelectorProps> = ({
 								keywords={[noProjectLabel]}
 								onSelect={() => select(null)}
 							>
-								<MessageCircleIcon className="mt-px self-start" />
-								<span className="flex min-w-0 flex-col gap-0.5">
-									<span>{noProjectLabel}</span>
-									<span className="text-2xs text-content-secondary">
-										Can't move to a project later
-									</span>
-								</span>
+								<MessageCircleIcon />
+								<span className="truncate">{noProjectLabel}</span>
 								{value === null && (
 									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 								)}

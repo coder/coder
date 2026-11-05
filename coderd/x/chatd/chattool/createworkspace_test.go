@@ -88,10 +88,10 @@ func TestCreateWorkspace_DormantDeletedWorkspace(t *testing.T) {
 	var createCalled atomic.Bool
 	tool := chattool.CreateWorkspace(authzDB, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
 		OwnerID: user.ID,
-		CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		CreateFn: func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
 			createCalled.Store(true)
 			require.Equal(t, template.ID, req.TemplateID)
-			return codersdk.Workspace{}, xerrors.New("creation stopped by test")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("creation stopped by test")
 		},
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),

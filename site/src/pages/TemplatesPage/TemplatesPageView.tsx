@@ -89,13 +89,12 @@ const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 				settings.{" "}
 				<Link
 					href={docs(
-						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+						"/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
 					)}
 					target="_blank"
 					rel="noreferrer"
 				>
 					How to upgrade
-					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			</AlertDescription>
 		</Alert>
@@ -110,7 +109,12 @@ const TemplateHelpPopover: React.FC = () => {
 				With templates you can create a common configuration for your workspaces
 				using Terraform.
 				<br />
-				<Link size="sm" href={docs("/admin/templates")}>
+				<Link
+					size="sm"
+					href={docs("/templates")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Manage templates
 				</Link>
 			</TooltipMessage>
@@ -198,17 +202,13 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 			{...clickableRow}
 			className={cn("group", clickableRow.className)}
 		>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					title={
 						<span className="flex flex-row items-center gap-2">
 							{template.display_name || template.name}
 							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge
-									variant="warning"
-									size="sm"
-									className="border-0 shadow-none"
-								>
+								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
 									Compatibility mode
 								</Badge>
@@ -225,7 +225,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 						/>
 					}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (

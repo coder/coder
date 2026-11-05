@@ -164,12 +164,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 	const [chatFullWidth] = useChatFullWidth();
 
 	return (
-		<div
-			className={cn(
-				"relative flex h-full min-h-0 min-w-0 flex-1",
-				rightPanel.open && "flex-row",
-			)}
-		>
+		<div className="relative flex h-full min-h-0 min-w-0 flex-1">
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
 				<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
 					<Skeleton className="size-7 rounded" />

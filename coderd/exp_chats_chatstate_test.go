@@ -248,131 +248,49 @@ func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 	})
 }
 
-// TestDeleteChatQueuedMessageMissingReturns404 covers the new
-// chatstate-driven 404 path for missing queued IDs. The chat must
-// have at least one queued message so the request is in a state where
-// DeleteQueuedMessage is allowed; the looked-up ID then mismatches
-// and the endpoint returns 404 instead of a state-conflict 409.
-func TestDeleteChatQueuedMessageMissingReturns404(t *testing.T) {
+// Missing-ID cases need a non-empty queue to pass the transition check.
+func TestChatQueueEndpointErrors(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name       string
+		method     string
+		pathSuffix string
+		queueFirst bool
+		wantStatus int
+	}{
+		{name: "DeleteMissingReturns404", method: http.MethodDelete, queueFirst: true, wantStatus: http.StatusNotFound},
+		{name: "DeleteEmptyQueueReturnsConflict", method: http.MethodDelete, wantStatus: http.StatusConflict},
+		{name: "PromoteMissingReturns404", method: http.MethodPost, pathSuffix: "/promote", queueFirst: true, wantStatus: http.StatusNotFound},
+		{name: "PromoteEmptyQueueReturnsConflict", method: http.MethodPost, pathSuffix: "/promote", wantStatus: http.StatusConflict},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Seed one queued message via the public endpoint (the chat
-	// starts in R0, so a queue send lands in R1).
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-		Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
-		BusyBehavior: codersdk.ChatBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			})
+			require.NoError(t, err)
+			if tc.queueFirst {
+				_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+					Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
+					BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+				})
+				require.NoError(t, err)
+			}
 
-	res, err := client.Request(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusNotFound, res.StatusCode)
-}
-
-// TestDeleteChatQueuedMessageEmptyQueueReturnsConflict covers the
-// state-conflict 409 path when the chat has no queued messages.
-func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	res, err := client.Request(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusConflict, res.StatusCode)
-}
-
-// TestPromoteChatQueuedMessageMissingReturns404 mirrors the delete
-// test for the promote endpoint: with a non-empty queue, an unknown
-// queued-message ID returns 404 rather than a 409.
-func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	// Seed one queued message so the promote transition is allowed.
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-		Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
-		BusyBehavior: codersdk.ChatBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-
-	res, err := client.Request(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusNotFound, res.StatusCode)
-}
-
-// TestPromoteChatQueuedMessageEmptyQueueReturnsConflict verifies
-// the state-conflict 409 path when the chat has no queued messages.
-func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	res, err := client.Request(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusConflict, res.StatusCode)
+			res, err := client.Request(ctx, tc.method, fmt.Sprintf("/api/v2/chats/%s/queue/99999999%s", chat.ID, tc.pathSuffix), nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, tc.wantStatus, res.StatusCode)
+		})
+	}
 }
 
 // TestInterruptChatIdleReturnsConflict verifies that interrupting an
@@ -477,298 +395,178 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 	require.True(t, foundToolResult, "tool result message must be visible in chat history")
 }
 
-// TestPatchChatArchiveChildRejected verifies that PATCH /api/v2/chats/{child}
-// with archived=true returns the root-only error regardless of the
-// child's current archived value, and does not change archive state on
-// any family member.
-func TestPatchChatArchiveChildRejected(t *testing.T) {
+func TestPatchChatChildArchive(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
 
-	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
-	})
-	require.NoError(t, err)
-	driveChatToWaiting(ctx, t, api, root.ID)
+	createFamily := func(ctx context.Context, t *testing.T, childStatuses ...database.ChatStatus) []uuid.UUID {
+		t.Helper()
+		root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
+		})
+		require.NoError(t, err)
+		driveChatToWaiting(ctx, t, api, root.ID)
 
-	// Sibling child A and B; both unarchived.
-	childA := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "child-a",
-		Status:            database.ChatStatusWaiting,
-		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-	})
-	childB := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "child-b",
-		Status:            database.ChatStatusWaiting,
-		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-	})
-
-	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: new(true)})
-	requireSDKError(t, err, http.StatusBadRequest)
-
-	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
-		got, gerr := loadChatRow(ctx, db, id)
-		require.NoError(t, gerr)
-		require.False(t, got.Archived, "no family member may flip archive state after a rejected child archive")
+		family := []uuid.UUID{root.ID}
+		for _, status := range childStatuses {
+			child := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Status:            status,
+				ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+				RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+			})
+			family = append(family, child.ID)
+		}
+		return family
 	}
-}
-
-// TestPatchChatUnarchiveChildRejected verifies that PATCH /api/v2/chats/{child}
-// with archived=false on an archived family is rejected with the
-// root-only error and leaves every family member archived. The child
-// already matches the requested value? No, the family is archived;
-// we are asking to unarchive a child individually.
-func TestPatchChatUnarchiveChildRejected(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModel(t, client)
-
-	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
-	})
-	require.NoError(t, err)
-	driveChatToWaiting(ctx, t, api, root.ID)
-
-	childA := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "child-a",
-		Status:            database.ChatStatusWaiting,
-		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-	})
-	childB := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "child-b",
-		Status:            database.ChatStatusWaiting,
-		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-	})
-
-	// Archive the whole family via the root.
-	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})
-	require.NoError(t, err)
-	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
-		got, gerr := loadChatRow(ctx, db, id)
-		require.NoError(t, gerr)
-		require.True(t, got.Archived, "precondition: family archived after root archive")
+	requireArchived := func(ctx context.Context, t *testing.T, family []uuid.UUID, want bool, msg string) {
+		t.Helper()
+		for _, id := range family {
+			got, err := loadChatRow(ctx, db, id)
+			require.NoError(t, err)
+			require.Equal(t, want, got.Archived, msg)
+		}
 	}
 
-	// Unarchiving a child must be rejected.
-	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: new(false)})
-	requireSDKError(t, err, http.StatusBadRequest)
+	t.Run("ArchiveChildRejected", func(t *testing.T) {
+		t.Parallel()
 
-	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
-		got, gerr := loadChatRow(ctx, db, id)
-		require.NoError(t, gerr)
-		require.True(t, got.Archived, "no family member may flip archive state after a rejected child unarchive")
-	}
+		ctx := testutil.Context(t, testutil.WaitLong)
+		family := createFamily(ctx, t, database.ChatStatusWaiting, database.ChatStatusWaiting)
+
+		err := client.UpdateChat(ctx, family[1], codersdk.UpdateChatRequest{Archived: new(true)})
+		requireSDKError(t, err, http.StatusBadRequest)
+		requireArchived(ctx, t, family, false, "no family member may flip archive state after a rejected child archive")
+	})
+
+	t.Run("UnarchiveChildRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		family := createFamily(ctx, t, database.ChatStatusWaiting, database.ChatStatusWaiting)
+		err := client.UpdateChat(ctx, family[0], codersdk.UpdateChatRequest{Archived: new(true)})
+		require.NoError(t, err)
+		requireArchived(ctx, t, family, true, "precondition: family archived after root archive")
+
+		err = client.UpdateChat(ctx, family[1], codersdk.UpdateChatRequest{Archived: new(false)})
+		requireSDKError(t, err, http.StatusBadRequest)
+		requireArchived(ctx, t, family, true, "no family member may flip archive state after a rejected child unarchive")
+	})
+
+	t.Run("RootArchiveRollsBackWhenChildCannotArchive", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		family := createFamily(ctx, t, database.ChatStatusRunning)
+
+		err := client.UpdateChat(ctx, family[0], codersdk.UpdateChatRequest{Archived: new(true)})
+		requireSDKError(t, err, http.StatusConflict)
+		requireArchived(ctx, t, family, false, "rolled-back family archive must not leave any member archived")
+	})
 }
 
-// TestPatchChatArchiveRootRollsBackWhenChildCannotArchive verifies the
-// family-archive atomicity guarantee surfaced through the endpoint:
-// when a child is in a state that rejects SetArchived (running here),
-// the whole cascade rolls back and no family member changes archive
-// state.
-func TestPatchChatArchiveRootRollsBackWhenChildCannotArchive(t *testing.T) {
+func TestInvalidChatStateEndpoints(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModel(t, client)
-
-	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
-	})
-	require.NoError(t, err)
-	driveChatToWaiting(ctx, t, api, root.ID)
-
-	// Child is running (R0) which is NOT archive-eligible.
-	child := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    firstUser.OrganizationID,
-		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "child",
-		Status:            database.ChatStatusRunning,
-		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-	})
-
-	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})
-	requireSDKError(t, err, http.StatusConflict)
-
-	for _, id := range []uuid.UUID{root.ID, child.ID} {
-		got, gerr := loadChatRow(ctx, db, id)
-		require.NoError(t, gerr)
-		require.False(t, got.Archived, "rolled-back family archive must not leave any member archived")
-	}
-}
-
-// TestPostChatMessagesInvalidStateReturnsSharedResponse drives a chat
-// into the chatstate-invalid state (waiting with a queued backlog)
-// and asserts the shared invalid-state response. This is the
-// representative endpoint required by the review.
-func TestPostChatMessagesInvalidStateReturnsSharedResponse(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	// Drive the chat to an invalid combination: status=waiting (W),
-	// archived=false, and a queued message. ClassifyExecutionState
-	// returns StateInvalid for (waiting, queue=true).
-	driveChatToInvalidWaitingWithQueue(ctx, t, api, chat.ID)
-
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "send"}},
-	})
-	sdkErr := requireSDKError(t, err, http.StatusConflict)
-	require.Equal(t, "Chat is in an invalid state.", sdkErr.Message,
-		"invalid-state endpoint response uses the shared message")
-}
-
-// TestPostChatToolResultsInvalidStateReturnsSharedResponse drives a
-// chat into the chatstate-invalid state and asserts that the tool
-// results endpoint returns the shared invalid-state response instead
-// of the old "Chat is not waiting for tool results." status-conflict
-// message. This locks the fix that removes the endpoint fast-path
-// and routes invalid chats through the chatstate-backed transaction.
-func TestPostChatToolResultsInvalidStateReturnsSharedResponse(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	// Drive the chat to an invalid combination so the tool-results
-	// endpoint must surface the shared invalid-state response rather
-	// than the requires_action status conflict.
-	driveChatToInvalidWaitingWithQueue(ctx, t, api, chat.ID)
-
-	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
-		Results: []codersdk.ToolResult{{
-			ToolCallID: "call-irrelevant",
-			Output:     json.RawMessage(`{}`),
-		}},
-	})
-	sdkErr := requireSDKError(t, err, http.StatusConflict)
-	require.Equal(t, "Chat is in an invalid state.", sdkErr.Message,
-		"tool-results invalid-state response uses the shared message")
-}
-
-// TestReconcileInvalidChatStateSucceeds drives a chat into the
-// chatstate-invalid combination (waiting with a queued backlog) and
-// verifies the reconcile endpoint moves it into a valid error state
-// while preserving the queued message.
-func TestReconcileInvalidChatStateSucceeds(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+	createChat := func(ctx context.Context, t *testing.T) codersdk.Chat {
+		t.Helper()
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	for _, tc := range []struct {
+		name string
+		call func(ctx context.Context, chatID uuid.UUID) error
+	}{
+		{
+			name: "PostChatMessagesReturnsSharedResponse",
+			call: func(ctx context.Context, chatID uuid.UUID) error {
+				_, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "send"}},
+				})
+				return err
+			},
+		},
+		{
+			name: "PostChatToolResultsReturnsSharedResponse",
+			call: func(ctx context.Context, chatID uuid.UUID) error {
+				return client.SubmitToolResults(ctx, chatID, codersdk.SubmitToolResultsRequest{
+					Results: []codersdk.ToolResult{{ToolCallID: "call-irrelevant", Output: json.RawMessage(`{}`)}},
+				})
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat := createChat(ctx, t)
+			driveChatToInvalidWaitingWithQueue(ctx, t, api, chat.ID)
+
+			sdkErr := requireSDKError(t, tc.call(ctx, chat.ID), http.StatusConflict)
+			require.Equal(t, "Chat is in an invalid state.", sdkErr.Message)
+		})
+	}
+
+	t.Run("ReconcileSucceeds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := createChat(ctx, t)
+		driveChatToInvalidWaitingWithQueue(ctx, t, api, chat.ID)
+
+		reconciled, err := client.ReconcileInvalidChatState(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, reconciled.ID)
+		require.Equal(t, codersdk.ChatStatusError, reconciled.Status)
+
+		// The persisted row must reflect a valid error state with the
+		// queued message preserved (E1) and a populated last_error.
+		persisted, err := loadChatRow(ctx, db, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusError, persisted.Status)
+		require.False(t, persisted.Archived)
+		require.True(t, persisted.LastError.Valid)
+
+		queueCount, err := db.CountChatQueuedMessages(dbauthz.AsChatd(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), queueCount, "queued message is preserved by reconcile")
 	})
-	require.NoError(t, err)
 
-	// Drive the chat to an invalid combination: status=waiting (W),
-	// archived=false, with a queued message. ClassifyExecutionState
-	// returns StateInvalid for (waiting, queue=true).
-	driveChatToInvalidWaitingWithQueue(ctx, t, api, chat.ID)
+	t.Run("ReconcileNotInvalidReturnsConflict", func(t *testing.T) {
+		t.Parallel()
 
-	reconciled, err := client.ReconcileInvalidChatState(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, chat.ID, reconciled.ID)
-	require.Equal(t, codersdk.ChatStatusError, reconciled.Status)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// A freshly created chat starts in the valid running state (R0).
+		chat := createChat(ctx, t)
+		require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
 
-	// The persisted row must reflect a valid error state with the
-	// queued message preserved (E1) and a populated last_error.
-	persisted, err := loadChatRow(ctx, db, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusError, persisted.Status)
-	require.False(t, persisted.Archived)
-	require.True(t, persisted.LastError.Valid)
-
-	queueCount, err := db.CountChatQueuedMessages(dbauthz.AsChatd(ctx), chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, int64(1), queueCount, "queued message is preserved by reconcile")
-}
-
-// TestReconcileInvalidChatStateNotInvalidReturnsConflict verifies that
-// reconciling a chat that is in a valid execution state is rejected
-// with a 409 conflict.
-func TestReconcileInvalidChatStateNotInvalidReturnsConflict(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	// A freshly created chat starts in the valid running state (R0).
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		_, err := client.ReconcileInvalidChatState(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Chat is not in an invalid state.", sdkErr.Message)
 	})
-	require.NoError(t, err)
-	require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
 
-	_, err = client.ReconcileInvalidChatState(ctx, chat.ID)
-	sdkErr := requireSDKError(t, err, http.StatusConflict)
-	require.Equal(t, "Chat is not in an invalid state.", sdkErr.Message)
-}
+	t.Run("ReconcileNotFound", func(t *testing.T) {
+		t.Parallel()
 
-// TestReconcileInvalidChatStateNotFound verifies the reconcile
-// endpoint returns 404 for a chat that does not exist.
-func TestReconcileInvalidChatStateNotFound(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	_ = coderdtest.CreateFirstUser(t, client.Client)
-
-	_, err := client.ReconcileInvalidChatState(ctx, uuid.New())
-	requireSDKError(t, err, http.StatusNotFound)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.ReconcileInvalidChatState(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
 }
 
 // loadChatRow reads a chat row directly through dbauthz.AsChatd so

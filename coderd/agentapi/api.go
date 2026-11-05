@@ -246,6 +246,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	api.ConnLogAPI = &ConnLogAPI{
 		AgentID:          agent.ID,
 		AgentName:        agent.Name,
+		WorkspaceBuildID: opts.WorkspaceBuildID,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,

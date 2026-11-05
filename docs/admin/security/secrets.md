@@ -3,11 +3,11 @@ title: Secrets
 ---
 
 Coder is open-minded about how you get your secrets into your workspaces.
-For more information about how to use secrets and other security tips, visit our guide to [security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
+For more information about how to use secrets and other security tips, visit our guide to [security best practices](security-best-practices.md#secrets).
 
 Use this guide to configure how templates make secrets available to Coder workspaces.
 To authenticate workspace provisioners with Coder, see the <a href="../../install/operate/provisioners/index.md#authentication">provisioners documentation</a>.
-For secret values that developers manage themselves, see [User secrets](../../user-guides/user-secrets.md).
+For secret values that developers manage themselves, see [User secrets](../../workspaces/user-secrets.md).
 
 ## Before you begin
 
@@ -19,9 +19,10 @@ Often, this workflow is simply:
 1. Give your users their secrets in advance
 1. Your users write them to a persistent file after they've built their workspace
 
-[Template parameters](../templates/extending-templates/parameters.md) are a dangerous way to accept secrets.
-We show parameters in cleartext around the product.
-Assume anyone with view access to a workspace can also see its parameters.
+> [!WARNING]
+> [Template parameters](../../templates/extending-templates/parameters/index.md) are a dangerous way to accept secrets.
+> Coder shows parameter values in cleartext throughout the product.
+> Assume anyone with view access to a workspace can also see its parameters.
 
 ## SSH Keys
 
@@ -43,7 +44,7 @@ User secrets are developer-managed values that Coder injects at workspace start.
 If a user secret targets the same environment variable name or file path as a template-provided variable or file, Coder injects the user secret into that workspace.
 A secret can be disabled, in which case it is stored but not injected until it is re-enabled.
 User secret values are covered by [Database Encryption](./database-encryption.md) when it is enabled.
-See the [User secrets guide](../../user-guides/user-secrets.md).
+See the [User secrets guide](../../workspaces/user-secrets.md).
 
 ## Workspace secrets
 
@@ -77,7 +78,7 @@ resource "coder_agent" "main" {
 }
 ```
 
-A catch-all variation of this approach is dynamically provisioning a cloud service account (e.g [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
+A catch-all variation of this approach is dynamically provisioning a cloud service account (for example, [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
 
 <a id="displaying-secrets"></a>
 
@@ -119,4 +120,4 @@ Refer to our [HashiCorp Vault Integration](../integrations/vault.md) guide for m
 
 ## Next steps
 
-- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)
+- [Security - best practices](security-best-practices.md)

@@ -2,7 +2,9 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 
@@ -156,9 +158,21 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		snapshot.chat = chat
 
 		if chat.HistoryVersion > l.state.historyVersion {
+			afterRevision := l.state.historyVersion
+			if !l.state.initialMessageSyncDone && l.state.afterMessageID > 0 {
+				row, ok, err := l.initialSyncCursor(ctx, tx)
+				if err != nil {
+					return err
+				}
+				if ok {
+					// Include the cursor's own revision: rows committed with it can
+					// have higher IDs that the client has not seen.
+					afterRevision = row.Revision - 1
+				}
+			}
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        l.chatID,
-				AfterRevision: l.state.historyVersion,
+				AfterRevision: afterRevision,
 			})
 			if err != nil {
 				return xerrors.Errorf("get changed chat messages: %w", err)
@@ -229,6 +243,25 @@ func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 		return msg.ID == l.state.afterMessageID
 	})
 	return idx < 0 || changed[idx].Deleted
+}
+
+// initialSyncCursor returns the afterMessageID row and true only when that row
+// belongs to this chat, so the first fetch can be bounded by its revision. A
+// cursor from another chat also clears afterMessageID.
+func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
+	cursor, err := tx.GetChatMessageByIDForStream(ctx, l.state.afterMessageID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.ChatMessage{}, false, nil
+		}
+		return database.ChatMessage{}, false, xerrors.Errorf("get stream cursor message: %w", err)
+	}
+	if cursor.ChatID != l.chatID {
+		// Another chat's ID says nothing about which messages the client holds.
+		l.state.afterMessageID = 0
+		return database.ChatMessage{}, false, nil
+	}
+	return cursor, true, nil
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {

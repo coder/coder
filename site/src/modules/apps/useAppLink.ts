@@ -1,7 +1,8 @@
 import type React from "react";
-import { useMutation } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { buildInfo } from "#/api/queries/buildInfo";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -9,11 +10,14 @@ import type {
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import {
 	getAppHref,
 	isExternalApp,
+	isSessionTokenLinkBlocked,
 	needsSessionToken,
 	openAppInNewWindow,
+	SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
 } from "./apps";
 
 type UseAppLinkParams = {
@@ -28,6 +32,7 @@ type AppLink = {
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
 	isLoading: boolean;
+	isBlocked: boolean;
 };
 
 export const useAppLink = (
@@ -36,18 +41,27 @@ export const useAppLink = (
 ): AppLink => {
 	const label = app.display_name ?? app.slug;
 	const { proxy } = useProxy();
+	const { metadata } = useEmbeddedMetadata();
+	const { data: build } = useQuery(buildInfo(metadata["build-info"]));
+	const accessUrl = build?.dashboard_url;
+	const isBlocked = isSessionTokenLinkBlocked(app, accessUrl);
 
 	// External apps that embed the session token in their URL need a freshly
 	// minted key. We defer minting until the user clicks (see `onClick`) rather
 	// than on mount, so that merely rendering a link no longer mints (and
-	// audits) a session key for an app the user may never open.
-	const requiresSessionToken = isExternalApp(app) && needsSessionToken(app);
+	// audits) a session key for an app the user may never open. Blocked links
+	// are also handled on click, to explain why they don't open.
+	const opensOnClick =
+		isExternalApp(app) &&
+		needsSessionToken(app) &&
+		(!agent.parent_id || isBlocked);
 
 	const buildHref = (token: string): string =>
 		getAppHref(app, {
 			agent,
 			workspace,
 			token,
+			accessUrl,
 			path: proxy.preferredPathAppURL,
 			host: proxy.preferredWildcardHostname,
 		});
@@ -114,16 +128,22 @@ export const useAppLink = (
 	// and the final URL is built then. Exposing a tokenless href would let
 	// middle-click or "Open link" launch the custom protocol with an empty
 	// token, so we omit it entirely. Non-token apps still render as anchors.
-	const href = requiresSessionToken ? undefined : buildHref("");
+	const href = opensOnClick ? undefined : buildHref("");
 
 	const onClick = (e: React.MouseEvent) => {
 		// Apps that embed a session token mint it on click instead of on mount.
 		// These are always custom-protocol (non-HTTP) external apps, so we build
 		// the final URL with the freshly minted token and navigate to it via
 		// `location.href`, relying on the browser's protocol handler.
-		if (requiresSessionToken) {
+		if (opensOnClick) {
 			e.preventDefault();
 			if (generateKeyMutation.isPending) {
+				return;
+			}
+			if (isBlocked) {
+				toast.error(`Failed to open "${label}".`, {
+					description: SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
+				});
 				return;
 			}
 			generateKeyMutation.mutate();
@@ -163,5 +183,6 @@ export const useAppLink = (
 		onClick,
 		label,
 		isLoading: generateKeyMutation.isPending,
+		isBlocked,
 	};
 };

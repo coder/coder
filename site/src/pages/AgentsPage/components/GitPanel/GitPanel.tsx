@@ -41,6 +41,7 @@ import {
 import { originRepoLabel } from "../../utils/originRepoLabel";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { useTabPanelState } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
 	type DiffStyle,
@@ -140,8 +141,6 @@ type GitPanelProps = {
 	 * itself.
 	 */
 	onRefresh: () => boolean;
-	/** Whether the panel is in expanded/fullscreen mode. */
-	isExpanded: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading: boolean;
 	remoteDiffStats?: readonly ChatDiffStatus[];
@@ -298,13 +297,14 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	chatId,
 	repositories,
 	onRefresh,
-	isExpanded,
 	isGitStatusLoading,
 	remoteDiffStats,
 	primaryDiffStatus,
 	chatInputRef,
 	everDirty,
 }) => {
+	const { isExpanded } = useTabPanelState();
+
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 
@@ -476,7 +476,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								diffStyle === "unified"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -491,7 +491,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",

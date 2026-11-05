@@ -61,7 +61,7 @@ For deployments with multiple [organizations](./organizations.md), configure gro
 
 ### CLI
 
-1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in with a user who is an Owner or has an Organization Admin role.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in as an Owner or Organization Admin.
 
 1. To fetch the current group sync settings for an organization, run the following:
 
@@ -145,9 +145,11 @@ Visit the Coder UI to confirm these changes:
      --oidc-group-field groups
      ```
 
-1. On login, users will automatically be assigned to groups that have matching names in Coder and removed from groups that the user no longer belongs to.
+1. On login, Coder adds users to groups with matching names and removes them from groups they no longer belong to.
 
-1. For cases when an OIDC provider only returns group IDs or you want to have different group names in Coder than in your OIDC provider, you can configure mapping between the two with the [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server flag:
+1. Configure the mapping between OIDC and Coder groups.
+
+   If an OIDC provider only returns group IDs or you want to have different group names in Coder than in your OIDC provider, map between the two with the [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server flag:
 
    - Environment variable:
 
@@ -208,7 +210,7 @@ For deployments with multiple [organizations](./organizations.md), configure rol
 
 ### CLI
 
-1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in with a user who is an Owner or has an Organization Admin role.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in as an Owner or Organization Admin.
 
 1. To fetch the current role sync settings for an organization, run the following:
 
@@ -356,11 +358,11 @@ After you change the settings, a user's memberships will update when they log ou
 
    Analyzing the JSON payload:
 
-   | Field                       | Explanation                                                                                                                                                                                                                                                                              |
-   |:----------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-   | field                       | If this field is the empty string `""`, then org-sync is disabled. <br /> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
-   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. <br /> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
-   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. <br /> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
+   | Field                       | Explanation                                                                                                                                                                                                                                                                                                     |
+   |:----------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   | field                       | If this field is the empty string `""`, then org-sync is disabled. <br /> Org memberships must be manually configured through the UI or API.                                                                                                                                                                    |
+   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by universally unique identifier (UUID). <br /> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you. |
+   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. <br /> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims.                        |
 
 </div>
 
@@ -443,7 +445,7 @@ The application '<oidc_application>' asked for scope 'groups' that doesn't exist
 ```
 
 This can happen because the identity provider has a different name for the scope.
-For example, Azure AD uses `GroupMember.Read.All` instead of `groups`.
+For example, Azure Active Directory (AD) uses `GroupMember.Read.All` instead of `groups`.
 You can find the correct scope name in the IdP's documentation.
 Some IdPs allow configuring the name of this scope.
 
@@ -454,11 +456,14 @@ The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value 
 Steps to troubleshoot.
 
 1. Ensure the user is a part of a group in the IdP.
+
    If the user has 0 groups, no `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name.
+
    A common name is `memberOf` instead of `groups`.
    If this is present, update `CODER_OIDC_GROUP_FIELD=memberOf`.
 3. Make sure the number of groups being sent is under the limit of the IdP.
+
    Some IdPs will return an error, while others will just omit the `groups` claim.
    A common solution is to create a filter on the identity provider that returns less than the limit for your IdP.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
@@ -471,9 +476,10 @@ Steps to troubleshoot.
 ### Active Directory Federation Services (ADFS)
 
 > [!NOTE]
-> Tested on ADFS 4.0, Windows Server 2019
+> Tested on Active Directory Federation Services (ADFS) 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
+
    Follow the steps as described in the [Windows Server documentation] (https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/development/msal/adfs-msal-web-app-web-api#app-registration-in-ad-fs).
 
    - **Server Application**:
@@ -500,7 +506,7 @@ Steps to troubleshoot.
      {"resource":"$CLIENT_ID"}
      ```
 
-     Where `$CLIENT_ID` is the Client ID from step 1. Consult the Microsoft [AD FS OpenID Connect/OAuth flows and Application Scenarios documentation](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional) for more information.
+     Where `$CLIENT_ID` is the Client ID from step 1. Consult the Microsoft [Active Directory Federation Services (AD FS) OpenID Connect/OAuth flows and Application Scenarios documentation](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional) for more information.
 
      This is required for the upstream OIDC provider to return the requested claims.
 
@@ -508,8 +514,8 @@ Steps to troubleshoot.
 
 1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims) on your Federation Server to send the following claims:
 
-   - `preferred_username`: You can use e.g. "Display Name" as required.
-   - `email`: You can use e.g. the LDAP attribute "E-Mail-Addresses" as required.
+   - `preferred_username`: You can use, for example, "Display Name" as required.
+   - `email`: You can use, for example, the Lightweight Directory Access Protocol (LDAP) attribute "E-Mail-Addresses" as required.
    - `email_verified`: Create a custom claim rule:
 
      ```json

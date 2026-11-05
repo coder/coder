@@ -11,7 +11,7 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
-import AgentSettingsGeneralPage from "../AgentSettingsGeneralPage";
+import AgentSettingsGeneralPage from "../AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage";
 
 const renderPage = (custom_prompt?: string) => {
 	const queryClient = createTestQueryClient();
