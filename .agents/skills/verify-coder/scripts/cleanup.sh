@@ -28,7 +28,7 @@ delete_workspaces() {
 		echo "server is down, skipped (check docker ps for coder-* containers by hand)"
 		return 0
 	fi
-	local list ws kept n=0
+	local list ws kept deleted=()
 	list="$("$here/coder.sh" list --all --output json 2>/dev/null)"
 	kept="$(jq -r --arg t "$VC_STARTED_AT" '[.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 < ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"] | join(" ")' <<<"$list")"
 	while read -r ws; do
@@ -37,9 +37,9 @@ delete_workspaces() {
 			echo "coder delete $ws failed, see $VC_LOG"
 			return 1
 		}
-		n=$((n + 1))
+		deleted+=("$ws")
 	done < <(jq -r --arg t "$VC_STARTED_AT" '.[] | select(.created_at | sub("\\.[0-9]+"; "") | fromdateiso8601 >= ($t | fromdateiso8601)) | "\(.owner_name)/\(.name)"' <<<"$list")
-	echo "deleted $n workspaces created since $VC_STARTED_AT, kept older: ${kept:-none}"
+	echo "deleted ${deleted[*]:-none} (created since $VC_STARTED_AT), kept older: ${kept:-none}"
 }
 
 close_browser() {
