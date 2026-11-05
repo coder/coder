@@ -50,7 +50,9 @@ variables:
 
 The API server, the frontend dev server and the embedded Prometheus UI listen
 on every interface by default. Pass `--bind-address 127.0.0.1` to keep them off
-the network, for example on a shared host.
+the network, for example on a shared host. Workspaces in Docker containers, such
+as the `docker` starter template's, then cannot reach the server, because their
+agents connect through `host.docker.internal`.
 
 Extra `coder server` flags can be passed after `--`. For example,
 `./scripts/develop.sh -- --trace` passes `--trace` to the API server.
