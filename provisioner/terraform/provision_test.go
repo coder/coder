@@ -558,12 +558,13 @@ func TestGraphReusesPlanResults(t *testing.T) {
 		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
 	}`
 	// A deposed agent left by an interrupted create_before_destroy
-	// replacement shares the agent's label but has none of its edges.
+	// replacement shares the agent's label but has none of its edges. The
+	// container has no edges either, so only a rebuilt graph attaches the
+	// agent to it.
 	const graphWithDeposedDOT = `digraph {
 		"[root] docker_container.workspace" [label = "docker_container.workspace"]
 		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
 		"[root] coder_agent.main (deposed 00000001)" [label = "coder_agent.main"]
-		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
 	}`
 	// `terraform show -json` output for the applied state.
 	const shownStateJSON = `{
@@ -581,8 +582,11 @@ func TestGraphReusesPlanResults(t *testing.T) {
 		graphDOT string
 		// failFirstGraph makes the graph run during Plan fail.
 		failFirstGraph bool
-		wantShowCalls  []string
-		wantGraphCalls int
+		// rebuiltGraphDOT, if set, replaces graphDOT after the graph run
+		// during Plan.
+		rebuiltGraphDOT string
+		wantShowCalls   []string
+		wantGraphCalls  int
 		// wantAgentID is the ID of the agent the state attaches to
 		// docker_container.workspace.
 		wantAgentID string
@@ -603,11 +607,13 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			wantAgentID:    "agent-id",
 		},
 		{
-			name:           "PriorStateNodesRebuildGraph",
-			source:         proto.GraphSource_SOURCE_STATE,
-			graphDOT:       graphWithDeposedDOT,
-			wantShowCalls:  []string{"plan", "state"},
-			wantGraphCalls: 2,
+			name:            "PriorStateNodesRebuildGraph",
+			source:          proto.GraphSource_SOURCE_STATE,
+			graphDOT:        graphWithDeposedDOT,
+			rebuiltGraphDOT: graphDOT,
+			wantShowCalls:   []string{"plan", "state"},
+			wantGraphCalls:  2,
+			wantAgentID:     "agent-id",
 		},
 		{
 			name:           "GraphFailedDuringPlan",
@@ -627,6 +633,7 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			statePath := filepath.Join(dir, "state.json")
 			graphPath := filepath.Join(dir, "graph.dot")
 			failGraphPath := filepath.Join(dir, "fail-graph")
+			rebuiltGraphPath := filepath.Join(dir, "rebuilt-graph.dot")
 			showArgsPath := filepath.Join(dir, "show-args")
 			graphArgsPath := filepath.Join(dir, "graph-args")
 			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
@@ -634,6 +641,9 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
 			if test.failFirstGraph {
 				require.NoError(t, os.WriteFile(failGraphPath, nil, 0o600))
+			}
+			if test.rebuiltGraphDOT != "" {
+				require.NoError(t, os.WriteFile(rebuiltGraphPath, []byte(test.rebuiltGraphDOT), 0o600))
 			}
 
 			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
@@ -657,6 +667,9 @@ graph)
 		exit 1
 	fi
 	cat %[6]q
+	if [ -f %[7]q ]; then
+		mv %[7]q %[6]q
+	fi
 	;;
 plan|init)
 	exit 0
@@ -665,7 +678,7 @@ plan|init)
 	exit 1
 	;;
 esac
-`, showArgsPath, statePath, planPath, graphArgsPath, failGraphPath, graphPath))
+`, showArgsPath, statePath, planPath, graphArgsPath, failGraphPath, graphPath, rebuiltGraphPath))
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binaryPath,
@@ -699,6 +712,43 @@ esac
 			require.Len(t, readShimCalls(t, graphArgsPath), test.wantGraphCalls)
 		})
 	}
+}
+
+// TestPlanStopsGraphWhenShowFails covers a plan file that can't be shown:
+// Plan must report that without waiting for the graph it started alongside.
+//
+//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
+func TestPlanStopsGraphWhenShowFails(t *testing.T) {
+	dir := t.TempDir()
+	binaryPath := writeTerraformShim(t, dir, `#!/bin/sh
+case "$1" in
+version)
+	printf '%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+graph)
+	exec sleep 60
+	;;
+plan|init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`)
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		binaryPath:  binaryPath,
+		exitTimeout: time.Second,
+	})
+	sess := configure(ctx, t, api, &proto.Config{})
+	init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+	require.Empty(t, init.Error)
+
+	start := time.Now()
+	require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+	_, response := readProvisionLog(t, sess)
+	require.Contains(t, response.GetPlan().GetError(), "show terraform plan file")
+	require.Less(t, time.Since(start), 30*time.Second, "plan waited for the graph")
 }
 
 // below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than

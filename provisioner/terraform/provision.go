@@ -246,6 +246,10 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
+	// Graph reuses the parsed plan and the graph instead of running
+	// Terraform again, so they must not outlive a later Plan that fails.
+	sessState := s.sessionState(sess.Context(), sess)
+	sessState.plan, sessState.graph = nil, ""
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	result, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
@@ -253,9 +257,6 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
-	// Graph reuses the parsed plan and the graph instead of running
-	// Terraform again.
-	sessState := s.sessionState(sess.Context(), sess)
 	sessState.plan = result.plan
 	sessState.graph = result.graph
 	if result.graphErr != nil {
@@ -342,9 +343,11 @@ func (s *server) Graph(
 	rawGraph := sessState.graph
 	if request.Source == proto.GraphSource_SOURCE_STATE && graphHasPriorStateNodes(rawGraph) {
 		// The graph from Plan was built against the state before apply. Nodes
-		// for deposed or orphaned objects in that state share labels with the
-		// configuration's nodes but have none of their edges, so build the
-		// graph again from the state apply left behind.
+		// for deposed objects in that state share labels with the
+		// configuration's nodes but have none of their edges, which can leave
+		// an agent without its resource, so build the graph again from the
+		// state apply left behind. Orphaned objects match no resource, but
+		// also no longer exist after apply.
 		rawGraph = ""
 	}
 	var err error
