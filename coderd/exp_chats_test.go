@@ -13240,9 +13240,12 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:     chat.ID,
-			Status: database.ChatStatusRequiresAction,
+		// The worker can take over an unowned requires_action chat. A
+		// missing deadline makes it cancel the pending tool call at once.
+		_, err = db.UpdateChatExecutionState(dbauthz.AsSystemRestricted(ctx), database.UpdateChatExecutionStateParams{
+			ID:                       chat.ID,
+			Status:                   database.ChatStatusRequiresAction,
+			RequiresActionDeadlineAt: sql.NullTime{Time: dbtime.Now().Add(time.Hour), Valid: true},
 		})
 		require.NoError(t, err)
 
