@@ -5,8 +5,8 @@ SHELL ["/bin/bash", "-c"]
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
 
-# The mirror list and retry settings come first so that every apt step reads
-# Ubuntu packages from the same hosts.
+# Copy the mirror list and its retry settings before the first apt step, so
+# that every apt step uses them.
 COPY dogfood/coder/ubuntu-26.04/files/etc/apt/ubuntu-mirrors.txt /etc/apt/ubuntu-mirrors.txt
 COPY dogfood/coder/ubuntu-26.04/files/etc/apt/apt.conf.d/80-retries /etc/apt/apt.conf.d/80-retries
 
