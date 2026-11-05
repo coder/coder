@@ -382,17 +382,25 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		raw string
 		err error
 	}
+	graphCtx, cancelGraph := context.WithCancel(ctx)
+	defer cancelGraph()
+	graphKillCtx, killGraph := context.WithCancel(killCtx)
+	defer killGraph()
 	graphDone := make(chan graphResult, 1)
 	go func() {
-		raw, err := e.graph(ctx, killCtx)
+		raw, err := e.graph(graphCtx, graphKillCtx)
 		graphDone <- graphResult{raw: raw, err: err}
 	}()
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
-	graph := <-graphDone
 	if err != nil {
+		// Nothing will use the graph, so stop it rather than wait for it.
+		cancelGraph()
+		killGraph()
+		<-graphDone
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
+	graph := <-graphDone
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
@@ -555,9 +563,10 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		args = append(args, "-type=plan")
 	}
 
-	var out strings.Builder
+	var out, stderr strings.Builder
 	cmd := e.command(killCtx, args...)
 	cmd.Stdout = &out
+	cmd.Stderr = &stderr
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
@@ -572,7 +581,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 
 	err = waitCommand(killCtx, cmd)
 	if err != nil {
-		return "", xerrors.Errorf("graph: %w", err)
+		return "", xerrors.Errorf("graph: %s: %w", strings.TrimSpace(stderr.String()), err)
 	}
 	return out.String(), nil
 }

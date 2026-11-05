@@ -50,3 +50,16 @@ func TestCheckGraphCompleteSize(t *testing.T) {
 	require.ErrorContains(t, err, strconv.Itoa(protobuf.Size(envelope))+" bytes")
 	require.ErrorContains(t, err, strconv.Itoa(drpcsdk.MaxMessageSize)+" byte message limit")
 }
+
+func TestGraphHasPriorStateNodes(t *testing.T) {
+	t.Parallel()
+
+	for graph, want := range map[string]bool{
+		`"[root] coder_agent.main (expand)" [label = "coder_agent.main"]`:           false,
+		`"[root] coder_agent.orphan (expand)" [label = "coder_agent.orphan"]`:       false,
+		`"[root] coder_agent.old (orphan)" [label = "coder_agent.old"]`:             true,
+		`"[root] coder_agent.main (deposed 00000001)" [label = "coder_agent.main"]`: true,
+	} {
+		require.Equal(t, want, graphHasPriorStateNodes(graph), graph)
+	}
+}
