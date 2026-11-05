@@ -11,7 +11,6 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import type { useFilter } from "#/components/Filter/Filter";
-import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { MultiUserSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
@@ -21,6 +20,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { OrganizationMembersFilter } from "./OrganizationMembersFilter";
 import {
 	OrganizationMembersTable,
 	type OrganizationMembersTableProps,
@@ -59,7 +59,7 @@ export const OrganizationMembersPageView: React.FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				<UsersFilter {...filterProps} />
+				<OrganizationMembersFilter {...filterProps} error={error} />
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
 						<TriangleAlertIcon className="size-icon-sm" />
