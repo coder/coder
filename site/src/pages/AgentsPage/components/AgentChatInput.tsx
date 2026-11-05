@@ -1402,9 +1402,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		sendButtonKeyShortcuts,
 		sendAfterTurnShortcutLabel,
 	} = getAgentChatSendShortcutHints(enterSends, isMobile);
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
+	const sendActionLabel = canSendAfterTurn
+		? "Send during turn"
 		: sendButtonLabel;
+	const sendButtonTooltip = sendShortcutLabel
+		? `${sendActionLabel}: ${sendShortcutLabel}`
+		: sendActionLabel;
 	const canOpenSendMenu = canSendAfterTurn && canSend && !speech.isRecording;
 
 	const content = (
@@ -2049,7 +2052,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											<>
 												{sendButtonTooltip}
 												{canSendAfterTurn && sendAfterTurnShortcutLabel && (
-													<div>After turn: {sendAfterTurnShortcutLabel}</div>
+													<div>
+														Send after turn: {sendAfterTurnShortcutLabel}
+													</div>
 												)}
 											</>
 										)}

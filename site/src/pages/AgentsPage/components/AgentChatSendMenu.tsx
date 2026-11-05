@@ -145,7 +145,7 @@ export const AgentChatSendMenu: React.FC<AgentChatSendMenuProps> = ({
 				}}
 			>
 				<DropdownMenuItem onSelect={() => select(onSend)}>
-					Send
+					Send during turn
 					<MenuShortcut label={sendShortcutLabel} />
 				</DropdownMenuItem>
 				<DropdownMenuItem onSelect={() => select(onSendAfterTurn)}>

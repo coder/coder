@@ -720,7 +720,9 @@ describe("AgentChatInput", () => {
 
 		const sendButton = await screen.findByRole("button", { name: "Send" });
 		await user.pointer({ keys: "[TouchA>]", target: sendButton });
-		const sendItem = await screen.findByRole("menuitem", { name: "Send" });
+		const sendItem = await screen.findByRole("menuitem", {
+			name: "Send during turn",
+		});
 		await user.pointer({ keys: "[/TouchA]", target: sendButton });
 		expect(onSend).not.toHaveBeenCalled();
 
