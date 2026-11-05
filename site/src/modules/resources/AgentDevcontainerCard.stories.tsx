@@ -1,11 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import type { Workspace } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
 	MockListeningPortsResponse,
+	MockPermissions,
 	MockPrimaryWorkspaceProxy,
 	MockTemplate,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceAgentContainer,
@@ -13,28 +16,45 @@ import {
 	MockWorkspaceAgentDevcontainer,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
+	MockWorkspaceResource,
 	MockWorkspaceSubAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
+	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+
+const mockWorkspaceWithSubAgent: Workspace = {
+	...MockWorkspace,
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgent, MockWorkspaceSubAgent],
+			},
+		],
+	},
+};
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
 	title: "modules/resources/AgentDevcontainerCard",
 	component: AgentDevcontainerCard,
 	args: {
 		devcontainer: MockWorkspaceAgentDevcontainer,
-		workspace: MockWorkspace,
+		workspace: mockWorkspaceWithSubAgent,
 		wildcardHostname: "*.wildcard.hostname",
 		parentAgent: MockWorkspaceAgent,
 		template: MockTemplate,
 		subAgents: [MockWorkspaceSubAgent],
 	},
-	decorators: [withProxyProvider(), withDashboardProvider],
+	decorators: [withAuthProvider, withProxyProvider(), withDashboardProvider],
 	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
 		queries: [
 			{
 				key: ["portForward", MockWorkspaceSubAgent.id],

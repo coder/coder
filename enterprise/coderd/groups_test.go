@@ -541,7 +541,7 @@ func TestPatchGroup(t *testing.T) {
 
 	// For quotas to work with prebuilds, it's currently required to add the
 	// prebuilds user into a group with a quota allowance.
-	// See: docs/admin/templates/extending-templates/prebuilt-workspaces.md
+	// See: docs/templates/extending-templates/prebuilt-workspaces.md
 	t.Run("PrebuildsUser", func(t *testing.T) {
 		t.Parallel()
 

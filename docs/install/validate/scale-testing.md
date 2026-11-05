@@ -10,7 +10,7 @@ Kubernetes provides container orchestration capabilities, allowing Coder to effi
 This ensures high availability, fault tolerance, and scalability for Coder deployments.
 Coder is deployed on this cluster using the [Helm chart](../server/kubernetes/index.md#4-install-coder-with-helm).
 
-For more information about scaling, see our [Coder scaling best practices](../../tutorials/best-practices/scale-coder.md).
+For more information about scaling, see our [Coder scaling best practices](scale-coder.md).
 
 ## Methodology
 
