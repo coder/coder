@@ -32,8 +32,6 @@ links */}}
       media="(prefers-color-scheme: light)"
     />
     <script>
-      // Mirrors ThemeProvider: the user's saved theme wins, and the OS color
-      // scheme decides in sync mode or when no preference is known.
       (function () {
         var root = document.documentElement;
         var osLight = window.matchMedia("(prefers-color-scheme: light)");
@@ -72,8 +70,6 @@ links */}}
       })();
     </script>
     <style>
-      /* Values copied from the .dark and .light tokens in site/src/index.css.
-         The colorblind themes do not override these tokens. */
       :root {
         --surface-primary: hsl(240 10% 4%);
         --surface-secondary: hsl(240 6% 10%);
