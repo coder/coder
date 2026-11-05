@@ -1,0 +1,29 @@
+coder:
+  image:
+    tag: v2.36.0
+  env:
+    - name: CODER_URL
+      value: https://coder.example.com
+    - name: CODER_AI_GATEWAY_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ai-gateway-key
+          key: key
+aigateway: {}
+networkPolicy:
+  enable: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  extraIngress:
+    - ports:
+        - port: 2112
+          protocol: TCP
+  egress:
+    enable: true
+  extraEgress:
+    - ports:
+        - port: 443
+          protocol: TCP

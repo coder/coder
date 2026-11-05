@@ -1,0 +1,58 @@
+{{- if .Values.coder.networkPolicy.enable }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coder
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.coder.networkPolicy.annotations | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.coder.networkPolicy.egress.enable }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+        {{- if eq (include "coder.tlsEnabled" .) "true" }}
+        - port: https
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.coder.networkPolicy.ingress.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    # HA replicas reach each other for the embedded DERP relay (8080) and
+    # NATS pubsub (6222, not configurable).
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 6222
+          protocol: TCP
+      from:
+        - podSelector:
+            matchLabels:
+              {{- include "coder.selectorLabels" . | nindent 14 }}
+    {{- with .Values.coder.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.coder.networkPolicy.egress.enable }}
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- with .Values.coder.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

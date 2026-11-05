@@ -186,6 +186,42 @@ coder:
   nodeSelector: {}
   #  kubernetes.io/os: linux
 
+  # coder.networkPolicy -- A NetworkPolicy for the provisioner pods. Requires a
+  # CNI that enforces NetworkPolicy. The provisioner only makes outbound
+  # connections, so once enabled all ingress is denied unless extraIngress
+  # allows it (e.g. to scrape Prometheus metrics on port 2112).
+  networkPolicy:
+    # coder.networkPolicy.enable -- Whether to create the NetworkPolicy object.
+    enable: false
+    # coder.networkPolicy.annotations -- The NetworkPolicy annotations.
+    annotations: {}
+    # coder.networkPolicy.extraIngress -- NetworkPolicyIngressRule objects to
+    # allow.
+    extraIngress: []
+    # - ports:
+    #     - port: 2112
+    #       protocol: TCP
+    #   from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: monitoring
+    egress:
+      # coder.networkPolicy.egress.enable -- Whether to also restrict egress.
+      # When true, only DNS (port 53) and extraEgress rules are allowed, so
+      # you must allow the Coder deployment, the Kubernetes API, and anything
+      # your templates reach during builds (e.g. cloud APIs, registries).
+      enable: false
+    # coder.networkPolicy.extraEgress -- NetworkPolicyEgressRule objects to
+    # allow. Only used if egress.enable is true.
+    extraEgress: []
+    # - to:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: coder
+    #   ports:
+    #     - port: 8080
+    #       protocol: TCP
+
   # coder.command -- The command to use when running the container. Used
   # for customizing the location of the `coder` binary in your image.
   command:

@@ -127,6 +127,32 @@ are optional and both route to the data-plane Service. If you enable Ingress or
 `HTTPRoute`, use a `ClusterIP` Service unless you intentionally need a second
 external entry point through a `LoadBalancer` Service.
 
+### Network policy
+
+Set `networkPolicy.enable` to create a `NetworkPolicy` for the gateway pods.
+Your CNI must enforce NetworkPolicy for it to have any effect. Ingress is limited
+to the data-plane port (4001), from the peers in `networkPolicy.ingress.from`
+(any source if empty). Open other ports, such as Prometheus metrics on 2112,
+with `networkPolicy.extraIngress`.
+
+Egress is unrestricted unless you set `networkPolicy.egress.enable`. In that
+case only DNS and your `networkPolicy.extraEgress` rules are allowed, so you
+must also allow Coder, your AI providers, and the Kubernetes API.
+
+```yaml
+networkPolicy:
+  enable: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  extraIngress:
+    - ports:
+        - port: 2112
+          protocol: TCP
+```
+
 ## Scaling and resources
 
 Set `coder.replicaCount` to run multiple AI Gateway replicas. The default
@@ -185,5 +211,4 @@ reloader controller can be configured through `coder.annotations` or
 
 `extraTemplates` renders additional Kubernetes manifests as part of the Helm
 release. Entries can be YAML strings or Kubernetes objects, and can use Helm
-release values and chart helpers. Use them for small companion resources, such
-as a `NetworkPolicy`.
+release values and chart helpers. Use them for small companion resources.
