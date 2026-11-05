@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Journey for features/users.md: the admin creates a password user in the web
 # UI, then the API, the CLI and a fresh sign-in prove the user exists and works.
+# It then creates a second user with coder users create and deletes both.
 # Usage: create-user.sh   (prints one line per check and a count line)
 set -euo pipefail
 scripts="$(dirname "${BASH_SOURCE[0]}")/../scripts"
@@ -13,6 +14,7 @@ out="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-create-user"
 mkdir -p "$out"
 username="vc-$(date +%s)"
 email="$username@coder.com"
+cli_username="$username-cli"
 password="Verify-$(openssl rand -hex 8)"
 
 VC_CHECK_LOG="$out/steps.log"
@@ -116,6 +118,34 @@ new_user_can_sign_in() {
 	echo "POST /api/v2/users/login as $email answered 201"
 }
 
+# coder users create prints the generated password on stderr, so neither
+# stream is kept.
+cli_create_user() {
+	"$scripts/coder.sh" users create --username "$cli_username" --email "$cli_username@coder.com" --full-name "Verify $cli_username" >/dev/null 2>&1
+	vc_api "/api/v2/users?q=$cli_username" |
+		jq '[.users[] | {username, email, login_type, status}]' >"$out/api-cli-user.json"
+	jq -e --arg u "$cli_username" 'length == 1 and .[0].username == $u and .[0].login_type == "password"' \
+		"$out/api-cli-user.json" >/dev/null
+	vc_ab open "$VC_WEB_URL/deployment/users?filter=$cli_username" >/dev/null
+	vc_ab wait --text "$cli_username@coder.com" >/dev/null
+	vc_ab screenshot "$out/07-users-cli-created.png" >/dev/null
+	echo "coder users create made $cli_username, the API and /deployment/users list it"
+}
+
+# Deleting both users keeps a reused .coderv2 free of accounts whose
+# passwords nobody knows.
+delete_users() {
+	local u
+	for u in "$username" "$cli_username"; do
+		"$scripts/coder.sh" users delete "$u" >"$out/08-cli-delete-$u.txt" 2>&1
+		[[ "$(vc_api_status "/api/v2/users/$u")" == 404 ]] || {
+			echo "GET /api/v2/users/$u does not answer 404 after coder users delete"
+			return 1
+		}
+	done
+	echo "coder users delete removed $username and $cli_username, the API answers 404"
+}
+
 vc_check sign-in sign_in
 vc_check fill-form fill_form
 vc_check submit submit_form
@@ -123,5 +153,7 @@ vc_check role assign_role
 vc_check api api_has_user
 vc_check cli cli_lists_user
 vc_check new-user-login new_user_can_sign_in
+vc_check cli-create cli_create_user
+vc_check delete delete_users
 echo "create-user: $VC_PASS/$VC_TOTAL checks passed, evidence in $out" | tee -a "$out/result.txt"
 ((VC_PASS == VC_TOTAL))

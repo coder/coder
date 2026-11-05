@@ -20,7 +20,7 @@ Preconditions:
 
 - `scripts/doctor.sh` passes and the browser is signed in as the admin (`vc_browser_login`).
 
-- **Whole journey.** Run `journeys/create-user.sh`. It ends with `create-user: 7/7 checks passed` and writes evidence to `build/verify-coder/evidence/<stamp>-create-user/`.
+- **Whole journey.** Run `journeys/create-user.sh`. It creates one user in the UI and one with `coder users create`, deletes both at the end, and ends with `create-user: 9/9 checks passed` and writes evidence to `build/verify-coder/evidence/<stamp>-create-user/`.
 - **Open the form.** `vc_ab open "$VC_WEB_URL/deployment/users"`, wait for the title with `vc_ab wait --fn 'document.title === "Users - Coder"'`, screenshot the list as the before state, then `vc_ab find role link click --name "New user"`. The title becomes `New user - Coder`.
 - **Fill the form.** The `Login type` select (`[data-testid=login-type-input]`) defaults to `Password`. Fill `find label "Username"`, `input[name=name]`, `find label "Email"` and `input[name=password]`. Screenshot before you type the password.
 - **Save.** `vc_ab find role button click --name "Save"`. A toast reads `User "<username>" created successfully.` and the list shows the email. A new row can sit below the fold and under the toast. For the after screenshot, open `$VC_WEB_URL/deployment/users?filter=<username>` (the search box keeps its query there).

@@ -42,7 +42,21 @@ stop_mock() {
 		rm -f "$mock_pid_file"
 	fi
 }
-trap stop_mock EXIT
+# An interrupted or failed run still puts the default model back and
+# deletes what it added. restore is defined below and runs here unless its
+# check passed.
+restored=0
+on_exit() {
+	if ((!restored)) && declare -F restore >/dev/null; then
+		(
+			set -e
+			restore
+		) >>"$VC_CHECK_LOG" 2>&1 || true
+	fi
+	stop_mock
+}
+trap on_exit EXIT
+trap 'exit 130' INT TERM
 
 mock_ready() {
 	for _ in $(seq 30); do
@@ -199,7 +213,11 @@ vc_check provider add_provider
 vc_check model add_model
 vc_check chat chat
 vc_check chat-api chat_api
+passed_before_restore=$VC_PASS
 vc_check restore restore
+if ((VC_PASS > passed_before_restore)); then
+	restored=1
+fi
 vc_check mock-stop mock_stops
 echo "coder-agents: $VC_PASS/$VC_TOTAL checks passed, evidence in $out" | tee -a "$out/result.txt"
 ((VC_PASS == VC_TOTAL))

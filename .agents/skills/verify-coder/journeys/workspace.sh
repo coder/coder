@@ -216,13 +216,19 @@ ui_delete() {
 }
 
 cli_delete() {
+	local id
+	id="$(ws_json "$cli_ws" | jq -r '.id')"
 	"$scripts/coder.sh" delete "$cli_ws" --yes >"$out/11-cli-delete.txt" 2>&1
 	wait_gone "$cli_ws"
 	[[ "$(docker ps -a --filter "name=^coder-admin-$cli_ws\$" --format '{{.Names}}' | wc -l)" == 0 ]] || {
 		echo "a container for $cli_ws is left"
 		return 1
 	}
-	echo "coder delete $cli_ws: API 404, no container"
+	if docker volume inspect "coder-$id-home" >/dev/null 2>&1; then
+		echo "volume coder-$id-home is left"
+		return 1
+	fi
+	echo "coder delete $cli_ws: API 404, no container, no home volume"
 }
 
 vc_check cli-create cli_create

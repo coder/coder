@@ -8,6 +8,7 @@ VC_RUN="$VC_STATE/run"
 VC_EVIDENCE="$VC_STATE/evidence"
 VC_CONFIG_DIR="$VC_ROOT/.coderv2"
 VC_ADMIN_EMAIL="admin@coder.com"
+# vc_load_run replaces this with the password launch.sh gave the instance.
 VC_ADMIN_PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
 export VC_ROOT VC_STATE VC_RUN VC_EVIDENCE VC_CONFIG_DIR VC_ADMIN_EMAIL VC_ADMIN_PASSWORD
 
@@ -149,7 +150,10 @@ vc_browser_login() {
 	# The login page is lazy loaded and renders after the page load event.
 	vc_ab wait 'input[name=password]' >/dev/null
 	vc_ab find label "Email" fill "$email" >/dev/null
-	vc_ab find label "Password" fill "$password" >/dev/null
+	# batch reads the command from stdin, so the password stays out of the
+	# process list.
+	VC_LOGIN_PASSWORD="$password" jq -cn '[["find", "label", "Password", "fill", env.VC_LOGIN_PASSWORD]]' |
+		vc_ab batch --bail >/dev/null
 	# Sign-in renders a client-side redirect and also sets location.href
 	# (site/src/pages/LoginPage/LoginPage.tsx), so the workspaces page can
 	# appear before the hard reload replaces it. The marker lives only on the

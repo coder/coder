@@ -9,6 +9,9 @@ scripts="$(dirname "${BASH_SOURCE[0]}")/../scripts"
 source "$scripts/lib.sh"
 vc_load_run
 "$scripts/doctor.sh" >/dev/null || vc_fail "doctor failed, run $scripts/doctor.sh"
+# develop.sh seeds the docker template only when Docker works, and the doctor
+# passes without it.
+docker info >/dev/null 2>&1 || vc_fail "docker info failed, this journey needs a local Docker daemon and the seeded docker template"
 
 out="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-templates"
 mkdir -p "$out"

@@ -22,6 +22,9 @@ if [[ -f "$VC_RUN/env" ]]; then
 	vc_fail "stale run state in $VC_RUN (pid $VC_PID is not ours), run cleanup.sh first"
 fi
 mkdir -p "$VC_RUN" "$VC_EVIDENCE"
+# develop.log records the first user's password, and cleanup keeps it as
+# evidence, so only the owner may read the state folder.
+chmod 700 "$VC_STATE"
 umask 022
 
 # Build first so the ports are picked seconds before develop binds them, not
@@ -33,13 +36,16 @@ if [[ "${DEVELOP_IN_CODER:-}" == 1 || -n "${CODER_AGENT_URL:-}" ]]; then
 fi
 # make tracks files, not CODER_BUILD_AGPL, so an existing enterprise binary
 # would be reused for --agpl.
+case "${CODER_BUILD_AGPL:-}" in
+"" | 0 | false) ;;
+*) vc_fail "CODER_BUILD_AGPL is not supported: make would reuse the existing enterprise binary" ;;
+esac
 for arg in "$@"; do
-	if [[ "$arg" == -- ]]; then
-		break
-	fi
-	if [[ "$arg" == --agpl ]]; then
-		vc_fail "--agpl is not supported: make would reuse the existing enterprise binary"
-	fi
+	case "$arg" in
+	--) break ;;
+	--agpl | --agpl=*) vc_fail "--agpl is not supported: make would reuse the existing enterprise binary" ;;
+	--password | --password=*) vc_fail "--password is not supported: set CODER_DEV_ADMIN_PASSWORD so the journeys sign in with it too" ;;
+	esac
 done
 bin="$(vc_coder_bin)"
 echo "building build/.bin/develop and ${bin#"$VC_ROOT"/} (log: $VC_RUN/build.log)"
@@ -72,9 +78,29 @@ fi
 # The marker tells cleanup.sh that this harness created the folder.
 # cleanup.sh --keep-data deletes it, so the folder then counts as the
 # developer's.
+created=0
 if [[ ! -d "$VC_CONFIG_DIR" ]]; then
 	mkdir -p "$VC_CONFIG_DIR"
 	touch "$VC_CONFIG_DIR/.verify-coder-created"
+	created=1
+fi
+
+# develop.sh binds every interface, so a database this harness creates gets a
+# random admin password instead of the published default. The password file
+# sits next to the data it belongs to and lives as long as that data.
+password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
+if [[ -f "$VC_CONFIG_DIR/.verify-coder-created" ]] && ((created || fresh)); then
+	password="${CODER_DEV_ADMIN_PASSWORD:-Vc-$(openssl rand -hex 16)}"
+	(
+		umask 077
+		printf '%s\n' "$password" >"$password_file"
+	)
+elif [[ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]]; then
+	password="$CODER_DEV_ADMIN_PASSWORD"
+elif [[ -f "$password_file" ]]; then
+	password="$(<"$password_file")"
+else
+	password="SomeSecurePassword!"
 fi
 args=(--port "$api_port" --web-port "$web_port" --prometheus-port 0)
 if ((fresh)); then
@@ -84,7 +110,9 @@ fi
 # Provider keys are dropped so the instance never spends real tokens by
 # itself (task naming calls Anthropic when a key is present).
 log="$VC_RUN/develop.log"
-env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL \
+# The password goes through the environment, not an argument, so it stays out
+# of the process list.
+CODER_DEV_ADMIN_PASSWORD="$password" env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL \
 	setsid "$VC_ROOT/scripts/develop.sh" "${args[@]}" "$@" >"$log" 2>&1 </dev/null &
 pid=$!
 
@@ -92,17 +120,20 @@ pid=$!
 # embedded build (VC_WEB_URL, the API port). The Vite dev server
 # (VC_VITE_URL) serves thousands of unbundled modules per page, and under host
 # load one failed fetch broke a lazy route import with the app's error page.
-cat >"$VC_RUN/env" <<EOF
-VC_PID=$pid
-VC_API_PORT=$api_port
-VC_WEB_PORT=$web_port
-VC_API_URL=http://127.0.0.1:$api_port
-VC_WEB_URL=http://127.0.0.1:$api_port
-VC_VITE_URL=http://127.0.0.1:$web_port
-VC_LOG=$log
-VC_BROWSER_SESSION=verify-coder-$api_port
-VC_STARTED_AT=$(date -u +%FT%TZ)
-EOF
+# printf %q keeps paths with spaces or shell characters intact when lib.sh
+# sources the file.
+{
+	printf 'VC_PID=%q\n' "$pid"
+	printf 'VC_API_PORT=%q\n' "$api_port"
+	printf 'VC_WEB_PORT=%q\n' "$web_port"
+	printf 'VC_API_URL=%q\n' "http://127.0.0.1:$api_port"
+	printf 'VC_WEB_URL=%q\n' "http://127.0.0.1:$api_port"
+	printf 'VC_VITE_URL=%q\n' "http://127.0.0.1:$web_port"
+	printf 'VC_LOG=%q\n' "$log"
+	printf 'VC_BROWSER_SESSION=%q\n' "verify-coder-$api_port"
+	printf 'VC_STARTED_AT=%q\n' "$(date -u +%FT%TZ)"
+	printf 'VC_ADMIN_PASSWORD=%q\n' "$password"
+} >"$VC_RUN/env"
 echo "started develop.sh as pid $pid (api $api_port, web $web_port, log: $log)"
 
 deadline=$((SECONDS + ${VERIFY_CODER_TIMEOUT:-900}))

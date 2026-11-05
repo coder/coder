@@ -21,7 +21,7 @@ Users see the templates they can build workspaces from. Template admins create t
 
 Preconditions:
 
-- `scripts/doctor.sh` passes. Its `starter-template` check fails when Docker works but the `docker` template is missing. Without Docker the list is empty and that check passes.
+- `scripts/doctor.sh` passes. Its `starter-template` check fails when Docker works but the `docker` template is missing. Without Docker the list is empty and that check passes, so `journeys/templates.sh` stops before its checks when `docker info` fails.
 
 - **Whole journey.** Run `journeys/templates.sh`. It ends with `templates: 4/4 checks passed` in 10 to 35 seconds and writes evidence to `build/verify-coder/evidence/<stamp>-templates/`.
 - **List.** `vc_ab open "$VC_WEB_URL/templates"` and wait with `vc_ab wait --fn 'document.title === "Templates - Coder"'`. The table has a row button named `Docker Containers ... Create Workspace`, and `vc_ab wait 'a[href="/templates/docker/workspace"]'` finds its link. The empty-state text `Create your first template` is absent. `scripts/coder.sh templates list --output json | jq -r '.[].Template.name'` prints `docker`.
