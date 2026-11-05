@@ -27,16 +27,20 @@ Run it when your change touches a path in `coverage.txt`, or changes how a job r
 
 It needs Java 11 or newer: `java` on `PATH`, `JAVA=<path>`, or `mise` (it then runs `mise exec java@temurin-25`). The first run downloads `tla2tools.jar` 1.7.4 into `build/verify-provisioner-jobs/` and checks its SHA-256. A run takes about 20 seconds. Set `OUT=<dir>` to keep the TLC logs in a folder you choose.
 
-The script prints one line per config and ends with `checks: N ok, M failed, 8 total`. It exits 0 only when every config gives its expected result. A run without the count line did not finish. Read every log with the `/statechart` skill: it turns each violation into the shortest path of steps in plain words and draws the state graph of a passing config.
+The script prints one line per config and ends with `checks: N ok, M failed, 9 total`. It exits 0 only when every config gives its expected result. A run without the count line did not finish.
+
+A pass checks the spec, not your diff. When covered code changed after the sync commit, `run.sh` lists those paths and prints a `WARNING` line. Until you update the spec to match the change (see "When your change is intended"), a pass tells you nothing about it.
+
+Read every log with the `/statechart` skill from the pstack plugin. It turns each violation into the shortest path of steps in plain words and draws the state graph of a passing config. Without it, read the trace in `$OUT/<config>.out`: TLC prints each state with the action that reached it.
 
 ## What it checks
 
 | Property | The promise | Harm if broken | Code that keeps it | Config that breaks it |
 |---|---|---|---|---|
-| `OneRunnerPerJob` | At most one daemon runs a job. | Two Terraform runs on one workspace duplicate or corrupt infrastructure. | `AcquireProvisionerJob` picks the row `FOR UPDATE SKIP LOCKED` inside the `UPDATE` (`provisionerjobs.sql`). | `NegAcquireNoLock` |
-| `CancelNeverClosesRunningJob` | A cancel never sets `completed_at` while a daemon holds the job. | The next build starts while Terraform still runs. | `patchCancelWorkspaceBuild` sets `completed_at` only without a worker (`coderd/workspacebuilds.go`). The prebuild cancel runs at Repeatable Read (`reconcile.go`). | `NegCancelIgnoresWorker`, `NegPrebuildCancelReadCommitted` |
-| `ReaperSparesLiveJob` | The reaper fails only jobs whose `updated_at` is stale. | A healthy build is failed and the next one runs over it. | `reapJob` rechecks the job under the row lock (`coderd/jobreaper/detector.go`). | `NegReaperNoRecheck` |
-| `OutcomeIsFinal` | Once `completed_at` is set, the job's error and its build's state never change. | A failed build turns into a succeeded one, with state that a newer build never saw. | Nothing today: finding F1. | `F1Outcome` (the code today) |
+| `OneRunnerPerJob` | At most one daemon runs a job. | Two Terraform runs on one workspace duplicate or corrupt infrastructure. | `AcquireProvisionerJob` picks the row `FOR UPDATE SKIP LOCKED` inside the `UPDATE` (`coderd/database/queries/provisionerjobs.sql`). | `NegAcquireNoLock` |
+| `CancelNeverClosesRunningJob` | A cancel never sets `completed_at` while a daemon holds the job. | The next build starts while Terraform still runs. | `patchCancelWorkspaceBuild` sets `completed_at` only without a worker (`coderd/workspacebuilds.go`). The prebuild cancel runs at Repeatable Read (`enterprise/coderd/prebuilds/reconcile.go`). | `NegCancelIgnoresWorker`, `NegPrebuildCancelReadCommitted` |
+| `ReaperSparesLiveJob` | The reaper fails only jobs whose `updated_at` is stale. | A healthy build is failed and the next one runs over it. | `reapJob` rechecks `updated_at` under the row lock (`coderd/jobreaper/detector.go`). | `NegReaperNoStaleRecheck` |
+| `OutcomeIsFinal` | Once `completed_at` is set, the job's error and its build's state never change. | A failed build turns into a succeeded one, with state that a newer build never saw. | `reapJob` rechecks `completed_at` under the row lock. Nothing guards `CompleteJob` and `FailJob` today: finding F1. | `F1Outcome` (the code today), `NegReaperNoCompletedRecheck` |
 | `NextBuildStartsFromFinalState` | Build N+1 starts from build N's final state. | Build N+1 plans against old state, so it duplicates or orphans cloud resources. | Nothing today: finding F1. | `F1NextBuild` (the code today) |
 
 Configs:
@@ -56,7 +60,7 @@ Status at the sync commit: open. `F1Outcome` reports this path as TLC states 2 t
 4. d1 resumes.
 5. The reaper's `GetProvisionerJobsToBeReaped` returns job 1.
 6. `reapJob` marks job 1 failed and copies build N-1's state into build N.
-7. d1's `CompleteJob` checks only `worker_id` (`provisionerdserver.go` `CompleteJob`). Then `completeWorkspaceBuildJob` sets `error = NULL` and writes the new state.
+7. d1's `CompleteJob` checks only `worker_id` (`coderd/provisionerdserver/provisionerdserver.go` `CompleteJob`). Then `completeWorkspaceBuildJob` sets `error = NULL` and writes the new state.
 
 Job 1 now reads `succeeded`. A build N+1 started after step 6 runs from build N-1's state. A heartbeat after the reap also succeeds and returns `canceled=false`, because `UpdateJob` does not read `completed_at`. `FailJob` checks `completed_at` with an unlocked read, so it can overwrite a reap in the same way. `completeTemplateImportJob` and `completeTemplateDryRunJob` make the same unguarded write. The model does not cover them.
 
@@ -72,10 +76,10 @@ When F1 is fixed:
 
 ## A real bug or a modeling error
 
-When a config gives a result its row does not expect:
+When a config gives a result its row in `checks` does not expect, before or after you edit the spec:
 
 1. Read the trace with `/statechart`. Map each step to the code in the action's comment.
-2. Replay the path against the real code as a Go test, as `replay_f1_test.go.txt` does. Use `setup` from `provisionerdserver_test.go`, `dbgen`, and `jobreaper.New` with a tick channel. Set `updated_at` in the past to stand in for time passing.
+2. Replay the path against the real code as a Go test, as `replay_f1_test.go.txt` does. For daemon RPCs, use `setup` from `coderd/provisionerdserver/provisionerdserver_test.go`. For the reaper, use `newDetectorTestEnv` from `coderd/jobreaper/detector_test.go`, or `jobreaper.New` with a tick channel. Set `updated_at` in the past to stand in for time passing. To put a step between the reaper's scan and its locked transaction, wrap the `database.Store` and run the step when `GetProvisionerJobByIDForUpdate` is called.
 3. If the real code does what the trace says, it is a finding. Report the path in the code's words. Do not weaken the property or the model to make it pass.
 4. If the real code does not do it, the model is wrong. Find the action whose guard or atomicity differs from the code and fix it.
 
@@ -83,13 +87,13 @@ When a config gives a result its row does not expect:
 
 1. Find the actions that your change touches, using the code names in the spec comments. A new guard either matches an existing switch, or it needs a new action or variable.
 2. Edit the spec so that it says what the new code does. Keep each action as large as one statement or one locked transaction in the code.
-3. Run `run.sh`. The `Safety` config must still pass, and each `Neg*` config must still break its property.
-4. When you add a guard, add a `Neg*` config that turns it off, and add its row to `checks` in `run.sh`.
+3. Run `run.sh`. The `Safety` config must still pass, and each `Neg*` config must still break its property. If one does not, follow "A real bug or a modeling error".
+4. When you add a guard, add a switch for it and a `Neg*` config that turns it off. Add the config's row to `checks` in `run.sh`. When you remove part of a guard, give each part its own switch first, as `ReaperRechecksCompleted` and `ReaperRechecksStale` do.
 5. When `run.sh` reports covered paths that changed after the sync commit, read their diffs against the model. Then set `sync` in `coverage.txt` to the commit you checked. Move it only after you confirm the model describes that commit.
 
 ## Assumptions and limits
 
-- Bounds: two daemons, two builds of one workspace, and every interleaving of their steps. `Safety` explores about 64,000 distinct states.
+- Bounds: two daemons, two builds of one workspace, and every interleaving of their steps. `Safety` explores about 29,000 distinct states.
 - Time is one flag per job: `updated_at` is older than the reaper threshold. A job goes stale only when no live process holds it. That means the job is pending, its daemon crashed, or its daemon is frozen. A live runner heartbeats every few seconds, and after one failed 30 second update it stops and sends `FailJob` (`provisionerd/runner`). A frozen daemon stands for a paused process or VM, or for replica clocks skewed past five minutes. The model does not check whether real clock skew reaches that.
 - Postgres: the default isolation is Read Committed. A row lock serializes the writers of a row. `SKIP LOCKED` skips a row that another transaction holds. Repeatable Read fails a statement whose row changed after its snapshot.
 - The model leaves out these parts:

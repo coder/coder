@@ -31,9 +31,12 @@ CONSTANTS
     \* runs UpdatePrebuildProvisionerJobWithCancel at LevelRepeatableRead, so
     \* a row that changed after the statement snapshot fails the statement.
     PrebuildCancelRepeatableRead,
-    \* TRUE in the code today. det.go reapJob rechecks completed_at and
-    \* updated_at after GetProvisionerJobByIDForUpdate.
-    ReaperRechecks,
+    \* TRUE in the code today. det.go reapJob rechecks completed_at after
+    \* GetProvisionerJobByIDForUpdate.
+    ReaperRechecksCompleted,
+    \* TRUE in the code today. det.go reapJob then rechecks that updated_at
+    \* is still older than the threshold.
+    ReaperRechecksStale,
     \* FALSE in the code today. TRUE models CompleteJob and FailJob writing
     \* only while completed_at IS NULL (the fix for finding F1).
     CompleteGuardsCompleted
@@ -188,7 +191,8 @@ DaemonCrashes(d) ==
 
 \* Terraform finished. pds.go CompleteJob checks only worker_id, then
 \* completeWorkspaceBuildJob runs, in one transaction,
-\* UpdateProvisionerJobWithCompleteByID (completed_at = now, error = NULL)
+\* UpdateProvisionerJobWithCompleteByID (completed_at and updated_at = now,
+\* error = NULL)
 \* and UpdateWorkspaceBuildProvisionerStateByID. worker_id never changes
 \* after acquire, so the unlocked read before the transaction cannot go
 \* stale in a way that matters. When CompleteJob returns an error, the
@@ -203,9 +207,10 @@ DaemonCompletesJob(d) ==
        ELSE /\ completed' = [completed EXCEPT ![j] = TRUE]
             /\ err' = [err EXCEPT ![j] = "none"]
             /\ state' = [state EXCEPT ![j] = "real"]
+            /\ stale' = [stale EXCEPT ![j] = FALSE]
             /\ phase' = [phase EXCEPT ![d] = "idle"]
             /\ djob' = [djob EXCEPT ![d] = None]
-            /\ UNCHANGED <<exists, started, worker, canceled, stale>>
+            /\ UNCHANGED <<exists, started, worker, canceled>>
     /\ UNCHANGED <<nextBase, reapQueue, pcSnap, reapedLive, cancelClosedRunning>>
 
 \* Terraform failed, a heartbeat failed, or a cancel timed out: the runner
@@ -241,7 +246,8 @@ FailJobWrites(d) ==
        ELSE /\ completed' = [completed EXCEPT ![j] = TRUE]
             /\ err' = [err EXCEPT ![j] = "daemon"]
             /\ \E s \in {state[j], "real"} : state' = [state EXCEPT ![j] = s]
-            /\ UNCHANGED <<exists, started, worker, canceled, stale>>
+            /\ stale' = [stale EXCEPT ![j] = FALSE]
+            /\ UNCHANGED <<exists, started, worker, canceled>>
     /\ UNCHANGED <<nextBase, reapQueue, pcSnap, reapedLive, cancelClosedRunning>>
 
 \* Time passes past the reaper threshold for a job no live process holds:
@@ -273,13 +279,14 @@ ReaperScans(j) ==
 ReaperReapsJob(j) ==
     /\ j \in reapQueue
     /\ reapQueue' = reapQueue \ {j}
-    /\ IF ~ReaperRechecks \/ (~completed[j] /\ stale[j])
+    /\ IF (~ReaperRechecksCompleted \/ ~completed[j]) /\ (~ReaperRechecksStale \/ stale[j])
        THEN /\ completed' = [completed EXCEPT ![j] = TRUE]
             /\ started' = [started EXCEPT ![j] = TRUE]
             /\ err' = [err EXCEPT ![j] = "reaper"]
             /\ state' = [state EXCEPT ![j] = IF @ = "empty" THEN "copied" ELSE @]
+            /\ stale' = [stale EXCEPT ![j] = FALSE]
             /\ reapedLive' = [reapedLive EXCEPT ![j] = @ \/ ~stale[j]]
-            /\ UNCHANGED <<exists, worker, canceled, stale>>
+            /\ UNCHANGED <<exists, worker, canceled>>
        ELSE UNCHANGED <<jobVars, reapedLive>>
     /\ UNCHANGED <<nextBase, phase, djob, pcSnap, cancelClosedRunning>>
 
@@ -385,11 +392,12 @@ OneRunnerPerJob ==
 CancelNeverClosesRunningJob == \A j \in Jobs : ~cancelClosedRunning[j]
 
 \* The reaper fails only jobs whose updated_at is stale. Guarded by
-\* ReaperRechecks.
+\* ReaperRechecksStale.
 ReaperSparesLiveJob == \A j \in Jobs : ~reapedLive[j]
 
 \* Once completed_at is set, the job's outcome and its build's state never
-\* change. Finding F1 breaks this on the code today.
+\* change. Finding F1 breaks this on the code today. ReaperRechecksCompleted
+\* keeps the reaper from breaking it.
 OutcomeIsFinal ==
     [][\A j \in Jobs :
         completed[j] =>

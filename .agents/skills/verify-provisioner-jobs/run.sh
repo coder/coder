@@ -23,7 +23,8 @@ checks=(
 	"NegAcquireNoLock|OneRunnerPerJob"
 	"NegCancelIgnoresWorker|CancelNeverClosesRunningJob"
 	"NegPrebuildCancelReadCommitted|CancelNeverClosesRunningJob"
-	"NegReaperNoRecheck|ReaperSparesLiveJob"
+	"NegReaperNoStaleRecheck|ReaperSparesLiveJob"
+	"NegReaperNoCompletedRecheck|OutcomeIsFinal"
 )
 
 if [[ ! -f "$jar" ]] || ! echo "$tla_sha256  $jar" | sha256sum --check --status; then
@@ -90,6 +91,8 @@ if git -C "$repo" cat-file -e "$sync^{commit}" 2>/dev/null; then
 		while IFS= read -r path; do
 			echo "  $path"
 		done <<<"$changed"
+		echo "WARNING: the results above describe the spec, not these changes."
+		echo "  Update ProvisionerJobs.tla to match them first (SKILL.md, \"When your change is intended\")."
 	else
 		echo "covered code unchanged after sync commit ${sync:0:10}"
 	fi
