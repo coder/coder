@@ -41,7 +41,7 @@ Load the instance in every new shell, including each separate tool call: `source
 - CLI: `scripts/coder.sh <args>` runs the binary develop built with `--global-config .coderv2`, logged in as the admin. It unsets `CODER_URL` and `CODER_SESSION_TOKEN` so it never talks to the deployment this workspace runs on.
 - API: `vc_api /api/v2/<path>` GETs as the admin without printing the token. Never echo `.coderv2/session`.
 - Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Add `-- --trace` to the launch for more.
-- Journeys: `journeys/<name>.sh` scripts drive one mapped feature end to end and write evidence. Run one to prove the harness, or copy one for a new feature.
+- Journeys: `journeys/create-user.sh` (6 checks, about 10 seconds), `journeys/workspace.sh` (9 checks, about 90 seconds, needs Docker) and `journeys/coder-agents.sh` (6 checks, about 15 seconds, starts its own `llm-mock`). Each drives one mapped feature end to end and writes evidence. Copy one for a new feature.
 
 ## Evidence
 
@@ -60,7 +60,7 @@ scripts/cleanup.sh             # also removes .coderv2 when launch.sh created it
 scripts/cleanup.sh --keep-data # keep .coderv2 for the next launch
 ```
 
-It deletes the instance's workspaces through the CLI, closes only `$VC_BROWSER_SESSION`, sends SIGINT to the develop session it started and then TERM and KILL to leftovers of that session only, checks both ports are free, and moves `develop.log` and `build.log` into `build/verify-coder/evidence/`. It never kills by process name and never deletes `build/verify-coder/evidence/`. Run it after every failed attempt too. A FAIL line keeps the run state so you can fix the cause and run it again.
+It deletes the instance's workspaces through the CLI, closes only `$VC_BROWSER_SESSION`, stops helpers that journeys recorded as `build/verify-coder/run/*.pid` when they still run this checkout's coder binary, sends SIGINT to the develop session it started and then TERM and KILL to leftovers of that session only, checks both ports are free, and moves `develop.log` and `build.log` into `build/verify-coder/evidence/`. It never kills by process name and never deletes `build/verify-coder/evidence/`. Run it after every failed attempt too. A FAIL line keeps the run state so you can fix the cause and run it again.
 
 ## Features
 

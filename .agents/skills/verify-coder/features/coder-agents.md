@@ -19,18 +19,19 @@ An admin adds an AI provider and a model. A user then opens `/agents`, sends a m
 Preconditions:
 
 - `scripts/doctor.sh` passes and the browser is signed in as the admin.
-- A local OpenAI-compatible fake runs: `scripts/coder.sh exp scaletest llm-mock --address 127.0.0.1:<port>` in the background. It serves `/v1/chat/completions`, `/v1/responses` and `/v1/messages`. Stop it by its pid when done.
+- A local OpenAI-compatible fake runs: `"$(vc_coder_bin)" exp scaletest llm-mock --address 127.0.0.1:<port> &`. It answers every model name on `/v1/chat/completions` with `This is a mock response from OpenAI.` Record its pid as `$VC_RUN/<name>.pid` so `scripts/cleanup.sh` stops it if you do not.
 
-- **Empty state.** Before setup, `vc_ab open "$VC_WEB_URL/agents"`. The admin sees links to providers and models. The member sees `AI models aren't available yet.`
-- **Add a provider.** `vc_ab open "$VC_WEB_URL/ai/settings/providers"`, click the `Add provider` button, pick the OpenAI-compatible type (`openai-compat`), fill `Name`, `Endpoint` with `http://127.0.0.1:<port>/v1` and `API key` with any placeholder, then click `Add provider`.
-- **Add a model.** `vc_ab open "$VC_WEB_URL/ai/settings/models"`, click `Add model`, pick the provider, fill `Display name` and the model ID, then click `Add Model`.
-- **Chat.** `vc_ab open "$VC_WEB_URL/agents"`, `vc_ab find label "Chat message" fill "Say hello"`, then `vc_ab find role button click --name "Send"`. The URL becomes `/agents/<chat id>` and a `Stop` button shows while the reply streams.
-- **Reply proof.** `vc_api /api/v2/chats/<chat id>` reaches status `waiting` after `running`. `vc_api /api/v2/chats/<chat id>/messages` has an `assistant` message. Screenshot the chat with the reply.
+- **Whole journey.** Run `journeys/coder-agents.sh`. It starts and stops its own mock, ends with `coder-agents: 6/6 checks passed`, and writes evidence to `build/verify-coder/evidence/<stamp>-coder-agents/`.
+- **Empty state.** Before any model exists, `/agents` shows the admin a `provider` link and a `model` link, and the model picker reads `No Models Configured`.
+- **Add a provider.** On `$VC_WEB_URL/ai/settings/providers` (title `AI Providers - Coder`), click the `Add provider` button, then `vc_ab find role menuitem click --name "OpenAI-compatible"`. The URL becomes `/ai/settings/providers/add?type=openai-compat`. Wait for `input[name=apiKey]`, then fill `input[name=name]` (prefilled `openai-compat`, must be unique), `input[name=displayName]`, `input[name=baseUrl]` with `http://127.0.0.1:<port>/v1` and `input[name=apiKey]` with any placeholder. Click `Add provider`. A toast reads `Provider "<display name>" added.` Second view: `vc_api /api/v2/ai/providers` lists it with `type` `openai-compat` and that `base_url`.
+- **Add a model.** On `$VC_WEB_URL/ai/settings/models` (title `Models - AI Settings - Coder`), click `Add model`, then the menu item named after the provider's display name. Wait for `#contextLimit`, then fill `#model` (any ID, such as `mock-1`), `#displayName` and `#contextLimit` (`128000`). Tick `find label "Set as Coder Agents default model" check`, then click `Add Model`. When a default already exists, a `Replace default model` dialog asks first: click `Confirm`. A toast reads `Model "<display name>" added.` Second view: `vc_api /api/v2/organizations/<org id>/chats/models` returns `{models, providers}`, and the model has `is_default` `true`.
+- **Chat.** `vc_ab open "$VC_WEB_URL/agents"` and wait for network idle. The model picker is a combobox named after the default model. `vc_ab find label "Chat message" fill "<text>"`, then `vc_ab find role button click --name "Send"`. The URL becomes `/agents/<chat id>`, the reply appears, and the sidebar row reads `Finished latest turn`.
+- **Reply proof.** `vc_api /api/v2/chats/<chat id>` reaches `status` `waiting`. `vc_api /api/v2/chats/<chat id>/messages` returns the messages newest first: an `assistant` message whose text part is the mock reply, then the `user` message.
 
 ## Gotchas
 
-- Nothing seeds a provider or a model, and `launch.sh` unsets `ANTHROPIC_*` and `OPENAI_*`. Use the fake unless the change under test needs a real model, and then never screenshot or snapshot the provider form after you type a real key.
-- The `openai-compat` endpoint needs the `/v1` suffix. Coder appends `/chat/completions`.
-- Chat titles and status labels call the model with a forced tool choice. A fake that answers with text only leaves the fallback title. Check the title only against a fake that answers tool calls.
-- No `site/e2e` test sends a chat message, so there is no Playwright recipe to copy. This flow was written from the page sources and was not run when the skill was created.
-- Chats run inside a workspace only when the model calls workspace tools. A text reply needs no workspace.
+- Nothing seeds a provider or a model, and `launch.sh` unsets `ANTHROPIC_*` and `OPENAI_*`. Use the mock unless the change under test needs a real model, and then never screenshot or snapshot the provider form after you type a real key. The journey screenshots the provider form before it types the placeholder key.
+- The `openai-compat` endpoint needs the `/v1` suffix. A loopback URL is accepted.
+- Label fills on the provider and model forms failed when they ran before the form rendered. Wait for an input first, and fill by `name` or `id`.
+- With `llm-mock`, the chat title is the first message's text.
+- A text-only chat created no workspace.

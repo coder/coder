@@ -31,5 +31,5 @@ Preconditions:
 
 - The login page renders `<title>Sign in to Coder</title>`, but `document.title` read empty in agent-browser. Wait for the `Sign In` button, not the title.
 - After `cookies clear`, opening a cached `/login` leaves a CSRF cookie that does not match the dev site's fixed CSRF header, and the next POST fails with `Something is wrong with your CSRF token`. The UI then shows `Request failed with status code 400`. `vc_browser_login` adds a unique query to `/login` to avoid this. Do the same in any custom sign-in.
-- Sign-in does a hard navigation to `/` and then a client-side redirect, so wait for the title, not only the URL (`site/e2e/helpers.ts` `login`).
+- A successful sign-in both renders a client-side redirect and sets `location.href` for a hard reload (`site/src/pages/LoginPage/LoginPage.tsx`). The workspaces page can render before the reload replaces it. `vc_browser_login` sets a marker on `window` before it clicks `Sign In` and waits until the marker is gone and the title is `Workspaces - Coder`.
 - Inside a Coder workspace the dev build names the session cookie `dev_coder_session_token`. Sign in through the form instead of setting cookies.

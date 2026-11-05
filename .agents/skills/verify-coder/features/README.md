@@ -32,5 +32,5 @@ Each feature file has an H1 title and one paragraph on the user-visible behavior
 - [Sign in](./sign-in.md) covers the password form, the redirect to workspaces, and CLI login. Journey: `vc_browser_login` in `scripts/lib.sh`.
 - [Users](./users.md) covers creating a password user in the UI and the CLI, and proving it through the API and a fresh sign-in. Journey: `journeys/create-user.sh`.
 - [Templates](./templates.md) covers the template list, the seeded `docker` template, the starter gallery and `coder templates push`.
-- [Workspaces](./workspaces.md) covers creating a Docker workspace in the UI and the CLI, agent connection, `coder ssh`, the web terminal, stop, start and delete.
-- [Coder Agents](./coder-agents.md) covers provider and model setup, then a chat with a reply from a local fake LLM.
+- [Workspaces](./workspaces.md) covers creating a Docker workspace in the UI and the CLI, agent connection, `coder ssh`, the web terminal, stop, start and delete. Journey: `journeys/workspace.sh`.
+- [Coder Agents](./coder-agents.md) covers provider and model setup, then a chat with a reply from a local fake LLM (`llm-mock`). Journey: `journeys/coder-agents.sh`.

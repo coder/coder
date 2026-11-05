@@ -17,6 +17,9 @@ password="Verify-$(openssl rand -hex 8)"
 
 VC_CHECK_LOG="$out/steps.log"
 VC_RESULT_FILE="$out/result.txt"
+vc_on_fail() {
+	vc_capture_failure "$out" "$1"
+}
 
 sign_in() {
 	vc_browser_login

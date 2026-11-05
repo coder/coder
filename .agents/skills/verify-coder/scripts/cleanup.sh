@@ -46,6 +46,23 @@ close_browser() {
 	fi
 }
 
+# Journeys record helpers they start (such as llm-mock) as $VC_RUN/*.pid.
+# Stop only pids that still run this checkout's coder binary.
+stop_helpers() {
+	local f pid n=0 bin
+	bin="$(vc_coder_bin)"
+	for f in "$VC_RUN"/*.pid; do
+		[[ -f "$f" ]] || continue
+		pid="$(cat "$f")"
+		if [[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$bin"* ]]; then
+			kill "$pid"
+			n=$((n + 1))
+		fi
+		rm -f "$f"
+	done
+	echo "stopped $n helpers"
+}
+
 stop_develop() {
 	if [[ -d "/proc/$VC_PID" ]] && ! vc_owns_pid "$VC_PID"; then
 		echo "pid $VC_PID now belongs to another program, left it alone"
@@ -116,6 +133,7 @@ remove_data() {
 
 vc_check workspaces delete_workspaces
 vc_check browser close_browser
+vc_check helpers stop_helpers
 vc_check develop stop_develop
 vc_check ports ports_free
 if ((VC_PASS == VC_TOTAL)); then
