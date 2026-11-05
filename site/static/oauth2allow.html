@@ -145,6 +145,23 @@ links */}}
         object-fit: contain;
       }
 
+      .app-icon[data-mode="monochrome"] {
+        filter: grayscale(100%) contrast(0%) brightness(250%);
+      }
+
+      :root.light .app-icon[data-mode="monochrome"] {
+        filter: grayscale(100%) contrast(0%) brightness(40%);
+      }
+
+      .app-icon[data-mode="blackWithColor"],
+      :root.light .app-icon[data-mode="whiteWithColor"] {
+        filter: invert(1) hue-rotate(180deg) brightness(var(--icon-brightness, 1));
+      }
+
+      :root.light .app-icon[data-mode="blackWithColor"] {
+        filter: none;
+      }
+
       .connect-symbol {
         color: var(--content-secondary);
         font-size: 24px;
@@ -309,6 +326,81 @@ links */}}
         var cancelLink = document.getElementById("cancel-link");
         var scopeList = document.getElementById("scope-list");
         var scopeDisclaimer = document.getElementById("scope-disclaimer");
+        var appIcon = document.querySelector(".app-icon");
+
+        var builtinIconModes = {
+          "/icon/amp.svg": "monochrome",
+          "/icon/apple.svg": "monochrome",
+          "/icon/apple-black.svg": "monochrome",
+          "/icon/auggie.svg": "monochrome",
+          "/icon/anthropic.svg": "monochrome",
+          "/icon/auto-dev-server.svg": "monochrome",
+          "/icon/aws-monochrome.svg": "monochrome",
+          "/icon/aws.png": "whiteWithColor&brightness=1.5",
+          "/icon/aws.svg": "whiteWithColor&brightness=1.5",
+          "/icon/coder.svg": "monochrome",
+          "/icon/container.svg": "monochrome",
+          "/icon/copyparty.svg": "blackWithColor",
+          "/icon/delta.svg": "monochrome",
+          "/icon/database.svg": "monochrome",
+          "/icon/devcontainers.svg": "monochrome",
+          "/icon/devin.svg": "monochrome",
+          "/icon/docker-white.svg": "monochrome",
+          "/icon/folder.svg": "monochrome",
+          "/icon/gemini-monochrome.svg": "monochrome",
+          "/icon/github-copilot.svg": "whiteWithColor",
+          "/icon/github.svg": "monochrome",
+          "/icon/image.svg": "monochrome",
+          "/icon/jupyter.svg": "blackWithColor",
+          "/icon/kasmvnc.svg": "whiteWithColor",
+          "/icon/kilo-code.svg": "blackWithColor",
+          "/icon/kiro.svg": "whiteWithColor",
+          "/icon/linear.svg": "monochrome",
+          "/icon/memory.svg": "monochrome",
+          "/icon/mux.svg": "monochrome",
+          "/icon/nexus-repository.svg": "blackWithColor",
+          "/icon/okta.svg": "monochrome",
+          "/icon/openai-codex.svg": "monochrome",
+          "/icon/openai.svg": "monochrome",
+          "/icon/opencode.svg": "whiteWithColor",
+          "/icon/openrouter.svg": "monochrome",
+          "/icon/openwebui.svg": "monochrome",
+          "/icon/roo-code.svg": "whiteWithColor",
+          "/icon/rust.svg": "monochrome",
+          "/icon/tasks.svg": "monochrome",
+          "/icon/terminal.svg": "monochrome",
+          "/icon/vercel.svg": "whiteWithColor",
+          "/icon/widgets.svg": "monochrome",
+          "/icon/windsurf.svg": "monochrome",
+          "/icon/xum.svg": "monochrome",
+          "/icon/zed.svg": "monochrome",
+        };
+
+        if (appIcon) {
+          var url = null;
+          try {
+            url = new URL(appIcon.getAttribute("src"), location.origin);
+          } catch (e) {}
+        }
+        if (url) {
+          var search = url.search;
+          if (!search && url.origin === location.origin) {
+            search = builtinIconModes[url.pathname] || "";
+          }
+          var params = new URLSearchParams(search);
+          var mode = ["monochrome", "whiteWithColor", "blackWithColor"].find(
+            function (m) {
+              return params.has(m);
+            }
+          );
+          if (mode) {
+            appIcon.dataset.mode = mode;
+          }
+          var brightness = params.get("brightness") || "";
+          if (mode !== "monochrome" && /^\d+(\.\d+)?%?$/.test(brightness)) {
+            appIcon.style.setProperty("--icon-brightness", brightness);
+          }
+        }
 
         function showFeedback(message) {
           buttonGroup.style.display = "none";
