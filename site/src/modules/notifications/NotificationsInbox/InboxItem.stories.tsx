@@ -106,3 +106,16 @@ export const OnMarkNotificationAsRead: Story = {
 		pixel: { exclude: true },
 	},
 };
+
+export const UnreadFocused: Story = {
+	args: {
+		notification: {
+			...MockNotification,
+			read_at: null,
+			actions: [],
+		},
+	},
+	play: async () => {
+		await userEvent.tab();
+	},
+};

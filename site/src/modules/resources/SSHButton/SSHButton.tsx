@@ -62,18 +62,18 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href="/install">Install Coder CLI</HelpPopoverLink>
-					<HelpPopoverLink href={docs("/user-guides/workspace-access/vscode")}>
+					<HelpPopoverLink href={docs("/workspaces/workspace-access/vscode")}>
 						Connect via VS Code Remote SSH
 					</HelpPopoverLink>
 					<HelpPopoverLink
-						href={docs("/user-guides/workspace-access/jetbrains")}
+						href={docs("/workspaces/workspace-access/jetbrains")}
 					>
 						Connect via JetBrains IDEs
 					</HelpPopoverLink>
-					<HelpPopoverLink href={docs("/user-guides/desktop")}>
+					<HelpPopoverLink href={docs("/workspaces/desktop")}>
 						Connect via Coder Desktop
 					</HelpPopoverLink>
-					<HelpPopoverLink href={docs("/user-guides/workspace-access#ssh")}>
+					<HelpPopoverLink href={docs("/workspaces/workspace-access#ssh")}>
 						SSH configuration
 					</HelpPopoverLink>
 				</HelpPopoverLinksGroup>

@@ -86,7 +86,7 @@ const BuildParametersPopoverContent: React.FC<
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink
 						href={docs(
-							"/admin/templates/extending-templates/parameters#ephemeral-parameters",
+							"/templates/extending-templates/parameters#ephemeral-parameters",
 						)}
 					>
 						Read the docs

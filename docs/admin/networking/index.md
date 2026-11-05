@@ -140,7 +140,7 @@ The dashboard (and web apps opened through the dashboard) are served from the co
 Some Coder deployments require that all access is through the browser to comply with security policies.
 In these cases, pass the `--browser-only` flag to `coder server` or set `CODER_BROWSER_ONLY=true`.
 
-With browser-only connections, developers can only connect to their workspaces via the web terminal and [web IDEs](../../user-guides/workspace-access/web-ides.md).
+With browser-only connections, developers can only connect to their workspaces via the web terminal and [web IDEs](../../workspaces/workspace-access/web-ides.md).
 
 ### Workspace Proxies
 

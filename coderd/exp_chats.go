@@ -6757,7 +6757,7 @@ func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 const autoArchiveDaysMaximum = 3650 // ~10 years
 
 // putChatAutoArchiveDays updates the deployment-wide auto-archive
-// window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
+// window. Admin-only; documented in docs/coder-agents/chats-api.md.
 //
 // @Summary Update chat auto archive days
 // @ID update-chat-auto-archive-days
@@ -7718,18 +7718,17 @@ func (w *workspaceUsageReader) Read(p []byte) (int, error) {
 }
 
 func writeWorkspaceAgentUploadError(ctx context.Context, rw http.ResponseWriter, err error) {
-	var sdkErr *codersdk.Error
-	if errors.As(err, &sdkErr) && sdkErr.StatusCode() != 0 {
-		// The upload handler never answers 404 itself, so a 404 means
-		// the workspace runs an agent from before this endpoint existed
-		// (coderd upgraded while the workspace kept running).
-		if sdkErr.StatusCode() == http.StatusNotFound {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "The workspace agent does not support chat file uploads. Restart the workspace to update its agent, then retry.",
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, sdkErr.StatusCode(), sdkErr.Response)
+	// The upload handler never answers 404 itself, so a 404 means the
+	// workspace runs an agent from before this endpoint existed (coderd
+	// upgraded while the workspace kept running).
+	var agentErr *codersdk.Error
+	if errors.As(err, &agentErr) && agentErr.StatusCode() == http.StatusNotFound {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The workspace agent does not support chat file uploads. Restart the workspace to update its agent, then retry.",
+		})
+		return
+	}
+	if writeAgentError(ctx, rw, err, "Failed to upload file to workspace agent.") {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
