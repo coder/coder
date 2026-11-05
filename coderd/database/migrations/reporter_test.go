@@ -198,7 +198,7 @@ func TestReporter(t *testing.T) {
 		entries := sink.Entries()
 		require.Len(t, entries, 1)
 		require.Equal(t, "database schema is up to date", entries[0].Message)
-		require.Equal(t, slog.LevelInfo, entries[0].Level)
+		require.Equal(t, slog.LevelDebug, entries[0].Level)
 		require.Equal(t, 1, field(t, entries[0], "version"))
 	})
 
