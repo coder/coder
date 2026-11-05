@@ -5,12 +5,17 @@ SHELL ["/bin/bash", "-c"]
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
 
-# Updated certificates are necessary to use the teraswitch mirror.
-# This must be ran before copying in configuration since the config replaces
-# the default mirror with teraswitch.
-# Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
-# and unminimize to include man pages.
-RUN apt-get update && \
+# Use more reliable mirrors for Ubuntu packages. Switch before the first
+# apt-get update so every apt step reads the same mirror: unminimize upgrades
+# installed packages, and a package that requires an exact version of one of
+# them (apt-utils requires apt) fails to install below if the mirror lacks
+# that version.
+#
+# ca-certificates must be installed before copying in files/, whose
+# third-party apt sources use HTTPS. Also enable the en_US.UTF-8 locale so
+# that we don't generate multiple locales and unminimize to include man pages.
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
+	apt-get update && \
 	apt-get install --yes ca-certificates locales unminimize && \
 	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
 	locale-gen && \
@@ -25,9 +30,7 @@ RUN mkdir -p /etc/sudoers.d && \
 	chmod 750 /etc/sudoers.d/ && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
-# Use more reliable mirrors for Ubuntu packages
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
-	apt-get update --quiet && apt-get install --yes \
+RUN apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
 	apt-utils \
