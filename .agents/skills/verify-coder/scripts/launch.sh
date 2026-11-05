@@ -119,20 +119,9 @@ if ((fresh)); then
 	args+=(--db-reset)
 fi
 
-# develop.sh and coder server read many CODER_* variables (a database URL,
-# a reset, ports, an env file), so none of the caller's reach them. Provider
-# keys are dropped too, so the instance never spends real tokens by itself
-# (task naming calls Anthropic when a key is present). The password goes
-# through the environment, not an argument, so it stays out of the process
-# list.
-scrub=(-u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL)
-while read -r var; do
-	scrub+=(-u "$var")
-done < <(compgen -e | grep '^CODER_' || true)
 log="$VC_RUN/develop.log"
-env "${scrub[@]}" CODER_DEV_ADMIN_PASSWORD="$password" DEVELOP_IN_CODER="$develop_in_coder" \
-	setsid "$VC_ROOT/scripts/develop.sh" "${args[@]}" -- "${server_flags[@]}" >"$log" 2>&1 </dev/null &
-pid=$!
+vc_start_develop "$log" "$password" "$develop_in_coder" "${args[@]}" -- "${server_flags[@]}"
+pid="$VC_DEVELOP_PID"
 
 # Journeys drive the production frontend that coder server serves from the
 # embedded build (VC_WEB_URL, the API port). The Vite dev server

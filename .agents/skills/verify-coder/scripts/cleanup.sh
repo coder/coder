@@ -68,7 +68,7 @@ delete_workspaces() {
 	kept="$("$here/coder.sh" list --all --output json 2>/dev/null | jq -r '[.[] | "\(.owner_name)/\(.name)"] | join(" ")')"
 	echo "deleted: ${deleted[*]:-none}"
 	echo "kept, not recorded by the harness: ${kept:-none}"
-	echo "deleted ${#deleted[@]} recorded workspaces, kept $(wc -w <<<"$kept") others, names in $(basename "$VC_CHECK_LOG")"
+	echo "deleted ${#deleted[@]} workspaces, kept $(wc -w <<<"$kept") not recorded by the harness, names in $(basename "$VC_CHECK_LOG")"
 }
 
 close_browser() {

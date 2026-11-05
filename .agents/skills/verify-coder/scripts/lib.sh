@@ -59,6 +59,29 @@ vc_check() {
 	fi
 }
 
+# vc_start_develop starts scripts/develop.sh in its own process session and
+# sets VC_DEVELOP_PID. Usage: vc_start_develop <log> <password> <0|1 in Coder>
+# <develop args...>. develop.sh and coder server read many CODER_* variables
+# (a database URL, a reset, ports, an env file), so none of the caller's reach
+# them. Provider keys are dropped too, so the instance never spends real
+# tokens by itself (task naming calls Anthropic when a key is present). The
+# password goes through the environment, never an argument, so it stays out
+# of the process list.
+vc_start_develop() {
+	local log="$1" password="$2" in_coder="$3" var
+	shift 3
+	local scrub=(-u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL)
+	while read -r var; do
+		if [[ "$var" != CODER_DEV_ADMIN_PASSWORD ]]; then
+			scrub+=(-u "$var")
+		fi
+	done < <(compgen -e | grep '^CODER_' || true)
+	CODER_DEV_ADMIN_PASSWORD="$password" DEVELOP_IN_CODER="$in_coder" env "${scrub[@]}" \
+		setsid "$VC_ROOT/scripts/develop.sh" "$@" >"$log" 2>&1 </dev/null &
+	# shellcheck disable=SC2034 # launch.sh reads it.
+	VC_DEVELOP_PID=$!
+}
+
 # vc_record_workspace marks <owner>/<name> as created by the harness, so
 # cleanup.sh deletes it. Record a workspace before you create it.
 vc_record_workspace() {

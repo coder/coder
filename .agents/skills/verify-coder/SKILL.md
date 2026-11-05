@@ -18,7 +18,7 @@ scripts/launch.sh -- --verbose     # after --, allowed coder server flags
 ```
 
 - It takes only `--fresh` and, after `--`, the coder server flags in `server_flag_allowed` (`--verbose`, `--experiments=<list>`). It refuses every other argument, because the harness owns the database, the ports, the listen and access addresses and the admin password. Add a flag to `server_flag_allowed` only when it changes none of them.
-- It starts develop with every `CODER_*` variable of the calling shell removed, so a `CODER_PG_CONNECTION_URL`, `CODER_DEV_DB_RESET` or `CODER_DEV_ENV_FILE` there never reaches the instance. `CODER_DEV_PORT`, `CODER_DEV_WEB_PORT` and `CODER_DEV_ADMIN_PASSWORD` still work: `launch.sh` reads them itself.
+- It starts develop through `vc_start_develop` with every `CODER_*` variable of the calling shell removed, so a `CODER_PG_CONNECTION_URL`, `CODER_DEV_DB_RESET` or `CODER_DEV_ENV_FILE` there never reaches the instance. `CODER_DEV_PORT`, `CODER_DEV_WEB_PORT` and `CODER_DEV_ADMIN_PASSWORD` still work: `launch.sh` reads them itself.
 
 - It builds `build/.bin/develop` and `build/coder_<os>_<arch>` first, then picks free API and web ports (13000 and 18000 plus a per-checkout offset), then starts `scripts/develop.sh` in its own process session. Coder metrics are off (`--prometheus-port 0`).
 - The first build in a checkout compiles the site and seven slim binaries. It took 13 minutes on 8 cores at load average 15 to 27. With the build done, startup took about 40 seconds on a new database and 9 seconds on kept data.
@@ -44,7 +44,7 @@ It changes nothing apart from one refused sign-in with the published default pas
 scripts/selftest.sh
 ```
 
-Needs no instance and takes about a second. It checks that `launch.sh` refuses `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password for a new database before it builds, that a new database without `CODER_DEV_ADMIN_PASSWORD` and the allowed server flags get past those checks, and that `vc_browser_login` passes the password to agent-browser on stdin, not as an argument. Run it after you edit `launch.sh` or `lib.sh`.
+Needs no instance and takes about a second. It checks that `launch.sh` refuses `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password for a new database before it builds, that a new database without `CODER_DEV_ADMIN_PASSWORD` and the allowed server flags get past those checks, that `vc_start_develop` gives develop the password through its environment and none of the caller's `CODER_*` variables, and that `vc_browser_login` passes the password to agent-browser on stdin, not as an argument. Run it after you edit `launch.sh` or `lib.sh`.
 
 ## Drive
 
