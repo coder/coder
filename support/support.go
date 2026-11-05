@@ -321,7 +321,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 		log.Error(ctx, "fetch deployment information", slog.Error(err))
 	}
 
-	if d.Config != nil && d.Config.Values != nil {
+	if d.Config != nil {
 		prometheusCfg := d.Config.Values.Prometheus
 		if prometheusCfg.Enable.Value() {
 			metrics, err := fetchPrometheusMetrics(ctx, client, log)

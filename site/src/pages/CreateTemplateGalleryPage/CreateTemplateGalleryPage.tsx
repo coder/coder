@@ -13,7 +13,7 @@ const CreateTemplatesGalleryPage: React.FC = () => {
 
 	const { data: deploymentConfigData } = useQuery(deploymentConfig());
 	const builderDisabled =
-		deploymentConfigData?.config?.template_builder?.disabled ?? false;
+		deploymentConfigData?.config.template_builder?.disabled ?? false;
 
 	return (
 		<>

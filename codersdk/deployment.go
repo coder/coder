@@ -1563,8 +1563,8 @@ func DefaultDocsURL() string {
 
 // DeploymentConfig contains both the deployment values and how they're set.
 type DeploymentConfig struct {
-	Values  *DeploymentValues `json:"config,omitempty"`
-	Options serpent.OptionSet `json:"options,omitempty"`
+	Values  DeploymentValues  `json:"config"`
+	Options serpent.OptionSet `json:"options"`
 }
 
 func (c *DeploymentValues) Options() serpent.OptionSet {
@@ -5349,11 +5349,9 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		return nil, ReadBodyAsError(res)
 	}
 
-	conf := &DeploymentValues{}
-	resp := &DeploymentConfig{
-		Values:  conf,
-		Options: conf.Options(),
-	}
+	// Options must point at resp.Values, so decoding fills both.
+	resp := &DeploymentConfig{}
+	resp.Options = resp.Values.Options()
 	return resp, ReadBodyAsJSON(res, resp)
 }
 

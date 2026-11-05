@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { SerpentGroup, SerpentOption } from "#/api/typesGenerated";
 
 const deploymentOptions = (
-	options: SerpentOption[],
+	options: readonly SerpentOption[],
 	...names: string[]
 ): SerpentOption[] => {
 	const found: SerpentOption[] = [];
@@ -18,7 +18,7 @@ const deploymentOptions = (
 };
 
 export const useDeploymentOptions = (
-	options: SerpentOption[],
+	options: readonly SerpentOption[],
 	...names: string[]
 ): SerpentOption[] => {
 	return useMemo(() => deploymentOptions(options, ...names), [options, names]);
