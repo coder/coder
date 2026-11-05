@@ -154,3 +154,26 @@ func googleThoughtSignature(t *testing.T, rawMessage any, toolCallIndex int) str
 	signature, _ := google["thought_signature"].(string)
 	return signature
 }
+
+func TestPatchOpenAICompatChatCompletionsBody_MergesLeadingSystemParts(t *testing.T) {
+	t.Parallel()
+
+	cacheControl := map[string]any{"type": "ephemeral"}
+	payload := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "system", "content": "system prompt"},
+			map[string]any{"role": "system", "content": []any{
+				map[string]any{"type": "text", "text": "instructions", "cache_control": cacheControl},
+			}},
+			map[string]any{"role": "user", "content": "hi"},
+		},
+	}
+
+	patched := patchOpenAICompatChatCompletionsBody(mustJSON(t, payload), "http://example.com/v1", "test-model")
+	messages := decodeJSONMap(t, patched)["messages"].([]any)
+	require.Len(t, messages, 2)
+	require.Equal(t, []any{
+		map[string]any{"type": "text", "text": "system prompt"},
+		map[string]any{"type": "text", "text": "instructions", "cache_control": cacheControl},
+	}, messages[0].(map[string]any)["content"])
+}

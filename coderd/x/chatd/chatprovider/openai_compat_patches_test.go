@@ -391,3 +391,40 @@ func TestProviderOptionsForCall_GoogleThinkingConfigSkipsNonCompatClients(t *tes
 	}, nil)
 	require.NotContains(t, providerOptions, fantasyopenaicompat.Name)
 }
+
+func TestModelFromConfig_OpenAICompatMergesLeadingSystemMessages(t *testing.T) {
+	t.Parallel()
+
+	transport := &captureChatCompletionTransport{}
+	model, err := chatprovider.ModelFromConfig(
+		fantasyopenaicompat.Name,
+		"test-model",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasyopenaicompat.Name: "test-key",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasyopenaicompat.Name: "http://example.com/v1",
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		&http.Client{Transport: transport},
+		nil,
+	)
+	require.NoError(t, err)
+
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
+		Prompt: []fantasy.Message{
+			{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system prompt"}}},
+			{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "instructions"}}},
+			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	messages := transport.body["messages"].([]any)
+	require.Len(t, messages, 2)
+	require.Equal(t, map[string]any{"role": "system", "content": "system prompt\n\ninstructions"}, messages[0])
+	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+}
