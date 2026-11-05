@@ -1,6 +1,6 @@
 ---
 name: verify-coder
-description: "Launch an isolated local Coder from this checkout with scripts/develop.sh, check it with a read-only doctor, drive it the way a user would through the web UI (agent-browser) and the coder CLI, and capture evidence that survives cleanup. Use to prove a Coder change works end to end, to reproduce a bug on the real app, or before calling UI, API or CLI work done. For a PR-scoped dogfood report, use the dogfood skill for scoping and this skill for the run."
+description: "Launch an isolated local Coder from this checkout with scripts/develop.sh, check it with a doctor, drive it the way a user would through the web UI (agent-browser) and the coder CLI, and capture evidence that survives cleanup. Use to prove a Coder change works end to end, to reproduce a bug on the real app, or before calling UI, API or CLI work done. For a PR-scoped dogfood report, use the dogfood skill for scoping and this skill for the run."
 ---
 
 # Verify Coder
@@ -33,7 +33,7 @@ scripts/launch.sh -- --verbose     # after --, flags go to coder server, as with
 scripts/doctor.sh
 ```
 
-Read-only. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch; it compares commits only, so relaunch after uncommitted edits too), that the CLI session in `.coderv2/session` is the admin, that the API port serves the embedded frontend, that the Vite port proxies `/api`, that the `docker` template exists whenever `docker info` works, that `build/verify-coder/` is mode 0700, and, on data `launch.sh` created, that the published default password is refused. It prints the URLs as an INFO line.
+It changes nothing apart from one refused sign-in with the published default password. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch; it compares commits only, so relaunch after uncommitted edits too), that the CLI session in `.coderv2/session` is the admin, that the API port serves the embedded frontend, that the Vite port proxies `/api`, that the `docker` template exists whenever `docker info` works, that `build/verify-coder/` is mode 0700, and, when this launch created the database (`creating first user` in the log), that the published default password is refused. It prints the URLs as an INFO line.
 
 ## Self-test
 

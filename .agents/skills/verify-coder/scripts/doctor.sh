@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Read-only check that the recorded instance is ours, current and usable.
+# Check that the recorded instance is ours, current and usable. It changes
+# nothing apart from one refused sign-in with the published default password.
 # Prints one line per check and a count line, exits 1 on any failure.
 set -euo pipefail
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
@@ -106,12 +107,22 @@ state_private() {
 	echo "$VC_STATE is private (700)"
 }
 
-# The server listens on every interface, so data that launch.sh created must
-# refuse the published default password.
+# The server listens on every interface, so a database this launch created
+# must refuse the published default password. develop.log says "creating
+# first user" only when the launch created or reset the database, which does
+# not depend on the password logic in launch.sh.
 default_password_refused() {
-	local code
-	if [[ "$VC_ADMIN_PASSWORD" == "SomeSecurePassword!" ]]; then
-		echo "this data uses the published default password (launch.sh did not create its database)"
+	local code password_file="$VC_CONFIG_DIR/.verify-coder-admin-password"
+	if ! grep -q 'creating first user' "$VC_LOG"; then
+		echo "this launch reused an existing database, its password is unchanged"
+		return 0
+	fi
+	[[ -f "$password_file" ]] || {
+		echo "this launch created the database but saved no $password_file"
+		return 1
+	}
+	if [[ "$(<"$password_file")" == "SomeSecurePassword!" ]]; then
+		echo "CODER_DEV_ADMIN_PASSWORD set the published default for this database"
 		return 0
 	fi
 	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \

@@ -142,7 +142,10 @@ cli_create_user() {
 delete_users() {
 	local u
 	for u in "$username" "$cli_username"; do
-		"$scripts/coder.sh" users delete "$u" >"$out/08-cli-delete-$u.txt" 2>&1
+		"$scripts/coder.sh" users delete "$u" >"$out/08-cli-delete-$u.txt" 2>&1 || {
+			echo "coder users delete $u failed, see 08-cli-delete-$u.txt"
+			return 1
+		}
 		[[ "$(vc_api_status "/api/v2/users/$u")" == 404 ]] || {
 			echo "GET /api/v2/users/$u does not answer 404 after coder users delete"
 			return 1
