@@ -2481,6 +2481,14 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	// Entries kept while sharing is disabled for the deployment grant no
+	// access, so do not report them.
+	if rbac.WorkspaceACLDisabled() {
+		workspaceACL = database.GetWorkspaceACLByIDRow{
+			Groups: database.WorkspaceACL{},
+			Users:  database.WorkspaceACL{},
+		}
+	}
 
 	// Callers are authorized to read this workspace, not necessarily the
 	// users and groups on its ACL. We deliberately use the System context to
@@ -2602,7 +2610,11 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = workspace.WorkspaceTable()
 
-	if !api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID) {
+	org, ok := api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID)
+	if !ok {
+		return
+	}
+	if !api.allowWorkspaceOwnerSharing(ctx, rw, org, workspace.OwnerID) {
 		return
 	}
 
@@ -2721,7 +2733,7 @@ func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	defer commitAuditor()
 	aReq.Old = workspace.WorkspaceTable()
 
-	if !api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID) {
+	if _, ok := api.allowWorkspaceSharing(ctx, rw, workspace.OrganizationID); !ok {
 		return
 	}
 
@@ -2750,19 +2762,43 @@ func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 // allowWorkspaceSharing enforces the workspace-sharing gate for an
 // organization. It writes an HTTP error response and returns false if
-// sharing is disabled or the org lookup fails; otherwise it returns
-// true.
-func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWriter, organizationID uuid.UUID) bool {
+// sharing is disabled or the org lookup fails; otherwise it returns the
+// organization and true.
+func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWriter, organizationID uuid.UUID) (database.Organization, bool) {
 	//nolint:gocritic // Use system context so this check doesn’t
 	// depend on the caller having organization:read.
 	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), organizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
-		return false
+		return database.Organization{}, false
 	}
 	if org.ShareableWorkspaceOwners == database.ShareableWorkspaceOwnersNone {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Workspace sharing is disabled for this organization.",
+		})
+		return database.Organization{}, false
+	}
+	return org, true
+}
+
+// allowWorkspaceOwnerSharing rejects sharing a workspace whose owner the
+// organization does not allow to share (non service accounts in
+// service_accounts mode). The database clears such ACLs on write, so
+// without this check the request would succeed without sharing anything.
+func (api *API) allowWorkspaceOwnerSharing(ctx context.Context, rw http.ResponseWriter, org database.Organization, ownerID uuid.UUID) bool {
+	if org.ShareableWorkspaceOwners != database.ShareableWorkspaceOwnersServiceAccounts {
+		return true
+	}
+	//nolint:gocritic // Use system context so this check doesn't depend on
+	// the caller having user:read on the owner.
+	owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+	if !owner.IsServiceAccount {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only service account workspaces can be shared in this organization.",
 		})
 		return false
 	}
@@ -3097,6 +3133,12 @@ func sharedWorkspaceActors(
 	logger slog.Logger,
 	workspace database.Workspace,
 ) []codersdk.SharedWorkspaceActor {
+	// Entries kept while sharing is disabled for the deployment grant no
+	// access, so the workspace is owner-only.
+	if rbac.WorkspaceACLDisabled() {
+		return []codersdk.SharedWorkspaceActor{}
+	}
+
 	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
 
 	// Users

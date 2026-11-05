@@ -41,17 +41,34 @@ func TemplateConverter() *sqltypes.VariableConverter {
 }
 
 func WorkspaceConverter() *sqltypes.VariableConverter {
-	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
-		userOwnerMatcher(),
-	)
+	matcher := workspaceBaseConverter()
 	matcher.RegisterMatcher(
 		ACLMappingMatcher(matcher, "workspaces.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
 		ACLMappingMatcher(matcher, "workspaces.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
 	)
 
 	return matcher
+}
+
+// WorkspaceNoACLConverter compiles workspace authorization without
+// consulting the workspace ACL columns. Use it when workspace sharing is
+// disabled for the deployment.
+func WorkspaceNoACLConverter() *sqltypes.VariableConverter {
+	matcher := workspaceBaseConverter()
+	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+
+	return matcher
+}
+
+func workspaceBaseConverter() *sqltypes.VariableConverter {
+	return sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
+		userOwnerMatcher(),
+	)
 }
 
 func ChatConverter() *sqltypes.VariableConverter {

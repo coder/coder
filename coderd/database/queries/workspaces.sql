@@ -356,22 +356,28 @@ WHERE
 			latest_build.has_external_agent = sqlc.narg('has_external_agent') :: boolean
 		ELSE true
 	END
-	-- Filter by shared status
+	-- Filter by shared status. When workspace ACLs are ignored, no workspace
+	-- is shared.
 	AND CASE
 		WHEN sqlc.narg('shared') :: boolean IS NOT NULL THEN
-			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = sqlc.narg('shared') :: boolean
+			(
+				NOT @ignore_workspace_acls :: boolean
+				AND (workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb)
+			) = sqlc.narg('shared') :: boolean
 		ELSE true
 	END
 	-- Filter by shared_with_user_id
 	AND CASE
 		WHEN @shared_with_user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.user_acl ? (@shared_with_user_id :: uuid) :: text
+			NOT @ignore_workspace_acls :: boolean
+			AND workspaces.user_acl ? (@shared_with_user_id :: uuid) :: text
 		ELSE true
 	END
 	-- Filter by shared_with_group_id
 	AND CASE
 		WHEN @shared_with_group_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
+			NOT @ignore_workspace_acls :: boolean
+			AND workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
 	-- Filter by user_id: workspaces the user owns, or that are shared with
@@ -379,12 +385,17 @@ WHERE
 	AND CASE
 		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			workspaces.owner_id = @user_id
-			OR workspaces.user_acl ? (@user_id :: uuid) :: text
-			OR EXISTS (
-				SELECT 1
-				FROM group_members_expanded
-				WHERE group_members_expanded.user_id = @user_id
-					AND workspaces.group_acl ? group_members_expanded.group_id :: text
+			OR (
+				NOT @ignore_workspace_acls :: boolean
+				AND (
+					workspaces.user_acl ? (@user_id :: uuid) :: text
+					OR EXISTS (
+						SELECT 1
+						FROM group_members_expanded
+						WHERE group_members_expanded.user_id = @user_id
+							AND workspaces.group_acl ? group_members_expanded.group_id :: text
+					)
+				)
 			)
 		ELSE true
 	END

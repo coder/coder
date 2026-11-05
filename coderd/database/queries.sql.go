@@ -42961,35 +42961,46 @@ WHERE
 			latest_build.has_external_agent = $20 :: boolean
 		ELSE true
 	END
-	-- Filter by shared status
+	-- Filter by shared status. When workspace ACLs are ignored, no workspace
+	-- is shared.
 	AND CASE
 		WHEN $21 :: boolean IS NOT NULL THEN
-			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $21 :: boolean
+			(
+				NOT $22 :: boolean
+				AND (workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb)
+			) = $21 :: boolean
 		ELSE true
 	END
 	-- Filter by shared_with_user_id
 	AND CASE
-		WHEN $22 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.user_acl ? ($22 :: uuid) :: text
+		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			NOT $22 :: boolean
+			AND workspaces.user_acl ? ($23 :: uuid) :: text
 		ELSE true
 	END
 	-- Filter by shared_with_group_id
 	AND CASE
-		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.group_acl ? ($23 :: uuid) :: text
+		WHEN $24 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			NOT $22 :: boolean
+			AND workspaces.group_acl ? ($24 :: uuid) :: text
 		ELSE true
 	END
 	-- Filter by user_id: workspaces the user owns, or that are shared with
 	-- them directly or through a group they belong to.
 	AND CASE
-		WHEN $24 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.owner_id = $24
-			OR workspaces.user_acl ? ($24 :: uuid) :: text
-			OR EXISTS (
-				SELECT 1
-				FROM group_members_expanded
-				WHERE group_members_expanded.user_id = $24
-					AND workspaces.group_acl ? group_members_expanded.group_id :: text
+		WHEN $25 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = $25
+			OR (
+				NOT $22 :: boolean
+				AND (
+					workspaces.user_acl ? ($25 :: uuid) :: text
+					OR EXISTS (
+						SELECT 1
+						FROM group_members_expanded
+						WHERE group_members_expanded.user_id = $25
+							AND workspaces.group_acl ? group_members_expanded.group_id :: text
+					)
+				)
 			)
 		ELSE true
 	END
@@ -43003,9 +43014,9 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- Favorited workspaces should show up first only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $26) THEN 0 ELSE 1 END ASC,
 		-- Workspaces you own should show up first.
-		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = $26) THEN 0 ELSE 1 END ASC,
 		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
@@ -43017,11 +43028,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $27 :: integer > 0 THEN
-				$27
+			WHEN $28 :: integer > 0 THEN
+				$28
 		END
 	OFFSET
-		$26
+		$27
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent, fwo.latest_build_provisioner_job_id
@@ -43073,7 +43084,7 @@ WHERE
 		false, -- latest_build_has_external_agent
 		'00000000-0000-0000-0000-000000000000'::uuid -- latest_build_provisioner_job_id
 	WHERE
-		$28 :: boolean = true
+		$29 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -43164,6 +43175,7 @@ type GetWorkspacesParams struct {
 	UsingActive                           sql.NullBool `db:"using_active" json:"using_active"`
 	HasExternalAgent                      sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 	Shared                                sql.NullBool `db:"shared" json:"shared"`
+	IgnoreWorkspaceACLs                   bool         `db:"ignore_workspace_acls" json:"ignore_workspace_acls"`
 	SharedWithUserID                      uuid.UUID    `db:"shared_with_user_id" json:"shared_with_user_id"`
 	SharedWithGroupID                     uuid.UUID    `db:"shared_with_group_id" json:"shared_with_group_id"`
 	UserID                                uuid.UUID    `db:"user_id" json:"user_id"`
@@ -43244,6 +43256,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.UsingActive,
 		arg.HasExternalAgent,
 		arg.Shared,
+		arg.IgnoreWorkspaceACLs,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
 		arg.UserID,

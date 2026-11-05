@@ -311,6 +311,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
+	// Keep the sharing filters consistent with the authorization filter,
+	// which also ignores ACLs when sharing is disabled for the deployment.
+	arg.IgnoreWorkspaceACLs = arg.IgnoreWorkspaceACLs || rbac.WorkspaceACLDisabled()
 
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
@@ -343,6 +346,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.UsingActive,
 		arg.HasExternalAgent,
 		arg.Shared,
+		arg.IgnoreWorkspaceACLs,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
 		arg.UserID,

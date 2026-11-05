@@ -6066,6 +6066,96 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+
+	// ACL rows that predate the deployment flag stay in the database, but must
+	// not grant access or be reported as shares.
+	t.Run("LeftoverACLsIgnored", func(t *testing.T) {
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
+		t.Cleanup(func() {
+			rbac.ReloadBuiltinRoles(nil)
+			rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled)
+		})
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.DisableWorkspaceSharing = true
+				}),
+			})
+			admin                        = coderdtest.CreateFirstUser(t, client)
+			_, wsOwner                   = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			sharedClient, sharedUser     = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			groupMemberClient, groupUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			group                        = dbgen.Group(t, db, database.Group{OrganizationID: admin.OrganizationID})
+			entry                        = database.WorkspaceACLEntry{
+				Permissions: []policy.Action{policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+			}
+		)
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupUser.ID})
+
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        wsOwner.ID,
+			OrganizationID: admin.OrganizationID,
+			UserACL:        database.WorkspaceACL{sharedUser.ID.String(): entry},
+			GroupACL:       database.WorkspaceACL{group.ID.String(): entry},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		listIDs := func(c *codersdk.Client, filter codersdk.WorkspaceFilter) []uuid.UUID {
+			t.Helper()
+			res, err := c.Workspaces(ctx, filter)
+			require.NoError(t, err)
+			ids := make([]uuid.UUID, 0, len(res.Workspaces))
+			for _, w := range res.Workspaces {
+				ids = append(ids, w.ID)
+			}
+			return ids
+		}
+
+		for _, c := range []*codersdk.Client{sharedClient, groupMemberClient} {
+			_, err := c.Workspace(ctx, ws.ID)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+			authz, err := c.AuthCheck(ctx, codersdk.AuthorizationRequest{
+				Checks: map[string]codersdk.AuthorizationCheck{
+					"ssh": {
+						Object: codersdk.AuthorizationObject{
+							ResourceType: codersdk.ResourceWorkspace,
+							ResourceID:   ws.ID.String(),
+						},
+						Action: codersdk.ActionSSH,
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.False(t, authz["ssh"])
+
+			// The SQL authorization filter must ignore the ACL columns too.
+			require.NotContains(t, listIDs(c, codersdk.WorkspaceFilter{}), ws.ID)
+		}
+
+		got, err := client.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Empty(t, got.SharedWith)
+
+		acl, err := client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Empty(t, acl.Users)
+		require.Empty(t, acl.Groups)
+
+		// List filters, run as the deployment owner so the authorization
+		// filter does not hide results.
+		require.Contains(t, listIDs(client, codersdk.WorkspaceFilter{Shared: ptr.Ref(false)}), ws.ID)
+		require.NotContains(t, listIDs(client, codersdk.WorkspaceFilter{Shared: ptr.Ref(true)}), ws.ID)
+		require.NotContains(t, listIDs(client, codersdk.WorkspaceFilter{SharedWithUser: sharedUser.ID.String()}), ws.ID)
+		require.NotContains(t, listIDs(client, codersdk.WorkspaceFilter{SharedWithGroup: group.ID.String()}), ws.ID)
+		require.NotContains(t, listIDs(client, codersdk.WorkspaceFilter{User: sharedUser.ID.String()}), ws.ID)
+		require.NotContains(t, listIDs(client, codersdk.WorkspaceFilter{User: groupUser.ID.String()}), ws.ID)
+		require.Contains(t, listIDs(client, codersdk.WorkspaceFilter{User: wsOwner.ID.String()}), ws.ID)
+	})
 }
 
 func TestWorkspaceAvailableUsers(t *testing.T) {

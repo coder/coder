@@ -137,6 +137,9 @@ There are several sharing policy levels that can be selected on a per-organizati
 The **Disabled** policy applies to every workspace in the organization.
 It overrides the sharing permission of any role held by a member of that organization, including Organization Admin.
 
+When you change to a policy that doesn't allow sharing a workspace, Coder removes the existing shares of that workspace.
+Changing back to a less restrictive policy doesn't restore them.
+
 The **Disabled** policy can also be applied to the entire deployment by [setting the `CODER_DISABLE_WORKSPACE_SHARING` environment variable, or by using the corresponding command argument or config value](https://coder.com/docs/reference/cli/server#--disable-workspace-sharing).
 
 ## Git identity and credentials

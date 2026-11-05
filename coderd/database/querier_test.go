@@ -4323,6 +4323,129 @@ func TestDeleteWorkspaceACLsByOrganization(t *testing.T) {
 	})
 }
 
+// TestWorkspaceACLsClearedWhenSharingDisallowed covers the database triggers
+// that keep workspace ACLs empty whenever the organization's sharing setting
+// does not allow sharing the workspace, regardless of how they are written.
+func TestWorkspaceACLsClearedWhenSharingDisallowed(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	sharedUser := dbgen.User(t, db, database.User{})
+	acl := database.WorkspaceACL{
+		sharedUser.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+	}
+
+	setSharing := func(ctx context.Context, t *testing.T, orgID uuid.UUID, owners database.ShareableWorkspaceOwners) {
+		t.Helper()
+		_, err := db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
+			ID:                       orgID,
+			ShareableWorkspaceOwners: owners,
+			UpdatedAt:                dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+	newOrg := func(ctx context.Context, t *testing.T, owners database.ShareableWorkspaceOwners) database.Organization {
+		t.Helper()
+		org := dbgen.Organization(t, db, database.Organization{})
+		setSharing(ctx, t, org.ID, owners)
+		return org
+	}
+	newWorkspace := func(t *testing.T, orgID uuid.UUID, ownerID uuid.UUID) database.WorkspaceTable {
+		t.Helper()
+		tpl := dbgen.Template(t, db, database.Template{OrganizationID: orgID, CreatedBy: ownerID})
+		return dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        ownerID,
+			TemplateID:     tpl.ID,
+			UserACL:        acl,
+			GroupACL:       database.WorkspaceACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		})
+	}
+	writeACL := func(ctx context.Context, t *testing.T, workspaceID uuid.UUID) {
+		t.Helper()
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspaceID,
+			UserACL:  acl,
+			GroupACL: database.WorkspaceACL{},
+		})
+		require.NoError(t, err)
+	}
+	requireShared := func(ctx context.Context, t *testing.T, workspaceID uuid.UUID, want bool) {
+		t.Helper()
+		got, err := db.GetWorkspaceByID(ctx, workspaceID)
+		require.NoError(t, err)
+		require.Equal(t, want, len(got.UserACL) > 0, "user ACL")
+		raw, err := db.GetWorkspaceACLByID(ctx, workspaceID)
+		require.NoError(t, err)
+		require.Equal(t, want, len(raw.Users) > 0, "raw user ACL")
+		if !want {
+			require.Empty(t, got.GroupACL)
+			require.Empty(t, raw.Groups)
+		}
+	}
+
+	t.Run("None", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		org := newOrg(ctx, t, database.ShareableWorkspaceOwnersNone)
+		ws := newWorkspace(t, org.ID, dbgen.User(t, db, database.User{}).ID)
+		requireShared(ctx, t, ws.ID, false)
+		writeACL(ctx, t, ws.ID)
+		requireShared(ctx, t, ws.ID, false)
+	})
+
+	t.Run("ServiceAccounts", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		org := newOrg(ctx, t, database.ShareableWorkspaceOwnersServiceAccounts)
+		regularWS := newWorkspace(t, org.ID, dbgen.User(t, db, database.User{}).ID)
+		saWS := newWorkspace(t, org.ID, dbgen.User(t, db, database.User{IsServiceAccount: true}).ID)
+		writeACL(ctx, t, regularWS.ID)
+		requireShared(ctx, t, regularWS.ID, false)
+		writeACL(ctx, t, saWS.ID)
+		requireShared(ctx, t, saWS.ID, true)
+	})
+
+	t.Run("OwnerChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		org := newOrg(ctx, t, database.ShareableWorkspaceOwnersServiceAccounts)
+		ws := newWorkspace(t, org.ID, dbgen.User(t, db, database.User{IsServiceAccount: true}).ID)
+		requireShared(ctx, t, ws.ID, true)
+
+		// Moving the workspace to a regular user drops its ACLs.
+		regular := dbgen.User(t, db, database.User{})
+		_, err := sqlDB.ExecContext(ctx, `UPDATE workspaces SET owner_id = $1 WHERE id = $2`, regular.ID, ws.ID)
+		require.NoError(t, err)
+		requireShared(ctx, t, ws.ID, false)
+	})
+
+	t.Run("SettingChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		org := newOrg(ctx, t, database.ShareableWorkspaceOwnersEveryone)
+		regularWS := newWorkspace(t, org.ID, dbgen.User(t, db, database.User{}).ID)
+		saWS := newWorkspace(t, org.ID, dbgen.User(t, db, database.User{IsServiceAccount: true}).ID)
+		requireShared(ctx, t, regularWS.ID, true)
+		requireShared(ctx, t, saWS.ID, true)
+
+		setSharing(ctx, t, org.ID, database.ShareableWorkspaceOwnersServiceAccounts)
+		requireShared(ctx, t, regularWS.ID, false)
+		requireShared(ctx, t, saWS.ID, true)
+
+		setSharing(ctx, t, org.ID, database.ShareableWorkspaceOwnersNone)
+		requireShared(ctx, t, saWS.ID, false)
+
+		// Re-enabling sharing does not restore cleared entries, and new
+		// entries are kept.
+		setSharing(ctx, t, org.ID, database.ShareableWorkspaceOwnersEveryone)
+		requireShared(ctx, t, regularWS.ID, false)
+		writeACL(ctx, t, regularWS.ID)
+		requireShared(ctx, t, regularWS.ID, true)
+	})
+}
+
 func TestAuthorizedAuditLogs(t *testing.T) {
 	t.Parallel()
 

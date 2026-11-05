@@ -1,6 +1,8 @@
 package coderd_test
 
 import (
+	"context"
+	"database/sql"
 	"net/http"
 	"testing"
 
@@ -10,10 +12,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -511,4 +515,251 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		require.Len(t, acl.Users, 1)
 		require.Equal(t, sharedUser.ID, acl.Users[0].ID)
 	})
+}
+
+// TestWorkspaceSharingDisabledIgnoresLeftoverACLs covers ACL entries that are
+// written to the database after an organization disabled sharing, bypassing
+// the API (for example by an older coderd replica or a concurrent request).
+// Such entries must never grant access or report the workspace as shared.
+func TestWorkspaceSharingDisabledIgnoresLeftoverACLs(t *testing.T) {
+	t.Parallel()
+
+	type env struct {
+		client     *codersdk.Client
+		db         database.Store
+		sqlDB      *sql.DB
+		orgID      uuid.UUID
+		owner      codersdk.User
+		sharedUser codersdk.User
+		sharedC    *codersdk.Client
+		groupC     *codersdk.Client
+		group      codersdk.Group
+	}
+
+	setup := func(t *testing.T) env {
+		t.Helper()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client, _, _, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   ps,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:    1,
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+		_, owner := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		sharedC, sharedUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		groupC, groupMember := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		group := coderdtest.CreateGroup(t, client, first.OrganizationID, "leftover-acl-group", groupMember)
+
+		return env{
+			client:     client,
+			db:         db,
+			sqlDB:      sqlDB,
+			orgID:      first.OrganizationID,
+			owner:      owner,
+			sharedUser: sharedUser,
+			sharedC:    sharedC,
+			groupC:     groupC,
+			group:      group,
+		}
+	}
+
+	setSharing := func(ctx context.Context, t *testing.T, e env, owners codersdk.ShareableWorkspaceOwners) {
+		t.Helper()
+		_, err := e.client.PatchWorkspaceSharingSettings(ctx, e.orgID.String(), codersdk.UpdateWorkspaceSharingSettingsRequest{
+			ShareableWorkspaceOwners: owners,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("None", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		ws := dbfake.WorkspaceBuild(t, e.db, database.WorkspaceTable{
+			OwnerID:        e.owner.ID,
+			OrganizationID: e.orgID,
+		}).Do().Workspace
+
+		setSharing(ctx, t, e, codersdk.ShareableWorkspaceOwnersNone)
+		writeLeftoverWorkspaceACL(ctx, t, e.sqlDB, ws.ID, e.sharedUser.ID, e.group.ID)
+
+		requireWorkspaceNotShared(ctx, t, e.client, ws.ID, e.sharedUser, e.group, e.sharedC, e.groupC)
+	})
+
+	t.Run("ServiceAccounts", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		regularWS := dbfake.WorkspaceBuild(t, e.db, database.WorkspaceTable{
+			OwnerID:        e.owner.ID,
+			OrganizationID: e.orgID,
+		}).Do().Workspace
+		_, saUser := coderdtest.CreateAnotherUserMutators(t, e.client, e.orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.ServiceAccount = true
+		})
+		saWS := dbfake.WorkspaceBuild(t, e.db, database.WorkspaceTable{
+			OwnerID:        saUser.ID,
+			OrganizationID: e.orgID,
+		}).Do().Workspace
+
+		setSharing(ctx, t, e, codersdk.ShareableWorkspaceOwnersServiceAccounts)
+		writeLeftoverWorkspaceACL(ctx, t, e.sqlDB, regularWS.ID, e.sharedUser.ID, e.group.ID)
+		writeLeftoverWorkspaceACL(ctx, t, e.sqlDB, saWS.ID, e.sharedUser.ID, e.group.ID)
+
+		// ACLs on a non service account workspace are ignored.
+		requireWorkspaceNotShared(ctx, t, e.client, regularWS.ID, e.sharedUser, e.group, e.sharedC, e.groupC)
+		// ACLs on a service account workspace keep working.
+		requireWorkspaceShared(ctx, t, e.client, saWS.ID, e.sharedUser, e.group, e.sharedC, e.groupC)
+
+		// Admins cannot add new shares to a non service account workspace.
+		err := e.client.UpdateWorkspaceACL(ctx, regularWS.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				e.sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		requireWorkspaceNotShared(ctx, t, e.client, regularWS.ID, e.sharedUser, e.group, e.sharedC, e.groupC)
+	})
+
+	t.Run("Reenabled", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		ws := dbfake.WorkspaceBuild(t, e.db, database.WorkspaceTable{
+			OwnerID:        e.owner.ID,
+			OrganizationID: e.orgID,
+		}).Do().Workspace
+
+		setSharing(ctx, t, e, codersdk.ShareableWorkspaceOwnersNone)
+		writeLeftoverWorkspaceACL(ctx, t, e.sqlDB, ws.ID, e.sharedUser.ID, e.group.ID)
+		setSharing(ctx, t, e, codersdk.ShareableWorkspaceOwnersEveryone)
+
+		// Entries written while sharing was disabled do not come back.
+		requireWorkspaceNotShared(ctx, t, e.client, ws.ID, e.sharedUser, e.group, e.sharedC, e.groupC)
+
+		// Shares added after re-enabling work normally.
+		err := e.client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				e.sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				e.group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+		requireWorkspaceShared(ctx, t, e.client, ws.ID, e.sharedUser, e.group, e.sharedC, e.groupC)
+	})
+}
+
+// writeLeftoverWorkspaceACL writes user and group ACL entries with raw SQL,
+// bypassing every API and dbauthz sharing check.
+func writeLeftoverWorkspaceACL(ctx context.Context, t *testing.T, sqlDB *sql.DB, workspaceID, userID, groupID uuid.UUID) {
+	t.Helper()
+	entry := database.WorkspaceACLEntry{Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse)}
+	_, err := sqlDB.ExecContext(ctx,
+		`UPDATE workspaces SET user_acl = $1, group_acl = $2 WHERE id = $3`,
+		database.WorkspaceACL{userID.String(): entry},
+		database.WorkspaceACL{groupID.String(): entry},
+		workspaceID,
+	)
+	require.NoError(t, err)
+}
+
+func workspaceIDs(ctx context.Context, t *testing.T, client *codersdk.Client, filter codersdk.WorkspaceFilter) []uuid.UUID {
+	t.Helper()
+	res, err := client.Workspaces(ctx, filter)
+	require.NoError(t, err)
+	ids := make([]uuid.UUID, 0, len(res.Workspaces))
+	for _, ws := range res.Workspaces {
+		ids = append(ids, ws.ID)
+	}
+	return ids
+}
+
+func canSSH(ctx context.Context, t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) bool {
+	t.Helper()
+	res, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{
+		Checks: map[string]codersdk.AuthorizationCheck{
+			"ssh": {
+				Object: codersdk.AuthorizationObject{
+					ResourceType: codersdk.ResourceWorkspace,
+					ResourceID:   workspaceID.String(),
+				},
+				Action: codersdk.ActionSSH,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return res["ssh"]
+}
+
+// requireWorkspaceNotShared asserts that the workspace is owner-only, both for
+// authorization (single object and SQL-filtered list) and as reported by the
+// API. adminClient must be able to read every workspace so that the list
+// filters are exercised without the authorization filter hiding results.
+func requireWorkspaceNotShared(ctx context.Context, t *testing.T, adminClient *codersdk.Client, workspaceID uuid.UUID, sharedUser codersdk.User, group codersdk.Group, sharedClients ...*codersdk.Client) {
+	t.Helper()
+
+	for _, c := range sharedClients {
+		_, err := c.Workspace(ctx, workspaceID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		require.False(t, canSSH(ctx, t, c, workspaceID))
+		require.NotContains(t, workspaceIDs(ctx, t, c, codersdk.WorkspaceFilter{}), workspaceID)
+	}
+
+	ws, err := adminClient.Workspace(ctx, workspaceID)
+	require.NoError(t, err)
+	require.Empty(t, ws.SharedWith)
+
+	acl, err := adminClient.WorkspaceACL(ctx, workspaceID)
+	require.NoError(t, err)
+	require.Empty(t, acl.Users)
+	require.Empty(t, acl.Groups)
+
+	require.Contains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{Shared: ptr.Ref(false)}), workspaceID)
+	require.NotContains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{Shared: ptr.Ref(true)}), workspaceID)
+	require.NotContains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{SharedWithUser: sharedUser.ID.String()}), workspaceID)
+	require.NotContains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{SharedWithGroup: group.ID.String()}), workspaceID)
+	require.NotContains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{User: sharedUser.ID.String()}), workspaceID)
+}
+
+// requireWorkspaceShared is the inverse of requireWorkspaceNotShared.
+func requireWorkspaceShared(ctx context.Context, t *testing.T, adminClient *codersdk.Client, workspaceID uuid.UUID, sharedUser codersdk.User, group codersdk.Group, sharedClients ...*codersdk.Client) {
+	t.Helper()
+
+	for _, c := range sharedClients {
+		_, err := c.Workspace(ctx, workspaceID)
+		require.NoError(t, err)
+		require.True(t, canSSH(ctx, t, c, workspaceID))
+		require.Contains(t, workspaceIDs(ctx, t, c, codersdk.WorkspaceFilter{}), workspaceID)
+	}
+
+	ws, err := adminClient.Workspace(ctx, workspaceID)
+	require.NoError(t, err)
+	require.Len(t, ws.SharedWith, 2)
+
+	acl, err := adminClient.WorkspaceACL(ctx, workspaceID)
+	require.NoError(t, err)
+	require.Len(t, acl.Users, 1)
+	require.Len(t, acl.Groups, 1)
+
+	require.NotContains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{Shared: ptr.Ref(false)}), workspaceID)
+	require.Contains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{Shared: ptr.Ref(true)}), workspaceID)
+	require.Contains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{SharedWithUser: sharedUser.ID.String()}), workspaceID)
+	require.Contains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{SharedWithGroup: group.ID.String()}), workspaceID)
+	require.Contains(t, workspaceIDs(ctx, t, adminClient, codersdk.WorkspaceFilter{User: sharedUser.ID.String()}), workspaceID)
 }

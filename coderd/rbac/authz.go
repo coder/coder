@@ -732,9 +732,15 @@ func ConfigChats() regosql.ConvertConfig {
 	}
 }
 
+// ConfigWorkspaces ignores the workspace ACL columns when workspace sharing
+// is disabled for the deployment, matching WorkspaceTable.RBACObject.
 func ConfigWorkspaces() regosql.ConvertConfig {
+	converter := regosql.WorkspaceConverter()
+	if WorkspaceACLDisabled() {
+		converter = regosql.WorkspaceNoACLConverter()
+	}
 	return regosql.ConvertConfig{
-		VariableConverter: regosql.WorkspaceConverter(),
+		VariableConverter: converter,
 	}
 }
 
