@@ -168,13 +168,18 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "node pnpm"
+          install-args: "go node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
       - name: Check docs
         run: pnpm check-docs
+
+      # The docs checker tests read the committed docs, and the Go test jobs
+      # skip docs-only pull requests.
+      - name: Test docs checkers
+        run: go test ./scripts/docs...
 
       # Vale prose linter, advisory only. Scoped to changed Markdown under
       # docs/. Every Vale step is `continue-on-error` so this section can
