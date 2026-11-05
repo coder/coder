@@ -74,12 +74,6 @@ const CLEAR_ALL_MIN_CHIPS = 3;
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
 
-// While the menu is open on mobile the field leaves the page flow and pins
-// below the navbar, so the software keyboard cannot squeeze the dropdown.
-// `top-20` is the 72px navbar plus an 8px gap.
-const mobileOverlayClassName =
-	"fixed inset-x-6 top-20 z-30 w-auto bg-surface-primary";
-
 type FilterComboboxProps = Readonly<{
 	value: string;
 	onChange: (query: string) => void;
@@ -148,7 +142,9 @@ export function FilterCombobox({
 	const invalid = errorMessage !== undefined;
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
-	const mobileOverlay = isMobile && open;
+	const inputGroupRef = useRef<HTMLDivElement>(null);
+	// Keeps the software keyboard from squeezing the dropdown below the field.
+	useScrollToViewportTop(inputGroupRef, isMobile && open);
 	// Category shown in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
 	// Reset whenever the menu opens or closes so a dismissed flyout does not
@@ -353,10 +349,11 @@ export function FilterCombobox({
 				highlightRef={highlightRef}
 				onHighlightedValueChange={handleHighlightedValueChange}
 				label={placeholder}
-				className={cn(mobileOverlay && "min-h-10")}
 			>
 				<FilterComboboxInputGroup
-					className={cn(className, mobileOverlay && mobileOverlayClassName)}
+					// Scrolled into view below the 72px navbar with an 8px gap.
+					className={cn("scroll-mt-20", className)}
+					ref={inputGroupRef}
 				>
 					<InputGroupAddon className="self-stretch items-start border-0 border-r border-solid border-border p-0">
 						<InputGroupButton
@@ -621,6 +618,33 @@ export function FilterCombobox({
 			)}
 		</>
 	);
+}
+
+/**
+ * Honors the element's `scroll-margin-top`, and sets a temporary `<html>`
+ * min-height so the position stays reachable on short pages.
+ */
+function useScrollToViewportTop(
+	ref: React.RefObject<HTMLElement | null>,
+	active: boolean,
+) {
+	useLayoutEffect(() => {
+		const element = ref.current;
+		if (!active || !element) {
+			return;
+		}
+		const root = document.documentElement;
+		const targetScrollY =
+			window.scrollY +
+			element.getBoundingClientRect().top -
+			(Number.parseFloat(getComputedStyle(element).scrollMarginTop) || 0);
+		const previousMinHeight = root.style.minHeight;
+		root.style.minHeight = `${targetScrollY + root.clientHeight}px`;
+		element.scrollIntoView({ block: "start" });
+		return () => {
+			root.style.minHeight = previousMinHeight;
+		};
+	}, [ref, active]);
 }
 
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";

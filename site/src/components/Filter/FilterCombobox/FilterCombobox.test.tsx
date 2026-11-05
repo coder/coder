@@ -3192,6 +3192,17 @@ describe("FilterCombobox", () => {
 		},
 	);
 
+	it("does not scroll the page when the menu opens on a wide viewport", async () => {
+		const { user, filtersButton } = setup([ownerCategory]);
+		const field = screen.getByRole("group");
+		const scrollIntoView = vi.spyOn(field, "scrollIntoView");
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Owner" });
+
+		expect(scrollIntoView).not.toHaveBeenCalled();
+	});
+
 	describe("on a mobile viewport", () => {
 		const originalMatchMedia = window.matchMedia;
 
@@ -3206,6 +3217,27 @@ describe("FilterCombobox", () => {
 
 		afterEach(() => {
 			vi.unstubAllGlobals();
+		});
+
+		it("scrolls the open field to the top and keeps the page tall enough", async () => {
+			const { user, filtersButton } = setup([ownerCategory, statusCategory]);
+			const field = screen.getByRole("group");
+			vi.spyOn(field, "getBoundingClientRect").mockReturnValue(
+				new DOMRect(0, 200, 300, 40),
+			);
+			const scrollIntoView = vi.spyOn(field, "scrollIntoView");
+
+			await user.click(filtersButton);
+			await screen.findByRole("option", { name: "Owner" });
+
+			expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+			expect(document.documentElement.style.minHeight).toBe("200px");
+
+			await user.keyboard("{Escape}");
+
+			await waitFor(() =>
+				expect(document.documentElement.style.minHeight).toBe(""),
+			);
 		});
 
 		it("does not announce a failed category it shows no flyout for", async () => {

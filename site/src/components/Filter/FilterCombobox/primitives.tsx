@@ -409,11 +409,11 @@ type FilterComboboxInputGroupProps = React.ComponentProps<"div">;
 
 export const FilterComboboxInputGroup: React.FC<
 	FilterComboboxInputGroupProps
-> = ({ className, ...props }) => {
+> = ({ className, ref, ...props }) => {
 	const anchorRef = useContext(FilterComboboxAnchorContext);
 
 	return (
-		<PopoverAnchor asChild>
+		<PopoverAnchor asChild ref={ref}>
 			<InputGroup
 				ref={anchorRef ?? undefined}
 				className={cn("h-auto min-h-10 w-full items-start", className)}

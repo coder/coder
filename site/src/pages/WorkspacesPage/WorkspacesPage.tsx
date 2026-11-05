@@ -96,7 +96,9 @@ const WorkspacesPage: React.FC = () => {
 	const filter = useFilter({
 		fallbackFilter: "user:me",
 		searchParams,
-		onSearchParamsChange: setSearchParams,
+		// Typed filters must not scroll the page away from the open filter field.
+		onSearchParamsChange: (newParams) =>
+			setSearchParams(newParams, { preventScrollReset: true }),
 		onUpdate: () => {
 			pagination.goToPage(1);
 			resetChecked();
