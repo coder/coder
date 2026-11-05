@@ -132,7 +132,7 @@ type QueuedMessageItem = QueuedMessageInfo & {
 	id: number;
 	busyBehavior: ChatBusyBehavior;
 	isUnderEdit: boolean;
-	isWaitingBehindEdit: boolean;
+	isWaitingForEdit: boolean;
 	badge: QueuedMessageBadge | undefined;
 };
 
@@ -207,6 +207,27 @@ export const canSendQueuedMessageNow = (
 	isChatActive: boolean,
 ): boolean => !(isChatActive && busyBehavior === "steer");
 
+/**
+ * Whether the row at index waits for the row under edit. The row under edit
+ * holds every row behind it. A steer row under edit also holds the rows ahead
+ * of it, which are all steer rows because steer rows come first.
+ */
+export const isWaitingForEdit = (
+	messages: readonly ChatQueuedMessage[],
+	index: number,
+	queuedMessageUnderEditID: number | null,
+): boolean => {
+	const underEditIndex = messages.findIndex(
+		(message) => message.id === queuedMessageUnderEditID,
+	);
+	if (underEditIndex === -1 || index === underEditIndex) {
+		return false;
+	}
+	return (
+		index > underEditIndex || messages[underEditIndex].busy_behavior === "steer"
+	);
+};
+
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
@@ -225,7 +246,11 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	);
 	const items: QueuedMessageItem[] = messages.map((message, index) => {
 		const isUnderEdit = message.id === queuedMessageUnderEditID;
-		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+		const isWaiting = isWaitingForEdit(
+			messages,
+			index,
+			queuedMessageUnderEditID,
+		);
 
 		let badge: QueuedMessageBadge | undefined;
 		if (isUnderEdit) {
@@ -233,10 +258,13 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				label: "Editing",
 				tooltip: "Not sent until you finish editing.",
 			};
-		} else if (isWaitingBehindEdit) {
+		} else if (isWaiting) {
 			badge = {
 				label: "Waiting",
-				tooltip: "Waits for the edit above to finish.",
+				tooltip:
+					index > underEditIndex
+						? "Waits for the edit above to finish."
+						: "Waits for the edit below to finish.",
 			};
 		}
 
@@ -245,7 +273,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 			id: message.id,
 			busyBehavior: message.busy_behavior,
 			isUnderEdit,
-			isWaitingBehindEdit,
+			isWaitingForEdit: isWaiting,
 			badge,
 		};
 	});
@@ -461,7 +489,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 	<div
 		className={cn(
 			"my-1 transition-opacity",
-			item.isWaitingBehindEdit
+			item.isWaitingForEdit
 				? "opacity-25 focus-within:opacity-60 hover:opacity-60"
 				: "opacity-40 focus-within:opacity-80 hover:opacity-80",
 		)}

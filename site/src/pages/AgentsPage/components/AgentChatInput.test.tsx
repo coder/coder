@@ -1245,6 +1245,21 @@ describe("AgentChatInput", () => {
 			},
 			false,
 		],
+		[
+			"does not send a steer head while a steer message behind it is under edit",
+			{
+				queuedMessages: [
+					{ ...MockChatQueuedMessage, busy_behavior: "steer" },
+					{
+						...MockChatQueuedMessage,
+						id: MockChatQueuedMessage.id + 1,
+						busy_behavior: "steer",
+					},
+				],
+				queuedMessageUnderEditID: MockChatQueuedMessage.id + 1,
+			},
+			false,
+		],
 	] satisfies Array<
 		[string, Partial<React.ComponentProps<typeof AgentChatInput>>, boolean]
 	>)("Enter with an empty composer %s", async (_name, props, sendsHead) => {

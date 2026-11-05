@@ -312,26 +312,33 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavi
 }
 
 // steerLane returns the steer rows that the next delivery moves into
-// history. It stops at the first row under edit, so rows behind an edit
-// wait for it. queued must be in delivery order, with all steer rows
-// first.
+// history. A steer row under edit holds the whole lane, so it returns
+// none while any steer row is under edit. queued must be in delivery
+// order, with all steer rows first.
 func steerLane(queued []database.ChatQueuedMessage) []database.ChatQueuedMessage {
 	n := 0
-	for n < len(queued) && queued[n].BusyBehavior == database.ChatBusyBehaviorSteer && !queuePaused(queued[n]) {
+	for n < len(queued) && queued[n].BusyBehavior == database.ChatBusyBehaviorSteer {
+		if queuePaused(queued[n]) {
+			return nil
+		}
 		n++
 	}
 	return queued[:n]
 }
 
 // nextDelivery returns the rows that the next delivery moves into
-// history: the steer lane when it is not empty, otherwise the queue
-// head. It returns none when the queue is empty or the head is under
-// edit. queued must be in delivery order.
+// history: the steer lane when steer rows exist, otherwise the queue
+// head. It returns none when the queue is empty, a steer row is under
+// edit, or the queue head is under edit. queued must be in delivery
+// order.
 func nextDelivery(queued []database.ChatQueuedMessage) []database.ChatQueuedMessage {
-	if lane := steerLane(queued); len(lane) > 0 {
-		return lane
+	if len(queued) == 0 {
+		return nil
 	}
-	if len(queued) == 0 || queuePaused(queued[0]) {
+	if queued[0].BusyBehavior == database.ChatBusyBehaviorSteer {
+		return steerLane(queued)
+	}
+	if queuePaused(queued[0]) {
 		return nil
 	}
 	return queued[:1]
@@ -607,8 +614,8 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		return tx.sendMessageDirect(chat, input)
 
 	// Error or paused: queue the message, deliver the steer lane or
-	// the queue head into history, clear last_error. A head under edit
-	// blocks the delivery and keeps the status.
+	// the queue head into history, clear last_error. A message under
+	// edit that holds the delivery keeps the status.
 	case StateE1, StateE1P, StateP:
 		return tx.sendMessageE1(chat, input)
 
@@ -621,10 +628,10 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 // sendMessageGrowsQueue reports whether SendMessage from the state can
 // make the queue longer. W and E0 insert the message into history. E1
 // queues the message, but it also delivers at least one queued message
-// in the same transaction. In E1P and P the head is under edit. A queue
-// send waits behind it. A steer send waits behind it only when the head
-// is a steer message; behind a queue head, the steer lane holds only
-// the new message, which is delivered at once.
+// in the same transaction. In E1P and P a message under edit holds the
+// queue. A queue send waits. A steer send waits only when a steer
+// message is under edit; when the queue head is under edit, the steer
+// lane holds only the new message, which is delivered at once.
 func sendMessageGrowsQueue(from ExecutionState, queue QueueState, busy BusyBehavior) bool {
 	switch from {
 	case StateW, StateE0, StateE1:
@@ -684,8 +691,8 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 
 // sendMessageE1 queues the message from E1, E1P, or P. A non-empty
 // next delivery moves into history and the chat runs with last_error
-// cleared. Otherwise the head is under edit and the chat keeps its
-// status.
+// cleared. Otherwise a message under edit holds the delivery and the
+// chat keeps its status.
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehavior(input.BusyBehavior))
 	if err != nil {
@@ -1087,8 +1094,8 @@ type EditQueuedMessageResult struct {
 
 // EditQueuedMessage changes a queued row's content, edit marker, or
 // both. Beginning an edit on a row ends any other row's edit. From P,
-// ending the head's edit leaves paused once the head is ready (see
-// leavePaused); beginning an edit on a different row is refused with
+// ending the edit that holds the queue leaves paused (see leavePaused);
+// beginning an edit on a different row is refused with
 // [ErrPausedQueuedHeadUnderEdit].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireQueuedMessageTransition(TransitionEditQueuedMessage, input.QueuedMessageID)
@@ -1198,8 +1205,8 @@ func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error)
 
 // advanceQueue moves the chat on by its queue when a turn or an
 // interruption ends, or when P may resume: an empty queue sets W, a
-// blocked head sets P, and a non-empty next delivery is promoted and the
-// chat runs. A chat already in the resulting status is
+// held delivery sets P, and a non-empty next delivery is promoted and
+// the chat runs. A chat already in the resulting status is
 // not written.
 func (tx *Tx) advanceQueue(chat database.Chat) (database.Chat, queuedDelivery, error) {
 	queued, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
@@ -1675,8 +1682,9 @@ type DeliverSteerMessagesResult struct {
 }
 
 // DeliverSteerMessages moves the steer lane into history in position
-// order at a step boundary of a running turn. It stops at the first row
-// under edit. Queue rows stay queued and the status does not change.
+// order at a step boundary of a running turn. A steer row under edit
+// holds the whole lane. Queue rows stay queued and the status does not
+// change.
 func (tx *Tx) DeliverSteerMessages(_ DeliverSteerMessagesInput) (DeliverSteerMessagesResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionDeliverSteerMessages)
 	if err != nil {

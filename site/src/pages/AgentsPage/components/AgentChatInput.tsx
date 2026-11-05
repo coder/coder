@@ -98,6 +98,7 @@ import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
 import {
 	canSendQueuedMessageNow,
+	isWaitingForEdit,
 	QueuedMessagesList,
 } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
@@ -612,6 +613,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
 		queuedMessages[0].id !== queuedMessageUnderEditID &&
+		!isWaitingForEdit(queuedMessages, 0, queuedMessageUnderEditID) &&
 		canSendQueuedMessageNow(queuedMessages[0].busy_behavior, isChatActive);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
