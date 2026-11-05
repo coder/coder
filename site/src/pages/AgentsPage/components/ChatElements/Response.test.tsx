@@ -25,6 +25,12 @@ func ValidateToken(token string) error {
 }`;
 
 describe("Response", () => {
+	it("keeps an ordered list's starting number", async () => {
+		render(<Response>{"3. Third\n4. Fourth"}</Response>);
+
+		expect(await screen.findByRole("list")).toHaveAttribute("start", "3");
+	});
+
 	it("copies a multi-line fenced code block's raw text, without the fence markers or trailing newline", async () => {
 		const user = userEvent.setup();
 		const writeText = vi

@@ -78,6 +78,11 @@ Loose list, with blank lines between items:
 
 - Second loose item that runs long enough to wrap onto a second line.
 
+  A second paragraph in the same item.
+
+3. An ordered list that starts at three.
+4. Its next item.
+
 Workflow:
 
 - [x] A finished task.

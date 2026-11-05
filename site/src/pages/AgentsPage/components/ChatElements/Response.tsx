@@ -62,6 +62,23 @@ const lineBreakRemarkPlugins = [
 	remarkBreaks,
 ];
 
+// Spacing and list layout for every chat Markdown block. These are
+// descendant selectors rather than component overrides so Streamdown
+// keeps rendering the list elements and their props, such as an
+// ordered list's start value.
+const markdownRootClassName = cn(
+	// Top-level paragraphs carry the browser's default 1em margin, which
+	// would otherwise outweigh the block gap.
+	"space-y-3 [&>p]:my-0",
+	// Streamdown places list markers inside the text box, so wrapped lines
+	// start under the marker. Outside markers align them with the item text.
+	"[&_ol]:list-outside [&_ol]:pl-6 [&_ul]:list-outside [&_ul]:pl-6",
+	"[&_.contains-task-list]:list-none [&_.contains-task-list]:pl-0",
+	// Streamdown renders every paragraph in a list item inline, which joins
+	// the paragraphs of a multi-paragraph item into one line.
+	"[&_li]:py-0.5 [&_li>p]:my-0 [&_li>p]:block [&_li>p+p]:mt-2",
+);
+
 const noInlineNodes: readonly InlineNode[] = [];
 const InlineNodesContext = createContext(noInlineNodes);
 
@@ -239,25 +256,6 @@ const createComponents = (
 		img: ({ src, alt }: MarkdownComponentProps) => (
 			<MarkdownImage src={src} alt={alt} />
 		),
-		// Streamdown places list markers inside the text box, so wrapped
-		// lines start under the marker. Outside markers keep them aligned
-		// with the item text.
-		ul: ({ children, className }: MarkdownComponentProps) => (
-			<ul
-				className={cn(
-					"list-outside list-disc pl-6",
-					className?.includes("contains-task-list") && "list-none pl-0",
-				)}
-			>
-				{children}
-			</ul>
-		),
-		ol: ({ children }: MarkdownComponentProps) => (
-			<ol className="list-outside list-decimal pl-6">{children}</ol>
-		),
-		li: ({ children }: MarkdownComponentProps) => (
-			<li className="py-0.5 [&>p]:inline">{children}</li>
-		),
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
 		hr: () => (
@@ -386,9 +384,7 @@ export const Response = ({
 			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
 				<Streamdown
 					// Streamdown merges this over its own space-y-4 root class.
-					// Top-level paragraphs also carry the browser's default 1em
-					// margin, which would otherwise outweigh the gap.
-					className="space-y-3 [&>p]:my-0"
+					className={markdownRootClassName}
 					controls={false}
 					components={components}
 					urlTransform={urlTransform}
