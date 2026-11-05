@@ -129,10 +129,10 @@ A message waits for the current step to finish, so a long tool call delays it.
 After an interrupt, the agent starts with the messages that were already held.
 A message sent while the agent works can change the model: the agent uses that message's model from its next model call.
 When several messages are delivered together, the agent uses the model of the last one, and the reasoning effort of the last one that sets an effort.
-Queued messages show above the message box in two groups.
+The chat groups queued messages under **Next step** and **After turn**.
 The agent receives messages under **Next step** before its next model call, and messages under **After turn** when the current turn ends.
 **Send now** moves a message to **Next step**, or sends it at once when the agent isn't working.
-From the chat UI, a message sent while the agent works goes under **Next step**.
+From the chat interface, a message sent while the agent works goes under **Next step**.
 Users can edit a queued message before it is delivered.
 While it is being edited, it and the messages behind it wait.
 
