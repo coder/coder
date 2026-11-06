@@ -62,6 +62,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		blockFileTransfer               bool
 		blockReversePortForwarding      bool
 		blockLocalPortForwarding        bool
+		blockX11Forwarding              bool
 		agentHeaderCommand              string
 		agentHeader                     []string
 		devcontainers                   bool
@@ -345,6 +346,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					BlockFileTransfer:          blockFileTransfer,
 					BlockReversePortForwarding: blockReversePortForwarding,
 					BlockLocalPortForwarding:   blockLocalPortForwarding,
+					BlockX11Forwarding:         blockX11Forwarding,
 					Execer:                     execer,
 					Devcontainers:              devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
@@ -539,6 +541,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
+		},
+		{
+			Flag:        "block-x11-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_X11_FORWARDING",
+			Description: "Block X11 forwarding through the SSH server (ssh -X, ssh -Y).",
+			Value:       serpent.BoolOf(&blockX11Forwarding),
 		},
 		{
 			Flag:        "devcontainers-enable",
