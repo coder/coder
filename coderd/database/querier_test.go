@@ -1707,17 +1707,17 @@ func TestChatContextHydration(t *testing.T) {
 		hash := []byte{0x01}
 		hashOther := []byte{0xff}
 
-		chatPinned := newChat(t, database.ChatStatusWaiting, agent.ID)
-		chatMatch := newChat(t, database.ChatStatusRunning, agent.ID)
-		chatDirty := newChat(t, database.ChatStatusRunning, agent.ID)
-		chatError := newChat(t, database.ChatStatusError, agent.ID)
-		chatInterrupting := newChat(t, database.ChatStatusInterrupting, agent.ID)
-		chatSnapshotError := newChat(t, database.ChatStatusPaused, agent.ID)
-		chatArchived := newChat(t, database.ChatStatusRunning, agent.ID)
-		chatOtherAgent := newChat(t, database.ChatStatusRunning, otherAgent.ID)
-		chatUnpinned := newChat(t, database.ChatStatusWaiting, agent.ID)
-		pinnedIDs := []uuid.UUID{chatPinned.ID, chatMatch.ID, chatDirty.ID, chatError.ID, chatInterrupting.ID, chatSnapshotError.ID}
-		for _, id := range slices.Concat(pinnedIDs, []uuid.UUID{chatArchived.ID, chatOtherAgent.ID}) {
+		chatPinned := newChat(t, database.ChatStatusWaiting, agent.ID)            // needs its first error sync
+		chatRunning := newChat(t, database.ChatStatusRunning, agent.ID)           // same pin, different chat status
+		chatDirty := newChat(t, database.ChatStatusRunning, agent.ID)             // error sync must preserve the dirty marker
+		chatError := newChat(t, database.ChatStatusError, agent.ID)               // accepts messages after a model error
+		chatInterrupting := newChat(t, database.ChatStatusInterrupting, agent.ID) // accepts updates while a stop is in progress
+		chatSnapshotError := newChat(t, database.ChatStatusPaused, agent.ID)      // replaces an earlier snapshot error
+		chatArchived := newChat(t, database.ChatStatusRunning, agent.ID)          // excluded even with a pinned hash
+		chatOtherAgent := newChat(t, database.ChatStatusRunning, otherAgent.ID)   // unchanged by this agent's push
+		chatUnpinned := newChat(t, database.ChatStatusWaiting, agent.ID)          // waits for hydration before error sync
+		pinnedIDs := []uuid.UUID{chatPinned.ID, chatRunning.ID, chatDirty.ID, chatError.ID, chatInterrupting.ID, chatSnapshotError.ID}
+		for _, id := range []uuid.UUID{chatPinned.ID, chatRunning.ID, chatError.ID, chatInterrupting.ID, chatArchived.ID, chatOtherAgent.ID} {
 			require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: id, AggregateHash: hash}))
 		}
 		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatDirty.ID, AggregateHash: hashOther}))
