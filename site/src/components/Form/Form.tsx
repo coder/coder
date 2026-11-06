@@ -1,6 +1,10 @@
 import { cn } from "cn";
 import { createContext, useContext } from "react";
-import { AlphaBadge, DeprecatedBadge } from "#/components/Badge/PresetBadges";
+import {
+	AlphaBadge,
+	DeprecatedBadge,
+	PremiumBadge,
+} from "#/components/Badge/PresetBadges";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
 
@@ -64,6 +68,8 @@ type FormSectionProps = {
 	};
 	alpha?: boolean;
 	deprecated?: boolean;
+	/** Marks a section whose settings need a Premium license. */
+	premium?: boolean;
 	ref?: React.Ref<HTMLElement>;
 };
 
@@ -74,6 +80,7 @@ export const FormSection: React.FC<FormSectionProps> = ({
 	classes = {},
 	alpha = false,
 	deprecated = false,
+	premium = false,
 	ref,
 }) => {
 	const { direction } = useContext(FormContext);
@@ -105,6 +112,7 @@ export const FormSection: React.FC<FormSectionProps> = ({
 					</h2>
 					{alpha && <AlphaBadge />}
 					{deprecated && <DeprecatedBadge />}
+					{premium && <PremiumBadge />}
 				</header>
 				<div className="m-0 text-sm leading-[160%] text-content-secondary">
 					{description}

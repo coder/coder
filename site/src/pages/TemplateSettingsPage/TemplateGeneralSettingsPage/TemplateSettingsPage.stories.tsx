@@ -5,17 +5,28 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { templateByNameKey } from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
-import { MockTemplate, mockApiError } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	MockPermissions,
+	MockTemplate,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import { TemplateSettingsLayout } from "../TemplateSettingsLayout";
 import TemplateSettingsPage from "./TemplateSettingsPage";
 
 const meta = {
 	title: "pages/TemplateSettingsPage/TemplateSettingsPage",
 	component: TemplateSettingsLayout,
-	decorators: [withToaster, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
+		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: {
 				path: "/templates/:template/settings",

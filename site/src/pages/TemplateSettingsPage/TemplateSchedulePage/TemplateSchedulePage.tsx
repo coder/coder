@@ -4,6 +4,7 @@ import { API } from "#/api/api";
 import { templateByNameKey } from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
@@ -15,6 +16,7 @@ const TemplateSchedulePage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { template } = useTemplateSettings();
+	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
@@ -47,6 +49,7 @@ const TemplateSchedulePage: React.FC = () => {
 
 			<TemplateSchedulePageView
 				allowAdvancedScheduling={allowAdvancedScheduling}
+				canViewPremium={permissions.viewAllLicenses}
 				isSubmitting={isSubmitting}
 				template={template}
 				submitError={submitError}

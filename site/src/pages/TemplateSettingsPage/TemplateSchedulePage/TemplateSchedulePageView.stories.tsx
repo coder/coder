@@ -32,6 +32,7 @@ type Story = StoryObj<typeof TemplateSchedulePageView>;
 
 const defaultArgs = {
 	allowAdvancedScheduling: true,
+	canViewPremium: true,
 	template: MockTemplate,
 	onSubmit: action("onSubmit"),
 	onCancel: action("cancel"),
@@ -43,6 +44,14 @@ export const Example: Story = {
 
 export const CantSetMaxTTL: Story = {
 	args: { ...defaultArgs, allowAdvancedScheduling: false },
+};
+
+export const CantSetMaxTTLWithoutLicenseAccess: Story = {
+	args: {
+		...defaultArgs,
+		allowAdvancedScheduling: false,
+		canViewPremium: false,
+	},
 };
 
 export const SubmitClearsActivityBumpWhenDefaultTTLIsZero: Story = {

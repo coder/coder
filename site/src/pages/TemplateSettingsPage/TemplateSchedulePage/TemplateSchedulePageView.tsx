@@ -16,6 +16,8 @@ type TemplateSchedulePageViewProps = {
 		typeof TemplateScheduleForm
 	>["initialTouched"];
 	allowAdvancedScheduling: boolean;
+	/** Shows Premium page links in Premium notices. */
+	canViewPremium: boolean;
 };
 
 export const TemplateSchedulePageView: React.FC<
@@ -26,6 +28,7 @@ export const TemplateSchedulePageView: React.FC<
 	onSubmit,
 	isSubmitting,
 	allowAdvancedScheduling,
+	canViewPremium,
 	submitError,
 	initialTouched,
 }) => {
@@ -40,6 +43,7 @@ export const TemplateSchedulePageView: React.FC<
 
 			<TemplateScheduleForm
 				allowAdvancedScheduling={allowAdvancedScheduling}
+				canViewPremium={canViewPremium}
 				initialTouched={initialTouched}
 				isSubmitting={isSubmitting}
 				template={template}
