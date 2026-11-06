@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
@@ -540,6 +541,200 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 			} else {
 				require.Empty(t, resp.GetWorkspaceId())
 				require.Equal(t, string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup), resp.GetOrganizationSource())
+			}
+		})
+	}
+}
+
+// TestAuthorization_InternalErrors verifies which IsAuthorized errors are
+// marked as internal. A failure of coderd, such as a database error, carries
+// proto.ErrCodeInternal so the gateway answers 500. A rejected request carries
+// no code, so the gateway answers 403.
+func TestAuthorization_InternalErrors(t *testing.T) {
+	t.Parallel()
+
+	errDB := xerrors.New("connection refused")
+
+	// identity is the request's API key and user, and the workspace or
+	// organization it names.
+	type identity struct {
+		key         database.APIKey
+		user        database.User
+		workspaceID uuid.UUID
+		orgID       uuid.UUID
+	}
+	// identityFound sets up a key and user that pass every check before
+	// organization resolution.
+	identityFound := func(db *dbmock.MockStore, id identity) {
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), id.key.ID).Return(id.key, nil)
+		db.EXPECT().GetUserByID(gomock.Any(), id.user.ID).Return(id.user, nil)
+	}
+
+	tests := []struct {
+		name string
+		// workspace makes the key a workspace session token.
+		workspace bool
+		// delegated authenticates by key ID, naming an organization, as chatd
+		// does.
+		delegated    bool
+		configure    func(db *dbmock.MockStore, id identity)
+		wantErr      error
+		wantInternal bool
+	}{
+		{
+			name: "key lookup fails",
+			configure: func(db *dbmock.MockStore, id identity) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), id.key.ID).Return(database.APIKey{}, errDB)
+			},
+			wantErr:      errDB,
+			wantInternal: true,
+		},
+		{
+			name: "user lookup fails",
+			configure: func(db *dbmock.MockStore, id identity) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), id.key.ID).Return(id.key, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), id.user.ID).Return(database.User{}, errDB)
+			},
+			wantErr:      errDB,
+			wantInternal: true,
+		},
+		{
+			name:      "workspace lookup fails",
+			workspace: true,
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), id.workspaceID).Return(database.Workspace{}, errDB)
+			},
+			wantErr:      errDB,
+			wantInternal: true,
+		},
+		{
+			name:      "workspace organization lookup fails",
+			workspace: true,
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), id.workspaceID).Return(database.Workspace{ID: id.workspaceID, OrganizationID: id.orgID}, nil)
+				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return(nil, errDB)
+			},
+			wantErr:      errDB,
+			wantInternal: true,
+		},
+		{
+			name:      "delegated organization lookup fails",
+			delegated: true,
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return(nil, errDB)
+			},
+			wantErr:      errDB,
+			wantInternal: true,
+		},
+		{
+			name: "effective group lookup fails",
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(id.user.ID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, errDB)
+			},
+			wantErr:      errDB,
+			wantInternal: true,
+		},
+		{
+			name: "unknown key",
+			configure: func(db *dbmock.MockStore, id identity) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), id.key.ID).Return(database.APIKey{}, sql.ErrNoRows)
+			},
+			wantErr: aibridgedserver.ErrUnknownKey,
+		},
+		{
+			name: "unknown user",
+			configure: func(db *dbmock.MockStore, id identity) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), id.key.ID).Return(id.key, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), id.user.ID).Return(database.User{}, sql.ErrNoRows)
+			},
+			wantErr: aibridgedserver.ErrUnknownUser,
+		},
+		{
+			name:      "unknown workspace",
+			workspace: true,
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), id.workspaceID).Return(database.Workspace{}, sql.ErrNoRows)
+			},
+			wantErr: aibridgedserver.ErrUnknownWorkspace,
+		},
+		{
+			name:      "user not a member of workspace organization",
+			workspace: true,
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), id.workspaceID).Return(database.Workspace{ID: id.workspaceID, OrganizationID: id.orgID}, nil)
+				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return([]database.Organization{{ID: uuid.New()}}, nil)
+			},
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
+		},
+		{
+			name:      "user not a member of delegated organization",
+			delegated: true,
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return([]database.Organization{{ID: uuid.New()}}, nil)
+			},
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
+		},
+		{
+			name: "no organization",
+			configure: func(db *dbmock.MockStore, id identity) {
+				identityFound(db, id)
+				db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(id.user.ID)).
+					Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(id.user.ID)).
+					Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
+				db.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), siteWideFallbackParams(id.user.ID)).Return(uuid.Nil, sql.ErrNoRows)
+			},
+			wantErr: aibridgedserver.ErrNoOrganization,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			id := identity{
+				user:        database.User{ID: uuid.New(), Username: "test", Status: database.UserStatusActive, LoginType: database.LoginTypePassword},
+				workspaceID: uuid.New(),
+				orgID:       uuid.New(),
+			}
+			keyID, err := cryptorand.String(10)
+			require.NoError(t, err)
+			secret, hashedSecret, err := apikey.GenerateSecret(22)
+			require.NoError(t, err)
+			id.key = database.APIKey{ID: keyID, UserID: id.user.ID, HashedSecret: hashedSecret, ExpiresAt: dbtime.Now().Add(time.Hour), LoginType: database.LoginTypePassword}
+			if tt.workspace {
+				id.key.TokenName = fmt.Sprintf("%s_%s_session_token", id.user.ID, id.workspaceID)
+			}
+			tt.configure(db, id)
+
+			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
+				Store: db, AISeatTracker: agplaiseats.Noop{}, AccessURL: "/",
+				GatewayCfg: codersdk.AIBridgeConfig{}, Experiments: requiredExperiments,
+				Logger: testutil.Logger(t), Clock: quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			req := &proto.IsAuthorizedRequest{Key: id.key.ID + "-" + secret}
+			if tt.delegated {
+				req = &proto.IsAuthorizedRequest{KeyId: id.key.ID, DelegatedOrganizationId: id.orgID.String()}
+			}
+			resp, err := srv.IsAuthorized(t.Context(), req)
+			require.Nil(t, resp)
+			require.ErrorIs(t, err, tt.wantErr)
+			if tt.wantInternal {
+				require.Equal(t, proto.ErrCodeInternal, drpcerr.Code(err))
+			} else {
+				require.Zero(t, drpcerr.Code(err))
 			}
 		})
 	}
