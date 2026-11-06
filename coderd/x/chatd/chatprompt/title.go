@@ -99,10 +99,8 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 // automatic title generation.
 const DefaultChatTitle = "New Chat"
 
-// FallbackTitle derives a deterministic chat title from title text:
-// the whole text with whitespace collapsed, capped at 80 runes and
-// ellipsized only when that cap cuts it. Clients truncate visually to
-// fit their layout. Empty input yields DefaultChatTitle.
+// FallbackTitle returns title text with whitespace collapsed, ellipsized
+// past 80 runes. Empty input yields DefaultChatTitle.
 func FallbackTitle(message string) string {
 	const maxRunes = 80
 
