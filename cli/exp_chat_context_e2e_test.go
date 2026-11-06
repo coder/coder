@@ -79,7 +79,10 @@ func TestExpChatContextRefreshAgent(t *testing.T) {
 	}
 	refresh := func() string {
 		t.Helper()
-		return run("refresh", "--agent-url", client.URL.String(), "--agent-token", build.AgentToken)
+		out := run("refresh", "--agent-url", client.URL.String(), "--agent-token", build.AgentToken)
+		require.Regexp(t, `^Agent context resolved and stored by coderd \([0-9]+ resources\)\.\n`, out)
+		require.Regexp(t, `(?m)^Refreshed [0-9]+ drifted chat\(s\)\.\n$`, out)
+		return out
 	}
 	assertPinned := func(wantExtra bool) {
 		t.Helper()

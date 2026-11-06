@@ -24,14 +24,32 @@ func TestExpChatContextRefreshOutput(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		ready         bool
-		changed       bool
 		snapshotError string
+		resyncErr     error
 		wantOutput    string
+		wantErr       string
 	}{
-		{name: "Startup", wantOutput: "Context will be collected after startup scripts finish. Chats were not refreshed."},
-		{name: "Changed", ready: true, changed: true, wantOutput: "Agent context changed"},
-		{name: "Unchanged", ready: true, wantOutput: "Agent context unchanged"},
-		{name: "ErrorChanged", ready: true, snapshotError: "unreadable file", wantOutput: "Agent context changed"},
+		{
+			name:       "Startup",
+			wantOutput: "Context will be collected after startup scripts finish. Chats were not refreshed.\n",
+		},
+		{
+			name:       "Ready",
+			ready:      true,
+			wantOutput: "Agent context resolved and stored by coderd (2 resources).\nRefreshed 2 drifted chat(s).\n",
+		},
+		{
+			name:          "SnapshotError",
+			ready:         true,
+			snapshotError: "unreadable file",
+			wantOutput:    "Agent context resolved and stored by coderd (2 resources).\nSnapshot reported an error: unreadable file\nRefreshed 2 drifted chat(s).\n",
+		},
+		{
+			name:      "PushUnavailable",
+			ready:     true,
+			resyncErr: agentcontext.ErrPushUnavailable,
+			wantErr:   "workspace context sync is disabled on this deployment",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -44,13 +62,15 @@ func TestExpChatContextRefreshOutput(t *testing.T) {
 			}))
 			defer api.Close()
 
-			cm := &refreshContextManager{}
+			cm := &refreshContextManager{err: tc.resyncErr}
 			if tc.ready {
-				cm.before.Version = 1
-				cm.after.Version = 2
-				cm.after.SnapshotError = tc.snapshotError
-				if tc.changed {
-					cm.after.AggregateHash[0] = 1
+				cm.snapshot = agentcontext.Snapshot{
+					Version:       2,
+					SnapshotError: tc.snapshotError,
+					Resources: []agentcontext.Resource{
+						{Kind: agentcontext.KindInstructionFile},
+						{Kind: agentcontext.KindMCPServer},
+					},
 				}
 			}
 			socketPath := testutil.AgentSocketPath(t)
@@ -62,16 +82,17 @@ func TestExpChatContextRefreshOutput(t *testing.T) {
 				"--socket-path", socketPath, "--agent-url", api.URL, "--agent-token", "test-agent-token")
 			var out bytes.Buffer
 			inv.Stdout = &out
-			require.NoError(t, inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run())
-			require.Contains(t, out.String(), tc.wantOutput)
-			if tc.ready {
-				require.EqualValues(t, 1, requests.Load())
-				require.Contains(t, out.String(), "Refreshed 2 drifted chat(s).")
-				if tc.snapshotError != "" {
-					require.Contains(t, out.String(), "Snapshot reported an error: "+tc.snapshotError)
-				}
+			err = inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
 			} else {
-				require.Zero(t, requests.Load(), "startup refresh must not call coderd")
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantOutput, out.String())
+			if tc.ready && tc.wantErr == "" {
+				require.EqualValues(t, 1, requests.Load())
+			} else {
+				require.Zero(t, requests.Load(), "an unavailable snapshot must not refresh chats")
 			}
 		})
 	}
@@ -79,14 +100,14 @@ func TestExpChatContextRefreshOutput(t *testing.T) {
 
 type refreshContextManager struct {
 	agentsocket.ContextManager
-	before agentcontext.Snapshot
-	after  agentcontext.Snapshot
+	snapshot agentcontext.Snapshot
+	err      error
 }
 
-func (m *refreshContextManager) Snapshot() agentcontext.Snapshot { return m.before }
+func (m *refreshContextManager) Snapshot() agentcontext.Snapshot { return m.snapshot }
 
 func (m *refreshContextManager) Resync(context.Context) (agentcontext.Snapshot, error) {
-	return m.after, nil
+	return m.snapshot, m.err
 }
 
 func TestExpChatContextAdd(t *testing.T) {
