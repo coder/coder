@@ -22,33 +22,38 @@ func TestExpChatContextRefreshOutput(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name          string
-		ready         bool
-		snapshotError string
-		resyncErr     error
-		wantOutput    string
-		wantErr       string
+		name                string
+		ready               bool
+		snapshotError       string
+		resyncErr           error
+		wantOutput          string
+		wantErr             string
+		wantRefreshRequests int32
 	}{
 		{
-			name:       "Startup",
-			wantOutput: "Context will be collected after startup scripts finish. Chats were not refreshed.\n",
+			name:                "Startup",
+			wantOutput:          "Context will be collected after startup scripts finish. Chats were not refreshed.\n",
+			wantRefreshRequests: 0,
 		},
 		{
-			name:       "Ready",
-			ready:      true,
-			wantOutput: "Agent context resolved and stored by coderd (2 resources).\nRefreshed 2 drifted chat(s).\n",
+			name:                "Ready",
+			ready:               true,
+			wantOutput:          "Resolved agent context (2 resources); coderd stored it or a newer snapshot.\nRefreshed 2 drifted chat(s).\n",
+			wantRefreshRequests: 1,
 		},
 		{
-			name:          "SnapshotError",
-			ready:         true,
-			snapshotError: "unreadable file",
-			wantOutput:    "Agent context resolved and stored by coderd (2 resources).\nSnapshot reported an error: unreadable file\nRefreshed 2 drifted chat(s).\n",
+			name:                "SnapshotError",
+			ready:               true,
+			snapshotError:       "unreadable file",
+			wantOutput:          "Resolved agent context (2 resources); coderd stored it or a newer snapshot.\nSnapshot reported an error: unreadable file\nRefreshed 2 drifted chat(s).\n",
+			wantRefreshRequests: 1,
 		},
 		{
-			name:      "PushUnavailable",
-			ready:     true,
-			resyncErr: agentcontext.ErrPushUnavailable,
-			wantErr:   "workspace context sync is disabled on this deployment",
+			name:                "PushUnavailable",
+			ready:               true,
+			resyncErr:           agentcontext.ErrPushUnavailable,
+			wantErr:             "workspace context sync is disabled on this deployment",
+			wantRefreshRequests: 0,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,11 +94,7 @@ func TestExpChatContextRefreshOutput(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tc.wantOutput, out.String())
-			if tc.ready && tc.wantErr == "" {
-				require.EqualValues(t, 1, requests.Load())
-			} else {
-				require.Zero(t, requests.Load(), "an unavailable snapshot must not refresh chats")
-			}
+			require.Equal(t, tc.wantRefreshRequests, requests.Load())
 		})
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -57,7 +58,10 @@ func TestExpChatContextRefreshAgent(t *testing.T) {
 	})
 
 	socketPath := testutil.AgentSocketPath(t)
+	// An empty ACP configuration home prevents probing host-installed harnesses.
+	home := t.TempDir()
 	agenttest.New(t, client.URL, build.AgentToken, func(o *agent.Options) {
+		o.EnvInfo = contextRefreshEnvInfo{home: home}
 		o.SocketServerEnabled = true
 		o.SocketPath = socketPath
 	})
@@ -80,7 +84,7 @@ func TestExpChatContextRefreshAgent(t *testing.T) {
 	refresh := func() string {
 		t.Helper()
 		out := run("refresh", "--agent-url", client.URL.String(), "--agent-token", build.AgentToken)
-		require.Regexp(t, `^Agent context resolved and stored by coderd \([0-9]+ resources\)\.\n`, out)
+		require.Regexp(t, `^Resolved agent context \([0-9]+ resources\); coderd stored it or a newer snapshot\.\n`, out)
 		require.Regexp(t, `(?m)^Refreshed [0-9]+ drifted chat\(s\)\.\n$`, out)
 		return out
 	}
@@ -99,7 +103,9 @@ func TestExpChatContextRefreshAgent(t *testing.T) {
 		require.False(t, got.Context.Dirty, "refresh must clear drift before returning")
 	}
 
-	for range 5 {
+	// Repeat the workflow to exercise watcher and push ordering.
+	const refreshCycles = 5
+	for range refreshCycles {
 		run("add", extraDir)
 		t.Log(refresh())
 		assertPinned(true)
@@ -110,3 +116,10 @@ func TestExpChatContextRefreshAgent(t *testing.T) {
 	require.Contains(t, refresh(), "Refreshed 0 drifted chat(s).")
 	assertPinned(false)
 }
+
+type contextRefreshEnvInfo struct {
+	usershell.SystemEnvInfo
+	home string
+}
+
+func (e contextRefreshEnvInfo) HomeDir() (string, error) { return e.home, nil }

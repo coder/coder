@@ -277,12 +277,12 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"<chat> argument, refreshes that chat and works from anywhere.\n\nWith no " +
 			"argument, run from inside the workspace: forces the agent to re-resolve its " +
 			"sources (catching freshly-cloned repos and startup-script writes the watcher " +
-			"has not seen yet) and retry MCP servers that failed to connect, waits " +
-			"for coderd to store the snapshot, then refreshes every drifted chat. " +
-			"The wait is bounded and fails when coderd is unreachable. " +
-			"During startup, collection is deferred until startup scripts finish. " +
-			"This path authenticates " +
-			"with the agent token, so it does not require 'coder login'.",
+			"has not seen yet) and retry MCP servers that failed to connect. It then " +
+			"waits up to 30 seconds for coderd to store that snapshot or a newer one " +
+			"before refreshing this agent's drifted chats. The wait fails if coderd " +
+			"is unreachable. Before startup scripts finish, it collects nothing and " +
+			"refreshes no chats. This path authenticates with the agent token, so it " +
+			"does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -330,7 +330,7 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 				_, _ = fmt.Fprintln(inv.Stdout, "Context will be collected after startup scripts finish. Chats were not refreshed.")
 				return nil
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Agent context resolved and stored by coderd (%d resources).\n", len(snap.Resources))
+			_, _ = fmt.Fprintf(inv.Stdout, "Resolved agent context (%d resources); coderd stored it or a newer snapshot.\n", len(snap.Resources))
 			if snap.SnapshotError != "" {
 				_, _ = fmt.Fprintf(inv.Stdout, "Snapshot reported an error: %s\n", snap.SnapshotError)
 			}
