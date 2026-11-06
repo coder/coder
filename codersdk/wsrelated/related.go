@@ -67,17 +67,6 @@ func (c *LatestBuild) ensureResources() *Resources {
 	return c.Resources
 }
 
-// AppStatuses reports whether app statuses
-// (latest_build.resources.agents.apps.statuses) are selected. It is nil-safe so
-// callers holding a possibly-nil subtree can descend without a chain of guards.
-func (c *LatestBuild) AppStatuses() bool {
-	return c != nil &&
-		c.Resources != nil &&
-		c.Resources.Agents != nil &&
-		c.Resources.Agents.Apps != nil &&
-		c.Resources.Agents.Apps.Statuses
-}
-
 // appendPaths appends the frontier paths under base, or base itself when this
 // node has no selected descendants.
 func (c *LatestBuild) appendPaths(paths []string, base string) []string {
@@ -135,22 +124,15 @@ func (c *Resources) appendPaths(paths []string, base string) []string {
 }
 
 type Agents struct {
-	Apps       *Apps // latest_build.resources.agents.apps
-	Scripts    bool  // latest_build.resources.agents.scripts
-	LogSources bool  // latest_build.resources.agents.log_sources
-}
-
-func (c *Agents) ensureApps() *Apps {
-	if c.Apps == nil {
-		c.Apps = &Apps{}
-	}
-	return c.Apps
+	Apps       bool // latest_build.resources.agents.apps
+	Scripts    bool // latest_build.resources.agents.scripts
+	LogSources bool // latest_build.resources.agents.log_sources
 }
 
 func (c *Agents) appendPaths(paths []string, base string) []string {
 	before := len(paths)
-	if c.Apps != nil {
-		paths = c.Apps.appendPaths(paths, base+".apps")
+	if c.Apps {
+		paths = append(paths, base+".apps")
 	}
 	if c.Scripts {
 		paths = append(paths, base+".scripts")
@@ -162,17 +144,6 @@ func (c *Agents) appendPaths(paths []string, base string) []string {
 		paths = append(paths, base)
 	}
 	return paths
-}
-
-type Apps struct {
-	Statuses bool // latest_build.resources.agents.apps.statuses
-}
-
-func (c *Apps) appendPaths(paths []string, base string) []string {
-	if c.Statuses {
-		return append(paths, base+".statuses")
-	}
-	return append(paths, base)
 }
 
 // All returns a selection that loads every related object. It reproduces the
@@ -192,7 +163,7 @@ func AllLatestBuild() LatestBuild {
 		Resources: &Resources{
 			Metadata: true,
 			Agents: &Agents{
-				Apps:       &Apps{Statuses: true},
+				Apps:       true,
 				Scripts:    true,
 				LogSources: true,
 			},

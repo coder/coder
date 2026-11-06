@@ -131,30 +131,6 @@ title: Schemas
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
 
-## agentsdk.PatchAppStatus
-
-```json
-{
-  "app_slug": "string",
-  "icon": "string",
-  "message": "string",
-  "needs_user_attention": true,
-  "state": "working",
-  "uri": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type                                                                 | Required | Restrictions | Description                                                               |
-|------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `app_slug`             | string                                                               | false    |              |                                                                           |
-| `icon`                 | string                                                               | false    |              | Deprecated: this field is unused and will be removed in a future version. |
-| `message`              | string                                                               | false    |              |                                                                           |
-| `needs_user_attention` | boolean                                                              | false    |              | Deprecated: this field is unused and will be removed in a future version. |
-| `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                           |
-| `uri`                  | string                                                               | false    |              | Only http, https, and file URIs are kept; others are dropped.             |
-
 ## agentsdk.PatchLogs
 
 ```json
@@ -18924,18 +18900,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
   "last_used_at": "2019-08-24T14:15:22Z",
-  "latest_app_status": {
-    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-    "created_at": "2019-08-24T14:15:22Z",
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "message": "string",
-    "needs_user_attention": true,
-    "state": "working",
-    "uri": "string",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-  },
   "latest_build": {
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
@@ -19016,20 +18980,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "open_in": "slim-window",
                 "sharing_level": "owner",
                 "slug": "string",
-                "statuses": [
-                  {
-                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "2019-08-24T14:15:22Z",
-                    "icon": "string",
-                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                    "message": "string",
-                    "needs_user_attention": true,
-                    "state": "working",
-                    "uri": "string",
-                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-                  }
-                ],
                 "subdomain": true,
                 "subdomain_name": "string",
                 "tooltip": "string",
@@ -19212,7 +19162,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`                                        | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `is_prebuild`                               | boolean                                                                 | false    |              | Is prebuild indicates whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned by the prebuilds system user and have specific behavior, such as being managed differently from regular workspaces. Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace, and IsPrebuild returns false. |
 | `last_used_at`                              | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)              | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)                      | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `name`                                      | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `next_start_at`                             | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -19317,20 +19266,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "open_in": "slim-window",
       "sharing_level": "owner",
       "slug": "string",
-      "statuses": [
-        {
-          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-          "created_at": "2019-08-24T14:15:22Z",
-          "icon": "string",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "message": "string",
-          "needs_user_attention": true,
-          "state": "working",
-          "uri": "string",
-          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-        }
-      ],
       "subdomain": true,
       "subdomain_name": "string",
       "tooltip": "string",
@@ -20180,20 +20115,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "open_in": "slim-window",
   "sharing_level": "owner",
   "slug": "string",
-  "statuses": [
-    {
-      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-      "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-      "created_at": "2019-08-24T14:15:22Z",
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "message": "string",
-      "needs_user_attention": true,
-      "state": "working",
-      "uri": "string",
-      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-    }
-  ],
   "subdomain": true,
   "subdomain_name": "string",
   "tooltip": "string",
@@ -20217,7 +20138,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `open_in`        | [codersdk.WorkspaceAppOpenIn](#codersdkworkspaceappopenin)             | false    |              |                                                                                                                                                                                                                                                |
 | `sharing_level`  | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
 | `slug`           | string                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
-| `statuses`       | array of [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)    | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
 | `subdomain`      | boolean                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
@@ -20270,52 +20190,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)                                           |
 |----------------------------------------------------|
 | `authenticated`, `organization`, `owner`, `public` |
-
-## codersdk.WorkspaceAppStatus
-
-```json
-{
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-  "created_at": "2019-08-24T14:15:22Z",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "message": "string",
-  "needs_user_attention": true,
-  "state": "working",
-  "uri": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-}
-```
-
-### Properties
-
-| Name                   | Type                                                                 | Required | Restrictions | Description                                                                                                                                     |
-|------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`             | string                                                               | false    |              |                                                                                                                                                 |
-| `app_id`               | string                                                               | false    |              |                                                                                                                                                 |
-| `created_at`           | string                                                               | false    |              |                                                                                                                                                 |
-| `icon`                 | string                                                               | false    |              | Deprecated: This field is unused and will be removed in a future version. Icon is an external URL to an icon that will be rendered in the UI.   |
-| `id`                   | string                                                               | false    |              |                                                                                                                                                 |
-| `message`              | string                                                               | false    |              |                                                                                                                                                 |
-| `needs_user_attention` | boolean                                                              | false    |              | Deprecated: This field is unused and will be removed in a future version. NeedsUserAttention specifies whether the status needs user attention. |
-| `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                                                                                                 |
-| `uri`                  | string                                                               | false    |              | Uri is the URI of the resource that the status is for. e.g. https://github.com/org/repo/pull/123 e.g. file:///path/to/file                      |
-| `workspace_id`         | string                                                               | false    |              |                                                                                                                                                 |
-
-## codersdk.WorkspaceAppStatusState
-
-```json
-"working"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                 |
-|------------------------------------------|
-| `complete`, `failure`, `idle`, `working` |
 
 ## codersdk.WorkspaceBuild
 
@@ -20400,20 +20274,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "open_in": "slim-window",
               "sharing_level": "owner",
               "slug": "string",
-              "statuses": [
-                {
-                  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-                  "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                  "created_at": "2019-08-24T14:15:22Z",
-                  "icon": "string",
-                  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                  "message": "string",
-                  "needs_user_attention": true,
-                  "state": "working",
-                  "uri": "string",
-                  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-                }
-              ],
               "subdomain": true,
               "subdomain_name": "string",
               "tooltip": "string",
@@ -20904,20 +20764,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "open_in": "slim-window",
           "sharing_level": "owner",
           "slug": "string",
-          "statuses": [
-            {
-              "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-              "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-              "created_at": "2019-08-24T14:15:22Z",
-              "icon": "string",
-              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-              "message": "string",
-              "needs_user_attention": true,
-              "state": "working",
-              "uri": "string",
-              "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-            }
-          ],
           "subdomain": true,
           "subdomain_name": "string",
           "tooltip": "string",
@@ -21259,18 +21105,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_prebuild": true,
       "last_used_at": "2019-08-24T14:15:22Z",
-      "latest_app_status": {
-        "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-        "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-        "created_at": "2019-08-24T14:15:22Z",
-        "icon": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "message": "string",
-        "needs_user_attention": true,
-        "state": "working",
-        "uri": "string",
-        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-      },
       "latest_build": {
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
@@ -21347,7 +21181,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "open_in": "slim-window",
                     "sharing_level": "owner",
                     "slug": "string",
-                    "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
                     "tooltip": "string",

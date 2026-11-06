@@ -94,7 +94,6 @@ function buildApp(
 		slug: id,
 		display_name: id,
 		health: "healthy",
-		statuses: [],
 		...overrides,
 	};
 }

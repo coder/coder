@@ -8,7 +8,6 @@ import (
 	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
-	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 )
 
@@ -159,11 +158,6 @@ func (c *Client) SyncList(ctx context.Context) ([]SyncListItem, error) {
 	}
 
 	return items, nil
-}
-
-// UpdateAppStatus forwards an app status update to coderd via the agent.
-func (c *Client) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
-	return c.client.UpdateAppStatus(ctx, req)
 }
 
 // ContextSources lists the workspace-context sources registered on the agent.

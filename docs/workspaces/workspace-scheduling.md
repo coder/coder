@@ -59,8 +59,6 @@ Coder specifically tracks these session types:
   Using the web terminal (including reconnecting to the web terminal)
 - **SSH sessions**:
   Connecting via `coder ssh` or SSH config integration
-- **AI agent task status**:
-  When a coding agent reports "working" status, the workspace deadline is extended
 
 Activity is only detected when there is at least one active session.
 An open session will keep your workspace marked as active and prevent automatic shutdown.
@@ -71,7 +69,7 @@ The following actions do **not** count as workspace activity:
 - Viewing or editing workspace settings
 - Viewing build logs or audit logs
 - Accessing ports through direct URLs without an active session
-- Background agent statistics reporting (note: AI agent _task status_ reporting is different and does count as activity, see above)
+- Background agent statistics reporting
 
 To avoid unexpected cloud costs, close your connections, this includes IDE windows, SSH sessions, and others, when you finish using your workspace.
 
