@@ -7616,7 +7616,7 @@ func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (d
 	return q.db.PopNextQueuedMessage(ctx, chatID)
 }
 
-func (q *querier) RebindChatContextAgent(ctx context.Context, arg database.RebindChatContextAgentParams) error {
+func (q *querier) RebindChatToAgent(ctx context.Context, arg database.RebindChatToAgentParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -7624,7 +7624,7 @@ func (q *querier) RebindChatContextAgent(ctx context.Context, arg database.Rebin
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return err
 	}
-	return q.db.RebindChatContextAgent(ctx, arg)
+	return q.db.RebindChatToAgent(ctx, arg)
 }
 
 func (q *querier) RebindWorkspaceChatsToAgent(ctx context.Context, arg database.RebindWorkspaceChatsToAgentParams) ([]database.RebindWorkspaceChatsToAgentRow, error) {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -273,22 +274,23 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 }
 
 var (
-	// ErrChatContextNotReady means the current workspace agent has no snapshot.
+	// ErrChatContextNotReady means the resolved agent has no stored snapshot.
 	ErrChatContextNotReady = xerrors.New("workspace context is not ready; try again after the agent pushes its context")
 	// ErrChatContextNoAgent means no workspace agent can supply context.
 	ErrChatContextNoAgent = xerrors.New("workspace has no running agent")
+	// ErrChatContextAgentSelection means no chat agent can be selected.
+	ErrChatContextAgentSelection = xerrors.New("workspace agent selection failed")
 	// ErrChatContextWorkspaceDeleted means the chat's workspace was deleted.
 	ErrChatContextWorkspaceDeleted = xerrors.New("the chat's workspace was deleted")
 )
 
-// repinChatContext re-pins a chat to its agent's latest snapshot in a
-// transaction. An agent with no snapshot keeps the pin until its first push.
-// A chat with no bound agent has its pin cleared.
+// repinChatContext re-pins a chat to agentID's latest stored snapshot.
+// It returns ErrChatContextNotReady without changes if no snapshot exists.
+// With no agentID, it clears the pin. Callers supply a transaction store.
 func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, agentID uuid.NullUUID) error {
 	var (
 		aggregateHash []byte
 		snapshotError string
-		hasSnapshot   bool
 	)
 	if agentID.Valid {
 		hash, snapErr, ok, err := latestAgentSnapshot(ctx, db, agentID.UUID)
@@ -300,7 +302,6 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 		}
 		aggregateHash = hash
 		snapshotError = snapErr
-		hasSnapshot = true
 	}
 
 	if err := db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{
@@ -317,7 +318,7 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	if err := db.DeleteChatContextResourcesByChatID(ctx, chatID); err != nil {
 		return xerrors.Errorf("clear chat context resources: %w", err)
 	}
-	if hasSnapshot {
+	if agentID.Valid {
 		if err := db.InsertAgentContextResourcesIntoChat(ctx, database.InsertAgentContextResourcesIntoChatParams{
 			ChatID:  chatID,
 			AgentID: agentID.UUID,
@@ -328,9 +329,59 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	return nil
 }
 
-// RefreshChatContext resolves the current workspace agent and re-pins its
-// latest snapshot, clearing drift. It returns ErrChatContextNotReady without
-// changing the pin when the current agent has not pushed a snapshot.
+// bindChatToResolvedAgent updates a workspace-bound chat's agent binding
+// without changing updated_at. Callers supply a transaction store.
+func bindChatToResolvedAgent(ctx context.Context, tx database.Store, chat database.Chat) (database.Chat, error) {
+	if !chat.WorkspaceID.Valid {
+		return chat, nil
+	}
+	workspace, err := tx.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.Chat{}, ErrChatContextWorkspaceDeleted
+	}
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get workspace for context refresh: %w", err)
+	}
+	if workspace.Deleted {
+		return database.Chat{}, ErrChatContextWorkspaceDeleted
+	}
+
+	agent, err := resolveChatWorkspaceAgent(ctx, tx, chat)
+	if errors.Is(err, errChatHasNoWorkspaceAgent) {
+		return database.Chat{}, ErrChatContextNoAgent
+	}
+	if errors.Is(err, agentselect.ErrMultipleChatAgents) || errors.Is(err, agentselect.ErrNoEligibleAgents) {
+		return database.Chat{}, fmt.Errorf("%w: %w", ErrChatContextAgentSelection, err)
+	}
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if isChatBoundToAgent(chat, agent.ID) {
+		return chat, nil
+	}
+
+	build, err := tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get latest workspace build for refresh: %w", err)
+	}
+	err = tx.RebindChatToAgent(ctx, database.RebindChatToAgentParams{
+		ID:      chat.ID,
+		BuildID: build.ID,
+		AgentID: agent.ID,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("rebind chat to agent: %w", err)
+	}
+	chat.BuildID = uuid.NullUUID{UUID: build.ID, Valid: true}
+	chat.AgentID = uuid.NullUUID{UUID: agent.ID, Valid: true}
+	return chat, nil
+}
+
+// RefreshChatContext re-pins a chat to the resolved agent's latest snapshot,
+// clearing drift. It returns ErrChatContextNotReady if no snapshot is stored,
+// ErrChatContextWorkspaceDeleted or ErrChatContextNoAgent if no agent can be
+// resolved, or ErrChatContextAgentSelection if agent selection fails.
+// A failed refresh rolls back any rebind and keeps the pin.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a
@@ -349,36 +400,9 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 		if err != nil {
 			return xerrors.Errorf("get chat for refresh: %w", err)
 		}
-		if current.WorkspaceID.Valid {
-			workspace, err := tx.GetWorkspaceByID(ctx, current.WorkspaceID.UUID)
-			if errors.Is(err, sql.ErrNoRows) || (err == nil && workspace.Deleted) {
-				return ErrChatContextWorkspaceDeleted
-			}
-			if err != nil {
-				return xerrors.Errorf("get workspace for context refresh: %w", err)
-			}
-			agent, err := resolveChatWorkspaceAgent(ctx, tx, current)
-			if errors.Is(err, errChatHasNoWorkspaceAgent) {
-				return ErrChatContextNoAgent
-			}
-			if err != nil {
-				return err
-			}
-			if !current.AgentID.Valid || current.AgentID.UUID != agent.ID {
-				build, err := tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, current.WorkspaceID.UUID)
-				if err != nil {
-					return xerrors.Errorf("get latest workspace build for refresh: %w", err)
-				}
-				err = tx.RebindChatContextAgent(ctx, database.RebindChatContextAgentParams{
-					ID:      current.ID,
-					BuildID: build.ID,
-					AgentID: agent.ID,
-				})
-				if err != nil {
-					return xerrors.Errorf("rebind chat context agent: %w", err)
-				}
-				current.AgentID = uuid.NullUUID{UUID: agent.ID, Valid: true}
-			}
+		current, err = bindChatToResolvedAgent(ctx, tx, current)
+		if err != nil {
+			return err
 		}
 		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {
 			return err

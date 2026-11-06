@@ -1666,8 +1666,9 @@ SET
     context_dirty_since = NULL
 WHERE id = @id::uuid;
 
--- name: RebindChatContextAgent :exec
--- Context refresh must not reorder chat lists.
+-- name: RebindChatToAgent :exec
+-- Rebinds one chat without changing updated_at, so context refresh does not
+-- reorder chat lists.
 UPDATE chats
 SET build_id = @build_id::uuid,
     agent_id = @agent_id::uuid

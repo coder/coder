@@ -2645,7 +2645,7 @@ func (api *API) applyChatTitleUpdate(
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
 // @Failure 400 {object} codersdk.Response "No running workspace agent or agent selection failed."
-// @Failure 409 {object} codersdk.Response "The current workspace agent has not pushed a context snapshot."
+// @Failure 409 {object} codersdk.Response "The workspace agent has not pushed a context snapshot."
 // @Failure 410 {object} codersdk.Response "The chat's workspace was deleted."
 // @Router /api/v2/chats/{chat}/context [put]
 func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
@@ -2662,34 +2662,31 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	updated, err := api.chatDaemon.RefreshChatContext(ctx, chat)
-	if errors.Is(err, chatd.ErrChatContextNotReady) {
+	switch {
+	case errors.Is(err, chatd.ErrChatContextNotReady):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Workspace context is not ready.",
-			Detail:  err.Error(),
+			Detail:  "The workspace agent has not pushed a context snapshot. Try again after startup scripts finish.",
 		})
 		return
-	}
-	if errors.Is(err, chatd.ErrChatContextNoAgent) {
+	case errors.Is(err, chatd.ErrChatContextNoAgent):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Workspace has no running agent.",
 			Detail:  "Start the workspace before refreshing context.",
 		})
 		return
-	}
-	if errors.Is(err, chatd.ErrChatContextWorkspaceDeleted) {
+	case errors.Is(err, chatd.ErrChatContextWorkspaceDeleted):
 		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
 			Message: "The chat's workspace was deleted.",
 		})
 		return
-	}
-	if errors.Is(err, agentselect.ErrMultipleChatAgents) || errors.Is(err, agentselect.ErrNoEligibleAgents) {
+	case errors.Is(err, chatd.ErrChatContextAgentSelection):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot select a workspace agent for context refresh.",
 			Detail:  err.Error(),
 		})
 		return
-	}
-	if err != nil {
+	case err != nil:
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error refreshing chat context.",
 			Detail:  err.Error(),

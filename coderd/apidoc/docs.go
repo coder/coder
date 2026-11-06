@@ -4536,7 +4536,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "The current workspace agent has not pushed a context snapshot.",
+                        "description": "The workspace agent has not pushed a context snapshot.",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }

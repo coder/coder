@@ -17,7 +17,7 @@ The pinned copy is what the agent's system prompt and tool list are built from, 
 
 The lifecycle of an edit looks like this:
 
-1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
+1. You add a skill or change an instruction file in the workspace.
 1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
 1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
@@ -28,12 +28,13 @@ Within one workspace build, instruction and skill edits leave a chat's pinned in
 The workspace agent publishes nothing until startup scripts finish.
 A chat that has no pinned context can show no skills or MCP tools until the first snapshot arrives.
 
-During a workspace restart, refresh uses the running workspace agent's snapshot while the replacement build is queued or provisioning.
-After the build completes, the chat keeps its pinned instructions and skills until the replacement workspace agent publishes its first snapshot.
-Chats that aren't archived then adopt that snapshot automatically.
+If a running workspace agent is still available while a replacement build is queued or provisioning, refresh uses that agent's snapshot.
 
-Refreshing after build completion but before that first snapshot fails and keeps the existing pin.
-The [refresh API](../reference/api/chats.md#refresh-chat-context) returns `409 Conflict` for this case.
+A workspace restart stops the workspace before starting it again.
+Once the stop build completes, no workspace agent is running, and the [refresh API](../reference/api/chats.md#refresh-chat-context) returns `400 Bad Request`.
+After the start build completes, refresh returns `409 Conflict` until the replacement workspace agent publishes its first snapshot.
+Both errors keep the existing pin.
+Chats that aren't archived adopt that first snapshot automatically.
 
 ### Where the agent looks
 

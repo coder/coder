@@ -2549,12 +2549,12 @@ A failed refresh preserves the existing pin.
 
 ### Responses
 
-| Status | Meaning                                                          | Description                                                    | Schema                                           |
-|--------|------------------------------------------------------------------|----------------------------------------------------------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                                             | [codersdk.Chat](schemas.md#codersdkchat)         |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | No running workspace agent or agent selection failed.          | [codersdk.Response](schemas.md#codersdkresponse) |
-| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | The current workspace agent has not pushed a context snapshot. | [codersdk.Response](schemas.md#codersdkresponse) |
-| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9)        | The chat's workspace was deleted.                              | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                          | Description                                            | Schema                                           |
+|--------|------------------------------------------------------------------|--------------------------------------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                                     | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | No running workspace agent or agent selection failed.  | [codersdk.Response](schemas.md#codersdkresponse) |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | The workspace agent has not pushed a context snapshot. | [codersdk.Response](schemas.md#codersdkresponse) |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9)        | The chat's workspace was deleted.                      | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

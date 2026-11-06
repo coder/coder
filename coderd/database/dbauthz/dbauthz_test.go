@@ -744,11 +744,15 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 }
 
 func (s *MethodTestSuite) TestChats() {
-	s.Run("RebindChatContextAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("RebindChatToAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.RebindChatContextAgentParams{ID: chat.ID, BuildID: uuid.New(), AgentID: uuid.New()}
+		arg := database.RebindChatToAgentParams{
+			ID:      chat.ID,
+			BuildID: uuid.New(),
+			AgentID: uuid.New(),
+		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().RebindChatContextAgent(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().RebindChatToAgent(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate)
 	}))
 	s.Run("RebindWorkspaceChatsToAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
