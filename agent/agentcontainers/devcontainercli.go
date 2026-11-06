@@ -103,6 +103,7 @@ type DevcontainerCLI interface {
 	Up(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) (id string, err error)
 	Exec(ctx context.Context, workspaceFolder, configPath string, cmd string, cmdArgs []string, opts ...DevcontainerCLIExecOptions) error
 	ReadConfig(ctx context.Context, workspaceFolder, configPath string, env []string, opts ...DevcontainerCLIReadConfigOptions) (DevcontainerConfig, error)
+	RunUserCommands(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIRunUserCommandsOptions) error
 }
 
 // DevcontainerCLIUpOptions are options for the devcontainer CLI Up
@@ -120,6 +121,16 @@ type DevcontainerCLIUpConfig struct {
 func WithRemoveExistingContainer() DevcontainerCLIUpOptions {
 	return func(o *DevcontainerCLIUpConfig) {
 		o.Args = append(o.Args, "--remove-existing-container")
+	}
+}
+
+// WithSkipNonBlockingCommands is an option to stop running lifecycle
+// commands after the command configured by waitFor in devcontainer.json
+// (updateContentCommand by default). Use RunUserCommands to run the
+// remaining commands.
+func WithSkipNonBlockingCommands() DevcontainerCLIUpOptions {
+	return func(o *DevcontainerCLIUpConfig) {
+		o.Args = append(o.Args, "--skip-non-blocking-commands")
 	}
 }
 
@@ -168,6 +179,33 @@ func WithRemoteEnv(env ...string) DevcontainerCLIExecOptions {
 	}
 }
 
+// DevcontainerCLIRunUserCommandsOptions are options for the devcontainer
+// CLI RunUserCommands command.
+type DevcontainerCLIRunUserCommandsOptions func(*DevcontainerCLIRunUserCommandsConfig)
+
+type DevcontainerCLIRunUserCommandsConfig struct {
+	Args   []string // Additional arguments for the RunUserCommands command.
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+// WithRunUserCommandsOutput sets additional stdout and stderr writers
+// for logs during RunUserCommands operations.
+func WithRunUserCommandsOutput(stdout, stderr io.Writer) DevcontainerCLIRunUserCommandsOptions {
+	return func(o *DevcontainerCLIRunUserCommandsConfig) {
+		o.Stdout = stdout
+		o.Stderr = stderr
+	}
+}
+
+// WithRunUserCommandsContainerID sets the container ID to target a
+// specific container.
+func WithRunUserCommandsContainerID(id string) DevcontainerCLIRunUserCommandsOptions {
+	return func(o *DevcontainerCLIRunUserCommandsConfig) {
+		o.Args = append(o.Args, "--container-id", id)
+	}
+}
+
 // DevcontainerCLIExecOptions are options for the devcontainer CLI ReadConfig
 // command.
 type DevcontainerCLIReadConfigOptions func(*devcontainerCLIReadConfigConfig)
@@ -189,6 +227,16 @@ func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) Devcontainer
 
 func applyDevcontainerCLIExecOptions(opts []DevcontainerCLIExecOptions) DevcontainerCLIExecConfig {
 	conf := DevcontainerCLIExecConfig{Stdout: io.Discard, Stderr: io.Discard}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&conf)
+		}
+	}
+	return conf
+}
+
+func applyDevcontainerCLIRunUserCommandsOptions(opts []DevcontainerCLIRunUserCommandsOptions) DevcontainerCLIRunUserCommandsConfig {
+	conf := DevcontainerCLIRunUserCommandsConfig{Stdout: io.Discard, Stderr: io.Discard}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&conf)
@@ -273,10 +321,56 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	// but still has a container ID, allowing the caller to potentially
 	// continue with the container that was created.
 	if err := result.Err(); err != nil {
-		return result.ContainerID, err
+		return result.ContainerID, xerrors.Errorf("devcontainer up failed: %w", err)
 	}
 
 	return result.ContainerID, nil
+}
+
+// RunUserCommands runs the lifecycle commands of an existing devcontainer.
+// Commands that already ran for the container, such as onCreateCommand, are
+// skipped by the devcontainer CLI.
+func (d *devcontainerCLI) RunUserCommands(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIRunUserCommandsOptions) error {
+	conf := applyDevcontainerCLIRunUserCommandsOptions(opts)
+	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
+
+	args := []string{
+		"run-user-commands",
+		"--log-format", "json",
+		"--workspace-folder", workspaceFolder,
+	}
+	if configPath != "" {
+		args = append(args, "--config", configPath)
+	}
+	args = append(args, conf.Args...)
+	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
+
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(
+		&stdoutBuf,
+		&devcontainerCLILogWriter{
+			ctx:    ctx,
+			logger: logger.With(slog.F("stdout", true)),
+			writer: conf.Stdout,
+		},
+	)
+	cmd.Stderr = &devcontainerCLILogWriter{
+		ctx:    ctx,
+		logger: logger.With(slog.F("stderr", true)),
+		writer: conf.Stderr,
+	}
+
+	runErr := cmd.Run()
+	result, parseErr := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
+	if parseErr == nil {
+		if err := result.Err(); err != nil {
+			return xerrors.Errorf("devcontainer run-user-commands failed: %w", err)
+		}
+	}
+	if runErr != nil {
+		return xerrors.Errorf("devcontainer run-user-commands failed: %w", errors.Join(runErr, parseErr))
+	}
+	return parseErr
 }
 
 func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath string, cmd string, cmdArgs []string, opts ...DevcontainerCLIExecOptions) error {
@@ -412,7 +506,7 @@ func (r devcontainerCLIResult) Err() error {
 	if r.Outcome == "success" {
 		return nil
 	}
-	return xerrors.Errorf("devcontainer up failed: %s (description: %s, message: %s)", r.Outcome, r.Description, r.Message)
+	return xerrors.Errorf("%s (description: %s, message: %s)", r.Outcome, r.Description, r.Message)
 }
 
 // devcontainerCLIJSONLogLine is a log line from the devcontainer CLI.
