@@ -92,9 +92,6 @@ jobs:
       - name: Set up Depot CLI
         uses: depot/setup-action@91bc8495a33ebfc504ffc89e5674379ccf23c29c # v1.7.2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003 # v4.4.0
-
       - name: Set up mise tools
         if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: ./.github/actions/setup-mise
@@ -137,7 +134,6 @@ jobs:
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
-          buildx-fallback: true
           # Context is the repo root so Dockerfile.base can COPY the
           # distro-specific files/ tree.
           context: "{{defaultContext}}"
@@ -214,7 +210,6 @@ jobs:
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
-          buildx-fallback: true
           context: "{{defaultContext}}:dogfood/vscode-coder"
           pull: true
           save: true

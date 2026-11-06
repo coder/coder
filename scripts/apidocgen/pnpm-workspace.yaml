@@ -5,7 +5,7 @@ overrides:
   form-data: 4.0.6
   yargs-parser: 13.1.2
   ajv: 6.14.0
-  markdown-it: 12.3.2
+  markdown-it: 14.3.3
   yaml: 1.10.3
   "yargs@12.0.5>os-locale": 5.0.0
 

@@ -167,8 +167,10 @@ overrides:
   semver: 7.8.5
   esbuild: 0.28.2
   prismjs: 1.30.0
-  dompurify: 3.4.14
-  qs: 6.16.0
+  dompurify: 3.4.17
+  qs: 6.16.1
+  brace-expansion@<2: 1.1.21
+  minimatch@>=10: 11.0.1
 
 patchedDependencies:
   frimousse@0.4.0: 98f70e38daeb6600fb0646dc6a8ade2b4826dd843d4365a33b8bd93b0298c665
@@ -274,8 +276,8 @@ importers:
         specifier: 8.0.4
         version: 8.0.4
       dompurify:
-        specifier: 3.4.14
-        version: 3.4.14
+        specifier: 3.4.17
+        version: 3.4.17
       emojibase-data:
         specifier: 17.0.0
         version: 17.0.0(emojibase@17.0.0)
@@ -1102,6 +1104,9 @@ packages:
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==, tarball: https://registry.npmjs.org/@isaacs/cliui/-/cliui-8.0.2.tgz}
     engines: {node: '>=12'}
+
+  '@isaacs/nonrecursive-glob-match@1.0.3':
+    resolution: {integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==, tarball: https://registry.npmjs.org/@isaacs/nonrecursive-glob-match/-/nonrecursive-glob-match-1.0.3.tgz}
 
   '@jest/schemas@29.6.3':
     resolution: {integrity: sha512-mo5j5X+jIZmJQveBKeS/clAueipV7KgiX1vMgCxam1RNYiqE1w62n0/tJJnHtjW8ZHcQco5gY85jA3mi0L+nSA==, tarball: https://registry.npmjs.org/@jest/schemas/-/schemas-29.6.3.tgz}
@@ -3840,8 +3845,12 @@ packages:
     resolution: {integrity: sha512-FISIQxV5u91Y9gvuFq3q/tA/qTqLJn3AhRcEvyozyhJTh5OBFFtv827AdHU7Rbyct4r+Ba1/99oFa1Y3yuFsdw==, tarball: https://registry.npmjs.org/body-parser/-/body-parser-1.20.9.tgz}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
 
-  brace-expansion@1.1.18:
-    resolution: {integrity: sha512-Edep/X9fGqVNmzKBVsDYIOtD+z1tuezV70LBjdCst9Tqu76lsnvRiZ6oTic1n+/BIwX6QDGAO94PN4N2SADvtw==, tarball: https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.18.tgz}
+  brace-expansion@1.1.21:
+    resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==, tarball: https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.21.tgz}
+
+  brace-expansion@5.0.12:
+    resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==, tarball: https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.12.tgz}
+    engines: {node: 20 || >=22}
 
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==, tarball: https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz}
@@ -4389,8 +4398,8 @@ packages:
   dom-helpers@5.2.1:
     resolution: {integrity: sha512-nRCa7CK3VTrM2NmGkIy4cbK7IZlgBE/PYMn55rrXefr5xXDP0LdtfPnblFDoVdcAfslJ7or6iqAUnx0CCGIWQA==, tarball: https://registry.npmjs.org/dom-helpers/-/dom-helpers-5.2.1.tgz}
 
-  dompurify@3.4.14:
-    resolution: {integrity: sha512-dVoH9z+MY+C9IilgGCk3YfFqjLi3fChm2OiKJMzh6axrJ5qwxqWaZamgmHrpv22CN/KdbZJuGEGgfQoL00LTdg==, tarball: https://registry.npmjs.org/dompurify/-/dompurify-3.4.14.tgz}
+  dompurify@3.4.17:
+    resolution: {integrity: sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==, tarball: https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz}
 
   dpdm@3.15.1:
     resolution: {integrity: sha512-qa+BsZAGU3BhhQ6/Fdpd9YYYa3gdF0zMY/vW5rAj/QLJQgPbTX25h7cOe12dfRZvU0/JJP/g5LRgB6lTaVwILw==, tarball: https://registry.npmjs.org/dpdm/-/dpdm-3.15.1.tgz}
@@ -5534,8 +5543,8 @@ packages:
     resolution: {integrity: sha512-I9jwMn07Sy/IwOj3zVkVik2JTvgpaykDZEigL6Rx6N9LbMywwUSMtxET+7lVoDLLd3O3IXwJwvuuns8UB/HeAg==, tarball: https://registry.npmjs.org/min-indent/-/min-indent-1.0.1.tgz}
     engines: {node: '>=4'}
 
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==, tarball: https://registry.npmjs.org/minimatch/-/minimatch-10.2.6.tgz}
+  minimatch@11.0.1:
+    resolution: {integrity: sha512-t+Vn6DX4wPCxS23y03C0uhF7S1jpi1GfqPrnlEipCJaA2ykiNbMkVlDutZtmvLfRcUN6R8AYVlzTsQrT4RZoLQ==, tarball: https://registry.npmjs.org/minimatch/-/minimatch-11.0.1.tgz}
     engines: {node: 18 || 20 || >=22}
 
   minimatch@3.1.5:
@@ -5893,8 +5902,8 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==, tarball: https://registry.npmjs.org/punycode/-/punycode-2.3.1.tgz}
     engines: {node: '>=6'}
 
-  qs@6.16.0:
-    resolution: {integrity: sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==, tarball: https://registry.npmjs.org/qs/-/qs-6.16.0.tgz}
+  qs@6.16.1:
+    resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==, tarball: https://registry.npmjs.org/qs/-/qs-6.16.1.tgz}
     engines: {node: '>=0.6'}
 
   querystringify@2.2.0:
@@ -6310,8 +6319,8 @@ packages:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==, tarball: https://registry.npmjs.org/sirv/-/sirv-3.0.2.tgz}
     engines: {node: '>=18'}
 
-  smol-toml@1.5.2:
-    resolution: {integrity: sha512-QlaZEqcAH3/RtNyet1IPIYPsEWAaYyXXv1Krsi+1L/QHppjX4Ifm8MQsBISz9vE8cHicIq3clogsheili5vhaQ==, tarball: https://registry.npmjs.org/smol-toml/-/smol-toml-1.5.2.tgz}
+  smol-toml@1.9.1:
+    resolution: {integrity: sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==, tarball: https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.1.tgz}
     engines: {node: '>= 18'}
 
   sonner@2.0.7:
@@ -6319,10 +6328,6 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
-
-  source-map-js@1.2.1:
-    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==, tarball: https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz}
-    engines: {node: '>=0.10.0'}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==, tarball: https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.2.tgz}
@@ -7558,6 +7563,8 @@ snapshots:
       strip-ansi-cjs: strip-ansi@6.0.1
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
+
+  '@isaacs/nonrecursive-glob-match@1.0.3': {}
 
   '@jest/schemas@29.6.3':
     dependencies:
@@ -9373,7 +9380,7 @@ snapshots:
       jiti: 2.7.0
       lightningcss: 1.32.0
       magic-string: 0.30.21
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
       tailwindcss: 4.3.3
 
   '@tailwindcss/oxide-android-arm64@4.3.3':
@@ -10109,17 +10116,21 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.4.24
       on-finished: 2.4.2
-      qs: 6.16.0
+      qs: 6.16.1
       raw-body: 2.5.3
       type-is: 1.6.18
       unpipe: 1.0.0
     transitivePeerDependencies:
       - supports-color
 
-  brace-expansion@1.1.18:
+  brace-expansion@1.1.21:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
+
+  brace-expansion@5.0.12:
+    dependencies:
+      balanced-match: 4.0.4
 
   brace-expansion@5.0.9:
     dependencies:
@@ -10658,7 +10669,7 @@ snapshots:
       '@babel/runtime': 7.29.10
       csstype: 3.2.3
 
-  dompurify@3.4.14:
+  dompurify@3.4.17:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -10820,7 +10831,7 @@ snapshots:
       parseurl: 1.3.3
       path-to-regexp: 0.1.13
       proxy-addr: 2.0.8
-      qs: 6.16.0
+      qs: 6.16.1
       range-parser: 1.2.1
       safe-buffer: 5.2.1
       send: 0.19.2(supports-color@7.2.0)
@@ -11013,7 +11024,7 @@ snapshots:
 
   glob@13.0.6:
     dependencies:
-      minimatch: 10.2.6
+      minimatch: 11.0.1
       minipass: 7.1.3
       path-scurry: 2.0.2
 
@@ -11467,7 +11478,7 @@ snapshots:
       oxc-resolver: 11.14.0
       picocolors: 1.1.1
       picomatch: 4.0.7
-      smol-toml: 1.5.2
+      smol-toml: 1.9.1
       strip-json-comments: 5.0.3
       typescript: 6.0.2
       zod: 4.1.13
@@ -11840,7 +11851,7 @@ snapshots:
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.14
       dayjs: 1.11.23
-      dompurify: 3.4.14
+      dompurify: 3.4.17
       es-toolkit: 1.52.0
       fastdom: 1.0.12
       katex: 0.16.47
@@ -12067,13 +12078,14 @@ snapshots:
 
   min-indent@1.0.1: {}
 
-  minimatch@10.2.6:
+  minimatch@11.0.1:
     dependencies:
-      brace-expansion: 5.0.9
+      '@isaacs/nonrecursive-glob-match': 1.0.3
+      brace-expansion: 5.0.12
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 1.1.18
+      brace-expansion: 1.1.21
 
   minimatch@9.0.7:
     dependencies:
@@ -12087,7 +12099,7 @@ snapshots:
 
   monaco-editor@0.57.0:
     dependencies:
-      dompurify: 3.4.14
+      dompurify: 3.4.17
       marked: 14.0.0
 
   moo-color@1.0.3:
@@ -12521,7 +12533,7 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  qs@6.16.0:
+  qs@6.16.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -13112,14 +13124,12 @@ snapshots:
       mrmime: 2.0.1
       totalist: 3.0.1
 
-  smol-toml@1.5.2: {}
+  smol-toml@1.9.1: {}
 
   sonner@2.0.7(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
-
-  source-map-js@1.2.1: {}
 
   source-map-js@1.2.2: {}
 
