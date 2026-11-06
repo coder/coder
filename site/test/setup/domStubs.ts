@@ -9,5 +9,8 @@ globalThis.HTMLElement.prototype.hasPointerCapture = vi
 	.fn()
 	.mockReturnValue(false);
 globalThis.HTMLElement.prototype.releasePointerCapture = vi.fn();
-globalThis.HTMLElement.prototype.scrollIntoView = vi.fn();
 globalThis.HTMLElement.prototype.setPointerCapture = vi.fn();
+
+// JSDOM does not implement scrolling.
+globalThis.HTMLElement.prototype.scrollIntoView = vi.fn();
+globalThis.Element.prototype.scrollTo = vi.fn();
