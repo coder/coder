@@ -148,49 +148,75 @@ func TestManager_ResyncWaitsForPush(t *testing.T) {
 
 func TestManager_ResyncWaitsForNewerResolve(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		started := make(chan int, 2)
-		releases := []chan struct{}{nil, make(chan struct{}), make(chan struct{})}
-		var calls atomic.Int32
-		m := newTestManager(t, agentcontext.ManagerOptions{
-			MCPCatalog: func() []agentcontext.MCPServerStatus {
-				call := int(calls.Add(1)) - 1
-				if call > 0 {
-					started <- call
-					<-releases[call]
+	for _, cancelNewer := range []bool{false, true} {
+		t.Run(fmt.Sprintf("CancelNewer=%t", cancelNewer), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				started := make(chan int, 2)
+				releases := []chan struct{}{nil, make(chan struct{}), make(chan struct{})}
+				var calls atomic.Int32
+				m := newTestManager(t, agentcontext.ManagerOptions{
+					MCPCatalog: func() []agentcontext.MCPServerStatus {
+						call := int(calls.Add(1)) - 1
+						if call > 0 {
+							started <- call
+							select {
+							case <-releases[call]:
+							case <-t.Context().Done():
+							}
+						}
+						return []agentcontext.MCPServerStatus{{Name: fmt.Sprintf("pass-%d", call)}}
+					},
+				})
+				startTestPush(t, m)
+				type result struct {
+					snap agentcontext.Snapshot
+					err  error
 				}
-				return []agentcontext.MCPServerStatus{{Name: fmt.Sprintf("pass-%d", call)}}
-			},
-		})
-		startTestPush(t, m)
-		ctx := t.Context()
-		done := make(chan agentcontext.Snapshot, 2)
-		resync := func() {
-			snap, err := m.Resync(ctx)
-			assert.NoError(t, err)
-			done <- snap
-		}
-		go resync()
-		require.Equal(t, 1, <-started)
-		go resync()
-		require.Equal(t, 2, <-started)
-		close(releases[1])
-		synctest.Wait()
-		assert.Empty(t, done, "the published snapshot predates both resync passes")
+				older := make(chan result, 1)
+				newer := make(chan result, 1)
+				go func() {
+					snap, err := m.Resync(t.Context())
+					older <- result{snap: snap, err: err}
+				}()
+				require.Equal(t, 1, <-started)
+				newerCtx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				go func() {
+					snap, err := m.Resync(newerCtx)
+					newer <- result{snap: snap, err: err}
+				}()
+				require.Equal(t, 2, <-started)
+				close(releases[1])
+				synctest.Wait()
+				require.Empty(t, older, "the published snapshot predates both resync passes")
 
-		close(releases[2])
-		for range 2 {
-			snap := <-done
-			require.Equal(t, uint64(2), snap.Version)
-			require.NotNil(t, findMCPServerResource(snap, "pass-2"))
-		}
-	})
+				if cancelNewer {
+					cancel()
+					synctest.Wait()
+					require.Len(t, newer, 1, "caller cancellation must not wait for collection")
+				}
+				close(releases[2])
+				newerResult := <-newer
+				if cancelNewer {
+					require.ErrorIs(t, newerResult.err, context.Canceled)
+				} else {
+					require.NoError(t, newerResult.err)
+					require.Equal(t, uint64(2), newerResult.snap.Version)
+				}
+				olderResult := <-older
+				require.NoError(t, olderResult.err, "a canceled newer caller must not strand a live resync")
+				require.Equal(t, uint64(2), olderResult.snap.Version)
+				require.NotNil(t, findMCPServerResource(olderResult.snap, "pass-2"))
+			})
+		})
+	}
 }
 
 func TestManager_ResyncPushWaitErrors(t *testing.T) {
 	t.Parallel()
 
-	for _, mode := range []string{"NoPushLoop", "Unimplemented", "Canceled", "Closed"} {
+	for _, mode := range []string{"NoPushLoop", "Canceled", "Closed"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
 			clock := quartz.NewMock(t)
@@ -199,11 +225,7 @@ func TestManager_ResyncPushWaitErrors(t *testing.T) {
 			m := newTestManager(t, agentcontext.ManagerOptions{Clock: clock})
 			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
 			defer cancel()
-			if mode == "Unimplemented" {
-				p := newFakePusher()
-				p.err = agentcontext.ErrPushUnimplemented
-				require.NoError(t, m.RunPush(ctx, p, agentcontext.PushOptions{Logger: testutil.Logger(t)}))
-			}
+
 			done := make(chan error, 1)
 			go func() {
 				_, err := m.Resync(ctx)
@@ -226,6 +248,10 @@ func TestManager_ResyncPushWaitErrors(t *testing.T) {
 			select {
 			case err := <-done:
 				require.ErrorIs(t, err, want)
+				if mode == "NoPushLoop" {
+					require.ErrorContains(t, err, "no acknowledged context snapshot within 30s")
+					require.ErrorContains(t, err, "disconnected from coderd or context push may be failing")
+				}
 			case <-waitCtx.Done():
 				t.Fatal("resync did not stop waiting")
 			}
@@ -334,18 +360,42 @@ func TestRunPush_SubsequentPushOnChange(t *testing.T) {
 
 func TestRunPush_StopsOnUnimplemented(t *testing.T) {
 	t.Parallel()
-	m := newTestManager(t, agentcontext.ManagerOptions{
-		WorkingDir: func() string { return t.TempDir() },
-	})
+	synctest.Test(t, func(t *testing.T) {
+		m := newTestManager(t, agentcontext.ManagerOptions{})
+		p := newFakePusher()
+		p.err = agentcontext.ErrPushUnimplemented
+		release := make(chan struct{})
+		p.release = release
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		pushDone := make(chan error, 1)
+		go func() {
+			pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{Logger: testutil.Logger(t)})
+		}()
+		<-p.signal
+		resyncDone := make(chan error, 1)
+		go func() {
+			_, err := m.Resync(ctx)
+			resyncDone <- err
+		}()
+		synctest.Wait()
+		release <- struct{}{}
+		require.NoError(t, <-pushDone, "Unimplemented must stop the loop cleanly")
+		synctest.Wait()
+		select {
+		case err := <-resyncDone:
+			require.ErrorIs(t, err, agentcontext.ErrPushUnavailable)
+		default:
+			t.Fatal("an unimplemented push did not wake the resync waiter")
+		}
+		_, err := m.Resync(ctx)
+		require.ErrorIs(t, err, agentcontext.ErrPushUnavailable)
 
-	p := newFakePusher()
-	p.err = agentcontext.ErrPushUnimplemented
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	err := m.RunPush(ctx, p, agentcontext.PushOptions{
-		Logger: testutil.Logger(t).Named("push"),
+		startTestPush(t, m)
+		synctest.Wait()
+		_, err = m.Resync(ctx)
+		require.NoError(t, err, "a successful push must restore availability")
 	})
-	require.NoError(t, err, "Unimplemented must stop the loop cleanly")
 }
 
 func TestRunPush_RetriesTransientError(t *testing.T) {

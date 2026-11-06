@@ -6,7 +6,9 @@ import (
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcconn"
+	"storj.io/drpc/drpcerr"
 
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
@@ -218,6 +220,9 @@ func (c *Client) GetContextSnapshot(ctx context.Context) (ContextSnapshot, error
 // snapshot means collection is gated until startup scripts finish.
 func (c *Client) ResyncContext(ctx context.Context) (ContextSnapshot, error) {
 	resp, err := c.client.ResyncContext(ctx, &proto.ResyncContextRequest{})
+	if drpcerr.Code(err) == drpcerr.Unimplemented {
+		return ContextSnapshot{}, agentcontext.ErrPushUnavailable
+	}
 	if err != nil {
 		return ContextSnapshot{}, err
 	}

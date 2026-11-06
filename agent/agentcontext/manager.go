@@ -12,6 +12,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+const resyncTimeout = 30 * time.Second
+
 // ManagerOptions configures a Manager. Zero values get sensible
 // defaults.
 type ManagerOptions struct {
@@ -67,6 +69,9 @@ type Source struct {
 // Pusher fan-out. Construct with NewManager; start its lifecycle
 // goroutines with Run; tear down with Close.
 type Manager struct {
+	ctx          context.Context
+	cancel       context.CancelFunc
+	resolveWG    sync.WaitGroup
 	logger       slog.Logger
 	clock        quartz.Clock
 	workingDir   func() string
@@ -98,6 +103,8 @@ type Manager struct {
 	snapshotEpoch uint64
 	// pushedVersion is the highest version acknowledged by coderd.
 	pushedVersion uint64
+	// pushUnavailable records a peer that does not accept context snapshots.
+	pushUnavailable bool
 	// resyncCh wakes all waiters on publication or acknowledgement.
 	resyncCh chan struct{}
 
@@ -144,7 +151,10 @@ func NewManager(opts ManagerOptions) *Manager {
 		resolver = &Resolver{}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	m := &Manager{
+		ctx:          ctx,
+		cancel:       cancel,
 		logger:       opts.Logger,
 		clock:        clock,
 		workingDir:   opts.WorkingDir,
@@ -263,25 +273,21 @@ func (m *Manager) started() <-chan struct{} {
 	return m.runStartedCh
 }
 
-// Close stops the Manager. Close is idempotent; subsequent
-// calls block until Run exits.
+// Close stops the Manager and waits for Run and collection to finish.
+// Close is idempotent.
 func (m *Manager) Close() error {
 	m.mu.Lock()
-	if m.closed {
-		running := m.running
-		m.mu.Unlock()
-		if running {
-			<-m.runDoneCh
-		}
-		return nil
+	if !m.closed {
+		m.closed = true
+		m.cancel()
+		close(m.closedCh)
 	}
-	m.closed = true
 	running := m.running
-	close(m.closedCh)
 	m.mu.Unlock()
 	if running {
 		<-m.runDoneCh
 	}
+	m.resolveWG.Wait()
 	return nil
 }
 
@@ -465,6 +471,11 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		m.mu.Unlock()
 		return snap, nil
 	}
+	if m.pushUnavailable {
+		snap := m.snapshot
+		m.mu.Unlock()
+		return snap, ErrPushUnavailable
+	}
 	m.mu.Unlock()
 
 	if m.mcpReconnect != nil {
@@ -478,98 +489,58 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
 	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		m.mu.Unlock()
+		return m.Snapshot(), ctxErr
+	}
 	roots := m.scanRootsLocked()
-	resolver := m.resolver
 	watcher := m.watcher
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
+	m.resolveWG.Add(1)
 	m.mu.Unlock()
 
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return m.Snapshot(), ctxErr
-	}
-	snap := resolver.ResolveContext(ctx, roots)
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		// Cancellation mid-walk yields a partial or empty
-		// Snapshot whose SnapshotError is set to
-		// "context canceled". Publishing it would replace
-		// the live Snapshot with empty resources until the
-		// next trigger, so bail without touching state.
-		return m.Snapshot(), ctxErr
-	}
-	if snap.SnapshotError == "" && watcher != nil {
-		if d := watcher.Degraded(); d != "" {
-			snap.SnapshotError = d
-		}
-	}
-
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return m.Snapshot(), ErrManagerClosed
-	}
-	if m.resolveEpoch != myEpoch {
-		// The winning pass owns the current roots and watcher. Wait for
-		// its publication rather than returning an older snapshot.
-		m.mu.Unlock()
-		return m.waitForPush(ctx, myEpoch)
-	}
-	m.version++
-	snap.Version = m.version
-	m.snapshot = snap
-	m.snapshotEpoch = myEpoch
-	m.notifyResyncLocked()
-	subs := make([]chan struct{}, 0, len(m.subscribers))
-	for ch := range m.subscribers {
-		subs = append(subs, ch)
-	}
-	m.mu.Unlock()
-
-	if watcher != nil {
-		watcher.Sync(ctx, roots)
-	}
-
-	// The broadcast is unconditional: Resync waiters that
-	// triggered the pass without an actual content change
-	// still need to wake up. Subscribers compare snapshots via
-	// AggregateHash if they want to filter.
-	for _, ch := range subs {
-		select {
-		case ch <- struct{}{}:
-		default:
-		}
-	}
+	// Collection outlives caller cancellation so other Resync waiters can
+	// still receive its snapshot.
+	go m.resolve(roots, watcher, myEpoch)
 	return m.waitForPush(ctx, myEpoch)
 }
 
 func (m *Manager) waitForPush(ctx context.Context, epoch uint64) (Snapshot, error) {
-	timer := m.clock.NewTimer(30 * time.Second)
+	timer := m.clock.NewTimer(resyncTimeout)
 	defer timer.Stop()
 
 	var target Snapshot
 	for {
+		if err := ctx.Err(); err != nil {
+			return m.Snapshot(), xerrors.Errorf("wait for an acknowledged context snapshot: %w", err)
+		}
 		m.mu.Lock()
 		snap := m.snapshot
 		if target.Version == 0 && m.snapshotEpoch >= epoch {
 			target = snap
 		}
 		closed := m.closed
+		unavailable := m.pushUnavailable
 		acknowledged := target.Version > 0 && m.pushedVersion >= target.Version
 		changed := m.resyncCh
 		m.mu.Unlock()
 		if closed {
 			return snap, ErrManagerClosed
 		}
+		if unavailable {
+			return snap, ErrPushUnavailable
+		}
 		if acknowledged {
 			return target, nil
 		}
 		select {
 		case <-ctx.Done():
-			return m.Snapshot(), xerrors.Errorf("wait for context snapshot acknowledgement from coderd: %w", ctx.Err())
+			return m.Snapshot(), xerrors.Errorf("wait for an acknowledged context snapshot: %w", ctx.Err())
 		case <-m.closedCh:
 			return m.Snapshot(), ErrManagerClosed
 		case <-timer.C:
-			return m.Snapshot(), xerrors.Errorf("wait for context snapshot acknowledgement from coderd: %w", context.DeadlineExceeded)
+			return m.Snapshot(), xerrors.Errorf("no acknowledged context snapshot within %s; the agent may be disconnected from coderd or context push may be failing: %w", resyncTimeout, context.DeadlineExceeded)
 		case <-changed:
 		}
 	}
@@ -692,29 +663,27 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// RemoveSource, Snapshot, and SubscribeChanges for the
 	// duration of the pass.
 	m.mu.Lock()
-	if !m.ready {
-		// Gated until SetReady: no scan, no broadcast.
+	if !m.ready || m.closed || ctx.Err() != nil {
 		m.mu.Unlock()
 		return
 	}
 	roots := m.scanRootsLocked()
-	resolver := m.resolver
 	watcher := m.watcher
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
+	m.resolveWG.Add(1)
 	m.mu.Unlock()
+	m.resolve(roots, watcher, myEpoch)
+}
 
+func (m *Manager) resolve(roots []ScanRoot, watcher *Watcher, epoch uint64) {
+	defer m.resolveWG.Done()
+	ctx := m.ctx
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContext(ctx, roots)
+	snap := m.resolver.ResolveContext(ctx, roots)
 	if err := ctx.Err(); err != nil {
-		// Cancellation mid-walk yields a partial or empty
-		// Snapshot. Publishing it would replace the live
-		// Snapshot with empty resources, so bail without
-		// touching state. The Run loop's gracefulCtx is
-		// canceled only at shutdown, but defensive checks
-		// keep the publish contract uniform with Resync.
 		return
 	}
 	// Surface watcher degradation as a snapshot-level error
@@ -726,7 +695,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	}
 
 	m.mu.Lock()
-	if m.resolveEpoch != myEpoch {
+	if m.closed || m.resolveEpoch != epoch {
 		// A newer resolve pass started while this one was
 		// walking the filesystem. Skip the publish so a
 		// stale-epoch result does not overwrite a fresher
@@ -738,7 +707,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	m.version++
 	snap.Version = m.version
 	m.snapshot = snap
-	m.snapshotEpoch = myEpoch
+	m.snapshotEpoch = epoch
 	m.notifyResyncLocked()
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
@@ -746,6 +715,9 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	}
 	m.mu.Unlock()
 
+	if watcher != nil {
+		watcher.Sync(ctx, roots)
+	}
 	for _, ch := range subs {
 		select {
 		case ch <- struct{}{}:

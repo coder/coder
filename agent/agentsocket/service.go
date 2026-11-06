@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontext"
@@ -295,6 +296,9 @@ func (s *DRPCAgentSocketService) ResyncContext(ctx context.Context, _ *proto.Res
 		return nil, ErrContextManagerNotAvailable
 	}
 	snap, err := s.contextManager.Resync(ctx)
+	if errors.Is(err, agentcontext.ErrPushUnavailable) {
+		return nil, drpcerr.WithCode(err, drpcerr.Unimplemented)
+	}
 	if err != nil {
 		return nil, xerrors.Errorf("resync context: %w", err)
 	}

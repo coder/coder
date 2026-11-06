@@ -49,6 +49,10 @@ type Pusher interface {
 // remainder of the connection.
 var ErrPushUnimplemented = xerrors.New("agentcontext: PushContextState unimplemented")
 
+// ErrPushUnavailable means the deployment does not accept workspace context
+// snapshots. A successful push restores availability.
+var ErrPushUnavailable = xerrors.New("agentcontext: workspace context sync unavailable")
+
 // Default backoff timings for pushWithRetry. Exposed as named
 // constants (rather than inline literals) so godoc shows them
 // and a second push loop, if it ever appears, can reuse them.
@@ -123,9 +127,14 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 			initial = false
 			m.mu.Lock()
 			m.pushedVersion = max(m.pushedVersion, snap.Version)
+			m.pushUnavailable = false
 			m.notifyResyncLocked()
 			m.mu.Unlock()
 		case errors.Is(err, ErrPushUnimplemented):
+			m.mu.Lock()
+			m.pushUnavailable = true
+			m.notifyResyncLocked()
+			m.mu.Unlock()
 			logger.Warn(ctx, "coderd peer does not implement PushContextState; stopping")
 			return nil
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
