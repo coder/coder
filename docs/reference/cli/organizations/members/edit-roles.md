@@ -15,5 +15,25 @@ Aliases:
 ## Usage
 
 ```console
-coder organizations members edit-roles <username | user_id> [roles...]
+coder organizations members edit-roles [flags] <username | user_id> [roles...]
 ```
+
+## Options
+
+### -c, --column
+
+|         |                                                                                                                                                     |
+|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type    | <code>[username\|name\|last seen at\|user created at\|user updated at\|user id\|organization id\|created at\|updated at\|organization roles]</code> |
+| Default | <code>username,organization roles</code>                                                                                                            |
+
+Columns to display in table output.
+
+### -o, --output
+
+|         |                                |
+|---------|--------------------------------|
+| Type    | <code>text\|table\|json</code> |
+| Default | <code>text</code>              |
+
+Output format.
