@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -189,8 +190,11 @@ func TestAPI_DeleteSourceNotFound(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
+			status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
 			require.Equal(t, http.StatusNotFound, status)
+			var response codersdk.Response
+			require.NoError(t, json.Unmarshal(body, &response))
+			require.Equal(t, "Context source not found.", response.Message)
 		})
 	}
 }
