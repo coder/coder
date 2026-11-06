@@ -5,8 +5,18 @@ import {
 	useEffectEvent,
 	useRef,
 } from "react";
-import type { ChatMessage, Workspace } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import {
+	AGENT_BROWSER_APP_SLUG,
+	getAgentBrowserApp,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { savePersistedSelectedPreview } from "../../../utils/rightPanelTabStorage";
 import {
 	type ChatStore,
@@ -20,11 +30,15 @@ import {
 } from "../../RightPanel/PreviewFrame";
 import { asRecord, asString } from "../runtimeTypeUtils";
 
-/** The preview a successful `open_preview` tool result points at. */
-type OpenPreviewTarget = {
-	workspaceId: string;
-	preview: PreviewIdentity;
-};
+type OpenPreviewTarget =
+	| {
+			workspaceId: string;
+			preview: PreviewIdentity;
+	  }
+	| {
+			workspaceId: string;
+			app: { agent_name: string; slug: string };
+	  };
 
 /** Returns undefined when result doesn't name a workspace and agent. */
 export const parseOpenPreviewTarget = (
@@ -36,6 +50,13 @@ export const parseOpenPreviewTarget = (
 		typeof rec.agent_name !== "string"
 	) {
 		return undefined;
+	}
+
+	if (typeof rec.app_slug === "string") {
+		return {
+			workspaceId: rec.workspace_id,
+			app: { agent_name: rec.agent_name, slug: rec.app_slug },
+		};
 	}
 
 	return {
@@ -50,8 +71,11 @@ export const parseOpenPreviewTarget = (
 };
 
 type PreviewPanelContextValue = {
-	/** Selects the target in the Preview tab and shows the tab. */
-	onOpenPreview?: (target: OpenPreviewTarget) => void;
+	/**
+	 * Returns an action that shows the target in the Preview tab or in its
+	 * app's tab, or undefined when the chat cannot show it.
+	 */
+	getOpenAction?: (target: OpenPreviewTarget) => (() => void) | undefined;
 };
 
 export const PreviewPanelContext = createContext<PreviewPanelContextValue>({});
@@ -101,7 +125,13 @@ export const useNewPreviews = ({
 					result.name === "open_preview"
 						? parseOpenPreviewTarget(result.result)
 						: undefined;
-				if (target && (!latest || message.id >= latest.messageID)) {
+				// App results get no toast: an app can serve code the agent controls,
+				// outside the restrictions on preview pages.
+				if (
+					target &&
+					!("app" in target) &&
+					(!latest || message.id >= latest.messageID)
+				) {
 					latest = {
 						messageID: message.id,
 						target,
@@ -120,42 +150,71 @@ export const useNewPreviews = ({
 
 /**
  * Opens `open_preview` targets for the chat page from tool actions, and offers
- * new results in a toast. Returns the `PreviewPanelContext` value. Opening a
- * preview updates the key the page gives the Preview panel.
+ * new port and file previews in a toast. Returns the `PreviewPanelContext`
+ * value. Opening a preview updates the key the page gives the Preview panel.
  */
 export const useChatPreviewPanel = ({
 	chatId,
 	store,
 	initialMessages,
 	workspace,
+	workspaceAgent,
 	isPreviewTabSupported,
 	isArchived,
 	showSingletonTab,
+	openWorkspaceApp,
 	setPreviewPanelKey,
 }: {
 	chatId: string;
 	store: ChatStore;
 	initialMessages: readonly ChatMessage[];
 	workspace: Workspace | undefined;
+	workspaceAgent: WorkspaceAgent | undefined;
 	isPreviewTabSupported: boolean;
 	isArchived: boolean;
-	showSingletonTab: (tabId: "preview") => void;
+	showSingletonTab: (tabId: "browser" | "preview") => void;
+	openWorkspaceApp: (app: WorkspaceApp) => void;
 	setPreviewPanelKey: (update: (key: number) => number) => void;
 }) => {
-	const openPreview = (target: OpenPreviewTarget) => {
-		// The panel only lists previews of the chat's current workspace.
+	const getOpenAction = (
+		target: OpenPreviewTarget,
+	): (() => void) | undefined => {
+		// Results from a workspace the chat no longer uses cannot be shown.
 		if (target.workspaceId !== workspace?.id) {
-			return;
+			return undefined;
 		}
 
-		savePersistedSelectedPreview(chatId, previewKey(target.preview));
-		setPreviewPanelKey((key) => key + 1);
-		showSingletonTab("preview");
+		if (!("app" in target)) {
+			return () => {
+				savePersistedSelectedPreview(chatId, previewKey(target.preview));
+				setPreviewPanelKey((key) => key + 1);
+				showSingletonTab("preview");
+			};
+		}
+
+		// A stopped workspace has no agents.
+		if (workspaceAgent?.name !== target.app.agent_name) {
+			return undefined;
+		}
+
+		// agent-browser has the built-in Browser tab instead of an app tab.
+		if (target.app.slug === AGENT_BROWSER_APP_SLUG) {
+			return getAgentBrowserApp(workspaceAgent)?.subdomain
+				? () => showSingletonTab("browser")
+				: undefined;
+		}
+
+		const app = workspaceAgent.apps.find((app) => app.slug === target.app.slug);
+		// Recheck because the app can change after the tool ran, such as on a
+		// rebuild. Path-based apps run on the dashboard's origin.
+		return app?.subdomain && isWorkspaceAppEmbeddable(app)
+			? () => openWorkspaceApp(app)
+			: undefined;
 	};
 
-	// Archived chats do not save the preview selection, which opening relies on.
-	const onOpenPreview =
-		isPreviewTabSupported && !isArchived ? openPreview : undefined;
+	// Archived chats are read-only and do not save the preview selection that
+	// opening a preview relies on.
+	const canOpenResults = isPreviewTabSupported && !isArchived;
 	// The toast's action belongs to this chat and workspace, so it must not
 	// outlive them.
 	const toastId = `new-preview-${chatId}-${workspace?.id}`;
@@ -167,21 +226,19 @@ export const useChatPreviewPanel = ({
 	useNewPreviews({
 		store,
 		initialMessages,
-		onNewPreview: onOpenPreview
+		onNewPreview: canOpenResults
 			? (target, title) => {
-					if (target.workspaceId === workspace?.id) {
+					const open = getOpenAction(target);
+					if (open) {
 						toast.info("Opened a preview", {
 							id: toastId,
 							description: title,
-							action: {
-								label: "Open preview",
-								onClick: () => onOpenPreview(target),
-							},
+							action: { label: "Open preview", onClick: open },
 						});
 					}
 				}
 			: undefined,
 	});
 
-	return { onOpenPreview };
+	return { getOpenAction: canOpenResults ? getOpenAction : undefined };
 };

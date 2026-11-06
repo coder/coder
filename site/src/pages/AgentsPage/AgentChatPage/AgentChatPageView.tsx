@@ -575,9 +575,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		store,
 		initialMessages,
 		workspace,
+		workspaceAgent,
 		isPreviewTabSupported: singletonTabSupport.preview,
 		isArchived,
 		showSingletonTab,
+		openWorkspaceApp: handleOpenWorkspaceAppTab,
 		setPreviewPanelKey,
 	});
 
