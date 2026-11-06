@@ -283,6 +283,14 @@ var (
 	ErrChatContextWorkspaceDeleted = xerrors.New("the chat's workspace was deleted")
 )
 
+type chatContextAgentSelectionError struct{ err error }
+
+func (e chatContextAgentSelectionError) Error() string { return e.err.Error() }
+
+func (e chatContextAgentSelectionError) Unwrap() error {
+	return errors.Join(ErrChatContextAgentSelection, e.err)
+}
+
 // repinChatContext re-pins a chat to agentID's latest stored snapshot.
 // It returns ErrChatContextNotReady without changes if no snapshot exists.
 // With no agentID, it clears the pin. Callers supply a transaction store.
@@ -350,7 +358,7 @@ func bindChatToResolvedAgent(ctx context.Context, tx database.Store, chat databa
 		return database.Chat{}, ErrChatContextNoAgent
 	}
 	if errors.Is(err, agentselect.ErrMultipleChatAgents) || errors.Is(err, agentselect.ErrNoEligibleAgents) {
-		return database.Chat{}, errors.Join(ErrChatContextAgentSelection, err)
+		return database.Chat{}, chatContextAgentSelectionError{err: err}
 	}
 	if err != nil {
 		return database.Chat{}, err
@@ -376,11 +384,12 @@ func bindChatToResolvedAgent(ctx context.Context, tx database.Store, chat databa
 	return chat, nil
 }
 
-// RefreshChatContext re-pins a chat to the resolved agent's latest snapshot,
-// clearing drift. It returns ErrChatContextNotReady if no snapshot is stored,
-// ErrChatContextWorkspaceDeleted or ErrChatContextNoAgent if no agent can be
-// resolved, or ErrChatContextAgentSelection if agent selection fails.
-// A failed refresh rolls back any rebind and keeps the pin.
+// RefreshChatContext re-pins a chat to the resolved agent's latest snapshot and
+// clears its dirty marker. It returns ErrChatContextWorkspaceDeleted if the
+// workspace was deleted, ErrChatContextNoAgent if the latest build has no agents,
+// ErrChatContextAgentSelection if agent selection fails, or ErrChatContextNotReady
+// if the resolved agent has no stored snapshot. A failed refresh rolls back any
+// rebind and keeps the pin.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a

@@ -23,6 +23,7 @@ The lifecycle of an edit looks like this:
 1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
 1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
 
+MCP server changes apply to chats on the next push without a refresh.
 Within one workspace build, instruction and skill edits leave a chat's pinned instructions and skills unchanged until you refresh.
 
 The workspace agent publishes nothing until startup scripts finish.

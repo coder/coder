@@ -828,12 +828,13 @@ func TestChatContextBeforeReplacementAgentPush(t *testing.T) {
 	refreshResources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
 	require.NoError(t, err)
 
+	// Refresh returns 409 and keeps the pin, binding and resources.
 	_, err = expClient.RefreshChatContext(ctx, refreshChat.ID)
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
 	require.Contains(t, sdkErr.Message, "not ready")
-	require.Contains(t, sdkErr.Detail, "has not pushed a context snapshot")
+	require.Equal(t, "The workspace agent has no stored context snapshot yet. Wait for its first context snapshot, then retry.", sdkErr.Detail)
 	got, err := db.GetChatByID(chatCtx, refreshChat.ID)
 	require.NoError(t, err)
 	require.Equal(t, []byte{oldHash}, got.ContextAggregateHash)
@@ -842,6 +843,8 @@ func TestChatContextBeforeReplacementAgentPush(t *testing.T) {
 	resources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
 	require.NoError(t, err)
 	require.Equal(t, refreshResources, resources)
+
+	// A turn rebinds to the new agent but keeps the old pin.
 	prompt := runTurnAndCapturePrompt()
 	require.Contains(t, prompt, oldContent)
 	require.NotContains(t, prompt, newContent)
@@ -853,6 +856,8 @@ func TestChatContextBeforeReplacementAgentPush(t *testing.T) {
 	resources, err = db.ListChatContextResourcesByChatID(chatCtx, turnChat.ID)
 	require.NoError(t, err)
 	require.Equal(t, oldResources, resources, "rebinding before the resolved agent's first push preserves the pin")
+
+	// Refreshing the rebound chat is also not ready.
 	_, err = expClient.RefreshChatContext(ctx, turnChat.ID)
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
@@ -905,7 +910,7 @@ func TestChatContextRefreshUnavailable(t *testing.T) {
 			setup:       func(*testing.T, context.Context, dbfake.WorkspaceResponse, database.WorkspaceResource) {},
 			wantStatus:  http.StatusBadRequest,
 			wantMessage: "Workspace has no running agent.",
-			wantDetail:  "Start the workspace before refreshing context.",
+			wantDetail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
 		},
 		{
 			name: "DeletedWorkspace",
@@ -944,6 +949,7 @@ func TestChatContextRefreshUnavailable(t *testing.T) {
 			wantMessage: "Cannot select a workspace agent for context refresh.",
 			wantDetail:  "no eligible workspace agents",
 		},
+		// A start build after a completed stop has no running agent in either phase.
 		{
 			name: "RestartStartBuildQueued",
 			setup: func(t *testing.T, _ context.Context, previous dbfake.WorkspaceResponse, _ database.WorkspaceResource) {
@@ -954,7 +960,7 @@ func TestChatContextRefreshUnavailable(t *testing.T) {
 			},
 			wantStatus:  http.StatusBadRequest,
 			wantMessage: "Workspace has no running agent.",
-			wantDetail:  "Start the workspace before refreshing context.",
+			wantDetail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
 		},
 		{
 			name: "RestartStartBuildProvisioning",
@@ -966,7 +972,7 @@ func TestChatContextRefreshUnavailable(t *testing.T) {
 			},
 			wantStatus:  http.StatusBadRequest,
 			wantMessage: "Workspace has no running agent.",
-			wantDetail:  "Start the workspace before refreshing context.",
+			wantDetail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1020,6 +1026,7 @@ func TestChatContextRefreshUnavailable(t *testing.T) {
 			require.ErrorAs(t, err, &sdkErr)
 			require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
 			require.Equal(t, tc.wantMessage, sdkErr.Message)
+			require.NotContains(t, sdkErr.Detail, "\n", "refresh errors have a single-line detail")
 			if tc.wantDetail == "" {
 				require.Empty(t, sdkErr.Detail)
 			} else {
@@ -1035,8 +1042,8 @@ func TestChatContextRefreshUnavailable(t *testing.T) {
 // contextBuildCompletionGate holds the job and channels for a paused build.
 type contextBuildCompletionGate struct {
 	jobID   atomic.Pointer[uuid.UUID]
-	entered chan struct{}
-	release chan struct{}
+	entered chan struct{} // Closes when the gated job reaches completion.
+	release chan struct{} // Closing it unblocks the completion write.
 	once    sync.Once
 }
 

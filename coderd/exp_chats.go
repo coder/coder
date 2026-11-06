@@ -2666,13 +2666,13 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, chatd.ErrChatContextNotReady):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Workspace context is not ready.",
-			Detail:  "The workspace agent has not pushed a context snapshot. Try again after startup scripts finish.",
+			Detail:  "The workspace agent has no stored context snapshot yet. Wait for its first context snapshot, then retry.",
 		})
 		return
 	case errors.Is(err, chatd.ErrChatContextNoAgent):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Workspace has no running agent.",
-			Detail:  "Start the workspace before refreshing context.",
+			Detail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
 		})
 		return
 	case errors.Is(err, chatd.ErrChatContextWorkspaceDeleted):

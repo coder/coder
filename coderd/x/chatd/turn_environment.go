@@ -1401,7 +1401,7 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	// kept the pin. Roll back a failed re-pin with the binding so the next turn
 	// retries. Context fields on updatedChat are reloaded on the next snapshot.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
-	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID)
+	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && !isChatBoundToAgent(chatSnapshot, agentID))
 	var updatedChat database.Chat
 	err := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
 		var err error
