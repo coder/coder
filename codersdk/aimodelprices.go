@@ -2,8 +2,12 @@ package codersdk
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // AIModelPrice is a per-model token price used by AI Gateway to compute the
@@ -124,4 +128,58 @@ func (c *ExperimentalClient) UpsertAIModelPrices(ctx context.Context, req Upsert
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// UnpricedAIModels lists the models with token usage recorded without a price
+// in the organization over the applied period. Only models without a price now
+// are listed.
+type UnpricedAIModels struct {
+	AISpendPeriodWindow
+	// RetentionStart is the oldest instant for which token usage is still
+	// retained. An explicit period must not start before it. Omitted when the
+	// deployment does not purge AI Gateway data.
+	RetentionStart *time.Time `json:"retention_start,omitempty" format:"date-time"`
+	// Count is the number of models listed.
+	Count int64 `json:"count"`
+	// Models are most used first.
+	Models []UnpricedAIModel `json:"models"`
+}
+
+// UnpricedAIModel is a requested model with token usage recorded without a
+// price on one provider, and without a price now.
+type UnpricedAIModel struct {
+	ProviderName string `json:"provider_name"`
+	// ProviderDisplayName falls back to the provider name when unset.
+	ProviderDisplayName string `json:"provider_display_name"`
+	// ProviderIcon is empty when the provider has no configured icon.
+	ProviderIcon string         `json:"provider_icon"`
+	ProviderType AIProviderType `json:"provider_type"`
+	Model        string         `json:"model"`
+	// TokenCount is the number of tokens used without a price in the period.
+	TokenCount int64 `json:"token_count"`
+}
+
+// OrganizationUnpricedAIModels returns the models with token usage recorded
+// without a price in the organization over the period. Only models without a
+// price now are returned. The period bounds must be set together. When both
+// are zero, they are omitted and the server uses the current budget period.
+func (c *ExperimentalClient) OrganizationUnpricedAIModels(ctx context.Context, organization uuid.UUID, period AISpendPeriodWindow) (UnpricedAIModels, error) {
+	filter := OrganizationAISpendDetailsFilter{
+		PeriodStart: period.PeriodStart,
+		PeriodEnd:   period.PeriodEnd,
+	}
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices/unpriced", organization.String()),
+		nil,
+		filter.asRequestOption(),
+	)
+	if err != nil {
+		return UnpricedAIModels{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UnpricedAIModels{}, ReadBodyAsError(res)
+	}
+	var models UnpricedAIModels
+	return models, ReadBodyAsJSON(res, &models)
 }
