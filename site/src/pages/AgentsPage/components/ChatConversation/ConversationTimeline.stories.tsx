@@ -1563,6 +1563,20 @@ export const UserMessageWithSkillChips: Story = {
 					},
 				],
 			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [
+					{ type: "text", text: "# Run " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " first" },
+				],
+			},
 		]),
 	},
 };
