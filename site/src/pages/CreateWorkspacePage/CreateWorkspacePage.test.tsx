@@ -424,6 +424,46 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => expect(submitButton).toBeEnabled());
 		});
 
+		it("blocks submission until the response to an edit arrives", async () => {
+			const parameters = [MockPreviewParameter1];
+			const { mockSocket, mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
+
+			let lastSentId = Number.NaN;
+			mockSocket.send.mockImplementation((data) => {
+				lastSentId = JSON.parse(data as string).id;
+			});
+			await editParameters({
+				name: MockPreviewParameter1.name,
+				value: "edited",
+			});
+
+			// The edit is in flight, so the form cannot be submitted yet.
+			const form = screen.getByTestId("form");
+			const pendingButton = await within(form).findByRole("button", {
+				name: /loading parameters/i,
+			});
+			expect(pendingButton).toBeDisabled();
+
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: lastSentId,
+							parameters,
+							diagnostics: [],
+						}),
+					}),
+				);
+			});
+
+			const submitButton = await within(form).findByRole("button", {
+				name: /create workspace/i,
+			});
+			await waitFor(() => expect(submitButton).toBeEnabled());
+		});
+
 		it("does not clobber auto-filled values", async () => {
 			const parameters = [MockPreviewParameter1, MockPreviewParameter7];
 			// Blank out one field and fill out another.

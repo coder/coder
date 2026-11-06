@@ -32,6 +32,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		presets: [],
 		sendMessage: () => {},
 		template: MockTemplate,
+		parametersUpdating: false,
 	},
 };
 
@@ -354,6 +355,20 @@ export const WithParameters: Story = {
 					"This story demonstrates a workspace creation form with presets and a variety of parameter types including text inputs, dropdowns, sliders, switches, radio buttons, multi-select, textarea, and checkboxes.",
 			},
 		},
+	},
+};
+
+export const ParametersUpdating: Story = {
+	args: {
+		parameters: [parameterInput],
+		parametersUpdating: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const submitButton = await canvas.findByRole("button", {
+			name: /loading parameters/i,
+		});
+		await expect(submitButton).toBeDisabled();
 	},
 };
 
