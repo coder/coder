@@ -204,6 +204,25 @@ The Chats API status set is defined in `codersdk.ChatStatus`:
 The Chats API uses `waiting` as the default idle state (not `complete`).
 A chat enters `waiting` when it is first created (before any message is queued) and again whenever a run finishes or is interrupted, so treat `waiting` as "the agent is not currently working" rather than only "the agent just finished."
 
+Workspace app statuses are removed.
+If your integration reports or reads these statuses, update it:
+
+1. Stop calling `PATCH /api/v2/workspaceagents/me/app-status`.
+   Requests to this removed endpoint fail.
+1. Stop calling `UpdateAppStatus` through the workspace agent socket.
+   This remote procedure call (RPC) is removed, so calls fail.
+1. Remove reads of `latest_app_status` from workspace responses and `statuses` from workspace app objects.
+   These fields are omitted from responses.
+1. Remove `latest_build.resources.agents.apps.statuses` from the `include_related` query parameter.
+   Requests using this selector fail.
+1. Read the chat's `status` from `GET /api/v2/chats/{chat}` instead.
+   For streaming updates, use `status` events on `GET /api/v2/chats/{chat}/stream`.
+
+Unlike the removed socket RPC, the Agent API's `UpdateAppStatus` RPC remains available for older workspace agents but accepts and ignores status reports.
+
+App status reports don't extend the workspace deadline.
+Refer to [activity detection](../workspaces/workspace-scheduling.md#activity-detection) for what keeps a workspace active.
+
 ### 6. Replace delete with archive
 
 The Tasks API uses `DELETE` to remove a task.

@@ -131,7 +131,6 @@ title: Schemas
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
 
-
 ## agentsdk.PatchLogs
 
 ```json

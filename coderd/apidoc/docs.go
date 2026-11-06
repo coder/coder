@@ -19445,7 +19445,6 @@ const docTemplate = `{
                 }
             }
         },
-
         "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
