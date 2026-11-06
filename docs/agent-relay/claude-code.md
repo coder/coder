@@ -213,13 +213,13 @@ Each pool's `dispatch_deadline` sets the spawn budget: how long a Claude Code wo
 
 - The default is `5m`, the minimum is `10s`, and the maximum is `15m`.
   The value must be whole seconds.
-- The budget can't be turned off, because Anthropic requires one.
+- You can't turn off the budget, because Anthropic requires one.
 - Agent Relay sends the budget to Anthropic on every poll.
-  Anthropic offers the session again if no runner comes up within it.
+  If no runner starts within the budget, Anthropic offers the session again.
 - The budget starts when Anthropic issues the session's work order, so time in Anthropic's queue and time waiting for a provisioner both count.
 - When a build misses the budget, Agent Relay reports the failure to Anthropic, cancels the build if it's still running, and deletes the workspace.
 
-Raise `dispatch_deadline` for templates whose image pull and build regularly take longer than 5&nbsp;minutes.
+For templates where the image pull and build regularly take longer than 5&nbsp;minutes, raise `dispatch_deadline`.
 
 > [!NOTE]
 > Claude Code `dispatch_deadline` requires Agent Relay v0.15.0 or later.
@@ -243,7 +243,7 @@ For example, a template that builds in 60&nbsp;seconds needs about 12 provisione
 
 > [!WARNING]
 > Provisioner shortages feed themselves.
-> A build that misses the budget fails and its workspace is deleted, and Anthropic then sends the session again.
+> A build that misses the budget fails, Agent Relay deletes its workspace, and Anthropic sends the session again.
 > Each late build adds a delete and a rebuild to the same provisioners.
 
 ## Network requirements

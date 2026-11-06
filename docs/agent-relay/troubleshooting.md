@@ -65,7 +65,7 @@ The workspace's build log in Coder has the full output.
 
 ### Builds time out
 
-- Claude Code: the build plus queue time exceeded the pool's `dispatch_deadline`, `5m` by default.
+- Claude Code: the build time plus queue time exceeded the pool's `dispatch_deadline`, `5m` by default.
   Speed up the template, raise the deadline up to `15m`, or add provisioners.
 - Cursor: the build exceeded `dispatch_deadline` or waited for a provisioner.
   Speed up the template, raise the deadline up to `15m`, use prebuilds, or add provisioners.
