@@ -18,12 +18,45 @@ type _ComparedRepoFields = Omit<
 const _repoFieldGuard: Record<keyof _ComparedRepoFields, true> = {
 	branch: true,
 	remote_origin: true,
+	head_commit: true,
 	unified_diff: true,
 };
 
 type UseGitWatcherOptions = {
 	chatId: string;
 	agentStatus: WorkspaceAgentStatus | undefined;
+};
+
+/**
+ * When git watcher messages arrive, for `useSyncExternalStore`. The agent
+ * sends one after every scan, about every 5 s, so only a component that
+ * needs the time subscribes, and the page does not render per message.
+ */
+export type WatcherMessages = {
+	subscribe: (onMessage: () => void) => () => void;
+	/** When the latest message arrived, in `Date.now()` milliseconds. */
+	getLastArrival: () => number | undefined;
+};
+
+/** A store of message arrivals; `receive` records one. */
+export const createWatcherMessages = () => {
+	let lastArrival: number | undefined;
+	const listeners = new Set<() => void>();
+	return {
+		subscribe: (onMessage: () => void) => {
+			listeners.add(onMessage);
+			return () => {
+				listeners.delete(onMessage);
+			};
+		},
+		getLastArrival: () => lastArrival,
+		receive: (at = Date.now()) => {
+			lastArrival = at;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+	} satisfies WatcherMessages & { receive: (at?: number) => void };
 };
 
 type UseGitWatcherResult = {
@@ -39,6 +72,14 @@ type UseGitWatcherResult = {
 	isConnected: boolean;
 	/** Whether the watcher has received repository state for this chat. */
 	hasReceivedChanges: boolean;
+	/** Arrivals of watcher messages. Its identity never changes. */
+	watcherMessages: WatcherMessages;
+	/**
+	 * Whether `repositories` can be trusted to name the chat's repos: the
+	 * first changes message arrived, or a connection attempt ended without
+	 * one. Stays true across reconnects; resets on chatId change.
+	 */
+	repoRootsSettled: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
 	refresh: () => boolean;
 };
@@ -55,6 +96,8 @@ export function useGitWatcher({
 	);
 	const [isConnected, setIsConnected] = useState(false);
 	const [hasReceivedChanges, setHasReceivedChanges] = useState(false);
+	const [watcherMessages] = useState(createWatcherMessages);
+	const [repoRootsSettled, setRepoRootsSettled] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
 	// Chat-scoped state (everDirty) resets on chatId change but
@@ -64,6 +107,7 @@ export function useGitWatcher({
 	if (lastChatId !== chatId) {
 		setLastChatId(chatId);
 		setEverDirty((prev) => (prev.size === 0 ? prev : new Set()));
+		setRepoRootsSettled(false);
 	}
 
 	const sendMessage = (msg: WorkspaceAgentGitClientMessage): boolean => {
@@ -110,6 +154,8 @@ export function useGitWatcher({
 
 					if (data.type === "changes") {
 						setHasReceivedChanges(true);
+						watcherMessages.receive();
+						setRepoRootsSettled(true);
 						if (isFirstChanges) {
 							isFirstChanges = false;
 							setRepositories((prev) => (prev.size === 0 ? prev : new Map()));
@@ -130,6 +176,7 @@ export function useGitWatcher({
 											!existing ||
 											existing.branch !== repo.branch ||
 											existing.remote_origin !== repo.remote_origin ||
+											existing.head_commit !== repo.head_commit ||
 											existing.unified_diff !== repo.unified_diff
 										) {
 											next.set(repo.repo_root, repo);
@@ -170,6 +217,7 @@ export function useGitWatcher({
 			onDisconnect() {
 				setIsConnected(false);
 				setHasReceivedChanges(false);
+				setRepoRootsSettled(true);
 				socketRef.current = null;
 			},
 
@@ -187,7 +235,15 @@ export function useGitWatcher({
 			setRepositories(new Map());
 			socketRef.current = null;
 		};
-	}, [chatId, agentStatus]);
+	}, [chatId, agentStatus, watcherMessages]);
 
-	return { repositories, everDirty, isConnected, hasReceivedChanges, refresh };
+	return {
+		repositories,
+		everDirty,
+		isConnected,
+		hasReceivedChanges,
+		watcherMessages,
+		repoRootsSettled,
+		refresh,
+	};
 }

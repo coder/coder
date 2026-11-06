@@ -1,0 +1,146 @@
+import { cn } from "cn";
+import {
+	$getNodeByKey,
+	DecoratorNode,
+	type DOMConversionMap,
+	type DOMExportOutput,
+	type LexicalEditor,
+	type NodeKey,
+	type SerializedLexicalNode,
+	type Spread,
+} from "lexical";
+import {
+	formatWorkspacePathReference,
+	workspacePathNodeType,
+} from "../../utils/workspacePathReference";
+import { EditableWorkspacePathChip } from "./FileReferenceChip";
+import { useFileReferenceSpacing } from "./FileReferenceNode";
+
+type SerializedWorkspacePathNode = Spread<
+	{
+		path: string;
+		isDirectory: boolean;
+	},
+	SerializedLexicalNode
+>;
+
+/**
+ * A workspace file or folder picked from the "@" menu. Its text content is
+ * the absolute path in backticks, with a trailing "/" for a folder, so the
+ * sent message, copied text, and drafts carry a plain path that the model
+ * can read and the transcript renders as a file link.
+ */
+export class WorkspacePathNode extends DecoratorNode<React.ReactNode> {
+	__path: string;
+	__isDirectory: boolean;
+
+	static getType(): string {
+		return workspacePathNodeType;
+	}
+
+	static clone(node: WorkspacePathNode): WorkspacePathNode {
+		return new WorkspacePathNode(node.__path, node.__isDirectory, node.__key);
+	}
+
+	constructor(path: string, isDirectory: boolean, key?: NodeKey) {
+		super(key);
+		this.__path = path;
+		this.__isDirectory = isDirectory;
+	}
+
+	createDOM(): HTMLElement {
+		const span = document.createElement("span");
+		span.style.display = "inline";
+		span.style.userSelect = "none";
+		return span;
+	}
+
+	updateDOM(): boolean {
+		return false;
+	}
+
+	// Copied HTML carries the sent text; createDOM's span is empty because
+	// decorate renders the chip.
+	exportDOM(_editor: LexicalEditor): DOMExportOutput {
+		const span = document.createElement("span");
+		span.textContent = this.getTextContent();
+		return { element: span };
+	}
+
+	// Imported HTML keeps the exported span as text. The composer pastes
+	// chips from its own Lexical JSON, never from HTML.
+	static importDOM(): DOMConversionMap | null {
+		return null;
+	}
+
+	exportJSON(): SerializedWorkspacePathNode {
+		return {
+			type: workspacePathNodeType,
+			version: 1,
+			path: this.__path,
+			isDirectory: this.__isDirectory,
+		};
+	}
+
+	static importJSON(json: SerializedWorkspacePathNode): WorkspacePathNode {
+		return new WorkspacePathNode(json.path, json.isDirectory);
+	}
+
+	getTextContent(): string {
+		return formatWorkspacePathReference(this.__path, this.__isDirectory);
+	}
+
+	isInline(): boolean {
+		return true;
+	}
+
+	// A keyboard-selected decorator becomes a NodeSelection, which clears
+	// the DOM caret while the editor keeps focus, so the next keystroke
+	// lands at the start of the editor. Arrow keys step over the chip.
+	isKeyboardSelectable(): boolean {
+		return false;
+	}
+
+	decorate(editor: LexicalEditor): React.ReactNode {
+		return (
+			<WorkspacePathChipWrapper
+				editor={editor}
+				nodeKey={this.__key}
+				path={this.__path}
+				isDirectory={this.__isDirectory}
+			/>
+		);
+	}
+}
+
+const WorkspacePathChipWrapper: React.FC<{
+	editor: LexicalEditor;
+	nodeKey: NodeKey;
+	path: string;
+	isDirectory: boolean;
+}> = ({ editor, nodeKey, path, isDirectory }) => {
+	const spacing = useFileReferenceSpacing(editor, nodeKey);
+
+	const handleRemove = () => {
+		editor.update(() => {
+			$getNodeByKey(nodeKey)?.remove();
+		});
+		editor.getRootElement()?.focus({ preventScroll: true });
+	};
+
+	return (
+		<EditableWorkspacePathChip
+			path={path}
+			isDirectory={isDirectory}
+			onRemove={handleRemove}
+			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
+		/>
+	);
+};
+
+export function $createWorkspacePathNode(
+	path: string,
+	isDirectory: boolean,
+): WorkspacePathNode {
+	return new WorkspacePathNode(path, isDirectory);
+}

@@ -349,6 +349,15 @@ describe("singleton right-panel tab storage", () => {
 		]);
 	});
 
+	it("ignores a stored Files panel, which is always shown", () => {
+		localStorage.setItem(
+			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
+			JSON.stringify(["files", "debug"]),
+		);
+
+		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual(["debug"]);
+	});
+
 	it("ignores unknown panel IDs", () => {
 		localStorage.setItem(
 			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,

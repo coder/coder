@@ -12,11 +12,14 @@ const (
 )
 
 type doc struct {
-	path    string
-	baseOff int
-	baseLen int
-	depth   int
-	flags   uint16
+	path string
+	// origPath is the path as added, before case and separator
+	// normalization; path is used for matching and scoring.
+	origPath string
+	baseOff  int
+	baseLen  int
+	depth    int
+	flags    uint16
 }
 
 // Index is an append-only in-memory file index with snapshot support.
@@ -57,7 +60,7 @@ func (idx *Index) Add(path string, flags uint16) uint32 {
 	id := uint32(len(idx.docs)) //nolint:gosec // Index will never exceed 2^32 docs.
 	baseOff, baseLen := extractBasename([]byte(norm))
 	idx.docs = append(idx.docs, doc{
-		path: norm, baseOff: baseOff, baseLen: baseLen,
+		path: norm, origPath: path, baseOff: baseOff, baseLen: baseLen,
 		depth: strings.Count(norm, "/"), flags: flags,
 	})
 	idx.byPath[norm] = id

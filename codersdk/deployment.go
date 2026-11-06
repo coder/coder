@@ -5516,6 +5516,7 @@ const (
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
+	ExperimentWorkspaceFiles            Experiment = "workspace-files"             // Enables the workspace file API and the Coder Agents file browser.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5550,6 +5551,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatACPSubagents:
 		return "Chat ACP Subagents"
+	case ExperimentWorkspaceFiles:
+		return "Workspace Files"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5576,6 +5579,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
+	ExperimentWorkspaceFiles,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5592,6 +5596,7 @@ var ExperimentsSafe = Experiments{
 // startup list and need a restart to change.
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
+	ExperimentWorkspaceFiles,
 }
 
 // Experiments is a list of experiments.

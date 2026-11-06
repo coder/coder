@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
@@ -174,6 +176,13 @@ func TestListFilesSuccess(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tmpDir, resp.AbsolutePathString)
+			for i := range resp.Contents {
+				require.False(t, resp.Contents[i].ModTime.IsZero())
+				resp.Contents[i].ModTime = time.Time{}
+				if resp.Contents[i].IsDir {
+					resp.Contents[i].Size = 0
+				}
+			}
 			// Output is sorted
 			require.Equal(t, []workspacesdk.LSFile{
 				{
@@ -190,6 +199,7 @@ func TestListFilesSuccess(t *testing.T) {
 					Name:               "file.txt",
 					AbsolutePathString: textFile,
 					IsDir:              false,
+					Size:               int64(len("content")),
 				},
 			}, resp.Contents)
 		})
@@ -230,11 +240,9 @@ func TestListFilesListDrives(t *testing.T) {
 	resp, err = listFiles(fs, "", query)
 	require.NoError(t, err)
 	// System directory should always exist
-	require.Contains(t, resp.Contents, workspacesdk.LSFile{
-		Name:               "Windows",
-		AbsolutePathString: "C:\\Windows",
-		IsDir:              true,
-	})
+	require.True(t, slices.ContainsFunc(resp.Contents, func(f workspacesdk.LSFile) bool {
+		return f.Name == "Windows" && f.AbsolutePathString == "C:\\Windows" && f.IsDir
+	}))
 
 	query = workspacesdk.LSRequest{
 		// Network drives are not supported.

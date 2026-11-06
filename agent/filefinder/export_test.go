@@ -1,5 +1,11 @@
 package filefinder
 
+import (
+	"context"
+
+	"github.com/spf13/afero"
+)
+
 // Test helpers that need internal access.
 
 // MakeTestSnapshot builds a Snapshot from a list of paths. Useful for
@@ -15,7 +21,18 @@ func MakeTestSnapshot(paths []string) *Snapshot {
 // BuildTestIndex walks root and returns a populated Index, the same
 // way Engine.AddRoot does but without starting a watcher.
 func BuildTestIndex(root string) (*Index, error) {
-	return walkRoot(root)
+	return BuildTestIndexWith(NewIgnorer(afero.NewOsFs(), ""), root)
+}
+
+// BuildTestIndexWith is BuildTestIndex with the given ignore rules.
+func BuildTestIndexWith(ig *Ignorer, root string) (*Index, error) {
+	idx, _, err := walkRoot(context.Background(), ig, root)
+	return idx, err
+}
+
+// IgnorerUsesGit reports whether ig runs git rather than the fallback.
+func IgnorerUsesGit(ig *Ignorer) bool {
+	return ig.git != nil
 }
 
 // IndexIsDeleted reports whether the document at id is tombstoned.

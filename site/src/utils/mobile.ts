@@ -16,6 +16,12 @@ export const isMobileViewport = (): boolean => {
 
 export const coarsePointerMediaQuery = "(pointer: coarse)";
 
+/**
+ * Matches devices whose primary pointer cannot hover or is coarse, such as
+ * touch screens, where controls that appear on hover must show without it.
+ */
+export const noHoverMediaQuery = "(hover: none), (pointer: coarse)";
+
 export const belowMdViewportMediaQuery = "(max-width: 767px)";
 
 /**

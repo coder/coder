@@ -10,11 +10,17 @@ import {
 	defaultRehypePlugins,
 	defaultRemarkPlugins,
 	Streamdown,
+	type StreamdownProps,
 	type UrlTransform,
 } from "streamdown";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import { rehypeFileMentions } from "../../utils/filePathMentions";
+import {
+	FileMentionCandidate,
+	FileMentionStreamingContext,
+} from "./FileMention";
 import {
 	type InlineNode,
 	inlineNodeIndexProperty,
@@ -35,6 +41,10 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	streaming?: boolean;
 	/** Keep single line breaks, the way the user typed them. */
 	preserveLineBreaks?: boolean;
+	/** Replaces the chat's rehype plugins, as file previews do. */
+	rehypePlugins?: StreamdownProps["rehypePlugins"];
+	/** Overrides individual elements of the chat markdown components. */
+	components?: Components;
 };
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -42,9 +52,14 @@ type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 // this, JSX fragments such as <ComponentName prop={value} /> are
 // consumed by rehype-raw and then stripped by rehype-sanitize,
 // silently destroying content mid-stream.
+//
+// rehypeFileMentions always runs because Streamdown's block memo ignores
+// plugin changes; it only marks nodes, and FileMentionCandidate renders
+// them as plain content until listings confirm the path.
 const chatRehypePlugins = [
 	defaultRehypePlugins.sanitize,
 	defaultRehypePlugins.harden,
+	rehypeFileMentions,
 ];
 
 // Only used when chips are passed in, so odd characters in agent replies
@@ -55,6 +70,7 @@ const inlineNodeRehypePlugins = [
 	defaultRehypePlugins.sanitize,
 	rehypeInlineNodes,
 	defaultRehypePlugins.harden,
+	rehypeFileMentions,
 ];
 
 const lineBreakRemarkPlugins = [
@@ -73,6 +89,9 @@ type HastNode = {
 	properties?: {
 		className?: string[] | string;
 		[inlineNodeIndexProperty]?: number;
+		dataFileMentionCandidate?: unknown;
+		dataFileMentionWhole?: unknown;
+		dataFileMentionCandidateOpener?: unknown;
 	};
 };
 
@@ -81,6 +100,7 @@ type MarkdownComponentProps = {
 	src?: string;
 	alt?: string;
 	children?: React.ReactNode;
+	id?: string;
 	node?: HastNode;
 	type?: string;
 	checked?: boolean;
@@ -166,33 +186,51 @@ const createComponents = (
 		),
 		// Headings scaled for a 13px base using a tight,
 		// Apple-like progression.
-		h1: ({ children }: MarkdownComponentProps) => (
-			<h1 className="mb-3 mt-5 text-xl font-semibold leading-snug first:mt-0">
+		h1: ({ children, id }: MarkdownComponentProps) => (
+			<h1
+				id={id}
+				className="mb-3 mt-5 text-xl font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h1>
 		),
-		h2: ({ children }: MarkdownComponentProps) => (
-			<h2 className="mb-2 mt-4 text-base font-semibold leading-snug first:mt-0">
+		h2: ({ children, id }: MarkdownComponentProps) => (
+			<h2
+				id={id}
+				className="mb-2 mt-4 text-base font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h2>
 		),
-		h3: ({ children }: MarkdownComponentProps) => (
-			<h3 className="mb-1.5 mt-3 text-[15px] font-semibold leading-snug first:mt-0">
+		h3: ({ children, id }: MarkdownComponentProps) => (
+			<h3
+				id={id}
+				className="mb-1.5 mt-3 text-[15px] font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h3>
 		),
-		h4: ({ children }: MarkdownComponentProps) => (
-			<h4 className="mb-1 mt-3 text-sm font-semibold leading-snug first:mt-0">
+		h4: ({ children, id }: MarkdownComponentProps) => (
+			<h4
+				id={id}
+				className="mb-1 mt-3 text-sm font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h4>
 		),
-		h5: ({ children }: MarkdownComponentProps) => (
-			<h5 className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0">
+		h5: ({ children, id }: MarkdownComponentProps) => (
+			<h5
+				id={id}
+				className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0"
+			>
 				{children}
 			</h5>
 		),
-		h6: ({ children }: MarkdownComponentProps) => (
-			<h6 className="mb-1 mt-2 text-xs font-semibold leading-snug text-content-secondary first:mt-0">
+		h6: ({ children, id }: MarkdownComponentProps) => (
+			<h6
+				id={id}
+				className="mb-1 mt-2 text-xs font-semibold leading-snug text-content-secondary first:mt-0"
+			>
 				{children}
 			</h6>
 		),
@@ -255,12 +293,42 @@ const createComponents = (
 			<td className="px-4 py-2">{children}</td>
 		),
 		// Inline code only, fenced blocks are handled by the pre override.
-		code: ({ children }: MarkdownComponentProps) => (
-			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
-				{children}
-			</code>
-		),
-		span: InlineNodeSpan,
+		code: ({ children, node }: MarkdownComponentProps) => {
+			const code = (
+				<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
+					{children}
+				</code>
+			);
+			const candidate = node?.properties?.dataFileMentionCandidate;
+			if (typeof candidate !== "string") {
+				return code;
+			}
+			return (
+				<FileMentionCandidate text={candidate} whole>
+					{code}
+				</FileMentionCandidate>
+			);
+		},
+		// Mentions in prose arrive as spans from rehypeFileMentions.
+		span: ({
+			node,
+			...props
+		}: React.ComponentProps<"span"> & { node?: HastNode }) => {
+			const candidate = node?.properties?.dataFileMentionCandidate;
+			const opener = node?.properties?.dataFileMentionCandidateOpener;
+			if (typeof candidate !== "string") {
+				return <InlineNodeSpan node={node} {...props} />;
+			}
+			return (
+				<FileMentionCandidate
+					text={candidate}
+					whole={node?.properties?.dataFileMentionWhole === true}
+					opener={typeof opener === "string" ? opener : undefined}
+				>
+					{props.children}
+				</FileMentionCandidate>
+			);
+		},
 		pre: function MarkdownPre({ node }: MarkdownComponentProps) {
 			const inlineNodes = useContext(InlineNodesContext);
 			const codeChild = node?.children?.[0];
@@ -342,6 +410,8 @@ export const Response = ({
 	children,
 	ref,
 	urlTransform,
+	rehypePlugins: rehypePluginsOverride,
+	components: componentOverrides,
 	streaming,
 	preserveLineBreaks,
 	...props
@@ -349,7 +419,10 @@ export const Response = ({
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
-	const components = componentsByTheme[fileViewerThemeType];
+	const themeComponents = componentsByTheme[fileViewerThemeType];
+	const components = componentOverrides
+		? { ...themeComponents, ...componentOverrides }
+		: themeComponents;
 	const { markdown, inlineNodes } =
 		typeof children === "string"
 			? { markdown: children, inlineNodes: undefined }
@@ -365,30 +438,33 @@ export const Response = ({
 			{...props}
 		>
 			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
-				<Streamdown
-					controls={false}
-					components={components}
-					urlTransform={urlTransform}
-					remarkPlugins={
-						preserveLineBreaks ? lineBreakRemarkPlugins : undefined
-					}
-					rehypePlugins={
-						inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins
-					}
-					mode={streaming ? "streaming" : "static"}
-					parseIncompleteMarkdown={streaming}
-					// Streamdown only flags the trailing block as an
-					// incomplete code fence while isAnimating is set, which
-					// MermaidDiagram relies on to defer rendering.
-					isAnimating={streaming}
-					// Streamdown 2.6 caps table height at 300px by
-					// default, even with controls disabled. Chat tables
-					// should grow with their content instead of
-					// scrolling internally.
-					tableMaxHeight={0}
-				>
-					{markdown}
-				</Streamdown>
+				<FileMentionStreamingContext value={streaming ?? false}>
+					<Streamdown
+						controls={false}
+						components={components}
+						urlTransform={urlTransform}
+						remarkPlugins={
+							preserveLineBreaks ? lineBreakRemarkPlugins : undefined
+						}
+						rehypePlugins={
+							rehypePluginsOverride ??
+							(inlineNodes ? inlineNodeRehypePlugins : chatRehypePlugins)
+						}
+						mode={streaming ? "streaming" : "static"}
+						parseIncompleteMarkdown={streaming}
+						// Streamdown only flags the trailing block as an
+						// incomplete code fence while isAnimating is set, which
+						// MermaidDiagram relies on to defer rendering.
+						isAnimating={streaming}
+						// Streamdown 2.6 caps table height at 300px by
+						// default, even with controls disabled. Chat tables
+						// should grow with their content instead of
+						// scrolling internally.
+						tableMaxHeight={0}
+					>
+						{markdown}
+					</Streamdown>
+				</FileMentionStreamingContext>
 			</InlineNodesContext>
 		</div>
 	);

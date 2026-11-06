@@ -7,16 +7,22 @@ import (
 )
 
 type candidate struct {
-	DocID   uint32
-	Path    string
-	BaseOff int
-	BaseLen int
-	Depth   int
-	Flags   uint16
+	DocID    uint32
+	Root     string
+	Path     string
+	OrigPath string
+	BaseOff  int
+	BaseLen  int
+	Depth    int
+	Flags    uint16
 }
 
 // Result is a scored search result returned to callers.
 type Result struct {
+	// Root is the absolute root directory the result was found in.
+	Root string
+	// Path is slash-separated and relative to Root, in its original
+	// case.
 	Path  string
 	Score float32
 	IsDir bool
@@ -116,7 +122,7 @@ func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 		}
 		d := snap.docs[id]
 		cands = append(cands, candidate{
-			DocID: id, Path: d.path, BaseOff: d.baseOff,
+			DocID: id, Path: d.path, OrigPath: d.origPath, BaseOff: d.baseOff,
 			BaseLen: d.baseLen, Depth: d.depth, Flags: d.flags,
 		})
 		if len(cands) >= limit {
@@ -259,7 +265,7 @@ func mergeAndScore(cands []candidate, plan *queryPlan, params scoreParams, topK 
 				}
 			}
 		}
-		r := Result{Path: c.Path, Score: s, IsDir: c.Flags == uint16(FlagDir)}
+		r := Result{Root: c.Root, Path: c.OrigPath, Score: s, IsDir: c.Flags == uint16(FlagDir)}
 		if h.Len() < topK {
 			heap.Push(h, r)
 		} else if s > (*h)[0].Score {
