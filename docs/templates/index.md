@@ -45,7 +45,7 @@ As your Coder deployment grows, you can create more templates to meet the needs 
 - [Nix(OS)](../admin/integrations/nix.md): Define environments with Nix flakes, with or without NixOS.
 - [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing): Configure your template to prevent certain resources from being destroyed (for example, user disks).
 - [Manage templates with Ci/Cd pipelines](./managing-templates/change-management.md): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
-- [Permissions and Policies](./template-permissions.md): Control who may access and modify your template.
+- [Permissions and Policies](./template-permissions.md): Control who can access and modify your template.
 - [External Workspaces](./managing-templates/external-workspaces.md): Learn how to connect your existing infrastructure to Coder workspaces.
 
 > [!WARNING]

@@ -20,7 +20,7 @@ Coder will operate correctly even with few seconds of latency on workspace <-> C
 Coder automatically enters HA mode when multiple instances simultaneously connect to the same Postgres endpoint.
 
 > [!NOTE]
-> When upgrading HA deployments, database migrations may require special handling to avoid lock contention.
+> When upgrading HA deployments, database migrations might require special handling to avoid lock contention.
 > See [Upgrading Best Practices](../../install/operate/upgrade/best-practices.md) for recommended procedures.
 
 HA brings one configuration variable to set in each `coderd` node: `CODER_DERP_SERVER_RELAY_URL`.

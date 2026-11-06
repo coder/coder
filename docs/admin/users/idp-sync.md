@@ -438,7 +438,7 @@ CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 
 ### Invalid Scope
 
-If you see an error like the following, you may have an invalid scope.
+If you see an error like the following, you might have an invalid scope.
 
 ```console
 The application '<oidc_application>' asked for scope 'groups' that doesn't exist on the resource...

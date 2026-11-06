@@ -12,7 +12,7 @@ Ensure Envbuilder can only pull pre-approved images and artifacts by configuring
 
 ## Configure registry authentication
 
-You may need to authenticate to your container registry, such as Artifactory, or Git provider such as GitLab, to use Envbuilder.
+You might need to authenticate to your container registry, such as Artifactory, or Git provider such as GitLab, to use Envbuilder.
 See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/container-registry-auth.md) for more information.
 
 ## Layer and image caching
@@ -29,7 +29,7 @@ There are two main forms of caching:
 
   - Caches the entire image, skipping the build process completely (except for post-build [lifecycle scripts](./add-envbuilder.md#dev-container-lifecycle-scripts)).
 
-Note that caching requires push access to a registry, and may require approval from relevant infrastructure team(s).
+Note that caching requires push access to a registry, and might require approval from relevant infrastructure team(s).
 
 Refer to the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md) for more information about Envbuilder and caching.
 
@@ -48,7 +48,7 @@ The provider will:
 The example templates listed above will use the provider if a remote cache repository is provided.
 
 If you are building your own Dev container template, you can consult the [provider documentation](https://registry.terraform.io/providers/coder/envbuilder/latest/docs/resources/cached_image).
-You may also wish to consult a [documented example usage of the `envbuilder_cached_image` resource](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf).
+You might also wish to consult a [documented example usage of the `envbuilder_cached_image` resource](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf).
 
 ## Next steps
 

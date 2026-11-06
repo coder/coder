@@ -68,7 +68,7 @@ coder:
 
   If you are unsure, we recommend setting `readOnlyRootFilesystem` to `true` in an OpenShift environment.
 
-- For `seccompProfile`: in some environments, you may need to set this to `null` to allow OpenShift to pick its preferred value.
+- For `seccompProfile`: in some environments, you might need to set this to `null` to allow OpenShift to pick its preferred value.
 
 ### 3. Configure the Coder service, connection URLs, and cache values
 
@@ -84,7 +84,7 @@ In the below example, we mount this under `/tmp` and set the cache location to `
 This enables Coder to run with `readOnlyRootFilesystem: true`.
 
 > [!NOTE]
-> Depending on the number of templates and provisioners you use, you may need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
+> Depending on the number of templates and provisioners you use, you might need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
 
 Additionally, create the Coder service as a `ClusterIP`.
 In the next step, you will create an OpenShift route that points to the service HTTP target port.

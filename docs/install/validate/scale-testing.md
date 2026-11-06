@@ -101,7 +101,7 @@ While the minimum requirements specify 1&nbsp;CPU core and 2&nbsp;GB of memory p
 
 #### CPU and memory usage
 
-Enabling [agent stats collection](../../reference/cli/server/index.md#--prometheus-collect-agent-stats) (optional) may increase memory consumption.
+Enabling [agent stats collection](../../reference/cli/server/index.md#--prometheus-collect-agent-stats) (optional) might increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH traffic) can help prevent an increase in CPU usage.
 It is recommended to keep [this option enabled](../../reference/cli/index.md#--disable-direct-connections) unless there are compelling reasons to disable it.
@@ -120,7 +120,7 @@ When determining scaling requirements, consider the following factors:
 #### HTTP API latency
 
 For a reliable Coder deployment dealing with medium to high loads, it's important that API calls for workspace/template queries and workspace build operations respond within 300&nbsp;ms.
-However, API template insights calls, which involve browsing workspace agent stats and user activity data, may require more time.
+However, API template insights calls, which involve browsing workspace agent stats and user activity data, might require more time.
 Moreover, Coder API exposes WebSocket long-lived connections for Web Terminal (bidirectional), and Workspace events/logs (unidirectional).
 
 If the Coder deployment expects traffic from developers spread across the globe, be aware that customer-facing latency might be higher because of the distance between users and the load balancer.
@@ -185,4 +185,4 @@ Another option is to scale based on metrics such as the number of workspaces or 
 It's important to note that as new users onboard, the autoscaling configuration should account for ongoing workspaces.
 
 Scaling down workspace nodes to zero is not recommended, as it will result in longer wait times for workspace provisioning by users.
-However, this may be necessary for workspaces with special resource requirements (for example, graphics processing units (GPUs)) that incur significant cost overheads.
+However, this might be necessary for workspaces with special resource requirements (for example, graphics processing units (GPUs)) that incur significant cost overheads.

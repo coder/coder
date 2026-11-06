@@ -152,7 +152,7 @@ ai_gateway:
 
 > [!WARNING]
 > Audit Logs provide critical security and compliance information.
-> Purging Audit Logs may impact your organization's ability to investigate security incidents or meet compliance requirements.
+> Purging Audit Logs might impact your organization's ability to investigate security incidents or meet compliance requirements.
 > Consult your security and compliance teams before configuring Audit Log retention.
 
 Common compliance frameworks have varying retention requirements:
@@ -173,7 +173,7 @@ See [Capture and export audit logs](../security/audit-logs.md#capture-and-export
 
 ### Database Maintenance
 
-After enabling retention policies, you may want to run a `VACUUM` operation on your PostgreSQL database to reclaim disk space.
+After enabling retention policies, you might want to run a `VACUUM` operation on your PostgreSQL database to reclaim disk space.
 See [Maintenance Procedures](../security/audit-logs.md#maintenance-procedures-for-the-audit-logs-table) for guidance.
 
 <a id="keeping-data-indefinitely"></a>

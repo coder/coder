@@ -37,7 +37,7 @@ terraform {
 ```
 
 Any new releases of the `coder` or `frobnicate` providers will be picked up upon the next time a workspace is built using this template.
-This may include breaking changes.
+This might include breaking changes.
 
 To prevent this, add a [version constraint](https://developer.hashicorp.com/terraform/language/expressions/version-constraints) to each provider in the `required_providers` block:
 

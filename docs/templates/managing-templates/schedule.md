@@ -9,7 +9,7 @@ You can also manage the lifecycle of failed or inactive workspaces.
 
 ## Schedule
 
-Template [admins](../../admin/users/index.md) may define these default values:
+Template [admins](../../admin/users/index.md) can define these default values:
 
 - [**Default autostop**](../../workspaces/workspace-scheduling.md#autostop): How long a workspace runs without user activity before Coder automatically stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace restarts to apply template updates regardless of user activity.
@@ -22,7 +22,7 @@ Template [admins](../../admin/users/index.md) may define these default values:
 
 ## Allow users scheduling
 
-For templates where a uniform autostop duration is not appropriate, admins may allow users to define their own autostart and autostop schedules.
+For templates where a uniform autostop duration is not appropriate, admins can allow users to define their own autostart and autostop schedules.
 Admins can restrict the days of the week a workspace should automatically start to help manage infrastructure costs.
 
 ## Failure cleanup

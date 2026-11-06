@@ -456,7 +456,7 @@ WARN  rejecting CONNECT request  host=... provider=... reason=missing_credential
 A `401 Unauthorized` from AI Gateway means the token was rejected as expired or invalid.
 
 > [!NOTE]
-> Some clients may send the first request without credentials and retry on a `407` response.
+> Some clients might send the first request without credentials and retry on a `407` response.
 > An initial `missing_credentials` warning can accompany a connection that ultimately succeeds.
 
 Confirm the token is current and set in the password field of the proxy credentials.

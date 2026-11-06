@@ -4,7 +4,7 @@ title: Configure chat lifecycle hooks
 
 > [!NOTE]
 > Chat lifecycle hooks are an experimental feature.
-> The feature requires the `agent-lifecycle-hooks` experiment, and the consumer contract (including the request schema and JSON Web Token (JWT) claims) may change or be removed in any release without a compatibility guarantee.
+> The feature requires the `agent-lifecycle-hooks` experiment, and the consumer contract (including the request schema and JSON Web Token (JWT) claims) might change or be removed in any release without a compatibility guarantee.
 
 This guide is for Coder deployment administrators who need to apply an external policy service to the agent loop.
 Work through it to configure the deployment, handle events in a consumer, recover from dispatch failures, and roll out enforcement.
@@ -118,7 +118,7 @@ Coder rejects a response body with unknown fields, duplicate JSON keys, or trail
 | Field           | Effect                                                                                                                                                                         |
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                                               |
-| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB. The text is absent from the user-visible transcript, but users may infer its effects from model behavior. |
+| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB. The text is absent from the user-visible transcript, but users might infer its effects from model behavior. |
 | `user_message`  | Adds a message visible to the user.                                                                                                                                            |
 
 The `permission.decision` value supports `allow` and `deny`.
