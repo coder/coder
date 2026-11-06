@@ -292,10 +292,11 @@ The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 How long the reaper waits for a workspace to build and start its worker, measured from when the latest build was created.
 Must be positive.
 
-- A build that is still pending or starting waits for the longer of this grace and the pool's `dispatch_deadline`, then the reaper deletes the workspace.
-- A build that finished but whose worker still reports no status, or `pending`, fails after this grace, which includes the time spent building.
-- A short grace can fail workspaces whose agent connects slowly or whose worker starts slowly.
-  Keep the default unless you run an isolated test deployment.
+- If a build is still pending or starting after the longer of this grace and the pool's `dispatch_deadline`, the reaper deletes the workspace.
+- A workspace where the build finished but the worker still reports no status, or `pending`, fails after this grace.
+  The grace includes the time spent building.
+- A short grace can fail workspaces where the agent connects slowly or the worker starts slowly.
+  Unless you run an isolated test deployment, keep the default.
 
 The reaper sweeps about every 30&nbsp;seconds, so cleanup isn't exact to the second.
 Requires Agent Relay v0.15.0 or later.
@@ -310,13 +311,13 @@ Earlier versions use a fixed 15&nbsp;minutes.
 | YAML        | <code>reapDelay</code>                     |
 | Default     | <code>0s</code>                            |
 
-How long the reaper waits after the latest workspace build completes before it deletes a workspace whose worker exited cleanly, or whose build failed or was canceled.
+How long the reaper waits after the latest workspace build completes before it deletes a workspace where its worker exited cleanly, or where its build failed or was canceled.
 For a failed worker, the reaper also waits this long before it reports the failure to the provider and deletes the workspace.
-This postpones provider retries and the failure messages that users see.
+The delay postpones provider retries and the failure messages that users see.
 Must not be negative.
-A pool's `reap_delay` overrides it.
+A pool's `reap_delay` overrides this option.
 
-- A build that fails while Agent Relay is still dispatching it is deleted right away.
+- If a build fails while Agent Relay is still dispatching it, Agent Relay deletes the workspace right away.
 - If autostop could stop the workspace before the delay ends, the reaper deletes it right away.
 - A worker that never starts fails after the startup grace, so its delay might already have passed.
 - If the provider sends the session again and Agent Relay rebuilds the workspace, the delay starts over from the new build.

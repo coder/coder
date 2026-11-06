@@ -248,8 +248,9 @@ data "coder_script_order" "relay_worker" {
 - If a prerequisite fails, Coder skips the module's scripts and the worker never starts.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run.
-  Set a `timeout` on each prerequisite, and keep setup well under the reaper's [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes by default.
-  The grace starts when the latest build is created, and after it passes Agent Relay fails and deletes a workspace whose worker hasn't started.
+  Set a `timeout` on each prerequisite and keep setup well under the reaper's [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes by default.
+  The grace starts when the latest build is created.
+  After the grace passes, Agent Relay fails and deletes a workspace where the worker hasn't started.
 
 ## Step 4: Configure provider pools
 
@@ -391,13 +392,14 @@ Agent Relay's reaper reads it on each sweep:
 - When the worker exits normally, Agent Relay deletes the workspace.
 - When the worker fails or disappears, Agent Relay deletes the workspace and records the failure.
 - When a build fails or is canceled, Agent Relay deletes the workspace.
-- Agent Relay deletes a workspace that is still building after the longer of the reaper's startup grace and the pool's `dispatch_deadline`.
+- Agent Relay deletes a workspace that's still building after the longer of the reaper's startup grace and the pool's `dispatch_deadline`.
   The grace is 15&nbsp;minutes by default and starts when the latest build is created.
-- Agent Relay fails and deletes a workspace whose build finished but whose worker hasn't started within the startup grace.
+- Agent Relay fails and deletes a workspace where the build finished but the worker hasn't started within the startup grace.
 
 To keep finished workspaces for inspection, set a [reap delay](./configuration.md#--reap-delay) for every pool or a `reap_delay` for one pool.
 Agent Relay then waits that long after the latest build completes before it deletes the workspace.
-For a failed worker, it also waits to report the failure to the provider, which postpones provider retries and failure messages.
+For a failed worker, Agent Relay also waits to report the failure to the provider.
+The wait postpones provider retries and failure messages.
 To change the startup grace, set [`--reap-startup-grace`](./configuration.md#--reap-startup-grace).
 The startup grace and reap delay options require Agent Relay v0.15.0 or later.
 
