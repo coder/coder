@@ -133,6 +133,7 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 		const next: FilterCategory[] = [
 			{
 				key: "resource_type",
+				optionsKey: "audit.resource_type",
 				label: "Resource type",
 				aliases: ["resource"],
 				icon: <BoxIcon />,
@@ -140,12 +141,14 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 			},
 			{
 				key: "action",
+				optionsKey: "audit.action",
 				label: "Action",
 				icon: <ActivityIcon />,
 				getOptions: async () => actionOptions,
 			},
 			{
 				key: "username",
+				optionsKey: "audit.username",
 				label: "User",
 				aliases: ["user"],
 				icon: <UserIcon />,
@@ -155,6 +158,7 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 			},
 			{
 				key: "build_reason",
+				optionsKey: "audit.build_reason",
 				label: "Build reason",
 				icon: <HammerIcon />,
 				getOptions: async () =>
