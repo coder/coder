@@ -5408,6 +5408,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) RebindWorkspaceChatsToAgent(ctx context.Context, arg database.RebindWorkspaceChatsToAgentParams) ([]database.RebindWorkspaceChatsToAgentRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.RebindWorkspaceChatsToAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("RebindWorkspaceChatsToAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RebindWorkspaceChatsToAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)

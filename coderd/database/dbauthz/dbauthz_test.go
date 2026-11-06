@@ -744,6 +744,16 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 }
 
 func (s *MethodTestSuite) TestChats() {
+	s.Run("RebindWorkspaceChatsToAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.RebindWorkspaceChatsToAgentParams{
+			WorkspaceID: uuid.New(),
+			BuildID:     uuid.New(),
+			AgentID:     uuid.New(),
+		}
+		rows := []database.RebindWorkspaceChatsToAgentRow{{ID: uuid.New()}}
+		dbm.EXPECT().RebindWorkspaceChatsToAgent(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(rows)
+	}))
 	s.Run("HydrateAgentChatsContext", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.HydrateAgentChatsContextParams{AgentID: uuid.New()}
 		hydrated := []uuid.UUID{uuid.New()}

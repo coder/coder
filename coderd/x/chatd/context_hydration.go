@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -35,9 +37,18 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 // aggregateHash, and syncs snapshotError and MCP/ACP resources for unarchived
 // chats bound to agentID. Its callback publishes one event per changed chat after
 // commit.
-func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
+func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, firstPush bool, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
+
+	var adopted []uuid.UUID
+	if firstPush {
+		var err error
+		adopted, err = adoptWorkspaceChatsContext(ctx, tx, agentID, aggregateHash)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Chats created before the agent's first push land with a NULL pinned
 	// hash. Stamp them now so they start clean.
@@ -85,7 +96,7 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 		dirtiedIDs = append(dirtiedIDs, chat.ID)
 	}
 	// A chat can appear in several lists; publish it once.
-	touched := slice.Unique(slices.Concat(hydrated, dirtiedIDs, cleared, errorsSynced, synced))
+	touched := slice.Unique(slices.Concat(adopted, hydrated, dirtiedIDs, cleared, errorsSynced, synced))
 	if len(touched) == 0 {
 		return func() {}, nil
 	}
@@ -107,6 +118,52 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 	return func() {
 		p.publishChatPubsubEvents(touchedChats, codersdk.ChatWatchEventKindContextDirty)
 	}, nil
+}
+
+// adoptWorkspaceChatsContext moves chats to the latest build's selected chat
+// agent on its first push. Matching pins keep their resources.
+func adoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) ([]uuid.UUID, error) {
+	workspace, err := tx.GetWorkspaceByAgentID(ctx, agentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace for context adoption: %w", err)
+	}
+	if workspace.Deleted {
+		return nil, nil
+	}
+	agents, err := tx.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest build agents for context adoption: %w", err)
+	}
+	selected, err := agentselect.FindChatAgent(agents)
+	if err != nil || selected.ID != agentID {
+		return nil, nil
+	}
+	build, err := tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest build for context adoption: %w", err)
+	}
+	chats, err := tx.RebindWorkspaceChatsToAgent(ctx, database.RebindWorkspaceChatsToAgentParams{
+		WorkspaceID: workspace.ID,
+		BuildID:     build.ID,
+		AgentID:     agentID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("rebind workspace chats for context adoption: %w", err)
+	}
+	var adopted []uuid.UUID
+	for _, chat := range chats {
+		if chat.ContextAggregateHash != nil && bytes.Equal(chat.ContextAggregateHash, aggregateHash) {
+			continue
+		}
+		if err := repinChatContext(ctx, tx, chat.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+			return nil, xerrors.Errorf("re-pin chat context for new build: %w", err)
+		}
+		adopted = append(adopted, chat.ID)
+	}
+	return adopted, nil
 }
 
 // hydrateAgentChatsFromSnapshot stamps every chat bound to agentID that still

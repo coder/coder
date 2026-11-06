@@ -1666,6 +1666,37 @@ SET
     context_dirty_since = NULL
 WHERE id = @id::uuid;
 
+-- name: RebindWorkspaceChatsToAgent :many
+-- Rebinds non-archived workspace chats except those bound to another agent in
+-- this build or unbound without a pin. Keep updated_at unchanged: adopting a
+-- build is background state and must not reorder chat lists. Lock in ID order
+-- to serialize with context refresh and live resource sync.
+WITH build_agents AS (
+    SELECT workspace_agents.id
+    FROM workspace_agents
+    JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+    JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+    WHERE workspace_builds.id = @build_id::uuid
+),
+locked AS (
+    SELECT id
+    FROM chats
+    WHERE workspace_id = @workspace_id::uuid
+        AND archived = false
+        AND (
+            agent_id = @agent_id::uuid
+            OR agent_id NOT IN (SELECT id FROM build_agents)
+            OR (agent_id IS NULL AND context_aggregate_hash IS NOT NULL)
+        )
+    ORDER BY id
+    FOR UPDATE
+)
+UPDATE chats
+SET build_id = @build_id::uuid,
+    agent_id = @agent_id::uuid
+WHERE id IN (SELECT id FROM locked)
+RETURNING id, context_aggregate_hash;
+
 -- name: HydrateAgentChatsContext :many
 -- Stamps the pinned hash and error on every not-yet-hydrated chat for
 -- an agent (context_aggregate_hash IS NULL) and copies the agent's

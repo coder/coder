@@ -16,12 +16,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -328,6 +330,231 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "resolving the snapshot error does not mark the chat dirty")
 	require.Empty(t, got.Context.Error)
 	requireChatContextEvent(ctx, t, events, false, "")
+}
+
+func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// In-memory publication finishes before the RPC returns, including when
+	// no event is expected for an unchanged pin.
+	ps := dbpubsub.NewInMemory()
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		Database:                 rawDB,
+		Pubsub:                   ps,
+	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+	//nolint:gocritic // Inspect chat-owned context as the daemon subject.
+	chatCtx := dbauthz.AsChatd(ctx)
+
+	newVersion := func(templateID uuid.UUID, token, sidecarToken string) codersdk.TemplateVersion {
+		t.Helper()
+		graph := echo.ProvisionGraphWithAgent(token, func(g *proto.GraphComplete) {
+			g.Resources[0].Agents[0].Name = "workspace-coderd-chat"
+			if sidecarToken != "" {
+				g.Resources[0].Agents = append(g.Resources[0].Agents, &proto.Agent{
+					Id:   uuid.NewString(),
+					Name: "aaa-sidecar",
+					Auth: &proto.Agent_Token{Token: sidecarToken},
+				})
+			}
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: graph,
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = templateID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		return version
+	}
+	connectAgent := func(token string) agentproto.DRPCAgentClient210 {
+		t.Helper()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(token))
+		rpc, _, err := agentClient.ConnectRPC210(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = rpc.DRPCConn().Close() })
+		return rpc
+	}
+	push := func(rpc agentproto.DRPCAgentClient210, version uint64, initial bool, hash byte, source string) {
+		t.Helper()
+		resp, err := rpc.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       version,
+			Initial:       initial,
+			AggregateHash: []byte{hash},
+			Resources: []*agentproto.ContextResource{{
+				Source:      source,
+				ContentHash: []byte{hash},
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_InstructionFile{
+					InstructionFile: &agentproto.InstructionFileBody{Content: []byte{hash}},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+	}
+
+	oldToken := uuid.NewString()
+	version := newVersion(uuid.Nil, oldToken, "")
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ws, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	oldAgentID := ws.LatestBuild.Resources[0].Agents[0].ID
+	oldRPC := connectAgent(oldToken)
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	newChat := func(workspaceID uuid.UUID, agentID uuid.NullUUID, status database.ChatStatus) database.Chat {
+		t.Helper()
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:           uuid.NullUUID{UUID: ws.LatestBuild.ID, Valid: true},
+			AgentID:           agentID,
+			LastModelConfigID: model.ID,
+			Status:            status,
+		})
+	}
+	oldBinding := uuid.NullUUID{UUID: oldAgentID, Valid: true}
+	idle := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
+	errored := newChat(workspace.ID, oldBinding, database.ChatStatusError)
+	unbound := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
+	unchanged := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
+	archived := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
+	push(oldRPC, 1, true, 0x01, "/old/AGENTS.md")
+	push(oldRPC, 2, false, 0x02, "/new/AGENTS.md")
+	_, err = expClient.RefreshChatContext(ctx, unchanged.ID)
+	require.NoError(t, err)
+	unchangedResources, err := db.ListChatContextResourcesByChatID(chatCtx, unchanged.ID)
+	require.NoError(t, err)
+	require.Len(t, unchangedResources, 1)
+	unbound, err = db.UpdateChatBuildAgentBinding(chatCtx, database.UpdateChatBuildAgentBindingParams{
+		ID:      unbound.ID,
+		BuildID: unbound.BuildID,
+	})
+	require.NoError(t, err)
+	_, err = db.ArchiveChatByID(chatCtx, archived.ID)
+	require.NoError(t, err)
+	unpinned := newChat(workspace.ID, uuid.NullUUID{}, database.ChatStatusWaiting)
+	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		TemplateID:     template.ID,
+	})
+	otherChat := newChat(otherWorkspace.ID, uuid.NullUUID{}, database.ChatStatusWaiting)
+	require.NoError(t, db.SetChatContextSnapshot(chatCtx, database.SetChatContextSnapshotParams{
+		ID:            otherChat.ID,
+		AggregateHash: []byte{0x01},
+	}))
+
+	newToken, sidecarToken := uuid.NewString(), uuid.NewString()
+	version = newVersion(template.ID, newToken, sidecarToken)
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition:        codersdk.WorkspaceTransitionStart,
+		TemplateVersionID: version.ID,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	ws, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, ws.LatestBuild.Resources[0].Agents, 2)
+	var newAgentID, sidecarID uuid.UUID
+	for _, agent := range ws.LatestBuild.Resources[0].Agents {
+		if agent.Name == "workspace-coderd-chat" {
+			newAgentID = agent.ID
+		} else {
+			sidecarID = agent.ID
+		}
+	}
+	require.NotEqual(t, oldAgentID, newAgentID)
+	var previousAgentID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM workspace_agents WHERE id = $1`, oldAgentID).Scan(&previousAgentID)
+	require.NoError(t, err, "the previous build's agent row still exists")
+	require.Equal(t, oldAgentID, previousAgentID)
+	alreadyBound := newChat(workspace.ID, uuid.NullUUID{UUID: newAgentID, Valid: true}, database.ChatStatusWaiting)
+	require.NoError(t, db.SetChatContextSnapshot(chatCtx, database.SetChatContextSnapshotParams{
+		ID:            alreadyBound.ID,
+		AggregateHash: []byte{0x01},
+	}))
+	sidecarChat := newChat(workspace.ID, uuid.NullUUID{UUID: sidecarID, Valid: true}, database.ChatStatusWaiting)
+
+	events := make(chan codersdk.ChatWatchEvent, 32)
+	cancelSub, err := ps.SubscribeWithErr(coderdpubsub.ChatWatchEventChannel(user.UserID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, event codersdk.ChatWatchEvent, err error) {
+			require.NoError(t, err)
+			if event.Kind == codersdk.ChatWatchEventKindContextDirty {
+				events <- event
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(cancelSub)
+	readChat := func(id uuid.UUID) database.Chat {
+		t.Helper()
+		chat, err := db.GetChatByID(chatCtx, id)
+		require.NoError(t, err)
+		return chat
+	}
+
+	sidecarRPC := connectAgent(sidecarToken)
+	push(sidecarRPC, 1, true, 0x03, "/sidecar/AGENTS.md")
+	require.Equal(t, oldBinding, readChat(idle.ID).AgentID, "the unselected agent cannot adopt chats")
+	event := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, sidecarChat.ID, event.Chat.ID)
+	require.Empty(t, events)
+
+	newRPC := connectAgent(newToken)
+	// The first accepted push need not carry Initial, which is process-scoped.
+	push(newRPC, 1, false, 0x02, "/new/AGENTS.md")
+	adopted := []database.Chat{idle, errored, unbound, alreadyBound}
+	for _, before := range append(adopted, unchanged) {
+		chat := readChat(before.ID)
+		require.Equal(t, uuid.NullUUID{UUID: newAgentID, Valid: true}, chat.AgentID)
+		require.Equal(t, uuid.NullUUID{UUID: build.ID, Valid: true}, chat.BuildID)
+		require.Equal(t, []byte{0x02}, chat.ContextAggregateHash)
+		require.False(t, chat.ContextDirtySince.Valid)
+		require.Equal(t, before.UpdatedAt, chat.UpdatedAt, "adoption does not reorder idle chats")
+		resources, err := db.ListChatContextResourcesByChatID(chatCtx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		require.Equal(t, "/new/AGENTS.md", resources[0].Source)
+		if chat.ID == unchanged.ID {
+			require.Equal(t, unchangedResources, resources, "matching pins are not rewritten")
+		}
+	}
+	var eventChatIDs []uuid.UUID
+	for range adopted {
+		event := testutil.RequireReceive(ctx, t, events)
+		require.False(t, event.Chat.Context.Dirty)
+		eventChatIDs = append(eventChatIDs, event.Chat.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{idle.ID, errored.ID, unbound.ID, alreadyBound.ID}, eventChatIDs)
+	require.Empty(t, events, "unchanged context emits no event")
+	require.Equal(t, oldBinding, readChat(archived.ID).AgentID)
+	require.Equal(t, []byte{0x01}, readChat(archived.ID).ContextAggregateHash)
+	require.False(t, readChat(unpinned.ID).AgentID.Valid, "an unbound chat without a pin stays unbound")
+	require.Nil(t, readChat(unpinned.ID).ContextAggregateHash)
+	require.Equal(t, sidecarID, readChat(sidecarChat.ID).AgentID.UUID)
+	require.Equal(t, []byte{0x03}, readChat(sidecarChat.ID).ContextAggregateHash)
+	require.False(t, readChat(otherChat.ID).AgentID.Valid)
+	require.Equal(t, []byte{0x01}, readChat(otherChat.ID).ContextAggregateHash)
+
+	// An agent-process restart in the same build still requires refresh.
+	push(newRPC, 1, true, 0x04, "/changed/AGENTS.md")
+	for _, before := range append(adopted, unchanged) {
+		chat := readChat(before.ID)
+		require.Equal(t, []byte{0x02}, chat.ContextAggregateHash)
+		require.True(t, chat.ContextDirtySince.Valid)
+	}
 }
 
 // TestChatContextLiveSyncFromAgentPush verifies that agent pushes live-sync MCP

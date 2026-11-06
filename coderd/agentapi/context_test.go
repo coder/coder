@@ -700,7 +700,7 @@ type fakeChatContextUpdater struct {
 	gotErr    string
 }
 
-func (f *fakeChatContextUpdater) UpdateAgentChatsContext(_ context.Context, _ database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ time.Time) (func(), error) {
+func (f *fakeChatContextUpdater) UpdateAgentChatsContext(_ context.Context, _ database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ bool, _ time.Time) (func(), error) {
 	f.called++
 	f.gotAgent = agentID
 	f.gotHash = aggregateHash

@@ -81,7 +81,7 @@ type ChatContextUpdater interface {
 	// UpdateAgentChatsContext pins unpinned chats, marks or clears dirty markers,
 	// and syncs errors and MCP/ACP resources using the supplied push transaction.
 	// The returned callback notifies watchers after commit.
-	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishContext func(), err error)
+	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, firstPush bool, now time.Time) (publishContext func(), err error)
 }
 
 // PushContextState persists a snapshot pushed by the workspace
@@ -159,6 +159,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		publishContext = nil
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
+		firstPush := errors.Is(err, sql.ErrNoRows)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			// No previous snapshot; first push always wins.
@@ -207,7 +208,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// Update chats in the push transaction so refresh cannot interleave.
 		// Notify watchers only after commit.
 		if a.ChatContextUpdater != nil {
-			publishContext, err = a.ChatContextUpdater.UpdateAgentChatsContext(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
+			publishContext, err = a.ChatContextUpdater.UpdateAgentChatsContext(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, firstPush, now)
 			if err != nil {
 				return xerrors.Errorf("update agent chats context: %w", err)
 			}

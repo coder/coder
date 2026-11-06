@@ -1492,6 +1492,11 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Rebinds non-archived workspace chats except those bound to another agent in
+	// this build or unbound without a pin. Keep updated_at unchanged: adopting a
+	// build is background state and must not reorder chat lists. Lock in ID order
+	// to serialize with context refresh and live resource sync.
+	RebindWorkspaceChatsToAgent(ctx context.Context, arg RebindWorkspaceChatsToAgentParams) ([]RebindWorkspaceChatsToAgentRow, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)

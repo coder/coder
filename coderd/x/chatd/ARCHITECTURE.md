@@ -1174,6 +1174,7 @@ The generation goroutine supports:
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
 - workspace binding
+  <!-- TODO: Document first-push adoption of the latest build's context, including idle chats and unchanged pins. -->
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use
