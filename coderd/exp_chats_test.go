@@ -9345,7 +9345,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// The fallback title derives from the pasted attachment
 		// content instead of "New Chat".
-		require.Equal(t, "Fix the flaky test in coderd…", chat.Title)
+		require.Equal(t, "Fix the flaky test in coderd please", chat.Title)
 	})
 
 	t.Run("InvalidFileID", func(t *testing.T) {
@@ -12103,7 +12103,7 @@ func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
 	require.NoError(t, err)
 	// The create response carries the synchronous fallback title derived
 	// from the pasted attachment content.
-	require.Equal(t, "panic: runtime error: invalid memory address…", chat.Title)
+	require.Equal(t, pasteContent, chat.Title)
 
 	select {
 	case <-titleRequested:
